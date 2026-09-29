@@ -1,0 +1,42 @@
+{{!
+    @template theme_ute/login
+    Trang đăng nhập hai cột của theme UTE.
+}}
+{{> theme_boost/head }}
+
+<body {{{ bodyattributes }}}>
+{{> core/local/toast/wrapper}}
+<div id="page-wrapper">
+    {{{ output.standard_top_of_body_html }}}
+    <div id="page" class="ute-login-page">
+        <aside class="ute-login-aside">
+            <div class="ute-brand">
+                <div class="ute-logo">UTE</div>
+                <div><div class="ute-brand-name">{{shortname}}</div><div class="ute-brand-sub">{{sitename}}</div></div>
+            </div>
+            <div class="ute-login-hero">
+                <h1>{{logintitle}}</h1>
+                <ul class="ute-login-bullets">
+                    {{#bullets}}<li><i class="fa fa-check-circle" aria-hidden="true"></i> {{text}}</li>{{/bullets}}
+                </ul>
+            </div>
+            <div class="ute-login-foot">© {{year}} · {{#str}}login_footer, theme_ute{{/str}}</div>
+        </aside>
+        <main id="region-main" class="ute-login-main">
+            <div class="login-wrapper">
+                <div class="login-container">
+                    {{{ output.main_content }}}
+                </div>
+            </div>
+        </main>
+    </div>
+    {{{ output.standard_after_main_region_html }}}
+</div>
+</body>
+</html>
+{{#js}}
+M.util.js_pending('theme_boost/loader');
+require(['theme_boost/loader'], function() {
+  M.util.js_complete('theme_boost/loader');
+});
+{{/js}}

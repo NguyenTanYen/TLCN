@@ -1,0 +1,32 @@
+@startuml
+!include sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ExamDetail" as UI
+control "sync router" as API
+control "paper service" as PS
+database "assessment_db" as DB
+control "Analysis Engine" as AE
+GV -> UI : Chọn tệp phiếu (CSV/XLSX)
+UI -> API : POST /api/exams/{id}/paper-import
+API -> PS : import_answer_sheets(tệp)
+PS -> DB : sync_runs (paper, running)
+PS -> DB : đọc mã đề + bảng hoán vị (version_layout)
+alt chưa sinh mã đề / tệp sai định dạng
+  PS --> API : ValueError
+  API --> UI : 422
+else
+  PS -> DB : xóa bài làm source = 'paper' cũ (nhập lại an toàn)
+  loop mỗi dòng phiếu
+    alt MSSV hoặc mã đề không tồn tại
+      PS -> PS : thêm cảnh báo "Dòng i: ..."
+    else
+      PS -> PS : Qk (vị trí trên đề) → câu gốc;\nnhãn tô → option_id gốc; trống = blank
+      PS -> DB : exam_attempts, item_level_results
+    end
+  end
+  PS -> DB : SV trong lớp không có phiếu → absent
+  PS -> DB : sync_runs = success
+  API -> AE : analyze_exam(id)
+  API --> UI : 200 {imported, absent, warnings, analysis}
+end
+@enduml

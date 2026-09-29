@@ -1,0 +1,44 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam dpi 160
+skinparam shadowing false
+skinparam ActivityBackgroundColor #EAF2FB
+skinparam ActivityBorderColor #445566
+skinparam ActivityDiamondBackgroundColor #FFF4D6
+|Giảng viên|
+start
+if (Hình thức?) then (trực tuyến)
+  :Nhấn "Đồng bộ & phân tích";
+  |Hệ thống|
+  :sp_sync_exam: đọc lượt bài được tính điểm\n(theo grademethod, bỏ lượt xem trước);
+  if (Quiz tồn tại & mọi câu ánh xạ được QB-n?) then (không)
+    :ROLLBACK, ghi sync_runs = failed,\nbáo lỗi cho GV;
+    stop
+  endif
+  :Reverse Shuffle: _order + answer\n→ phương án gốc;
+else (trên giấy)
+  |Giảng viên|
+  :Tải lên tệp phiếu trả lời\n(MSSV, mã đề, Q1..Qn);
+  |Hệ thống|
+  :Tra bảng hoán vị của mã đề\n→ câu hỏi & phương án gốc;
+  :Cảnh báo dòng sai MSSV / mã đề;
+endif
+:Ghi exam_attempts, item_level_results\n(answered / blank / absent);
+:Analysis Engine (Pandas): p, DI (Kelley 27%),\nđiểm CLO từng SV (BM6c);
+:Tổng hợp CLO lớp HP (BM6b/6d) → PI (BM3c) → PLO (BM2);
+:Sinh lộ trình ôn tập cho SV chưa đạt CLO;
+|Giảng viên|
+:Xem phổ điểm, chỉ số câu hỏi, kết quả CLO,\nminh chứng; ghi nhận xét & cải tiến;
+fork
+  :Xuất BM6 (.xlsx);
+fork again
+  :Công bố kết quả;
+  |Sinh viên|
+  :Xem radar CLO so với ngưỡng & TB lớp,\nlộ trình ôn tập;
+fork again
+  |Bộ môn|
+  :Xem tổng hợp PLO năm học,\nnhập nhận xét, xuất BM2/BM3;
+end fork
+stop
+@enduml

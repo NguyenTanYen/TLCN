@@ -1,0 +1,34 @@
+@startuml
+!include sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ExamDetail" as UI
+control "sync router" as API
+control "moodle service" as MS
+database "assessment_db\n(sp_sync_exam, view cầu nối)" as DB
+database "CSDL Moodle\n(chỉ đọc)" as MD
+control "Analysis Engine\n(Pandas)" as AE
+GV -> UI : Đồng bộ & phân tích
+UI -> API : POST /api/exams/{id}/sync
+API -> MS : sync_exam(exam_id)
+MS -> DB : CALL sp_sync_exam(id)\n(kết nối AUTOCOMMIT)
+DB -> DB : INSERT sync_runs (running)
+DB -> MD : quiz tồn tại? câu hỏi → QB-n?
+alt Quiz không có / câu không ánh xạ được
+  DB -> DB : ROLLBACK; sync_runs = failed
+  DB --> MS : SIGNAL SQLSTATE 45000
+  MS --> API : lỗi
+  API --> UI : 502 (LMS) / 409
+else hợp lệ
+  DB -> MD : v_mdl_attempts: lượt được tính điểm\n(grademethod, preview = 0, finished)
+  DB -> MD : v_mdl_responses: _order (bước 0), answer (bước cuối)
+  DB -> DB : Reverse Shuffle → question_options.id
+  DB -> DB : upsert students, enrollments;\nexam_attempts (không ghi đè bài giấy);\nSV vắng = absent; item_level_results
+  DB -> DB : sync_runs = success; exams.status = Synced
+  DB --> MS : OK
+  API -> AE : analyze_exam(id)
+  AE -> DB : đọc bài làm, ma trận câu–CLO, kế hoạch CLO
+  AE -> AE : p, DI; điểm CLO từng SV; tổng hợp CLO/PI/PLO;\nlộ trình ôn tập
+  AE -> DB : item_statistics, attempt_clo_results, clo_results,\npi_results, plo_results, learning paths; status = Analyzed
+  API --> UI : 200 {sync, analysis}
+end
+@enduml

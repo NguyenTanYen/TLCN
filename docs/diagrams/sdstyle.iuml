@@ -1,0 +1,24 @@
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign center
+skinparam dpi 170
+skinparam shadowing false
+hide footbox
+skinparam ArrowColor #333333
+skinparam ActorBorderColor #333333
+skinparam ActorBackgroundColor #FDF3E1
+skinparam ParticipantBorderColor #333333
+skinparam BoundaryBorderColor #333333
+skinparam ControlBorderColor #333333
+skinparam DatabaseBorderColor #333333
+skinparam BoundaryBackgroundColor #D6EEF2
+skinparam ControlBackgroundColor #D6EEF2
+skinparam DatabaseBackgroundColor #D6EEF2
+skinparam NoteBackgroundColor #F6E7C8
+skinparam NoteBorderColor #999999
+skinparam sequence {
+  LifeLineBorderColor #777777
+  LifeLineBackgroundColor #D6EEF2
+  GroupBorderColor #888888
+  GroupBackgroundColor #EEF6E8
+}

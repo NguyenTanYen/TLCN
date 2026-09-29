@@ -1,0 +1,29 @@
+@startuml
+!include sdstyle.iuml
+actor "Giảng viên" as GV
+actor "Bộ môn" as BM
+boundary "CloResults /\nPloSummary" as UI
+control "analytics &\nreports router" as API
+control "reports_excel\n(openpyxl)" as XL
+database "assessment_db" as DB
+GV -> UI : Xem kết quả CĐR lớp HP
+UI -> API : GET /api/class-sections/{id}/clo-results
+API -> DB : clo_results ⋈ clo_assessment_plans ⋈ clo_plo_mapping
+API --> UI : BM6b + kết quả môn học (Σ đạt / Σ đánh giá)
+GV -> UI : Mở minh chứng CLO
+UI -> API : GET .../clo-results/{clo}/evidence
+API -> DB : attempt_clo_results theo bài KT;\ncâu hỏi của CLO sắp theo DI
+GV -> UI : Ghi nhận xét, cải tiến
+UI -> API : PUT .../clo-results/{clo}
+GV -> UI : Xuất BM6
+UI -> API : GET /api/reports/class-sections/{id}/bm6.xlsx
+API -> XL : build_bm6() – BM6a, BM6b, BM6c/6d mỗi CLO
+XL --> UI : tệp .xlsx
+BM -> UI : Tổng hợp PLO năm học
+UI -> API : GET /api/reports/programs/1/plo-summary?academic_year
+API -> DB : plos ⟕ plo_results; Σ toàn CTĐT (BM2)
+BM -> UI : Xuất BM2/BM3
+UI -> API : GET /api/reports/programs/1/bm3.xlsx
+API -> XL : build_bm3() – BM2 tổng hợp, BM3b & BM3c mỗi PLO
+XL --> UI : tệp .xlsx
+@enduml

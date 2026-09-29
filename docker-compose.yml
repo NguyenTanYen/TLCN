@@ -1,0 +1,50 @@
+# Hệ thống hỗ trợ kiểm tra, đánh giá và phân tích mức độ đạt CĐR – Nhóm 01
+#   docker compose up -d --build
+#   Hệ thống:  http://localhost:8000   (gv.son / Gv@123456, admin / Admin@123, 22130001 / Sv@123456)
+#   Moodle:    http://localhost:8080   (admin / Moodle@123456)  – lần đầu cài mất vài phút
+services:
+  db:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --log-bin-trust-function-creators=1
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    ports: ["3307:3306"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot_pass"]
+      interval: 5s
+      retries: 30
+
+  moodle:
+    build: ./docker/moodle
+    environment:
+      MOODLE_URL: http://localhost:8080
+      MOODLE_DB_HOST: db
+      MOODLE_DB_USER: moodle
+      MOODLE_DB_PASS: moodle_pass
+      MOODLE_ADMIN_PASS: Moodle@123456
+    volumes:
+      - moodledata:/var/www/moodledata
+      - moodlecode:/var/www/html
+    ports: ["8080:80"]
+    depends_on:
+      db: {condition: service_healthy}
+
+  app:
+    build: {context: ., dockerfile: backend/Dockerfile}
+    environment:
+      DATABASE_URL: mysql+pymysql://tlcn:tlcn_pass@db:3306/assessment_db?charset=utf8mb4
+      MOODLE_DB_NAME: moodle
+      MOODLE_PREFIX: mdl_
+      JWT_SECRET: hay-doi-khoa-bi-mat-nay-khi-trien-khai-that
+      DEMO_DATA: "1"
+    ports: ["8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+
+volumes:
+  dbdata:
+  moodledata:
+  moodlecode:

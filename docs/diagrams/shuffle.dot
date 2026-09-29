@@ -1,0 +1,10 @@
+digraph S { rankdir=TB; graph [fontname="DejaVu Sans", dpi=160, nodesep=0.25, ranksep=0.5];
+node [shape=record, fontname="DejaVu Sans", fontsize=10, style=filled, fillcolor="#FFFFFF", color="#445566"];
+edge [fontname="DejaVu Sans", fontsize=9, color="#445566"];
+xml [label="{Hệ thống: question_options (position)|1: SELECT|2: UPDATE|3: ALTER TABLE ✓|4: GRANT}", fillcolor="#EAF2FB"];
+ans [label="{Moodle: mdl_question_answers (id tăng dần)|5001: SELECT|5002: UPDATE|5003: ALTER TABLE ✓|5004: GRANT}", fillcolor="#E6F4F4"];
+ord [label="{Bước 0 – step_data _order\n= \"5002,5004,5001,5003\"|a. 5002 UPDATE|b. 5004 GRANT|c. 5001 SELECT|d. 5003 ALTER TABLE}", fillcolor="#FFF4D6"];
+pick [label="{Bước cuối – step_data answer = 3\n(SV chọn phương án thứ 4 hiển thị: d)}", fillcolor="#FDF3E1"];
+res [label="{Reverse Shuffle|_order[3] = 5003|hạng của 5003 trong câu = 3|→ position 3 → option ALTER TABLE ✓|item_level_results: đúng, được 0,5 đ}", fillcolor="#EAF6EA"];
+xml -> ans [label="nhập XML\n(giữ thứ tự)"]; ans -> ord [label="Moodle xáo\nkhi bắt đầu lượt"]; ord -> pick; pick -> res; ans -> res [style=dashed, label="hạng theo id\n(số id nhỏ hơn + 1)"];
+}

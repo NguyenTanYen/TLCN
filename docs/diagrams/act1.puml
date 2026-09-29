@@ -1,0 +1,45 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 12
+skinparam dpi 160
+skinparam shadowing false
+skinparam ActivityBackgroundColor #EAF2FB
+skinparam ActivityBorderColor #445566
+skinparam ActivityDiamondBackgroundColor #FFF4D6
+skinparam SwimlaneTitleFontStyle bold
+|Giảng viên|
+start
+:Chọn môn học, nhập câu hỏi,\nchương, mức Bloom, các phương án;
+:Gắn một/nhiều CLO kèm trọng số;
+|Hệ thống|
+if (Đúng 1 đáp án, 2–10 phương án,\nΣ trọng số CLO = 1?) then (không)
+  :Trả lỗi 422, giữ dữ liệu đã nhập;
+  |Giảng viên|
+  :Sửa lại câu hỏi;
+  detach
+else (có)
+  :Lưu question_bank, question_options,\nquestion_clo_mapping (1 giao dịch);
+endif
+|Giảng viên|
+:Tạo bài KT cho lớp HP: chọn câu theo CLO/chương,\nđặt điểm, chọn loại minh chứng (quá trình/cuối kỳ);
+|Hệ thống|
+:Lưu exams, exam_questions (trạng thái Draft);
+if (Hình thức?) then (trực tuyến)
+  :Sinh Moodle XML\n(idnumber = QB-{id}, answer theo position);
+  |Giảng viên|
+  :Nhập XML vào Moodle, tạo Quiz\n(bật xáo trộn phương án);
+  |Moodle LMS|
+  :Lưu câu hỏi, Quiz;\nSV làm bài, Moodle tự chấm;
+  |Giảng viên|
+  :Nhập ID Quiz để liên kết bài KT;
+else (trên giấy)
+  |Hệ thống|
+  :Sinh k mã đề: hoán vị câu & phương án,\nlưu exam_versions / _questions / _options;
+  :Xuất đề .docx từng mã, đáp án .xlsx;
+  |Giảng viên|
+  :In đề, tổ chức thi, chấm phiếu bằng máy quét;
+endif
+|Hệ thống|
+:Trạng thái bài KT = Published;
+stop
+@enduml

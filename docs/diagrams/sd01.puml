@@ -1,0 +1,32 @@
+@startuml
+!include sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "QuestionBank\n(React)" as UI
+control "questions router\n(FastAPI)" as API
+control "QuestionIn\n(pydantic)" as VAL
+database "assessment_db" as DB
+GV -> UI : Nhập câu hỏi, phương án,\nCLO + trọng số
+UI -> API : POST /api/questions
+API -> VAL : kiểm tra dữ liệu
+alt 2–10 phương án, đúng 1 đáp án, Σw = 1
+  VAL --> API : hợp lệ
+  API -> DB : kiểm tra CLO thuộc môn, chương thuộc môn
+  API -> DB : BEGIN; INSERT question_bank, question_options,\nquestion_clo_mapping; COMMIT
+  API --> UI : 201 {câu hỏi}
+else không hợp lệ
+  VAL --> API : lỗi
+  API --> UI : 422 {thông báo tiếng Việt}
+end
+== Sửa / Hủy / Xóa ==
+GV -> UI : Sửa câu hỏi
+UI -> API : PUT /api/questions/{id}
+API -> DB : đếm item_level_results của câu
+alt đã có kết quả thi
+  API --> UI : 409 "chỉ được Hủy"
+  GV -> UI : Hủy (nhập lý do)
+  UI -> API : PATCH /api/questions/{id}/cancel
+  API -> DB : UPDATE is_cancelled = 1, cancel_reason
+else chưa có kết quả
+  API -> DB : cập nhật nội dung, phương án, CLO
+end
+@enduml

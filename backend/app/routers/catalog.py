@@ -1,0 +1,232 @@
+"""Danh mục: học kỳ, CTĐT–PLO–PI, kế hoạch đo PI (BM3b), phân công, môn học–CLO, kế hoạch CLO (BM6a),
+lớp học phần và danh sách SV (UC-06)."""
+import csv
+import io
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..deps import check_section_access, current_user, require
+from ..models import (CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
+                      PIPlanCLO, PLO, Program, Student, User)
+from ..services import results
+from ..schemas import CLOIn, CLOPlanIn, PIPlanIn, PLOIn
+
+router = APIRouter(prefix="/api", tags=["Danh mục & kế hoạch đo lường"])
+
+
+def rows(db: Session, sql: str, **p) -> list[dict]:
+    return [dict(r) for r in db.execute(text(sql), p).mappings()]
+
+
+@router.get("/semesters")
+def semesters(db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, "SELECT * FROM semesters ORDER BY academic_year DESC, term DESC")
+
+
+@router.get("/bloom-levels")
+def bloom(db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, "SELECT * FROM bloom_levels ORDER BY id")
+
+
+@router.get("/lecturers")
+def lecturers(db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, "SELECT id, lecturer_code, full_name, department FROM lecturers ORDER BY full_name")
+
+
+# ------------------------------------------------------------------ CTĐT, PLO, PI
+@router.get("/programs")
+def programs(db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, "SELECT * FROM programs ORDER BY code")
+
+
+@router.get("/programs/{pid}")
+def program_detail(pid: int, db: Session = Depends(get_db), _=Depends(current_user)):
+    prog = db.get(Program, pid)
+    if not prog:
+        raise HTTPException(404, "Không tìm thấy CTĐT")
+    plos = rows(db, "SELECT * FROM plos WHERE program_id=:p ORDER BY plo_code", p=pid)
+    pis = rows(db, """SELECT pi.*, (SELECT GROUP_CONCAT(c.course_code) FROM pi_courses pc JOIN courses c ON c.id=pc.course_id
+                                     WHERE pc.pi_id=pi.id) AS courses
+                      FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id WHERE p.program_id=:p ORDER BY pi.pi_code""", p=pid)
+    mplans = rows(db, "SELECT m.* FROM plo_measurement_plans m JOIN plos p ON p.id=m.plo_id WHERE p.program_id=:p", p=pid)
+    for p in plos:
+        p["pis"] = [x for x in pis if x["plo_id"] == p["id"]]
+        p["measurement_plans"] = sorted([m for m in mplans if m["plo_id"] == p["id"]], key=lambda m: m["round_no"])
+    return {"id": prog.id, "code": prog.code, "name": prog.name, "department": prog.department,
+            "target_pct": float(prog.target_pct), "plos": plos}
+
+
+@router.put("/plos/{plo_id}")
+def update_plo(plo_id: int, body: PLOIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    plo = db.get(PLO, plo_id)
+    if not plo:
+        raise HTTPException(404, "Không tìm thấy CĐR")
+    if body.description is not None:
+        plo.description = body.description
+    if body.target_pct is not None:
+        plo.target_pct = body.target_pct
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/pi-plans")
+def pi_plans(program_id: int = 1, academic_year: str | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+    data = rows(db, """
+        SELECT pl.id, pl.pi_id, pi.pi_code, pi.description AS pi_description, p.id AS plo_id, p.plo_code,
+               pl.course_id, c.course_code, c.course_name, pl.semester_id, s.name AS semester, s.academic_year,
+               pl.method, pl.cycle, pl.target_pct, pl.lecturer_id, l.full_name AS lecturer,
+               r.n_evaluated, r.n_achieved, r.achieved_pct, r.is_achieved,
+               (SELECT GROUP_CONCAT(cl.clo_code ORDER BY cl.clo_code) FROM pi_plan_clos x JOIN clos cl ON cl.id=x.clo_id
+                 WHERE x.plan_id=pl.id) AS clo_codes
+        FROM pi_assessment_plans pl JOIN performance_indicators pi ON pi.id=pl.pi_id JOIN plos p ON p.id=pi.plo_id
+        JOIN courses c ON c.id=pl.course_id JOIN semesters s ON s.id=pl.semester_id
+        LEFT JOIN lecturers l ON l.id=pl.lecturer_id LEFT JOIN pi_results r ON r.plan_id=pl.id
+        WHERE p.program_id=:p AND (:y IS NULL OR s.academic_year=:y)
+        ORDER BY p.plo_code, pi.pi_code""", p=program_id, y=academic_year)
+    return data
+
+
+@router.post("/pi-plans")
+def create_pi_plan(body: PIPlanIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    plan = PIAssessmentPlan(**body.model_dump(exclude={"clo_ids"}))
+    db.add(plan); db.flush()
+    for cid in body.clo_ids:
+        clo = db.get(CLO, cid)
+        if not clo or clo.course_id != body.course_id:
+            raise HTTPException(422, "CLO không thuộc môn học lấy minh chứng")
+        db.add(PIPlanCLO(plan_id=plan.id, clo_id=cid))
+    db.commit()
+    results.recompute_pi_plans(db)  # kế hoạch mới có thể dùng ngay kết quả CLO đã đo
+    return {"id": plan.id}
+
+
+def _plan_plo_year(db: Session, plan_id: int):
+    return db.execute(text("""SELECT pi.plo_id, s.academic_year FROM pi_assessment_plans p JOIN performance_indicators pi ON pi.id=p.pi_id
+                              JOIN semesters s ON s.id=p.semester_id WHERE p.id=:p"""), {"p": plan_id}).first()
+
+
+@router.put("/pi-plans/{plan_id}")
+def update_pi_plan(plan_id: int, body: PIPlanIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    plan = db.get(PIAssessmentPlan, plan_id)
+    if not plan:
+        raise HTTPException(404, "Không tìm thấy kế hoạch")
+    old = _plan_plo_year(db, plan_id)
+    for k, v in body.model_dump(exclude={"clo_ids"}).items():
+        setattr(plan, k, v)
+    db.execute(text("DELETE FROM pi_plan_clos WHERE plan_id=:p"), {"p": plan_id})
+    for cid in body.clo_ids:
+        clo = db.get(CLO, cid)
+        if not clo or clo.course_id != body.course_id:
+            raise HTTPException(422, "CLO không thuộc môn học lấy minh chứng")
+        db.add(PIPlanCLO(plan_id=plan_id, clo_id=cid))
+    db.commit()
+    results.recompute_pi_plans(db)
+    results.recompute_plo(db, *old)  # PI có thể đã chuyển sang CĐR/năm học khác
+    return {"ok": True}
+
+
+@router.delete("/pi-plans/{plan_id}")
+def delete_pi_plan(plan_id: int, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    old = _plan_plo_year(db, plan_id)
+    db.execute(text("DELETE FROM pi_assessment_plans WHERE id=:p"), {"p": plan_id}); db.commit()
+    if old:
+        results.recompute_plo(db, *old)
+    return {"ok": True}
+
+
+@router.get("/assignments")
+def assignments(semester_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, """SELECT a.*, s.name AS semester, c.course_code, c.course_name, l.full_name AS lecturer
+                       FROM assessment_assignments a JOIN semesters s ON s.id=a.semester_id JOIN courses c ON c.id=a.course_id
+                       JOIN lecturers l ON l.id=a.lecturer_id WHERE (:s IS NULL OR a.semester_id=:s)
+                       ORDER BY s.academic_year DESC, s.term DESC, c.course_code""", s=semester_id)
+
+
+# ------------------------------------------------------------------ Môn học & CLO
+@router.get("/courses")
+def courses(db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, "SELECT * FROM courses ORDER BY course_code")
+
+
+@router.get("/courses/{cid}")
+def course_detail(cid: int, semester_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+    c = db.get(Course, cid)
+    if not c:
+        raise HTTPException(404, "Không tìm thấy môn học")
+    clos = rows(db, "SELECT c.*, b.name_vi AS bloom FROM clos c LEFT JOIN bloom_levels b ON b.id=c.bloom_level_id WHERE course_id=:c ORDER BY clo_code", c=cid)
+    maps = rows(db, """SELECT m.clo_id, m.plo_id, m.level, p.plo_code FROM clo_plo_mapping m JOIN plos p ON p.id=m.plo_id
+                       JOIN clos c ON c.id=m.clo_id WHERE c.course_id=:c""", c=cid)
+    plans = rows(db, "SELECT p.* FROM clo_assessment_plans p JOIN clos c ON c.id=p.clo_id WHERE c.course_id=:c AND (:s IS NULL OR p.semester_id=:s)",
+                 c=cid, s=semester_id)
+    for x in clos:
+        x["plos"] = [m for m in maps if m["clo_id"] == x["id"]]
+        x["plan"] = next((p for p in plans if p["clo_id"] == x["id"]), None)
+    return {"id": c.id, "course_code": c.course_code, "course_name": c.course_name, "credits": c.credits,
+            "clo_target_pct": float(c.clo_target_pct), "clos": clos,
+            "outlines": rows(db, "SELECT * FROM course_outlines WHERE course_id=:c ORDER BY chapter_number", c=cid)}
+
+
+@router.post("/clos")
+def create_clo(body: CLOIn, db: Session = Depends(get_db), _=Depends(require("admin", "lecturer"))):
+    clo = CLO(course_id=body.course_id, clo_code=body.clo_code, description=body.description, bloom_level_id=body.bloom_level_id)
+    db.add(clo); db.flush()
+    for m in body.plos:
+        db.add(CLOPLOMapping(clo_id=clo.id, plo_id=int(m["plo_id"]), level=m.get("level", "R")))
+    db.commit()
+    return {"id": clo.id}
+
+
+@router.put("/clo-plans")
+def upsert_clo_plan(body: CLOPlanIn, db: Session = Depends(get_db), _=Depends(require("admin", "lecturer"))):
+    plan = db.query(CLOAssessmentPlan).filter_by(clo_id=body.clo_id, semester_id=body.semester_id).first()
+    if not plan:
+        plan = CLOAssessmentPlan(clo_id=body.clo_id, semester_id=body.semester_id); db.add(plan)
+    for k, v in body.model_dump().items():
+        setattr(plan, k, v)
+    db.commit()
+    return {"id": plan.id}
+
+
+# ------------------------------------------------------------------ Lớp học phần
+@router.get("/class-sections")
+def class_sections(u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    lid = u.lecturer.id if u.role == "lecturer" and u.lecturer else None
+    return rows(db, """SELECT cs.id, cs.section_code, cs.course_id, c.course_code, c.course_name, cs.semester_id, s.name AS semester,
+                              s.academic_year, l.full_name AS lecturer, cs.moodle_course_id,
+                              (SELECT COUNT(*) FROM enrollments e WHERE e.class_section_id=cs.id AND e.status='active') AS n_students,
+                              (SELECT COUNT(*) FROM exams x WHERE x.class_section_id=cs.id) AS n_exams
+                       FROM class_sections cs JOIN courses c ON c.id=cs.course_id JOIN semesters s ON s.id=cs.semester_id
+                       JOIN lecturers l ON l.id=cs.lecturer_id WHERE (:l IS NULL OR cs.lecturer_id=:l)
+                       ORDER BY s.academic_year DESC, s.term DESC, cs.section_code""", l=lid)
+
+
+@router.get("/class-sections/{cs_id}/students")
+def section_students(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    check_section_access(db, u, cs_id)
+    return rows(db, """SELECT s.id, s.student_code, s.full_name, s.class_name, s.moodle_user_id, e.status
+                       FROM enrollments e JOIN students s ON s.id=e.student_id WHERE e.class_section_id=:cs
+                       ORDER BY s.student_code""", cs=cs_id)
+
+
+@router.post("/class-sections/{cs_id}/students/import")
+async def import_students(cs_id: int, file: UploadFile = File(...), u: User = Depends(require("admin", "lecturer")),
+                          db: Session = Depends(get_db)):
+    """Nhập danh sách lớp HP từ CSV: student_code, full_name, class_name."""
+    check_section_access(db, u, cs_id)
+    content = (await file.read()).decode("utf-8-sig")
+    n = 0
+    for r in csv.DictReader(io.StringIO(content)):
+        code = (r.get("student_code") or "").strip()
+        if not code:
+            continue
+        s = db.query(Student).filter_by(student_code=code).first()
+        if not s:
+            s = Student(student_code=code, full_name=(r.get("full_name") or code).strip(), class_name=(r.get("class_name") or None))
+            db.add(s); db.flush()
+        if not db.get(Enrollment, (cs_id, s.id)):
+            db.add(Enrollment(class_section_id=cs_id, student_id=s.id)); n += 1
+    db.commit()
+    return {"added": n}

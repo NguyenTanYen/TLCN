@@ -1,0 +1,26 @@
+digraph A { rankdir=TB; graph [fontname="DejaVu Sans", dpi=160, nodesep=0.35, ranksep=0.6, compound=true];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, fillcolor="#EAF2FB", color="#445566"];
+edge [fontname="DejaVu Sans", fontsize=9, color="#445566"];
+subgraph cluster_u { label="Người dùng (trình duyệt)"; style="rounded,dashed"; color="#999999";
+  gv [label="Giảng viên", shape=ellipse, fillcolor="#FDF3E1"]; bm [label="Bộ môn /\nQuản trị", shape=ellipse, fillcolor="#FDF3E1"]; sv [label="Sinh viên", shape=ellipse, fillcolor="#FDF3E1"]; }
+subgraph cluster_fe { label="Tầng trình bày"; style="rounded,filled"; fillcolor="#F7FAFF"; color="#8899AA";
+  spa [label="React 19 SPA (Vite)\nReact Router · Chart.js\n12 trang theo vai trò"]; }
+subgraph cluster_be { label="Tầng nghiệp vụ – FastAPI (Python 3)"; style="rounded,filled"; fillcolor="#F4FBF4"; color="#88AA88";
+  auth [label="auth\n(JWT, PBKDF2,\nphân quyền)"];
+  routers [label="Routers REST\ncatalog · questions · exams\nsync · analytics · student · reports"];
+  svc [label="Services\nxml_export · paper (mã đề, .docx)\nmoodle (cầu nối) · reports_excel"];
+  ae [label="Analysis Engine (Pandas)\np, DI · điểm CLO · CLO→PI→PLO\nlộ trình ôn tập", fillcolor="#FFF4D6"];
+  orm [label="SQLAlchemy 2 ORM"]; }
+subgraph cluster_db { label="Tầng dữ liệu – MySQL 8 (một server)"; style="rounded,filled"; fillcolor="#FFFBF2"; color="#AA9966";
+  adb [label="assessment_db\n39 bảng · 4 view", shape=cylinder, fillcolor="#FFF7D6"];
+  bridge [label="Cầu nối\nv_mdl_* · sp_sync_exam", shape=component, fillcolor="#FDE9E7"];
+  mdb [label="CSDL Moodle 4.x\n(mdl_*)", shape=cylinder, fillcolor="#E6F4F4"]; }
+moodle [label="Moodle LMS\n(PHP)", fillcolor="#E6F4F4"];
+files [label="Tệp trao đổi\nMoodle XML · đề .docx\nphiếu CSV/XLSX · BM6/BM2/BM3 .xlsx", shape=note, fillcolor="#FFFFFF"];
+gv -> spa; bm -> spa; sv -> spa;
+spa -> routers [label="HTTPS/JSON\nBearer JWT"];
+routers -> auth [dir=both]; routers -> svc; routers -> ae; svc -> orm; ae -> orm; orm -> adb;
+svc -> bridge [label="CALL sp_sync_exam"]; bridge -> adb [label="ghi kết quả"]; bridge -> mdb [label="SELECT\n(chỉ đọc)", style=dashed];
+moodle -> mdb; gv -> moodle [style=dashed, label="làm Quiz / nhập XML"]; sv -> moodle [style=dashed];
+svc -> files [style=dotted]; files -> moodle [style=dotted, label="nhập XML"];
+}

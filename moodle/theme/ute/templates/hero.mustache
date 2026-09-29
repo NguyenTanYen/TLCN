@@ -1,0 +1,50 @@
+{{!
+    @template theme_ute/hero
+    Banner trang chủ của LMS hoặc dải chào mừng trên bảng điều khiển.
+}}
+{{#isdashboard}}
+<section class="ute-strip d-print-none" aria-label="{{#str}}welcome, theme_ute{{/str}}">
+    <div class="ute-strip-icon"><i class="fa fa-graduation-cap" aria-hidden="true"></i></div>
+    <div class="ute-strip-text">
+        <strong>{{#str}}strip_title, theme_ute, {{firstname}}{{/str}}</strong>
+        <span>{{#str}}strip_text, theme_ute{{/str}}</span>
+    </div>
+    <a class="btn btn-light ute-strip-btn" href="{{mycoursesurl}}">{{#str}}mycourses, core{{/str}} <i class="fa fa-arrow-right" aria-hidden="true"></i></a>
+</section>
+{{/isdashboard}}
+{{^isdashboard}}
+<section class="ute-hero d-print-none">
+    <div class="ute-hero-inner">
+        <div class="ute-hero-copy">
+            <span class="ute-eyebrow">{{#str}}eyebrow, theme_ute{{/str}}</span>
+            <h1 class="ute-hero-title">{{herotitle}}</h1>
+            <div class="ute-hero-text">{{{herotext}}}</div>
+            <div class="ute-hero-actions">
+                {{#loggedin}}
+                <a class="btn btn-accent btn-lg" href="{{mycoursesurl}}"><i class="fa fa-graduation-cap" aria-hidden="true"></i> {{#str}}mycourses, core{{/str}}</a>
+                {{/loggedin}}
+                {{^loggedin}}
+                <a class="btn btn-accent btn-lg" href="{{loginurl}}"><i class="fa fa-sign-in" aria-hidden="true"></i> {{#str}}login, core{{/str}}</a>
+                {{/loggedin}}
+                <a class="btn btn-outline-light btn-lg" href="{{allcoursesurl}}"><i class="fa fa-th-large" aria-hidden="true"></i> {{#str}}allcourses, theme_ute{{/str}}</a>
+            </div>
+        </div>
+        {{#hasstats}}
+        <div class="ute-hero-stats">
+            {{#stats}}
+            <div class="ute-stat"><div class="ute-stat-value">{{value}}</div><div class="ute-stat-label">{{label}}</div></div>
+            {{/stats}}
+        </div>
+        {{/hasstats}}
+    </div>
+</section>
+<section class="ute-features d-print-none">
+    {{#features}}
+    <div class="ute-feature">
+        <div class="ute-feature-icon"><i class="fa {{icon}}" aria-hidden="true"></i></div>
+        <h3>{{title}}</h3>
+        <p>{{text}}</p>
+    </div>
+    {{/features}}
+</section>
+{{/isdashboard}}

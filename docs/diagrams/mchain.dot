@@ -1,0 +1,13 @@
+digraph M { rankdir=TB; graph [fontname="DejaVu Sans", dpi=160, nodesep=0.3, ranksep=0.55];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, fillcolor="#EAF2FB", color="#445566"];
+edge [fontname="DejaVu Sans", fontsize=9, color="#445566"];
+q [label="Câu hỏi j\n(điểm_j, đáp án)"];
+r [label="Bài làm SV i\nđiểm_đạt_ij", fillcolor="#FDF3E1"];
+clo_i [label="Điểm CLO c của SV i\nΣ w_jc·điểm_đạt_ij / Σ w_jc·điểm_j\nĐạt ⇔ ≥ ngưỡng% (BM6c)", fillcolor="#FFF4D6"];
+clo [label="CLO c của lớp HP\nΣ SV đạt / Σ SV đánh giá\nqua các bài KT minh chứng\n(BM6b / BM6d)"];
+course [label="CĐR môn học\nΣ đạt / Σ đánh giá mọi CLO\nso chỉ tiêu môn (BM6b)"];
+pi [label="PI k (kế hoạch BM3b)\nΣ kết quả các CLO minh chứng\ncủa môn, HK kế hoạch (BM3c)"];
+plo [label="PLO (năm học)\nΣ kết quả các PI\nso chỉ tiêu CĐR (BM3c)"];
+prog [label="CTĐT\nΣ đạt / Σ đánh giá\ncác PLO đã đo (BM2)", fillcolor="#EAF6EA"];
+q -> clo_i [label="w_jc (Σ_c w_jc = 1)"]; r -> clo_i; clo_i -> clo; clo -> course; clo -> pi [label="pi_plan_clos\n(hoặc clo_plo_mapping)"]; pi -> plo; plo -> prog;
+}

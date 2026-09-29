@@ -1,0 +1,34 @@
+@startuml
+!include sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "SectionDetail /\nExamDetail" as UI
+control "exams router" as API
+control "xml_export /\npaper service" as SVC
+database "assessment_db" as DB
+participant "Moodle LMS" as MD
+GV -> UI : Chọn câu, đặt điểm, hình thức
+UI -> API : POST /api/exams
+API -> DB : kiểm tra lớp HP thuộc GV,\ncâu thuộc môn và chưa Hủy
+API -> DB : INSERT exams (Draft), exam_questions
+API --> UI : 201 {bài KT}
+alt Trực tuyến
+  GV -> UI : Tải Moodle XML
+  UI -> API : GET /api/exams/{id}/moodle-xml
+  API -> SVC : exam_to_moodle_xml()
+  SVC --> API : XML (idnumber QB-n, answer theo position,\nshuffleanswers = 1)
+  API -> DB : status = Published
+  GV -> MD : Nhập XML, tạo Quiz
+  GV -> UI : Nhập ID Quiz
+  UI -> API : PATCH /api/exams/{id}/link-quiz
+  API -> DB : quiz chưa gắn bài KT khác? lưu moodle_quiz_id
+else Trên giấy
+  GV -> UI : Sinh k mã đề
+  UI -> API : POST /api/exams/{id}/versions
+  API -> SVC : generate_versions(seed)
+  loop mỗi mã đề
+    SVC -> DB : exam_versions, exam_version_questions (hoán vị câu),\nexam_version_options (hoán vị phương án, nhãn hiển thị)
+  end
+  GV -> UI : Tải đề .docx / đáp án .xlsx
+  UI -> API : GET .../paper.docx, answer-key.xlsx
+end
+@enduml

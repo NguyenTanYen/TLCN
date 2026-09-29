@@ -1,0 +1,54 @@
+{
+ "moodle": {
+  "course_id": 4,
+  "quiz_id": 4,
+  "attempts": 42,
+  "questions": 20
+ },
+ "ket_qua": {
+  "Lượt cuối": {
+   "bai_lam_dong_bo": 38,
+   "luot_duoc_tinh_diem_tren_moodle": 38,
+   "chon_dung_luot_duoc_tinh_diem": true,
+   "luot_xem_truoc_bi_loai": 1,
+   "sv_vang": 2,
+   "lech_tong_diem": 0,
+   "so_o_cau_tra_loi": 760,
+   "lech_dung_sai_so_voi_moodle": 0,
+   "lech_noi_dung_phuong_an": 0,
+   "lech_so_voi_dac_ta": 0
+  },
+  "Lượt đầu": {
+   "bai_lam_dong_bo": 38,
+   "luot_duoc_tinh_diem_tren_moodle": 38,
+   "chon_dung_luot_duoc_tinh_diem": true,
+   "luot_xem_truoc_bi_loai": 1,
+   "sv_vang": 2,
+   "lech_tong_diem": 0,
+   "so_o_cau_tra_loi": 760,
+   "lech_dung_sai_so_voi_moodle": 0,
+   "lech_noi_dung_phuong_an": 0,
+   "lech_so_voi_dac_ta": 0
+  },
+  "Điểm cao nhất (mặc định)": {
+   "bai_lam_dong_bo": 38,
+   "luot_duoc_tinh_diem_tren_moodle": 38,
+   "chon_dung_luot_duoc_tinh_diem": true,
+   "luot_xem_truoc_bi_loai": 1,
+   "sv_vang": 2,
+   "lech_tong_diem": 0,
+   "so_o_cau_tra_loi": 760,
+   "lech_dung_sai_so_voi_moodle": 0,
+   "lech_noi_dung_phuong_an": 0,
+   "lech_so_voi_dac_ta": 0
+  },
+  "day_ket_qua_len_moodle": {
+   "da_gui": 40,
+   "moodle_da_luu": 40,
+   "sv_vang": 2,
+   "cong_bo": true,
+   "khong_tim_thay": [],
+   "thong_bao_da_gui": 0
+  }
+ }
+}

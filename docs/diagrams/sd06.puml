@@ -1,0 +1,22 @@
+@startuml
+!include sdstyle.iuml
+actor "Sinh viên" as SV
+boundary "LearningPath\n(React + Chart.js)" as UI
+control "student router" as API
+database "assessment_db" as DB
+SV -> UI : Chọn bài KT đã công bố
+UI -> API : GET /api/me/exams/{id}/learning-path
+API -> DB : bài KT thuộc lớp SV đã ghi danh?
+alt không thuộc
+  API --> UI : 404
+else publish_flag = 0
+  API --> UI : 403 "Kết quả phân tích đang được bảo lưu" (E1)
+else SV vắng thi / chưa có bài
+  API --> UI : 200 {insufficient_evidence: true} (E2)
+else
+  API -> DB : v_student_clo_radar (điểm % từng CLO, ngưỡng),\nTB lớp từng CLO
+  API -> DB : personalized_learning_paths, learning_path_items\n(CLO chưa đạt, chương mất nhiều điểm)
+  API --> UI : 200 {điểm, radar, chẩn đoán, lộ trình}
+  UI -> SV : Radar CLO (bạn / TB lớp / ngưỡng)\n+ danh sách ưu tiên ôn tập
+end
+@enduml
