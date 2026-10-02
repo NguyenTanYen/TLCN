@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { auth } from './api'
 import Login from './pages/Login'
 import Sections from './pages/Sections'
@@ -11,10 +11,13 @@ import Program from './pages/Program'
 import PiPlans from './pages/PiPlans'
 import PloSummary from './pages/PloSummary'
 import SystemPage from './pages/SystemPage'
+import ClassStats from './pages/ClassStats'
+import StudentProfile from './pages/StudentProfile'
+import Courses from './pages/Courses'
 
 const MENUS = {
-  lecturer: [['/', 'Lớp học phần'], ['/questions', 'Ngân hàng câu hỏi']],
-  admin: [['/', 'Lớp học phần'], ['/questions', 'Ngân hàng câu hỏi'], ['/program', 'CTĐT – PLO/PI'], ['/pi-plans', 'Kế hoạch đo PI (BM3b)'],
+  lecturer: [['/', 'Lớp học phần'], ['/courses', 'Học phần & CLO'], ['/questions', 'Ngân hàng câu hỏi']],
+  admin: [['/', 'Lớp học phần'], ['/courses', 'Học phần & CLO'], ['/questions', 'Ngân hàng câu hỏi'], ['/program', 'CTĐT – PLO/PI'], ['/pi-plans', 'Kế hoạch đo PI (BM3b)'],
     ['/plo-summary', 'Tổng hợp PLO (BM2/BM3c)'], ['/system', 'Kết nối Moodle']],
 }
 const ROLE_VI = { admin: 'Quản trị / Bộ môn', lecturer: 'Giảng viên' }
@@ -26,7 +29,6 @@ function useMoodleUrl() {
 }
 
 function Shell({ user, children }) {
-  const nav = useNavigate()
   const moodle = useMoodleUrl()
   return (
     <div className="shell">
@@ -36,7 +38,7 @@ function Shell({ user, children }) {
         <div className="side-foot">
           {moodle && <a className="btn ghost light block" href={moodle}>← Về Moodle</a>}
           <div className="who"><b>{user.full_name}</b><small>{ROLE_VI[user.role]}</small></div>
-          <button className="btn ghost light" onClick={() => { auth.clear(); nav('/login') }}>Đăng xuất</button>
+          <button className="btn ghost light" onClick={() => { auth.clear(); window.location.assign('/login') }}>Đăng xuất</button>
         </div>
       </div></aside>
       <main className="main">{children}</main>
@@ -55,6 +57,9 @@ export default function App() {
     <Route path="/" element={<Sections />} />
     <Route path="/sections/:id" element={<SectionDetail />} />
     <Route path="/sections/:id/clo" element={<CloResults />} />
+    <Route path="/sections/:id/stats" element={<ClassStats />} />
+    <Route path="/sections/:cs/students/:sid" element={<StudentProfile />} />
+    <Route path="/courses" element={<Courses />} />
     <Route path="/questions" element={<QuestionBank />} />
     <Route path="/exams/:id" element={<ExamDetail />} />
     {user.role === 'admin' && <>

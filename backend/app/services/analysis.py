@@ -112,3 +112,22 @@ def learning_path(clo_scores: pd.DataFrame, lost: pd.DataFrame, thresholds: dict
             out.append({"clo_id": int(w.clo_id), "outline_id": oid, "gap_pct": float(w.gap_pct), "priority": prio})
         prio += 1
     return out
+
+
+def kr20(correct: "pd.DataFrame") -> float | None:
+    """Độ tin cậy của đề (Kuder–Richardson 20) trên ma trận đúng/sai.
+
+    correct: cột attempt_id, question_id, is_correct (0/1) của các lượt đã nộp, không gồm câu đã Hủy.
+    KR-20 = k/(k−1) · (1 − Σ p_j·q_j / σ²), σ² là phương sai (tổng thể) của số câu đúng mỗi lượt.
+    """
+    if correct is None or correct.empty:
+        return None
+    m = correct.pivot_table(index="attempt_id", columns="question_id", values="is_correct", aggfunc="max").fillna(0)
+    k = m.shape[1]
+    if k < 2 or m.shape[0] < 2:
+        return None
+    p = m.mean(axis=0)
+    var = m.sum(axis=1).var(ddof=0)
+    if var == 0:
+        return None
+    return round(float(k / (k - 1) * (1 - (p * (1 - p)).sum() / var)), 4)

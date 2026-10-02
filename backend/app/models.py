@@ -45,7 +45,7 @@ class Student(Base):
     __tablename__ = "students"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
-    student_code: Mapped[str] = mapped_column(String(20))
+    student_code: Mapped[str] = mapped_column(String(100))
     full_name: Mapped[str] = mapped_column(String(100))
     class_name: Mapped[Optional[str]] = mapped_column(String(50))
     moodle_user_id: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -238,7 +238,7 @@ class Question(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
     outline_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_outlines.id"))
-    bloom_level_id: Mapped[int] = mapped_column(ForeignKey("bloom_levels.id"))
+    bloom_level_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bloom_levels.id"))  # NULL = chưa gán (nhập hàng loạt)
     question_type: Mapped[str] = mapped_column(String(30), default="multichoice")
     content: Mapped[str] = mapped_column(Text)
     moodle_question_id: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -285,6 +285,7 @@ class Exam(Base):
     duration_minutes: Mapped[Optional[int]] = mapped_column(SmallInteger)
     max_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=10)
     moodle_quiz_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    moodle_offlinequiz_id: Mapped[Optional[int]] = mapped_column(BigInteger)  # bài giấy: Offline Quiz chấm trên Moodle
     status: Mapped[str] = mapped_column(String(20), default="Draft")
     publish_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

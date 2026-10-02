@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..http_utils import attachment
 from ..deps import check_section_access, current_user, require
 from ..models import PLOResult, User
 from ..schemas import PLONarrativeIn
@@ -18,13 +19,13 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 def bm6(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
     cs = check_section_access(db, u, cs_id)
     return Response(reports_excel.build_bm6(db, cs_id), media_type=XLSX,
-                    headers={"Content-Disposition": f'attachment; filename="BM6_{cs.section_code}.xlsx"'})
+                    headers=attachment(f"BM6_{cs.section_code}.xlsx"))
 
 
 @router.get("/programs/{pid}/bm3.xlsx")
 def bm3(pid: int, academic_year: str, _=Depends(require("admin")), db: Session = Depends(get_db)):
     return Response(reports_excel.build_bm3(db, pid, academic_year), media_type=XLSX,
-                    headers={"Content-Disposition": f'attachment; filename="BM2_BM3_{academic_year}.xlsx"'})
+                    headers=attachment(f"BM2_BM3_{academic_year}.xlsx"))
 
 
 @router.get("/programs/{pid}/plo-summary")

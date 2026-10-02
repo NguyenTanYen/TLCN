@@ -2,13 +2,14 @@
 lớp học phần và danh sách SV (UC-06)."""
 import csv
 import io
+import unicodedata
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import check_section_access, current_user, require
+from ..deps import check_course_access, check_section_access, current_user, require
 from ..models import (CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
                       PIPlanCLO, PLO, Program, Student, User)
 from ..services import results
@@ -66,14 +67,19 @@ def update_plo(plo_id: int, body: PLOIn, db: Session = Depends(get_db), _=Depend
         raise HTTPException(404, "Không tìm thấy CĐR")
     if body.description is not None:
         plo.description = body.description
+    changed = body.target_pct is not None and float(plo.target_pct) != float(body.target_pct)
     if body.target_pct is not None:
         plo.target_pct = body.target_pct
     db.commit()
+    if changed:  # chỉ tiêu PLO đổi → đánh giá lại Đạt/Không đạt của PLO (BM2)
+        results.recompute_plo_all_years(db, plo_id)
     return {"ok": True}
 
 
 @router.get("/pi-plans")
 def pi_plans(program_id: int = 1, academic_year: str | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+    if not db.get(Program, program_id):
+        raise HTTPException(404, "Không tìm thấy CTĐT")
     data = rows(db, """
         SELECT pl.id, pl.pi_id, pi.pi_code, pi.description AS pi_description, p.id AS plo_id, p.plo_code,
                pl.course_id, c.course_code, c.course_name, pl.semester_id, s.name AS semester, s.academic_year,
@@ -131,9 +137,10 @@ def update_pi_plan(plan_id: int, body: PIPlanIn, db: Session = Depends(get_db), 
 @router.delete("/pi-plans/{plan_id}")
 def delete_pi_plan(plan_id: int, db: Session = Depends(get_db), _=Depends(require("admin"))):
     old = _plan_plo_year(db, plan_id)
+    if not old:
+        raise HTTPException(404, "Không tìm thấy kế hoạch")
     db.execute(text("DELETE FROM pi_assessment_plans WHERE id=:p"), {"p": plan_id}); db.commit()
-    if old:
-        results.recompute_plo(db, *old)
+    results.recompute_plo(db, *old)
     return {"ok": True}
 
 
@@ -153,6 +160,7 @@ def courses(db: Session = Depends(get_db), _=Depends(current_user)):
 
 @router.get("/courses/{cid}")
 def course_detail(cid: int, semester_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+    """Đề cương môn (CLO, ma trận CLO–PLO, kế hoạch đo) là thông tin công khai trong trường – mọi tài khoản đều xem được."""
     c = db.get(Course, cid)
     if not c:
         raise HTTPException(404, "Không tìm thấy môn học")
@@ -170,7 +178,15 @@ def course_detail(cid: int, semester_id: int | None = None, db: Session = Depend
 
 
 @router.post("/clos")
-def create_clo(body: CLOIn, db: Session = Depends(get_db), _=Depends(require("admin", "lecturer"))):
+def create_clo(body: CLOIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+    check_course_access(db, u, body.course_id)
+    if db.query(CLO).filter_by(course_id=body.course_id, clo_code=body.clo_code).first():
+        raise HTTPException(409, f"Môn học đã có {body.clo_code}")
+    for m in body.plos:
+        if not db.get(PLO, int(m["plo_id"])):
+            raise HTTPException(422, f"PLO {m['plo_id']} không tồn tại")
+        if m.get("level", "R") not in ("I", "R", "M"):
+            raise HTTPException(422, "Mức đóng góp CLO–PLO phải là I, R hoặc M")
     clo = CLO(course_id=body.course_id, clo_code=body.clo_code, description=body.description, bloom_level_id=body.bloom_level_id)
     db.add(clo); db.flush()
     for m in body.plos:
@@ -180,20 +196,27 @@ def create_clo(body: CLOIn, db: Session = Depends(get_db), _=Depends(require("ad
 
 
 @router.put("/clo-plans")
-def upsert_clo_plan(body: CLOPlanIn, db: Session = Depends(get_db), _=Depends(require("admin", "lecturer"))):
+def upsert_clo_plan(body: CLOPlanIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+    clo = db.get(CLO, body.clo_id)
+    if not clo:
+        raise HTTPException(404, "Không tìm thấy CLO")
+    check_course_access(db, u, clo.course_id)
     plan = db.query(CLOAssessmentPlan).filter_by(clo_id=body.clo_id, semester_id=body.semester_id).first()
     if not plan:
         plan = CLOAssessmentPlan(clo_id=body.clo_id, semester_id=body.semester_id); db.add(plan)
     for k, v in body.model_dump().items():
         setattr(plan, k, v)
     db.commit()
-    return {"id": plan.id}
+    n = results.reanalyze_course(db, clo.course_id, body.semester_id)  # ngưỡng/chỉ tiêu mới áp dụng cho kết quả đã đo
+    return {"id": plan.id, "reanalyzed_exams": n}
 
 
 # ------------------------------------------------------------------ Lớp học phần
 @router.get("/class-sections")
 def class_sections(u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    lid = u.lecturer.id if u.role == "lecturer" and u.lecturer else None
+    if u.role == "lecturer" and not u.lecturer:
+        return []   # tài khoản GV chưa gắn hồ sơ giảng viên: không thấy lớp nào
+    lid = u.lecturer.id if u.role == "lecturer" else None
     return rows(db, """SELECT cs.id, cs.section_code, cs.course_id, c.course_code, c.course_name, cs.semester_id, s.name AS semester,
                               s.academic_year, l.full_name AS lecturer, cs.moodle_course_id,
                               (SELECT COUNT(*) FROM enrollments e WHERE e.class_section_id=cs.id AND e.status='active') AS n_students,
@@ -214,17 +237,35 @@ def section_students(cs_id: int, u: User = Depends(require("admin", "lecturer"))
 @router.post("/class-sections/{cs_id}/students/import")
 async def import_students(cs_id: int, file: UploadFile = File(...), u: User = Depends(require("admin", "lecturer")),
                           db: Session = Depends(get_db)):
-    """Nhập danh sách lớp HP từ CSV: student_code, full_name, class_name."""
+    """Nhập danh sách lớp HP từ CSV: student_code, full_name, class_name (UTF-8/UTF-8 BOM/Windows-1258; dấu , hoặc ;)."""
     check_section_access(db, u, cs_id)
-    content = (await file.read()).decode("utf-8-sig")
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(413, "File quá lớn (tối đa 5 MB)")
+    for enc in ("utf-8-sig", "cp1258", "cp1252"):
+        try:
+            content = raw.decode(enc); break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise HTTPException(422, "Không đọc được bảng mã của file – hãy lưu file CSV dạng UTF-8")
+    content = unicodedata.normalize("NFC", content)   # Windows-1258 tách dấu thành ký tự tổ hợp → gộp lại
+    first = content.splitlines()[0] if content.strip() else ""
+    delim = ";" if first.count(";") > first.count(",") else ","
+    reader = csv.DictReader(io.StringIO(content), delimiter=delim)
+    if not reader.fieldnames or "student_code" not in [f.strip() for f in reader.fieldnames]:
+        raise HTTPException(422, "File thiếu cột student_code (cần: student_code, full_name, class_name)")
     n = 0
-    for r in csv.DictReader(io.StringIO(content)):
-        code = (r.get("student_code") or "").strip()
+    for r in reader:
+        r = {(k or "").strip(): (v or "").strip() for k, v in r.items()}
+        code = r.get("student_code", "")
         if not code:
             continue
+        if len(code) > 100:
+            raise HTTPException(422, f"Mã SV quá dài: {code[:30]}…")
         s = db.query(Student).filter_by(student_code=code).first()
         if not s:
-            s = Student(student_code=code, full_name=(r.get("full_name") or code).strip(), class_name=(r.get("class_name") or None))
+            s = Student(student_code=code, full_name=(r.get("full_name") or code)[:100], class_name=(r.get("class_name") or None))
             db.add(s); db.flush()
         if not db.get(Enrollment, (cs_id, s.id)):
             db.add(Enrollment(class_section_id=cs_id, student_id=s.id)); n += 1

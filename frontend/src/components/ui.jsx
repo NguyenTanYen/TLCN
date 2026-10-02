@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 
 export function Card({ title, actions, children, className = '' }) {
   return (
@@ -25,18 +25,35 @@ export function Loading({ error, loading }) {
 }
 
 export function Modal({ title, onClose, children, wide }) {
+  const hid = useId()
+  useEffect(() => {  // Esc để đóng
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div className="modal-bg" onMouseDown={onClose}>
-      <div className={`modal ${wide ? 'wide' : ''}`} onMouseDown={e => e.stopPropagation()}>
-        <header className="card-h"><h3>{title}</h3><button className="btn ghost" onClick={onClose}>✕</button></header>
+      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={hid} onMouseDown={e => e.stopPropagation()}>
+        <header className="card-h"><h3 id={hid}>{title}</h3><button className="btn ghost" aria-label="Đóng" autoFocus onClick={onClose}>✕</button></header>
         <div className="card-b">{children}</div>
       </div>
     </div>
   )
 }
 
-export function Field({ label, children, hint }) {
+// group=true: nhóm nhiều ô (checkbox/radio có nhãn riêng) – dùng <fieldset> thay vì <label> để không lồng nhãn
+export function Field({ label, children, hint, group }) {
+  if (group) return <fieldset className="field"><legend>{label}</legend>{children}{hint && <small className="muted">{hint}</small>}</fieldset>
   return <label className="field"><span>{label}</span>{children}{hint && <small className="muted">{hint}</small>}</label>
+}
+
+// Nút chọn tệp: là <button> thật (dùng được bằng bàn phím), chọn lại cùng một tệp vẫn kích hoạt
+export function FileButton({ label, accept, onPick, className = 'btn primary', disabled }) {
+  const ref = useRef(null)
+  return <>
+    <button type="button" className={className} disabled={disabled} onClick={() => ref.current?.click()}>{label}</button>
+    <input ref={ref} type="file" accept={accept} hidden onChange={e => { const f = e.target.files[0]; e.target.value = ''; f && onPick(f) }} />
+  </>
 }
 
 // ---- thông báo nhanh (toast)
@@ -48,16 +65,18 @@ export function ToastProvider({ children }) {
     setItems(x => [...x, { id, msg, tone }])
     setTimeout(() => setItems(x => x.filter(i => i.id !== id)), 4500)
   }, [])
-  return <ToastCtx.Provider value={push}>{children}<div className="toasts">{items.map(i => <div key={i.id} className={`toast ${i.tone}`}>{i.msg}</div>)}</div></ToastCtx.Provider>
+  return <ToastCtx.Provider value={push}>{children}<div className="toasts" role="status" aria-live="polite">{items.map(i => <div key={i.id} className={`toast ${i.tone}`}>{i.msg}</div>)}</div></ToastCtx.Provider>
 }
 export const useToast = () => useContext(ToastCtx)
 
 // Nút thực hiện hành động bất đồng bộ, tự báo lỗi/thành công
-export function ActionButton({ onRun, children, className = 'btn', okMsg, disabled, title }) {
+// confirm: câu hỏi xác nhận trước thao tác không hoàn tác được
+export function ActionButton({ onRun, children, className = 'btn', okMsg, disabled, title, confirm }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   return (
-    <button className={className} disabled={busy || disabled} title={title} onClick={async () => {
+    <button type="button" className={className} disabled={busy || disabled} title={title} onClick={async () => {
+      if (confirm && !window.confirm(confirm)) return
       setBusy(true)
       try { const r = await onRun(); if (okMsg) toast(typeof okMsg === 'function' ? okMsg(r) : okMsg) }
       catch (e) { toast(e.message, 'red') } finally { setBusy(false) }

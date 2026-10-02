@@ -109,7 +109,8 @@ class push_results extends external_api {
         global $CFG, $DB;
         $n = 0;
         $url = new \moodle_url('/local/clo/results.php', ['id' => $course->id]);
-        foreach ($DB->get_records('local_clo_result', ['cloexamid' => $exam->id, 'notified' => 0]) as $r) {
+        // Chỉ báo cho SV có bài làm được chấm (SV vắng thi không có kết quả để xem).
+        foreach ($DB->get_records('local_clo_result', ['cloexamid' => $exam->id, 'notified' => 0, 'status' => 'finished']) as $r) {
             $msg = new \core\message\message();
             $msg->component = 'local_clo';
             $msg->name = 'resultpublished';

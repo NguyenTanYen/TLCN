@@ -101,7 +101,8 @@ if (!$exams) {
 if ($canall && !$userid) {
     // Giảng viên: tổng quan từng bài kiểm tra.
     foreach ($exams as $exam) {
-        $rows = $DB->get_records_sql("SELECT r.*, u.firstname, u.lastname, u.username
+        $namesql = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;   // đủ các trường họ tên cho fullname()
+        $rows = $DB->get_records_sql("SELECT r.*, u.username, $namesql
                                         FROM {local_clo_result} r JOIN {user} u ON u.id = r.userid
                                        WHERE r.cloexamid = ? ORDER BY u.username", [$exam->id]);
         echo html_writer::start_div('card mb-4');
@@ -127,6 +128,9 @@ if ($canall && !$userid) {
 } else {
     if ($userid != $USER->id) {
         $u = core_user::get_user($userid, '*', MUST_EXIST);
+        if (!is_enrolled($context, $u)) {          // chỉ xem SV thuộc khóa học này
+            throw new moodle_exception('notenrolledprofile');
+        }
         echo html_writer::tag('p', html_writer::link(new moodle_url('/local/clo/results.php', ['id' => $course->id]), '← ' .
             get_string('back')) . ' · ' . html_writer::tag('strong', fullname($u) . ' (' . s($u->username) . ')'));
     }

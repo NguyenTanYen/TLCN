@@ -60,7 +60,8 @@ def main():
                f"-- Nhập bằng HeidiSQL: File > Run SQL file... (hoặc mở tệp rồi nhấn F9).",
                f"-- Cầu nối đọc CSDL Moodle `{MDB}` (tiền tố {PRE}); nếu tên CSDL Moodle khác, đổi `{MDB}.` trong phần VIEW.",
                f"-- =====================================================================",
-               "SET NAMES utf8mb4;", "SET FOREIGN_KEY_CHECKS = 0;", "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';",
+               "SET NAMES utf8mb4;", "SET @OLD_FK = @@FOREIGN_KEY_CHECKS, @OLD_SQL_MODE = @@SQL_MODE;",
+               "SET FOREIGN_KEY_CHECKS = 0;", "SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';",
                f"CREATE DATABASE IF NOT EXISTS `{db}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;", f"USE `{db}`;", ""]
         tables = [r[0] for r in c.execute(text("SHOW FULL TABLES WHERE Table_type='BASE TABLE'"))]
         views = [r[0] for r in c.execute(text("SHOW FULL TABLES WHERE Table_type='VIEW'"))]
@@ -87,7 +88,7 @@ def main():
             d = c.execute(text(f"SHOW CREATE PROCEDURE `{p}`")).fetchone()[2]
             d = re.sub(r"DEFINER=`[^`]*`@`[^`]*`\s*", "", d)
             out.append(f"DROP PROCEDURE IF EXISTS `{p}`;\nDELIMITER $$\n{d}$$\nDELIMITER ;\n")
-        out.append("SET FOREIGN_KEY_CHECKS = 1;\n")
+        out.append("SET FOREIGN_KEY_CHECKS = @OLD_FK, SQL_MODE = @OLD_SQL_MODE;\n")
         f1 = OUT / f"05_ban_xuat_day_du_{db}.sql"
         f1.write_text("\n".join(out), encoding="utf-8")
 

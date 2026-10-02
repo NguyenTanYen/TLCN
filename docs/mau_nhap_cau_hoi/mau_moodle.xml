@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?><quiz>
+<question type="category"><category><text>$course$/X</text></category></question>
+<question type="multichoice"><name><text>q1</text></name><questiontext format="html"><text><![CDATA[<p>Quyền nào cho phép <b>đọc</b> dữ liệu bảng?</p>]]></text></questiontext>
+<single>true</single><answer fraction="0"><text>INSERT</text></answer><answer fraction="100"><text>SELECT</text></answer><answer fraction="0"><text>DELETE</text></answer>
+<tags><tag><text>CLO4</text></tag><tag><text>Bloom:2</text></tag></tags></question>
+<question type="truefalse"><questiontext><text>Đúng sai</text></questiontext></question></quiz>

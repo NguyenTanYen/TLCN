@@ -2,8 +2,6 @@
 clo_results (BM6b), pi_results (BM3c) và plo_results (BM2)."""
 from __future__ import annotations
 
-from datetime import datetime
-
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -139,7 +137,7 @@ def recompute_class_section(db: Session, cs_id: int) -> None:
         FROM attempt_clo_results r
         JOIN exam_attempts a ON a.id = r.attempt_id
         JOIN exams e ON e.id = a.exam_id
-        WHERE e.class_section_id = :cs AND e.status = 'Analyzed'
+        WHERE e.class_section_id = :cs AND e.status = 'Analyzed' AND a.status = 'finished'
         GROUP BY r.clo_id, e.assessment_type""", cs=cs_id)
     old = {r.clo_id: (r.analysis, r.improvement) for r in db.execute(
         text("SELECT clo_id, analysis, improvement FROM clo_results WHERE class_section_id = :cs"), {"cs": cs_id})}
@@ -222,5 +220,25 @@ def recompute_plo(db: Session, plo_id: int, academic_year: str) -> None:
     db.commit()
 
 
-def now() -> datetime:
-    return datetime.now()
+def reanalyze_course(db: Session, course_id: int, semester_id: int | None = None) -> int:
+    """Kế hoạch CLO (ngưỡng/chỉ tiêu/loại minh chứng) thay đổi → phân tích lại các bài KT đã phân tích
+    của môn trong học kỳ để kết quả CLO–PI–PLO nhất quán với kế hoạch mới."""
+    ids = [r[0] for r in db.execute(text("""SELECT e.id FROM exams e JOIN class_sections cs ON cs.id = e.class_section_id
+                                             WHERE cs.course_id = :c AND (:s IS NULL OR cs.semester_id = :s)
+                                               AND e.status = 'Analyzed' ORDER BY e.id"""), {"c": course_id, "s": semester_id})]
+    for exam_id in ids:
+        analyze_exam(db, exam_id)
+    if not ids:  # chưa có bài KT nào: vẫn cập nhật chỉ tiêu ở các lớp HP
+        for (cs_id,) in db.execute(text("SELECT id FROM class_sections WHERE course_id=:c AND (:s IS NULL OR semester_id=:s)"),
+                                   {"c": course_id, "s": semester_id}).fetchall():
+            recompute_class_section(db, cs_id)
+    return len(ids)
+
+
+def recompute_plo_all_years(db: Session, plo_id: int) -> None:
+    years = {r[0] for r in db.execute(text("""SELECT DISTINCT s.academic_year FROM pi_assessment_plans p
+                                               JOIN performance_indicators pi ON pi.id = p.pi_id JOIN semesters s ON s.id = p.semester_id
+                                               WHERE pi.plo_id = :plo
+                                               UNION SELECT academic_year FROM plo_results WHERE plo_id = :plo"""), {"plo": plo_id})}
+    for y in years:
+        recompute_plo(db, plo_id, y)

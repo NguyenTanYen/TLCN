@@ -13,7 +13,7 @@ async function request(method, path, body, isForm = false) {
   if (auth.token) headers.Authorization = `Bearer ${auth.token}`
   if (body && !isForm) headers['Content-Type'] = 'application/json'
   const res = await fetch(path, { method, headers, body: isForm ? body : body ? JSON.stringify(body) : undefined })
-  if (res.status === 401 && !path.endsWith('/login')) { auth.clear(); window.location.href = '/login' }
+  if (res.status === 401 && !path.endsWith('/login')) { auth.clear(); window.location.assign('/login') }
   const ct = res.headers.get('content-type') || ''
   const data = ct.includes('json') ? await res.json() : res
   if (!res.ok) {
@@ -35,7 +35,8 @@ export const api = {
     const res = await request('GET', p)
     const blob = await res.blob()
     const cd = res.headers.get('content-disposition') || ''
-    const name = /filename="?([^"]+)"?/.exec(cd)?.[1] || fallbackName
+    const star = /filename\*=UTF-8''([^;]+)/i.exec(cd)?.[1]
+    const name = (star && decodeURIComponent(star)) || /filename="?([^";]+)"?/.exec(cd)?.[1] || fallbackName
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 2000)
   },

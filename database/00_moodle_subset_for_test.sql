@@ -424,3 +424,74 @@ CREATE TABLE IF NOT EXISTS `mdl_qtype_multichoice_options` (
   `showstandardinstruction` TINYINT NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Plugin Offline Quiz (mod_offlinequiz v4.5.4): bài thi giấy – Moodle sinh đề/phiếu, nhận diện phiếu quét và chấm
+CREATE TABLE IF NOT EXISTS `mdl_offlinequiz` (
+  `id` bigint(10) NOT NULL AUTO_INCREMENT,
+  `course` bigint(10) NOT NULL DEFAULT 0,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `intro` longtext NOT NULL,
+  `introformat` smallint(4) NOT NULL DEFAULT 0,
+  `pdfintro` longtext DEFAULT NULL,
+  `timeopen` bigint(10) NOT NULL DEFAULT 0,
+  `timeclose` bigint(10) NOT NULL DEFAULT 0,
+  `time` bigint(10) NOT NULL DEFAULT 0,
+  `grade` decimal(10,5) NOT NULL DEFAULT 0.00000,
+  `participantsusage` tinyint(1) DEFAULT 1,
+  `numgroups` bigint(10) NOT NULL DEFAULT 2,
+  `decimalpoints` smallint(4) NOT NULL DEFAULT 2,
+  `review` bigint(10) NOT NULL DEFAULT 0,
+  `questionsperpage` bigint(10) NOT NULL DEFAULT 0,
+  `docscreated` smallint(4) NOT NULL DEFAULT 0,
+  `shufflequestions` smallint(4) NOT NULL DEFAULT 0,
+  `shuffleanswers` smallint(4) NOT NULL DEFAULT 0,
+  `printstudycodefield` smallint(4) NOT NULL DEFAULT 1,
+  `pdffont` varchar(255) DEFAULT NULL,
+  `papergray` bigint(10) NOT NULL DEFAULT 650,
+  `fontsize` smallint(4) NOT NULL DEFAULT 10,
+  `timecreated` bigint(10) NOT NULL DEFAULT 0,
+  `showquestioninfo` smallint(4) NOT NULL DEFAULT 0,
+  `timemodified` bigint(10) NOT NULL DEFAULT 0,
+  `fileformat` smallint(4) NOT NULL DEFAULT 0,
+  `showgrades` smallint(4) NOT NULL DEFAULT 0,
+  `showtutorial` smallint(4) NOT NULL DEFAULT 0,
+  `id_digits` smallint(4) DEFAULT NULL,
+  `disableimgnewlines` smallint(4) NOT NULL DEFAULT 0,
+  `algorithmversion` bigint(10) DEFAULT 0,
+  `experimentalevaluation` smallint(4) NOT NULL DEFAULT 0,
+  `completionpass` tinyint(1) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `mdl_offl_cou_ix` (`course`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `mdl_offlinequiz_groups` (
+  `id` bigint(10) NOT NULL AUTO_INCREMENT,
+  `offlinequizid` bigint(10) NOT NULL,
+  `groupnumber` smallint(4) NOT NULL DEFAULT 0,
+  `sumgrades` decimal(10,5) NOT NULL DEFAULT 0.00000,
+  `numberofpages` smallint(4) NOT NULL DEFAULT 0,
+  `templateusageid` bigint(10) NOT NULL DEFAULT 0,
+  `questionfilename` varchar(1000) DEFAULT NULL,
+  `answerfilename` varchar(1000) DEFAULT NULL,
+  `correctionfilename` varchar(1000) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `mdl_offlgrou_off_ix` (`offlinequizid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `mdl_offlinequiz_results` (
+  `id` bigint(10) NOT NULL AUTO_INCREMENT,
+  `offlinequizid` bigint(10) NOT NULL,
+  `offlinegroupid` bigint(10) NOT NULL,
+  `userid` bigint(10) NOT NULL,
+  `sumgrades` decimal(10,5) DEFAULT NULL,
+  `usageid` bigint(10) NOT NULL,
+  `teacherid` bigint(10) NOT NULL,
+  `attendant` varchar(255) NOT NULL DEFAULT '',
+  `status` varchar(255) NOT NULL DEFAULT '',
+  `timestart` bigint(10) NOT NULL DEFAULT 0,
+  `timefinish` bigint(10) DEFAULT 0,
+  `timemodified` bigint(10) NOT NULL DEFAULT 0,
+  `preview` smallint(3) DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `mdl_offlresu_use_ix` (`userid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

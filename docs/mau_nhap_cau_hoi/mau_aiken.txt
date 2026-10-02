@@ -1,0 +1,15 @@
+Câu 1: Từ khóa nào khai báo biến trong T-SQL?
+A. DECLARE
+B. VAR
+C. LET
+D. DIM
+ANSWER: A
+
+Mức cô lập mặc định của SQL Server là?
+A) READ UNCOMMITTED
+B) READ COMMITTED
+C) SERIALIZABLE
+ANSWER: B
+CHƯƠNG: 4
+BLOOM: Nhớ
+CLO: CLO3

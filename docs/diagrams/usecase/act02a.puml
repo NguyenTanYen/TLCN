@@ -1,0 +1,44 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Lớp HP → "Tạo bài KT";\nhình thức trực tuyến;
+:Nhập số câu, phạm vi chương\n(kiểm tra chương), phân bố mức Bloom\nhoặc ma trận chương × Bloom;
+repeat
+  |Hệ thống|
+  :Lập ma trận đề; chọn câu từng ô\nphủ đủ CLO, tránh câu DI âm/thấp;
+  if (Ô / CLO / mức thiếu câu?) then (có)
+    :Báo cụ thể: ô nào cần bao nhiêu,\nngân hàng có bao nhiêu;
+    |Giảng viên|
+    :Chỉnh số câu / ma trận / phạm vi\nhoặc bổ sung câu hỏi;
+  else (không)
+    |Giảng viên|
+  endif
+repeat while (Sinh lại?) is (có)
+:Xem ma trận, độ phủ CLO;\nchỉnh tay: bỏ/thêm câu, đổi điểm;
+|Hệ thống|
+if (Câu khác môn, đã Hủy\nhoặc chưa gán CLO?) then (có)
+  :422 – nêu câu lỗi;
+  stop
+endif
+:Lưu bài KT (Draft);
+|Giảng viên|
+:Nhập ID khóa học Moodle;\n"Tạo Quiz trên Moodle";
+|Hệ thống|
+if (Đã có Quiz?) then (có)
+  :409;
+  stop
+endif
+:Sinh Moodle XML\n(idnumber QB-n);\ngọi create_quiz;
+|Moodle LMS|
+:Nhập câu hỏi (dùng lại QB-n);\ntạo Quiz xáo trộn phương án;\nthêm câu theo thứ tự đề;
+|Hệ thống|
+if (Lỗi Web Service?) then (có)
+  :502 + thông báo Moodle;
+  stop
+endif
+:Lưu moodle_quiz_id;\ntrạng thái Published;
+|Giảng viên|
+:SV làm bài trên Moodle;
+stop
+@enduml

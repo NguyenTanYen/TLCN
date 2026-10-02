@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/clo/db" VERSION="2026092900" COMMENT="Kết quả phân tích CĐR do hệ thống của nhóm đẩy về Moodle">
+<XMLDB PATH="local/clo/db" VERSION="2026100100" COMMENT="Kết quả phân tích CĐR do hệ thống của nhóm đẩy về Moodle">
   <TABLES>
     <TABLE NAME="local_clo_exam" COMMENT="Bài kiểm tra của hệ thống phân tích đã gắn với Quiz Moodle">
       <FIELDS>
@@ -7,6 +7,7 @@
         <FIELD NAME="examref" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="exams.id bên hệ thống phân tích"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="quizid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="offlinequizid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="mdl_offlinequiz.id (bài thi giấy)"/>
         <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="published" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="publish_flag – GV đã công bố kết quả"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

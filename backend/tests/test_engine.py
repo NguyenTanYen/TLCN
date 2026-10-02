@@ -92,3 +92,12 @@ def test_learning_path_priorities():
 def test_empty_inputs():
     assert item_statistics(pd.DataFrame(columns=["attempt_id", "question_id", "is_correct", "total_score"])).empty
     assert aggregate([], 70).achieved_pct == 0.0 and not aggregate([], 70).is_achieved
+
+
+def test_kr20_reliability():
+    from app.services import analysis
+    # 4 SV x 3 câu: điểm 3, 2, 1, 0 (mẫu Guttman) -> p = .75/.5/.25; Σpq = .1875+.25+.1875 = .625; σ² = 1.25
+    rows = [(a, q, int(q <= 3 - a)) for a in range(4) for q in (1, 2, 3)]
+    df = pd.DataFrame(rows, columns=["attempt_id", "question_id", "is_correct"])
+    assert analysis.kr20(df) == round(3 / 2 * (1 - 0.625 / 1.25), 4) == 0.75
+    assert analysis.kr20(df.iloc[:0]) is None

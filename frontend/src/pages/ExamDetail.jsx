@@ -1,10 +1,11 @@
 import { Fragment, useState } from 'react'
 import { Bar } from 'react-chartjs-2'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, fmtNum, STATUS_VI } from '../api'
 import { C } from '../charts'
 import { ActionButton, Badge, Card, Field, Loading, Stat, diClass, pClass, useToast } from '../components/ui'
 import { useApi } from '../hooks'
+import { MatrixTable } from '../components/Blueprint'
 
 const STEPS = ['Draft', 'Published', 'Synced', 'Analyzed']
 const CLS_TONE = { 'Tốt': 'green', 'Chấp nhận được': 'blue', 'Quá dễ': 'amber', 'Quá khó': 'amber', 'Cần xem lại (DI thấp)': 'amber', 'Cần loại bỏ/kiểm tra đáp án': 'red' }
@@ -23,7 +24,7 @@ export default function ExamDetail() {
           <h1>{e.exam_title}</h1>
           <p className="muted">{e.course_code} – {e.course_name} · {e.semester} · {e.exam_type === 'online' ? 'Trực tuyến (Moodle)' : 'Trên giấy'} ·
             minh chứng {e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'} · {e.questions.length} câu · thang {e.max_score}</p></div>
-        <div className="row gap">{e.publish_flag ? <Badge tone="amber">SV đã xem được kết quả</Badge> : <Badge>Đang bảo lưu kết quả</Badge>}</div>
+        <div className="row gap">{analyzed && <Link className="btn" to={`/sections/${e.class_section_id}/stats?exam=${e.id}`}>Thống kê lớp</Link>}{e.publish_flag ? <Badge tone="amber">SV đã xem được kết quả</Badge> : <Badge>Đang bảo lưu kết quả</Badge>}</div>
       </div>
       <div className="stepper">{STEPS.map((s, i) => <div key={s} className={STEPS.indexOf(e.status) >= i ? 'done' : ''}><span>{i + 1}</span>{STATUS_VI[s]}</div>)}</div>
       <div className="tabs">
@@ -33,31 +34,28 @@ export default function ExamDetail() {
       {tab === 'flow' && <Flow e={e} reload={exam.reload} />}
       {tab === 'overview' && <Overview id={id} />}
       {tab === 'items' && <Items id={id} />}
-      {tab === 'students' && <Students id={id} />}
+      {tab === 'students' && <Students id={id} cs={e.class_section_id} paper={e.exam_type === 'paper'} />}
       {tab === 'log' && <Log id={id} />}
     </>
   )
 }
 
+const escapeHtml = t => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
 function Flow({ e, reload }) {
   const toast = useToast()
+  const nav = useNavigate()
   const [quiz, setQuiz] = useState(e.moodle_quiz_id || '')
   const [mcourse, setMcourse] = useState(e.moodle_course_id || '')
-  const [ver, setVer] = useState({ count: 2, start_code: 101, seed: '' })
-  const upload = async file => {
-    try {
-      const r = await api.upload(`/api/exams/${e.id}/paper-import`, file)
-      toast(`Đã nhập ${r.import.imported} phiếu, ${r.import.absent} SV vắng${r.import.warnings.length ? ` – ${r.import.warnings.length} cảnh báo` : ''}`, r.import.warnings.length ? 'amber' : 'green')
-      r.import.warnings.slice(0, 5).forEach(w => toast(w, 'amber'))
-      reload()
-    } catch (ex) { toast(ex.message, 'red') }
-  }
   return (
     <div className="grid2">
+      <div className="stack">
       <Card title="1. Đề thi">
         <table className="tbl compact"><thead><tr><th>#</th><th>Câu hỏi</th><th>CLO</th><th>Điểm</th></tr></thead>
           <tbody>{e.questions.map(q => <tr key={q.question_id} className={q.is_cancelled ? 'cancel' : ''}><td>{q.order_index}</td><td className="clip">{q.content}</td><td>{q.clos}</td><td>{q.points}</td></tr>)}</tbody></table>
       </Card>
+      <ExamMatrix e={e} />
+      </div>
       <div className="stack">
         {e.exam_type === 'online' ? <>
           <Card title="2. Phát hành lên Moodle">
@@ -69,36 +67,16 @@ function Flow({ e, reload }) {
               <details className="mt"><summary className="muted">Cách thủ công: tải XML, tự import và nhập ID Quiz</summary>
                 <ActionButton className="btn mt" onRun={async () => { await api.download(`/api/exams/${e.id}/moodle-xml`, 'moodle.xml'); reload() }}>⬇ Tải Moodle XML</ActionButton>
                 <div className="row gap mt"><Field label="ID Quiz trên Moodle"><input className="num" value={quiz} onChange={x => setQuiz(x.target.value)} /></Field>
-                  <ActionButton className="btn" okMsg="Đã liên kết Quiz" onRun={async () => { await api.patch(`/api/exams/${e.id}/link-quiz`, { moodle_quiz_id: Number(quiz) }); reload() }}>Liên kết</ActionButton></div>
+                  <ActionButton className="btn" disabled={!(Number(quiz) > 0)} okMsg="Đã liên kết Quiz" onRun={async () => { await api.patch(`/api/exams/${e.id}/link-quiz`, { moodle_quiz_id: Number(quiz) }); reload() }}>Liên kết</ActionButton></div>
               </details></>}
           </Card>
           <Card title="3. Đồng bộ bài làm từ Moodle">
-            <p className="muted">Đọc trực tiếp CSDL Moodle (thủ tục <code>sp_sync_exam</code>): lấy lượt nộp cuối, giải mã thứ tự xáo trộn phương án, ghi nhận SV vắng.</p>
-            <ActionButton className="btn primary" disabled={!e.moodle_quiz_id} okMsg={r => `Đồng bộ ${r.sync.n_attempts} bài làm, ${r.sync.n_absent} vắng – đã phân tích`}
+            <p className="muted">Đọc trực tiếp CSDL Moodle (thủ tục <code>sp_sync_exam</code>): lấy đúng lượt Moodle dùng để tính điểm (theo cách tính điểm của Quiz), giải mã thứ tự xáo trộn phương án, ghi nhận SV vắng.</p>
+            <ActionButton className="btn primary" disabled={!e.moodle_quiz_id} okMsg={r => (r.analysis ? `Đồng bộ ${r.sync.n_attempts} bài làm, ${r.sync.n_absent} vắng – đã phân tích` : (r.analysis_skipped || 'Đã đồng bộ')) + (r.warnings ? ` ⚠ ${r.warnings.join('; ')}` : '')}
               onRun={async () => { const r = await api.post(`/api/exams/${e.id}/sync`); reload(); return r }}>⟳ Đồng bộ &amp; phân tích</ActionButton>
             {e.last_synced_at && <p className="muted mt">Lần gần nhất: {e.last_synced_at.replace('T', ' ')}</p>}
           </Card>
-        </> : <>
-          <Card title="2. Sinh mã đề & in đề">
-            {e.versions.length === 0 ? <>
-              <p className="muted">Mỗi mã đề hoán vị thứ tự câu hỏi và phương án; hệ thống lưu lại để chấm theo đúng mã đề.</p>
-              <div className="row gap">
-                <Field label="Số mã đề"><input className="num" type="number" min="1" max="8" value={ver.count} onChange={x => setVer({ ...ver, count: x.target.value })} /></Field>
-                <Field label="Mã đầu"><input className="num" type="number" value={ver.start_code} onChange={x => setVer({ ...ver, start_code: x.target.value })} /></Field>
-                <Field label="Seed (tùy chọn)"><input className="num" value={ver.seed} onChange={x => setVer({ ...ver, seed: x.target.value })} /></Field>
-              </div>
-              <ActionButton className="btn primary" okMsg="Đã sinh mã đề" onRun={async () => { await api.post(`/api/exams/${e.id}/versions`, { count: Number(ver.count), start_code: Number(ver.start_code), seed: ver.seed ? Number(ver.seed) : null }); reload() }}>Sinh mã đề</ActionButton>
-            </> : <div className="row gap wrap">
-              {e.versions.map(v => <ActionButton key={v.id} className="btn" onRun={() => api.download(`/api/exams/${e.id}/versions/${v.id}/paper.docx`, `de_${v.version_code}.docx`)}>⬇ Đề mã {v.version_code} (.docx)</ActionButton>)}
-              <ActionButton className="btn" onRun={() => api.download(`/api/exams/${e.id}/answer-key.xlsx`, 'dap_an.xlsx')}>⬇ Đáp án các mã đề (.xlsx)</ActionButton>
-            </div>}
-          </Card>
-          <Card title="3. Nhập phiếu trả lời">
-            <p className="muted">Tệp CSV/XLSX từ máy chấm: <code>student_code, version_code, Q1…Qn</code> (nhãn đã tô; để trống = bỏ trống). SV trong danh sách lớp không có phiếu được ghi nhận vắng.</p>
-            <label className={`btn primary ${e.versions.length ? '' : 'disabled'}`}>⬆ Chọn tệp phiếu trả lời
-              <input type="file" hidden accept=".csv,.xlsx" disabled={!e.versions.length} onChange={x => x.target.files[0] && upload(x.target.files[0])} /></label>
-          </Card>
-        </>}
+        </> : <PaperFlow e={e} reload={reload} />}
         <Card title="4. Phân tích & công bố">
           <p className="muted">Tính p, DI (Kelley 27%), điểm CLO từng SV, tổng hợp CLO → PI → PLO và lộ trình ôn tập cá nhân.
             Khi công bố, kết quả (radar CLO, nhận định, chương cần ôn) được gửi sang Moodle để sinh viên xem tại khóa học → <i>Kết quả phân tích CĐR</i>.</p>
@@ -109,13 +87,90 @@ function Flow({ e, reload }) {
               onRun={async () => { const r = await api.patch(`/api/exams/${e.id}/publish`, { publish: !e.publish_flag }); reload(); return r }}>{e.publish_flag ? 'Thu hồi công bố' : 'Công bố kết quả lên Moodle'}</ActionButton>
             <ActionButton className="btn" disabled={e.status !== 'Analyzed' || !e.moodle_course_id} okMsg={r => `Moodle đã nhận ${r.saved}/${r.sent} kết quả${r.notfound.length ? ` – không tìm thấy: ${r.notfound.join(', ')}` : ''}`}
               onRun={() => api.post(`/api/exams/${e.id}/moodle/push-results`)}>⇪ Gửi lại kết quả lên Moodle</ActionButton>
-            {e.status === 'Draft' && <ActionButton className="btn danger" onRun={async () => { await api.del(`/api/exams/${e.id}`); window.location.href = `/sections/${e.class_section_id}` }}>Xóa bài KT</ActionButton>}
+            {e.status === 'Draft' && <ActionButton className="btn danger" confirm={`Xóa bài kiểm tra "${e.exam_title}"? Thao tác không hoàn tác được.`}
+              onRun={async () => { await api.del(`/api/exams/${e.id}`); nav(`/sections/${e.class_section_id}`) }}>Xóa bài KT</ActionButton>}
           </div>
           <p className="mt"><b>{e.n_attempts}</b> bài làm · <b>{e.n_absent}</b> vắng</p>
         </Card>
       </div>
     </div>
   )
+}
+
+// Ma trận đề của bài đã lưu: số câu theo chương × mức Bloom và điểm theo CLO
+function ExamMatrix({ e }) {
+  const qs = e.questions.filter(q => !q.is_cancelled)
+  const chapters = [...new Map(qs.map(q => [q.outline_id ?? null, { outline_id: q.outline_id ?? null, chapter_number: q.chapter }])).values()]
+    .sort((a, b) => (a.chapter_number ?? 99) - (b.chapter_number ?? 99))
+  const cells = qs.map(q => ({ outline_id: q.outline_id ?? null, bloom_level_id: q.bloom_level_id }))
+  const count = (o, b) => qs.filter(q => (q.outline_id ?? null) === o && (b === 'sum' || q.bloom_level_id === b)).length || ''
+  const clo = {}
+  qs.forEach(q => (q.clos || '').split(', ').filter(Boolean).forEach(c => { clo[c] = (clo[c] || 0) + 1 }))
+  return <Card title="Ma trận đề (chương × mức Bloom)">
+    <MatrixTable chapters={chapters} cells={cells} blooms={[1, 2, 3, 4, 5, 6]} render={count} />
+    <div className="row gap wrap mt">{Object.entries(clo).sort().map(([c, n]) => <span key={c} className="pill blue">{c}: {n} câu</span>)}</div>
+  </Card>
+}
+
+const FILE_VI = { question: 'Đề thi', answer: 'Phiếu trả lời', correction: 'Đáp án' }
+
+function PaperFlow({ e, reload }) {
+  const [f, setF] = useState({ moodle_course_id: e.moodle_course_id || '', numgroups: 2, shuffle_questions: true, shuffle_answers: true, file_format: 'pdf', intro: '' })
+  const oq = useApi(e.moodle_offlinequiz_id ? `/api/exams/${e.id}/moodle/offlinequiz` : null, [e.moodle_offlinequiz_id])
+  const o = oq.data
+  if (!e.moodle_offlinequiz_id) return (
+    <Card title="2. Tạo đề thi giấy trên Moodle">
+      <p className="muted">Moodle (plugin <b>Offline Quiz</b>) sinh <b>đề in</b>, <b>phiếu trả lời</b> và <b>đáp án</b> cho từng mã đề từ bộ câu hỏi này.
+        Sau khi thi, phiếu được quét và tải lên Moodle – <b>Moodle nhận diện và chấm điểm</b>; hệ thống kéo kết quả về để phân tích.</p>
+      <div className="grid2">
+        <Field label="ID khóa học Moodle"><input className="num" value={f.moodle_course_id} onChange={x => setF({ ...f, moodle_course_id: x.target.value })} /></Field>
+        <Field label="Số mã đề"><select value={f.numgroups} onChange={x => setF({ ...f, numgroups: Number(x.target.value) })}>
+          {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} mã đề ({'ABCDEF'.slice(0, n).split('').join(', ')})</option>)}</select></Field>
+        <Field label="Định dạng đề in"><select value={f.file_format} onChange={x => setF({ ...f, file_format: x.target.value })}>
+          <option value="pdf">PDF</option><option value="docx">Word (.docx) – sửa được trước khi in</option></select></Field>
+        <div>
+          <label className="row gap check"><input type="checkbox" checked={f.shuffle_questions} onChange={x => setF({ ...f, shuffle_questions: x.target.checked })} /> Xáo trộn thứ tự câu giữa các mã đề</label>
+          <label className="row gap check"><input type="checkbox" checked={f.shuffle_answers} onChange={x => setF({ ...f, shuffle_answers: x.target.checked })} /> Xáo trộn phương án</label>
+        </div>
+      </div>
+      <Field label="Lời dặn in ở đầu đề (tùy chọn)"><textarea rows={2} value={f.intro} placeholder="VD: Thời gian làm bài 30 phút. Không sử dụng tài liệu." onChange={x => setF({ ...f, intro: x.target.value })} /></Field>
+      <ActionButton className="btn primary mt" disabled={!f.moodle_course_id || !e.questions.length} okMsg={r => `Moodle đã tạo ${r.groups.length} mã đề – tải đề và phiếu để in`}
+        onRun={async () => { const r = await api.post(`/api/exams/${e.id}/moodle/create-offlinequiz`, { ...f, moodle_course_id: Number(f.moodle_course_id), intro: f.intro ? `<p>${escapeHtml(f.intro)}</p>` : '' }); reload(); return r }}>⇪ Tạo đề thi giấy trên Moodle</ActionButton>
+    </Card>)
+  return <>
+    <Card title="2. Đề thi & phiếu trả lời để in" actions={o && <a className="btn sm" href={o.url} target="_blank" rel="noreferrer">Mở trên Moodle ↗</a>}>
+      <Loading {...oq} />
+      {o && <>
+        <p className="muted">Moodle đã sinh sẵn {o.groups.length} mã đề (Offline Quiz #{o.offlinequizid}). In <b>đề thi</b> và <b>phiếu trả lời</b> của mỗi mã đề; giữ <b>đáp án</b> để đối chiếu.</p>
+        <table className="tbl compact"><thead><tr><th>Mã đề</th><th>Số câu</th><th>Tệp</th></tr></thead>
+          <tbody>{o.groups.map(g => <tr key={g.letter}><td><b>{g.letter}</b></td><td>{g.questions}</td>
+            <td><div className="row gap wrap">{g.files.map(x => <ActionButton key={x.filename} className="btn sm" onRun={() => api.download(x.download, x.filename)}>
+              ⬇ {FILE_VI[x.kind]} ({x.filename.split('.').pop().toUpperCase()}, {Math.round(x.filesize / 1024)} KB)</ActionButton>)}</div></td></tr>)}</tbody></table>
+        <ActionButton className="btn primary mt" onRun={() => api.download(o.zip, 'de_thi_giay.zip')}>⬇ Tải tất cả (.zip)</ActionButton>
+      </>}
+    </Card>
+    <Card title="3. Quét phiếu – Moodle nhận diện & chấm">
+      <ol className="steps small">
+        <li>SV ghi <b>MSSV</b> bằng cách đánh dấu các ô số và làm bài trên phiếu trả lời của đúng mã đề.</li>
+        <li>Quét phiếu thành ảnh (PNG/JPG/TIFF, nên 200–300 dpi) hoặc nén nhiều ảnh thành <b>.zip</b>, rồi tải lên Moodle:
+          {o && <> <a href={o.uploadurl} target="_blank" rel="noreferrer">Tải phiếu đã quét lên Moodle ↗</a></>}</li>
+        <li>Moodle nhận diện MSSV, mã đề, các ô đã đánh dấu và chấm điểm. Phiếu mờ/sai MSSV được đưa vào danh sách cần sửa
+          {o && <> – <a href={o.correcturl} target="_blank" rel="noreferrer">sửa lỗi phiếu trên Moodle ↗</a></>}.</li>
+      </ol>
+      {o && <div className="stats mt">
+        <Stat label="Bài đã chấm trên Moodle" value={o.results} tone="green" />
+        <Stat label="Ảnh phiếu đang chờ chấm" value={o.pending} tone={o.pending ? 'amber' : ''} />
+        <Stat label="Phiếu cần sửa trên Moodle" value={o.errorpages} tone={o.errorpages ? 'red' : ''} />
+      </div>}
+      <div className="row gap wrap">
+        <ActionButton className="btn" okMsg={r => `Moodle đã chấm ${r.results} bài${r.errorpages ? ` – ${r.errorpages} phiếu cần sửa trên Moodle` : ''}`}
+          onRun={async () => { const r = await api.post(`/api/exams/${e.id}/moodle/process-scans`); oq.setData(r); return r }}>Cho Moodle chấm phiếu đang chờ</ActionButton>
+        <ActionButton className="btn primary" okMsg={r => (r.analysis ? `Đồng bộ ${r.sync.n_attempts} bài đã chấm, ${r.sync.n_absent} vắng – đã phân tích` : (r.analysis_skipped || 'Đã đồng bộ')) + (r.scans_error ? ` ⚠ Không gọi được Moodle chấm phiếu đang chờ: ${r.scans_error}` : '') + (r.warnings ? ` ⚠ ${r.warnings.join('; ')}` : '')}
+          onRun={async () => { const r = await api.post(`/api/exams/${e.id}/sync`); reload(); oq.reload(); return r }}>⟳ Đồng bộ &amp; phân tích</ActionButton>
+      </div>
+      {e.last_synced_at && <p className="muted mt">Lần đồng bộ gần nhất: {e.last_synced_at.replace('T', ' ')}</p>}
+    </Card>
+  </>
 }
 
 function Overview({ id }) {
@@ -128,6 +183,7 @@ function Overview({ id }) {
         <Stat label="Điểm trung bình" value={fmtNum(o.mean)} sub={`/ ${o.max_score}`} />
         <Stat label="Thấp nhất – cao nhất" value={`${o.min} – ${o.max}`} />
         <Stat label="Tỷ lệ ≥ 50% thang điểm" value={`${o.pass_rate}%`} tone={o.pass_rate >= 50 ? 'green' : 'red'} />
+        <Stat label="Độ tin cậy của đề (KR-20)" value={o.kr20 == null ? '–' : fmtNum(o.kr20)} sub={o.kr20 == null ? '' : o.kr20 >= 0.7 ? 'đạt (≥ 0,7)' : 'thấp (< 0,7) – đề ít câu / ít phân hóa'} tone={o.kr20 == null ? '' : o.kr20 >= 0.7 ? 'green' : 'amber'} />
       </div>
       <Card title="Phổ điểm">
         <div className="chart"><Bar data={{ labels: o.histogram.map(h => h.range), datasets: [{ label: 'Số SV', data: o.histogram.map(h => h.count), backgroundColor: C.blue, borderRadius: 4 }] }}
@@ -181,16 +237,17 @@ function Items({ id }) {
   )
 }
 
-function Students({ id }) {
+function Students({ id, cs, paper }) {
   const { data, ...st } = useApi(`/api/exams/${id}/students`)
+  const nav = useNavigate()
   if (!data) return <Loading {...st} />
   const clos = [...new Set(data.flatMap(d => Object.keys(d.clos)))].sort()
   return (
-    <Card title="Kết quả từng sinh viên theo CLO" actions={<span className="muted">✓ đạt ngưỡng · ✗ chưa đạt</span>}>
+    <Card title="Kết quả từng sinh viên theo CLO" actions={<span className="muted">✓ đạt ngưỡng · ✗ chưa đạt · bấm vào SV để xem chi tiết &amp; phần cần học lại</span>}>
       <table className="tbl">
         <thead><tr><th>MSSV</th><th>Họ tên</th><th>Nguồn</th><th>Mã đề</th><th>Điểm thô</th>{clos.map(c => <th key={c}>{c}</th>)}</tr></thead>
-        <tbody>{data.map(d => <tr key={d.attempt_id} className={d.status === 'absent' ? 'cancel' : ''}>
-          <td>{d.student_code}</td><td>{d.full_name}</td><td>{d.status === 'absent' ? 'Vắng' : d.source === 'moodle' ? 'Moodle' : 'Phiếu giấy'}</td>
+        <tbody>{data.map(d => <tr key={d.attempt_id} className={`click ${d.status === 'absent' ? 'dim' : ''}`} onClick={() => nav(`/sections/${cs}/students/${d.student_id}?exam=${id}`)}>
+          <td>{d.student_code}</td><td><Link to={`/sections/${cs}/students/${d.student_id}?exam=${id}`} onClick={ev => ev.stopPropagation()}>{d.full_name}</Link></td><td>{d.status === 'absent' ? 'Vắng' : paper ? 'Phiếu quét (Moodle chấm)' : 'Moodle Quiz'}</td>
           <td>{d.version_code || '—'}</td><td>{d.status === 'absent' ? '—' : d.total_score}</td>
           {clos.map(c => <td key={c} className={d.clos[c] ? (d.clos[c].ok ? 'ok-t' : 'bad-t') : ''}>{d.clos[c] ? `${d.clos[c].pct}% ${d.clos[c].ok ? '✓' : '✗'}` : '—'}</td>)}
         </tr>)}</tbody>

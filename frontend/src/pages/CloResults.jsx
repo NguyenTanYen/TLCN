@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Bar } from 'react-chartjs-2'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Badge, Card, Field, Loading, Modal, Stat, diClass } from '../components/ui'
@@ -12,8 +12,9 @@ export default function CloResults() {
   const { id } = useParams()
   const res = useApi(`/api/class-sections/${id}/clo-results`)
   const cs = useApi('/api/class-sections').data?.find(x => String(x.id) === id)
-  const course = useApi(cs ? `/api/courses/${cs.course_id}` : null)
-  const [tab, setTab] = useState('bm6b')
+  const course = useApi(cs ? `/api/courses/${cs.course_id}?semester_id=${cs.semester_id}` : null)
+  const [sp] = useSearchParams()
+  const [tab, setTab] = useState(sp.get('tab') === 'bm6a' ? 'bm6a' : 'bm6b')
   const [evid, setEvid] = useState(null)
   const [plan, setPlan] = useState(null)
   const r = res.data
@@ -117,12 +118,14 @@ function PlanForm({ clo, semester_id, onClose, onSaved }) {
       <div className="grid2">
         <Field label="Phương pháp"><input value={f.method} onChange={set('method')} /></Field>
         <Field label="Chu kỳ"><input value={f.cycle} onChange={set('cycle')} /></Field>
-        <Field label="Ngưỡng đạt của SV (% điểm tối đa)"><input type="number" value={f.pass_threshold_pct} onChange={set('pass_threshold_pct')} /></Field>
-        <Field label="Chỉ tiêu mong muốn (% SV đạt)"><input type="number" value={f.target_pct} onChange={set('target_pct')} /></Field>
+        <Field label="Ngưỡng đạt của SV (% điểm tối đa)"><input type="number" min="0" max="100" value={f.pass_threshold_pct} onChange={set('pass_threshold_pct')} /></Field>
+        <Field label="Chỉ tiêu mong muốn (% SV đạt)"><input type="number" min="0" max="100" value={f.target_pct} onChange={set('target_pct')} /></Field>
       </div>
-      <p className="muted">Sau khi đổi ngưỡng/chỉ tiêu, hãy bấm “Phân tích lại” ở bài KT để cập nhật kết quả.</p>
-      <div className="row"><span className="grow" /><ActionButton className="btn primary" okMsg="Đã lưu kế hoạch"
-        onRun={async () => { await api.put('/api/clo-plans', { ...f, clo_id: clo.id, semester_id, pass_threshold_pct: Number(f.pass_threshold_pct), target_pct: Number(f.target_pct) }); onSaved() }}>Lưu</ActionButton></div>
+      <p className="muted">Khi lưu, hệ thống tự phân tích lại các bài KT đã phân tích của môn trong học kỳ để kết quả CLO – PI – PLO áp dụng ngưỡng/chỉ tiêu mới.</p>
+      <div className="row"><span className="grow" /><ActionButton className="btn primary"
+        disabled={!(Number(f.pass_threshold_pct) >= 0 && Number(f.pass_threshold_pct) <= 100 && Number(f.target_pct) >= 0 && Number(f.target_pct) <= 100) || !f.method.trim() || !f.cycle.trim()}
+        okMsg={r => `Đã lưu kế hoạch${r?.reanalyzed_exams ? ` · phân tích lại ${r.reanalyzed_exams} bài KT` : ''}`}
+        onRun={async () => { const r = await api.put('/api/clo-plans', { ...f, clo_id: clo.id, semester_id, pass_threshold_pct: Number(f.pass_threshold_pct), target_pct: Number(f.target_pct) }); onSaved(); return r }}>Lưu</ActionButton></div>
     </Modal>
   )
 }

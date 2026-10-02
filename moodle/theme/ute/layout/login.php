@@ -7,7 +7,8 @@ $templatecontext = [
     'shortname' => format_string($SITE->shortname, true, ['context' => context_course::instance(SITEID), 'escape' => false]),
     'output' => $OUTPUT,
     'bodyattributes' => $OUTPUT->body_attributes(['ute-login']),
-    'logintitle' => format_string(!empty($cfg->logintitle) ? $cfg->logintitle : get_string('default_logintitle', 'theme_ute')),
+    'logintitle' => format_string(!empty($cfg->logintitle) ? $cfg->logintitle : get_string('default_logintitle', 'theme_ute'), true,
+        ['context' => context_system::instance(), 'escape' => false]),   // mustache {{ }} tự thoát HTML – tránh thoát hai lần
     'bullets' => [
         ['text' => get_string('login_b1', 'theme_ute')],
         ['text' => get_string('login_b2', 'theme_ute')],

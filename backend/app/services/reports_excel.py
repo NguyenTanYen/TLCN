@@ -14,6 +14,8 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ..config import settings
+
 FONT = "Times New Roman"
 THIN = Side(style="thin", color="000000")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
@@ -113,10 +115,10 @@ def build_bm6(db: Session, cs_id: int) -> bytes:
     unit = cs["department"] or "Bộ môn"
     course_line = f"Tên môn học: {cs['course_name']} ({cs['course_code']}) – Lớp HP: {cs['section_code']} – {cs['sem_name']} – GV: {cs['lecturer']}"
     clos = db.execute(text("""SELECT c.id, c.clo_code, c.description, p.assessments_text, p.evidence_type, p.method, p.cycle,
-                                     COALESCE(p.pass_threshold_pct, 60) AS thr, COALESCE(p.target_pct, :t) AS target
+                                     COALESCE(p.pass_threshold_pct, :thr0) AS thr, COALESCE(p.target_pct, :t) AS target
                               FROM clos c LEFT JOIN clo_assessment_plans p ON p.clo_id = c.id AND p.semester_id = :s
                               WHERE c.course_id = :c ORDER BY c.clo_code"""),
-                      {"c": cs["course_id"], "s": cs["semester_id"], "t": cs["clo_target_pct"]}).mappings().all()
+                      {"c": cs["course_id"], "s": cs["semester_id"], "t": cs["clo_target_pct"], "thr0": settings.default_pass_threshold}).mappings().all()
     ev_name = {"process": "Quá trình", "final": "Cuối kỳ", "any": "Quá trình + Cuối kỳ", None: ""}
     wb = Workbook()
     # ---------------- BM6a

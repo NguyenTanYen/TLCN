@@ -1,15 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Bar } from 'react-chartjs-2'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Card, Field, Loading, Modal, Stat } from '../components/ui'
-import { useApi } from '../hooks'
+import { useApi, useDefaultYear } from '../hooks'
 
 export default function PloSummary() {
-  const sems = useApi('/api/semesters').data
-  const years = useMemo(() => [...new Set((sems || []).map(s => s.academic_year))], [sems])
-  const [year, setYear] = useState('2024-2025')
-  const sum = useApi(`/api/reports/programs/1/plo-summary?academic_year=${year}`)
+  const { years, year, setYear } = useDefaultYear()
+  const sum = useApi(year ? `/api/reports/programs/1/plo-summary?academic_year=${year}` : null)
   const [edit, setEdit] = useState(null)
   const s = sum.data
   const measured = s?.plos.filter(p => p.n_evaluated) || []
@@ -17,9 +15,9 @@ export default function PloSummary() {
     <>
       <div className="page-h"><div><h1>Tổng hợp đo lường CĐR CTĐT</h1><p className="muted">UC-07 · BM3c (kết quả từng PLO = cộng dồn các PI) và BM2 (tổng kết chương trình = Σ đạt / Σ đánh giá).</p></div>
         <div className="row gap">
-          <Field label="Năm học"><select value={year} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
+          <Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
           <ActionButton className="btn" okMsg="Đã tính lại" onRun={async () => { await api.post('/api/reports/programs/1/recompute'); sum.reload() }}>Tính lại</ActionButton>
-          <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/programs/1/bm3.xlsx?academic_year=${year}`, 'BM2_BM3.xlsx')}>⬇ Xuất BM2/BM3 (.xlsx)</ActionButton>
+          <ActionButton className="btn primary" disabled={!year} onRun={() => api.download(`/api/reports/programs/1/bm3.xlsx?academic_year=${year}`, 'BM2_BM3.xlsx')}>⬇ Xuất BM2/BM3 (.xlsx)</ActionButton>
         </div></div>
       <Loading {...sum} />
       {s && <>

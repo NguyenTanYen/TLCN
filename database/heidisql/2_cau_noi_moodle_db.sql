@@ -1,7 +1,9 @@
 -- =============================================================
 -- Chạy trong HeidiSQL SAU KHI đã có CSDL Moodle moodle_db (tiền tố mdl_)
--- Cài 5 view + thủ tục sp_sync_exam đọc dữ liệu Moodle (chỉ đọc).
+-- và đã cài plugin Offline Quiz (3_CAI_GIAO_DIEN_MOODLE.bat) để đọc bài thi giấy.
+-- Cài 6 view + thủ tục sp_sync_exam đọc dữ liệu Moodle (chỉ đọc).
 -- Nếu CSDL Moodle có tên khác, thay 'moodle_db.' bằng tên đó.
+-- (Hệ thống tự cài lại phần này mỗi lần khởi động – kể cả khi Moodle chưa có Offline Quiz.)
 -- =============================================================
 -- =====================================================================
 --  CẦU NỐI CSDL HỆ THỐNG  <->  CSDL MOODLE 4.x (chỉ ĐỌC)
@@ -13,6 +15,9 @@
 --    * Các <answer> xuất theo question_options.position tăng dần
 --      => đáp án có id nhỏ thứ k trong mdl_question_answers ứng với position = k
 --    * SV khớp theo mdl_user.idnumber (nếu có) hoặc mdl_user.username = student_code
+--    * Bài thi GIẤY: Moodle (plugin Offline Quiz – mod_offlinequiz) sinh đề/phiếu, nhận diện phiếu quét và chấm;
+--      kết quả nằm ở mdl_offlinequiz_results (usageid -> question engine, cùng cấu trúc _order/answer như Quiz).
+--      Khối giữa "-- >>> offlinequiz" và "-- <<< offlinequiz" chỉ được cài khi Moodle đã có plugin này.
 --    * Mỗi SV lấy ĐÚNG lượt bài mà Moodle dùng để tính điểm, theo mdl_quiz.grademethod
 --      (1 = điểm cao nhất – mặc định, 3 = lượt đầu, 4 = lượt cuối; 2 = trung bình -> lấy lượt cuối để phân tích câu hỏi),
 --      chỉ xét lượt state = finished, preview = 0 (bỏ lượt xem thử của GV) – giống quiz_report_grade_method_sql() của Moodle
@@ -27,11 +32,25 @@ FROM moodle_db.mdl_question_versions     qv
 JOIN moodle_db.mdl_question_bank_entries qbe ON qbe.id = qv.questionbankentryid
 WHERE qbe.idnumber REGEXP '^QB-[0-9]+$';
 
+-- 1b) Khóa học Moodle chứa hoạt động của từng bài KT (Quiz cho bài online, Offline Quiz cho bài giấy)
+CREATE OR REPLACE VIEW v_mdl_exam_course AS
+SELECT e.id AS exam_id, qz.course AS course_id
+FROM exams e JOIN moodle_db.mdl_quiz qz ON qz.id = e.moodle_quiz_id
+WHERE e.exam_type = 'online'
+-- >>> offlinequiz
+UNION ALL
+SELECT e.id, oq.course
+FROM exams e JOIN moodle_db.mdl_offlinequiz oq ON oq.id = e.moodle_offlinequiz_id
+WHERE e.exam_type = 'paper'
+-- <<< offlinequiz
+;
+
 -- 2) Lượt bài được tính điểm của mỗi SV (theo cách tính điểm của quiz) cho các đề online đã gắn quiz
 CREATE OR REPLACE VIEW v_mdl_attempts AS
 SELECT e.id AS exam_id, t.id AS moodle_attempt_id, t.userid AS mdl_user_id, t.uniqueid AS usage_id,
        FROM_UNIXTIME(t.timestart) AS started_at,
-       FROM_UNIXTIME(NULLIF(t.timefinish, 0)) AS finished_at, t.grademethod
+       FROM_UNIXTIME(NULLIF(t.timefinish, 0)) AS finished_at, t.grademethod,
+       CAST(NULL AS CHAR(2) CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS group_code
 FROM exams e
 JOIN (
   SELECT qa.*, qz.grademethod,
@@ -43,29 +62,47 @@ JOIN (
   JOIN moodle_db.mdl_quiz qz ON qz.id = qa.quiz
   WHERE qa.preview = 0 AND qa.state = 'finished'
 ) t ON t.quiz = e.moodle_quiz_id AND t.rn = 1
-WHERE e.exam_type = 'online';
+WHERE e.exam_type = 'online'
+-- >>> offlinequiz
+UNION ALL
+-- Bài giấy: phiếu đã được Offline Quiz nhận diện và chấm xong (status = complete); SV quét lại nhiều lần -> lấy lần cuối.
+-- group_code = mã đề (nhóm A, B, C… của Offline Quiz).
+SELECT e.id, t.id, t.userid, t.usageid,
+       FROM_UNIXTIME(NULLIF(t.timestart, 0)), FROM_UNIXTIME(NULLIF(t.timefinish, 0)), NULL, t.group_code
+FROM exams e
+JOIN (
+  SELECT r.id, r.offlinequizid, r.userid, r.usageid, r.timestart, r.timefinish,
+         CHAR(64 + g.groupnumber USING utf8mb4) COLLATE utf8mb4_unicode_ci AS group_code,
+         ROW_NUMBER() OVER (PARTITION BY r.offlinequizid, r.userid ORDER BY r.timemodified DESC, r.id DESC) AS rn
+  FROM moodle_db.mdl_offlinequiz_results r
+  JOIN moodle_db.mdl_offlinequiz_groups g ON g.id = r.offlinegroupid
+  WHERE r.status = 'complete' AND COALESCE(r.preview, 0) = 0
+) t ON t.offlinequizid = e.moodle_offlinequiz_id AND t.rn = 1
+WHERE e.exam_type = 'paper'
+-- <<< offlinequiz
+;
 
 -- 3) Câu trả lời thô: _order (bước 0) + answer (bước cuối có answer; -1 = xóa lựa chọn)
+--    Viết bằng truy vấn con tương quan theo questionattemptid để dùng chỉ mục của Moodle
+--    (chỉ đọc các bước của những câu thuộc bài đang đồng bộ, không quét toàn bộ bảng step_data).
 CREATE OR REPLACE VIEW v_mdl_responses AS
 SELECT a.exam_id, a.moodle_attempt_id, a.mdl_user_id,
        qat.slot, qat.questionid AS mdl_question_id,
-       ord.value AS shuffled_order, CAST(ans.value AS SIGNED) AS answer_index
+       (SELECT d.value
+          FROM moodle_db.mdl_question_attempt_steps s
+          JOIN moodle_db.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = '_order'
+         WHERE s.questionattemptid = qat.id AND s.sequencenumber = 0
+         LIMIT 1) AS shuffled_order,
+       (SELECT CAST(d.value AS SIGNED)
+          FROM moodle_db.mdl_question_attempt_steps s
+          JOIN moodle_db.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = 'answer'
+         WHERE s.questionattemptid = qat.id
+         ORDER BY s.sequencenumber DESC
+         LIMIT 1) AS answer_index
 FROM v_mdl_attempts a
 JOIN moodle_db.mdl_question_attempts qat ON qat.questionusageid = a.usage_id
-LEFT JOIN (
-  SELECT s.questionattemptid, d.value
-  FROM moodle_db.mdl_question_attempt_steps s
-  JOIN moodle_db.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = '_order'
-  WHERE s.sequencenumber = 0
-) ord ON ord.questionattemptid = qat.id
-LEFT JOIN (
-  SELECT questionattemptid, value FROM (
-    SELECT s.questionattemptid, d.value,
-           ROW_NUMBER() OVER (PARTITION BY s.questionattemptid ORDER BY s.sequencenumber DESC) AS rn
-    FROM moodle_db.mdl_question_attempt_steps s
-    JOIN moodle_db.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = 'answer'
-  ) x WHERE rn = 1
-) ans ON ans.questionattemptid = qat.id;
+-- bỏ khối "Mô tả" (description) – không phải câu hỏi, không có câu trả lời
+JOIN moodle_db.mdl_question mq ON mq.id = qat.questionid AND mq.qtype <> 'description';
 
 -- 4) REVERSE SHUFFLE: chỉ số hiển thị -> id đáp án Moodle -> vị trí gốc -> question_options.id
 CREATE OR REPLACE VIEW v_mdl_item_results AS
@@ -93,17 +130,16 @@ FROM (
 ) r1
 LEFT JOIN question_options o ON o.question_id = r1.question_id AND o.position = r1.orig_position;
 
--- 5) Danh sách lớp trên Moodle (vai trò student) của khóa học chứa quiz
+-- 5) Danh sách lớp trên Moodle (vai trò student) của khóa học chứa Quiz / Offline Quiz
 CREATE OR REPLACE VIEW v_mdl_exam_roster AS
-SELECT e.id AS exam_id, u.id AS mdl_user_id,
+SELECT ec.exam_id, u.id AS mdl_user_id,
        COALESCE(NULLIF(TRIM(u.idnumber), ''), u.username) AS student_code,
        TRIM(CONCAT(u.lastname, ' ', u.firstname))         AS full_name
-FROM exams e
-JOIN moodle_db.mdl_quiz  qz ON qz.id = e.moodle_quiz_id
-JOIN moodle_db.mdl_enrol en ON en.courseid = qz.course AND en.status = 0
+FROM v_mdl_exam_course ec
+JOIN moodle_db.mdl_enrol en ON en.courseid = ec.course_id AND en.status = 0
 JOIN moodle_db.mdl_user_enrolments ue ON ue.enrolid = en.id AND ue.status = 0
 JOIN moodle_db.mdl_user  u  ON u.id = ue.userid AND u.deleted = 0
-JOIN moodle_db.mdl_context ctx ON ctx.contextlevel = 50 AND ctx.instanceid = qz.course
+JOIN moodle_db.mdl_context ctx ON ctx.contextlevel = 50 AND ctx.instanceid = ec.course_id
 JOIN moodle_db.mdl_role_assignments ra ON ra.contextid = ctx.id AND ra.userid = u.id
 JOIN moodle_db.mdl_role  ro ON ro.id = ra.roleid AND ro.shortname = 'student'
 UNION
@@ -112,14 +148,15 @@ SELECT a.exam_id, u.id, COALESCE(NULLIF(TRIM(u.idnumber), ''), u.username),
 FROM v_mdl_attempts a JOIN moodle_db.mdl_user u ON u.id = a.mdl_user_id;
 
 -- =====================================================================
--- 6) THỦ TỤC ĐỒNG BỘ MỘT BÀI KT ONLINE: CALL sp_sync_exam(exam_id)
+-- 6) THỦ TỤC ĐỒNG BỘ MỘT BÀI KT: CALL sp_sync_exam(exam_id)
+--    Bài online: đọc lượt làm Quiz. Bài giấy: đọc phiếu Offline Quiz đã chấm. Moodle là nơi chấm điểm duy nhất.
 --    Một transaction, chạy lại an toàn; lỗi -> ROLLBACK + ghi sync_runs.
 -- =====================================================================
 DROP PROCEDURE IF EXISTS sp_sync_exam;
 DELIMITER $$
 CREATE PROCEDURE sp_sync_exam(IN p_exam_id INT)
 BEGIN
-  DECLARE v_quiz BIGINT; DECLARE v_course BIGINT; DECLARE v_cs INT; DECLARE v_type VARCHAR(10);
+  DECLARE v_quiz BIGINT; DECLARE v_oq BIGINT; DECLARE v_course BIGINT; DECLARE v_cs INT; DECLARE v_type VARCHAR(10);
   DECLARE v_run BIGINT; DECLARE v_bad INT; DECLARE v_msg TEXT;
 
   DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -133,13 +170,14 @@ BEGIN
   INSERT INTO sync_runs (exam_id, kind) VALUES (p_exam_id, 'moodle');
   SET v_run = LAST_INSERT_ID();
 
-  SELECT moodle_quiz_id, class_section_id, exam_type INTO v_quiz, v_cs, v_type FROM exams WHERE id = p_exam_id;
-  IF v_type <> 'online' OR v_quiz IS NULL THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bài KT không phải online hoặc chưa gắn moodle_quiz_id';
+  SELECT moodle_quiz_id, moodle_offlinequiz_id, class_section_id, exam_type INTO v_quiz, v_oq, v_cs, v_type
+  FROM exams WHERE id = p_exam_id;
+  IF (v_type = 'online' AND v_quiz IS NULL) OR (v_type = 'paper' AND v_oq IS NULL) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Bài KT chưa gắn hoạt động trên Moodle (Quiz cho bài online, Offline Quiz cho bài giấy)';
   END IF;
-  SELECT course INTO v_course FROM moodle_db.mdl_quiz WHERE id = v_quiz;
+  SELECT course_id INTO v_course FROM v_mdl_exam_course WHERE exam_id = p_exam_id LIMIT 1;
   IF v_course IS NULL THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Lỗi kết nối LMS: không tìm thấy quiz trên Moodle';
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Lỗi kết nối LMS: không tìm thấy Quiz / Offline Quiz trên Moodle';
   END IF;
 
   START TRANSACTION;
@@ -175,27 +213,58 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
   END IF;
 
-  -- d. Sinh viên + danh sách lớp HP từ Moodle
+  -- c2. Câu hỏi trên Moodle phải giữ nguyên cấu trúc của đề gốc (cùng số phương án, đáp án đúng cùng vị trí);
+  --     nếu GV đã sửa câu trên Moodle thì dừng lại thay vì giải xáo trộn sai.
+  SELECT COUNT(*) INTO v_bad
+  FROM (SELECT DISTINCT r.mdl_question_id, m.question_id
+          FROM v_mdl_responses r JOIN v_mdl_question_map m ON m.mdl_question_id = r.mdl_question_id
+         WHERE r.exam_id = p_exam_id) u
+  WHERE (SELECT COUNT(*) FROM moodle_db.mdl_question_answers a WHERE a.question = u.mdl_question_id)
+        <> (SELECT COUNT(*) FROM question_options o WHERE o.question_id = u.question_id)
+     OR (SELECT COUNT(*) + 1 FROM moodle_db.mdl_question_answers a2
+          WHERE a2.question = u.mdl_question_id
+            AND a2.id < (SELECT MIN(a.id) FROM moodle_db.mdl_question_answers a WHERE a.question = u.mdl_question_id AND a.fraction > 0.999))
+        <> (SELECT MIN(o.position) FROM question_options o WHERE o.question_id = u.question_id AND o.is_correct = 1);
+  IF v_bad > 0 THEN
+    SET v_msg = CONCAT(v_bad, ' câu hỏi trên Moodle đã bị sửa khác đề gốc (số phương án hoặc đáp án đúng) – kiểm tra lại các câu QB-n trên Moodle');
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_msg;
+  END IF;
+
+  -- d. Sinh viên + danh sách lớp HP từ Moodle (2 bước: gắn tài khoản Moodle cho SV đã có mã, rồi thêm SV mới)
+  UPDATE students s JOIN v_mdl_exam_roster ro ON ro.exam_id = p_exam_id AND ro.student_code = s.student_code
+  SET s.moodle_user_id = ro.mdl_user_id
+  WHERE s.moodle_user_id IS NULL
+    AND NOT EXISTS (SELECT 1 FROM (SELECT moodle_user_id FROM students WHERE moodle_user_id IS NOT NULL) x
+                     WHERE x.moodle_user_id = ro.mdl_user_id);
+
   INSERT INTO students (student_code, full_name, moodle_user_id)
-  SELECT student_code, full_name, mdl_user_id FROM v_mdl_exam_roster WHERE exam_id = p_exam_id
-  ON DUPLICATE KEY UPDATE moodle_user_id = VALUES(moodle_user_id);
+  SELECT ro.student_code, ro.full_name, ro.mdl_user_id FROM v_mdl_exam_roster ro
+  WHERE ro.exam_id = p_exam_id
+    AND NOT EXISTS (SELECT 1 FROM students s WHERE s.moodle_user_id = ro.mdl_user_id OR s.student_code = ro.student_code);
 
   INSERT IGNORE INTO enrollments (class_section_id, student_id)
   SELECT v_cs, s.id FROM v_mdl_exam_roster ro JOIN students s ON s.moodle_user_id = ro.mdl_user_id
   WHERE ro.exam_id = p_exam_id;
 
-  -- e. Lượt nộp cuối (không ghi đè bài giấy)
-  INSERT INTO exam_attempts (exam_id, student_id, moodle_attempt_id, source, started_at, finished_at, status)
-  SELECT a.exam_id, s.id, a.moodle_attempt_id, 'moodle', a.started_at, a.finished_at, 'finished'
+  -- e. Mã đề của bài giấy = nhóm đề Offline Quiz (A, B, C…) – để thống kê theo mã đề
+  INSERT IGNORE INTO exam_versions (exam_id, version_code)
+  SELECT DISTINCT p_exam_id, a.group_code FROM v_mdl_attempts a WHERE a.exam_id = p_exam_id AND a.group_code IS NOT NULL;
+
+  -- f. Lượt bài được tính điểm
+  INSERT INTO exam_attempts (exam_id, student_id, version_id, moodle_attempt_id, source, started_at, finished_at, status)
+  SELECT a.exam_id, s.id, v.id, a.moodle_attempt_id, 'moodle', a.started_at, a.finished_at, 'finished'
   FROM v_mdl_attempts a JOIN students s ON s.moodle_user_id = a.mdl_user_id
+  LEFT JOIN exam_versions v ON v.exam_id = a.exam_id AND v.version_code = a.group_code
   WHERE a.exam_id = p_exam_id
   ON DUPLICATE KEY UPDATE
-     exam_attempts.moodle_attempt_id = IF(exam_attempts.source = 'paper', exam_attempts.moodle_attempt_id, VALUES(moodle_attempt_id)),
-     exam_attempts.started_at        = IF(exam_attempts.source = 'paper', exam_attempts.started_at,        VALUES(started_at)),
-     exam_attempts.finished_at       = IF(exam_attempts.source = 'paper', exam_attempts.finished_at,       VALUES(finished_at)),
-     exam_attempts.status            = IF(exam_attempts.source = 'paper', exam_attempts.status,            'finished');
+     exam_attempts.version_id        = VALUES(version_id),
+     exam_attempts.moodle_attempt_id = VALUES(moodle_attempt_id),
+     exam_attempts.source            = 'moodle',
+     exam_attempts.started_at        = VALUES(started_at),
+     exam_attempts.finished_at       = VALUES(finished_at),
+     exam_attempts.status            = 'finished';
 
-  -- f. Vắng thi: có trong danh sách lớp HP (active) nhưng không có lượt nộp
+  -- g. Vắng thi: có trong danh sách lớp HP (active) nhưng không có bài được chấm trên Moodle
   INSERT INTO exam_attempts (exam_id, student_id, source, status, total_score)
   SELECT p_exam_id, en.student_id, 'moodle', 'absent', 0
   FROM enrollments en
@@ -203,34 +272,36 @@ BEGIN
   WHERE en.class_section_id = v_cs AND en.status = 'active'
     AND NOT EXISTS (SELECT 1 FROM v_mdl_attempts a WHERE a.exam_id = p_exam_id AND a.mdl_user_id = s.moodle_user_id)
   ON DUPLICATE KEY UPDATE
-     exam_attempts.moodle_attempt_id = IF(exam_attempts.source = 'paper', exam_attempts.moodle_attempt_id, NULL),
-     exam_attempts.started_at        = IF(exam_attempts.source = 'paper', exam_attempts.started_at, NULL),
-     exam_attempts.finished_at       = IF(exam_attempts.source = 'paper', exam_attempts.finished_at, NULL),
-     exam_attempts.status            = IF(exam_attempts.source = 'paper', exam_attempts.status, 'absent');
+     exam_attempts.version_id = NULL, exam_attempts.moodle_attempt_id = NULL, exam_attempts.source = 'moodle',
+     exam_attempts.started_at = NULL, exam_attempts.finished_at = NULL,
+     exam_attempts.status = 'absent', exam_attempts.total_score = 0;
 
-  -- g. Làm mới kết quả từng câu
+  -- h. Làm mới kết quả từng câu
   DELETE r FROM item_level_results r JOIN exam_attempts a ON a.id = r.attempt_id
-  WHERE a.exam_id = p_exam_id AND a.source = 'moodle';
+  WHERE a.exam_id = p_exam_id;
 
   INSERT INTO item_level_results (attempt_id, question_id, selected_option_id, response_status, is_correct, score_earned)
   SELECT a.id, v.question_id, v.selected_option_id, v.response_status, v.is_correct, IF(v.is_correct, eq.points, 0)
   FROM v_mdl_item_results v
-  JOIN exam_attempts  a  ON a.moodle_attempt_id = v.moodle_attempt_id AND a.source = 'moodle'
+  JOIN exam_attempts  a  ON a.exam_id = p_exam_id AND a.moodle_attempt_id = v.moodle_attempt_id
   JOIN exam_questions eq ON eq.exam_id = p_exam_id AND eq.question_id = v.question_id
   WHERE v.exam_id = p_exam_id;
 
   INSERT INTO item_level_results (attempt_id, question_id, response_status)
   SELECT a.id, eq.question_id, 'absent'
   FROM exam_attempts a JOIN exam_questions eq ON eq.exam_id = a.exam_id
-  WHERE a.exam_id = p_exam_id AND a.source = 'moodle' AND a.status = 'absent';
+  WHERE a.exam_id = p_exam_id AND a.status = 'absent';
 
-  -- h. Tổng điểm & trạng thái
+  -- i. Tổng điểm & trạng thái
   UPDATE exam_attempts a
-  LEFT JOIN (SELECT attempt_id, SUM(score_earned) sc FROM item_level_results GROUP BY attempt_id) t ON t.attempt_id = a.id
+  LEFT JOIN (SELECT r.attempt_id, SUM(r.score_earned) sc FROM item_level_results r
+               JOIN exam_attempts x ON x.id = r.attempt_id AND x.exam_id = p_exam_id
+              GROUP BY r.attempt_id) t ON t.attempt_id = a.id
   SET a.total_score = COALESCE(t.sc, 0)
-  WHERE a.exam_id = p_exam_id AND a.source = 'moodle';
+  WHERE a.exam_id = p_exam_id;
 
-  UPDATE exams SET status = IF(status = 'Analyzed', status, 'Synced'), last_synced_at = NOW() WHERE id = p_exam_id;
+  -- dữ liệu vừa làm mới: kết quả phân tích cũ không còn hiệu lực cho tới khi phân tích lại
+  UPDATE exams SET status = 'Synced', last_synced_at = NOW() WHERE id = p_exam_id;
   COMMIT;
 
   UPDATE sync_runs SET status = 'success', finished_at = NOW(),

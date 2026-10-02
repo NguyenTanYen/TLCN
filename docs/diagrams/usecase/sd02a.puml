@@ -1,0 +1,47 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "SectionDetail /\nExamDetail" as UI
+control "exams router" as EX
+control "blueprint\n(sinh đề)" as BP
+control "lms router\n+ lms service" as L
+control "xml_export" as X
+database "assessment_db" as DB
+participant "Moodle\nWeb Service\n(local_clo)" as WS
+database "moodle_db" as MDB
+GV -> UI : tạo bài KT: số câu, phạm vi chương,\nphân bố Bloom hoặc ma trận
+UI -> EX : POST /api/class-sections/{id}/exam-blueprint
+EX -> DB : lớp thuộc GV? đọc câu dùng được (đã gán CLO, Bloom,\nchưa Hủy) + p, DI, số lần dùng
+EX -> BP : generate(pool, n | ma trận, phạm vi CLO, seed)
+BP -> BP : lập ma trận chương × Bloom; chọn câu từng ô\nphủ đủ CLO; đổi câu cùng ô nếu CLO còn thiếu
+BP --> EX : câu đã chọn, ma trận đạt được, lỗi thiếu câu, cảnh báo
+EX --> UI : 200 {items + điểm, matrix, clos, errors, warnings}
+GV -> UI : xem ma trận, độ phủ CLO; chỉnh tay, Lưu
+UI -> EX : POST /api/exams {class_section_id, exam_type=online, items[]}
+EX -> DB : lớp thuộc GV? câu thuộc môn, chưa Hủy,\nđã gán Bloom + CLO?
+alt có câu không hợp lệ
+  EX --> UI : 422 (nêu mã câu)
+else
+  EX -> DB : INSERT exams (Draft), exam_questions
+  EX --> UI : 201 {exam}
+end
+GV -> UI : nhập ID khóa Moodle, "Tạo Quiz trên Moodle"
+UI -> L : POST /api/exams/{id}/moodle/create-quiz {moodle_course_id}
+L -> DB : bài online? chưa có Quiz? (409 nếu đã có)
+L -> X : exam_to_moodle_xml(exam)
+X --> L : XML (idnumber QB-n, answer theo position,\nshuffleanswers = 1, defaultgrade = điểm)
+L -> WS : REST local_clo_create_quiz\n(courseid, examref, name, xml, grade, timelimit)
+WS -> WS : validate_context, require_capability(manage)
+WS -> MDB : đã có local_clo_exam(examref)? ⇒ trả Quiz cũ
+WS -> MDB : question_importer: dùng lại QB-n,\nqformat_xml nhập câu mới
+WS -> MDB : create_module(quiz, xáo phương án, 1 lượt);\nquiz_add_quiz_question theo thứ tự đề
+WS --> L : {quizid, cmid, questions}
+alt lỗi kết nối / Moodle báo lỗi
+  L --> UI : 502 + thông báo Moodle
+else quizid đã gắn bài KT khác
+  L --> UI : 409
+else
+  L -> DB : moodle_quiz_id, moodle_course_id; status = Published
+  L --> UI : 200 {quiz, đường dẫn Moodle}
+end
+@enduml

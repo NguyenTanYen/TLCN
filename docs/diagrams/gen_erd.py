@@ -3,17 +3,18 @@ import json, subprocess
 import pymysql
 
 GROUPS = {
- "A. Người dùng & tổ chức": ["users", "lecturers", "students", "semesters"],
- "B. CTĐT & CĐR CTĐT": ["programs", "plos", "plo_measurement_plans", "performance_indicators", "program_courses", "pi_courses"],
- "C. Học phần & CĐR môn học": ["courses", "course_outlines", "bloom_levels", "clos", "clo_plo_mapping"],
+ "A. Người dùng và tổ chức": ["users", "lecturers", "students", "semesters"],
+ "B. CTĐT và CĐR CTĐT": ["programs", "plos", "plo_measurement_plans", "performance_indicators", "program_courses", "pi_courses"],
+ "C. Học phần và CĐR môn học": ["courses", "course_outlines", "bloom_levels", "clos", "clo_plo_mapping"],
  "D. Kế hoạch đo lường": ["clo_assessment_plans", "pi_assessment_plans", "pi_plan_clos", "assessment_assignments"],
- "E. Lớp HP & ngân hàng câu hỏi": ["class_sections", "enrollments", "question_bank", "question_options", "question_clo_mapping"],
- "F. Đề thi & mã đề": ["exams", "exam_questions", "exam_versions", "exam_version_questions", "exam_version_options"],
- "G. Kết quả & báo cáo": ["exam_attempts", "item_level_results", "item_statistics", "attempt_clo_results", "clo_results",
+ "E. Lớp HP và ngân hàng câu hỏi": ["class_sections", "enrollments", "question_bank", "question_options", "question_clo_mapping"],
+ "F. Đề thi và nhóm đề": ["exams", "exam_questions", "exam_versions", "exam_version_questions", "exam_version_options"],
+ "G. Kết quả và báo cáo": ["exam_attempts", "item_level_results", "item_statistics", "attempt_clo_results", "clo_results",
                           "pi_results", "plo_results", "personalized_learning_paths", "learning_path_items", "sync_runs"],
 }
 COLORS = {"A": "#FDF3E1", "B": "#E8F1FB", "C": "#EAF6EA", "D": "#F3ECFA", "E": "#FFF7D6", "F": "#FDE9E7", "G": "#E6F4F4"}
-c = pymysql.connect(host="127.0.0.1", user="tlcn", password="tlcn123", database="information_schema", charset="utf8mb4")
+import os
+c = pymysql.connect(host="127.0.0.1", port=int(os.environ.get("DBPORT", 3307)), user="root", password="1234", database="information_schema", charset="utf8mb4")
 cur = c.cursor()
 cur.execute("""SELECT table_name, column_name, column_type, is_nullable, column_key, column_default, extra, ordinal_position
                FROM columns WHERE table_schema='assessment_db' AND table_name IN (SELECT table_name FROM tables WHERE table_schema='assessment_db' AND table_type='BASE TABLE')
@@ -51,7 +52,8 @@ def esc(s):
 def node(t, full=True, stub=False):
     g = group_of[t][0]
     color = "#EEEEEE" if stub else COLORS[g]
-    rows = [f'<tr><td bgcolor="{color}" colspan="2"><b>{t}</b></td></tr>']
+    head = f'<b>{t}</b>' if full else f'<b>{t}</b> <font point-size="8" color="#64748b">({g})</font>'
+    rows = [f'<tr><td bgcolor="{color}" colspan="2">{head}</td></tr>']
     if full:
         for col in cols[t]:
             mark = ("PK " if col["key"] == "PRI" else "") + ("FK" if (t, col["name"]) in fk_cols else "")
@@ -65,9 +67,58 @@ def node(t, full=True, stub=False):
     return f'"{t}" [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="3">{"".join(rows)}</table>>];'
 
 
+def _pts(d):
+    import re
+    return [(float(a), float(b)) for a, b in re.findall(r"(-?[\d.]+),(-?[\d.]+)", d)]
+
+
+def add_crowfoot(svg):
+    """Vẽ ký hiệu quan hệ kiểu Crow's Foot ở hai đầu mỗi đường nối thẳng góc:
+    phía bảng cha "một và chỉ một" (‖), phía bảng con "một hoặc nhiều" (chân chim + vạch)."""
+    import re, math
+    boxes = {}
+    for m in re.finditer(r'<g id="node\d+" class="node">\s*<title>([^<]+)</title>(.*?)</g>', svg, re.S):
+        xs, ys = [], []
+        for d in re.findall(r'points="([^"]+)"', m.group(2)):
+            for x, y in _pts(d):
+                xs.append(x); ys.append(y)
+        if xs:
+            boxes[m.group(1).replace("&#45;", "-")] = (min(xs), min(ys), max(xs), max(ys))
+    def dist(p, b):
+        dx = max(b[0] - p[0], 0, p[0] - b[2]); dy = max(b[1] - p[1], 0, p[1] - b[3]); return math.hypot(dx, dy)
+    marks = []
+    col = "#334155"
+    ln = lambda a, b: marks.append(f'<line x1="{a[0]:.2f}" y1="{a[1]:.2f}" x2="{b[0]:.2f}" y2="{b[1]:.2f}" stroke="{col}" stroke-width="1.3"/>')
+    for m in re.finditer(r'<g id="fk__(.+?)__(.+?)__.+?" class="edge">.*?<path[^>]* d="([^"]+)"', svg, re.S):
+        parent, child, d = m.group(1), m.group(2), m.group(3)
+        pts = _pts(d)
+        if len(pts) < 2 or parent not in boxes or child not in boxes:
+            continue
+        a, b = pts[0], pts[-1]
+        if dist(a, boxes[parent]) + dist(b, boxes[child]) > dist(b, boxes[parent]) + dist(a, boxes[child]):
+            pts = pts[::-1]; a, b = b, a
+        for end, seq, kind in ((a, pts, "one"), (b, pts[::-1], "many")):
+            nxt = next((q for q in seq[1:] if math.hypot(q[0] - end[0], q[1] - end[1]) > 1), None)
+            if not nxt:
+                continue
+            L = math.hypot(nxt[0] - end[0], nxt[1] - end[1]); ux, uy = (nxt[0] - end[0]) / L, (nxt[1] - end[1]) / L
+            nx, ny = -uy, ux
+            at = lambda k, s=0: (end[0] + ux * k + nx * s, end[1] + uy * k + ny * s)
+            if kind == "one":
+                for k in (5, 9):
+                    ln(at(k, -5), at(k, 5))
+            else:
+                q = at(11)
+                for s in (-6, 0, 6):
+                    ln(q, at(0, s))
+                ln(at(14, -5), at(14, 5))
+    i = svg.rfind("</g>")
+    return svg[:i] + "\n".join(marks) + "\n" + svg[i:]
+
+
 def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""):
-    lines = [f'digraph G {{ rankdir={rankdir}; graph [fontname="DejaVu Sans", nodesep=0.35, ranksep=0.7, dpi=160 {extra_attrs}];',
-             'node [shape=plaintext, fontname="DejaVu Sans", fontsize=10]; edge [color="#555555", arrowhead=crow, arrowtail=none, dir=both, arrowsize=0.7];']
+    lines = [f'digraph G {{ rankdir={rankdir}; graph [fontname="DejaVu Sans", splines=ortho, nodesep=0.6, ranksep=0.9 {extra_attrs}];',
+             'node [shape=none, margin=0, fontname="DejaVu Sans", fontsize=10]; edge [color="#334155", penwidth=1.2, dir=none];']
     stubs = set()
     for t, col, rt, rc, cn in fks:
         if t in tables and rt not in tables:
@@ -83,23 +134,27 @@ def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""
     seen = set()
     for t, col, rt, rc, cn in fks:
         if t in tables and (rt in tables or rt in stubs):
-            key = (t, rt, col)
+            key = (t, rt)
             if key in seen:
                 continue
             seen.add(key)
-            if full and rt in tables:
-                lines.append(f'"{rt}":"{rc}" -> "{t}":"{col}" [arrowtail=tee];')
-            else:
-                lines.append(f'"{rt}" -> "{t}" [arrowtail=tee];')
+            # nét thẳng góc nối bảng cha (‖ một) – bảng con (chân chim nhiều), kiểu MySQL Workbench
+            lines.append(f'"{rt}" -> "{t}" [id="fk__{rt}__{t}__{col}"];')
     lines.append("}")
     src = f"fig/{name}.dot"
     open(src, "w").write("\n".join(lines))
-    subprocess.run(["dot", "-Tpng", src, "-o", f"fig/{name}.png"], check=True)
+    svg = subprocess.run(["dot", "-Tsvg", src], check=True, capture_output=True, text=True, timeout=900).stdout
+    svg = add_crowfoot(svg)
+    open(f"fig/{name}.svg", "w").write(svg)
+    import cairosvg
+    cairosvg.svg2png(bytestring=svg.encode(), write_to=f"fig/{name}.png", scale=160 / 72, background_color="white")
 
 
-render("erd_overview", all_tables, full=False, clusters=True, rankdir="TB", extra_attrs=", concentrate=true, splines=spline, ranksep=0.9, nodesep=0.25")
 for i, (g, ts) in enumerate(GROUPS.items()):
     render(f"erd_{g[0]}", ts, full=True, rankdir="LR")
+import sys
+if "--overview" in sys.argv:
+    render("erd_overview", all_tables, full=False, clusters=False, rankdir="TB", extra_attrs=", ranksep=0.8, nodesep=0.3")
 json.dump({"groups": GROUPS, "cols": cols, "fks": fks, "rules": {f"{k[0]}|{k[1]}": v for k, v in rules.items()},
            "uniques": uniques, "checks": {t: [(n, check_clause.get(n, "")) for n in ns] for t, ns in checks.items()}},
           open("schema.json", "w"), ensure_ascii=False, indent=0, default=str)

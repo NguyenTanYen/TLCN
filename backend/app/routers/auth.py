@@ -96,8 +96,11 @@ def sso_user(db: Session, claims: dict) -> User:
     if not lec:
         raise SSOError(f"Tài khoản Moodle “{claims['sub']}” chưa được bộ môn khai báo là giảng viên trong hệ thống "
                        "(mã giảng viên phải trùng tên đăng nhập hoặc mã số trên Moodle)")
+    email = (claims.get("email") or "").strip() or None
+    if email and db.query(User).filter_by(email=email).first():
+        email = None   # email đã thuộc tài khoản khác: không gán trùng (ràng buộc duy nhất)
     u = User(username=claims["sub"], password_hash=hash_password(os.urandom(24).hex()), full_name=lec.full_name,
-             email=claims.get("email") or None, role="lecturer")
+             email=email, role="lecturer")
     db.add(u); db.flush()
     lec.user_id = u.id
     db.commit(); db.refresh(u)
@@ -132,6 +135,8 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
         cs = q.first()
         if cs:
             target = f"/sections/{cs.id}"
+        else:   # khóa học chưa có lớp HP: mở danh sách khóa học Moodle để đưa vào hệ thống
+            target = f"/?moodle={int(claims['courseid'])}"
     js = lambda v: json.dumps(v).replace("</", "<\\/")  # noqa: E731 – an toàn khi nhúng vào <script>
     script = ("<script>localStorage.setItem('tlcn_token'," + json.dumps(t["access_token"]) + ");"
               "localStorage.setItem('tlcn_user'," + js(json.dumps(t["user"], ensure_ascii=False)) + ");"

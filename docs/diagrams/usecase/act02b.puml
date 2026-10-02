@@ -1,0 +1,44 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Lớp HP → "Tạo bài KT";\nhình thức trên giấy;
+:Nhập số câu, phạm vi chương\n(kiểm tra chương), phân bố mức Bloom\nhoặc ma trận chương × Bloom;
+repeat
+  |Hệ thống|
+  :Lập ma trận đề; chọn câu từng ô\nphủ đủ CLO, tránh câu DI âm/thấp;
+  if (Ô / CLO / mức thiếu câu?) then (có)
+    :Báo cụ thể: ô nào cần bao nhiêu,\nngân hàng có bao nhiêu;
+    |Giảng viên|
+    :Chỉnh số câu / ma trận / phạm vi\nhoặc bổ sung câu hỏi;
+  else (không)
+    |Giảng viên|
+  endif
+repeat while (Sinh lại?) is (có)
+:Xem ma trận, độ phủ CLO;\nchỉnh tay: bỏ/thêm câu, đổi điểm;
+|Hệ thống|
+if (Câu khác môn, đã Hủy\nhoặc chưa gán CLO?) then (có)
+  :422 – nêu câu lỗi;
+  stop
+endif
+:Lưu bài KT (Draft);
+|Giảng viên|
+:Chọn số mã đề, xáo câu/PA,\nđịnh dạng; "Tạo đề thi giấy";
+|Hệ thống|
+if (Đã có Offline Quiz?) then (có)
+  :409;
+  stop
+endif
+:Sinh Moodle XML;\ngọi create_offlinequiz;
+|Moodle LMS|
+:Tạo Offline Quiz, mã đề;\nsinh đề, phiếu trả lời,\nđáp án (1 giao dịch);
+|Hệ thống|
+if (Lỗi Web Service /\nchưa cài Offline Quiz?) then (có)
+  :502 + hướng dẫn;
+  stop
+endif
+:Lưu moodle_offlinequiz_id;\nPublished; liệt kê tệp;
+|Giảng viên|
+:Tải đề, phiếu (.zip);\nin và tổ chức thi;
+stop
+@enduml

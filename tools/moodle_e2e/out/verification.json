@@ -1,7 +1,7 @@
 {
  "moodle": {
-  "course_id": 4,
-  "quiz_id": 4,
+  "course_id": 6,
+  "quiz_id": 6,
   "attempts": 42,
   "questions": 20
  },
@@ -49,6 +49,21 @@
    "cong_bo": true,
    "khong_tim_thay": [],
    "thong_bao_da_gui": 0
+  },
+  "bai_thi_giay": {
+   "offlinequiz": 1,
+   "ma_de": [
+    "A",
+    "B"
+   ],
+   "phieu_quet": 38,
+   "moodle_da_cham": 38,
+   "phieu_loi": 0,
+   "bai_dong_bo": 38,
+   "sv_vang": 2,
+   "lech_diem_hoac_ma_de": 0,
+   "lech_phuong_an_so_voi_phieu_to": 0,
+   "day_ket_qua_len_moodle": 40
   }
  }
 }

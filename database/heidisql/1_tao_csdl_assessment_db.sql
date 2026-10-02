@@ -81,7 +81,7 @@ CREATE TABLE lecturers (
 CREATE TABLE students (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   user_id         INT          NULL,
-  student_code    VARCHAR(20)  NOT NULL,
+  student_code    VARCHAR(100) NOT NULL,
   full_name       VARCHAR(100) NOT NULL,
   class_name      VARCHAR(50)  NULL COMMENT 'Lớp sinh hoạt',
   moodle_user_id  BIGINT       NULL COMMENT 'mdl_user.id',
@@ -310,7 +310,7 @@ CREATE TABLE question_bank (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   course_id           INT          NOT NULL,
   outline_id          INT          NULL COMMENT 'Chương chứa kiến thức',
-  bloom_level_id      TINYINT      NOT NULL,
+  bloom_level_id      TINYINT      NULL COMMENT 'NULL = chưa gán (câu nhập hàng loạt)',
   question_type       VARCHAR(30)  NOT NULL DEFAULT 'multichoice',
   content             TEXT         NOT NULL,
   moodle_question_id  BIGINT       NULL COMMENT 'mdl_question.id (phiên bản mới nhất)',
@@ -368,6 +368,7 @@ CREATE TABLE exams (
   duration_minutes  SMALLINT     NULL,
   max_score         DECIMAL(5,2) NOT NULL DEFAULT 10.00 COMMENT 'Thang điểm bài thi',
   moodle_quiz_id    BIGINT       NULL COMMENT 'mdl_quiz.id',
+  moodle_offlinequiz_id BIGINT   NULL COMMENT 'mdl_offlinequiz.id (bài thi giấy chấm trên Moodle)',
   status            VARCHAR(20)  NOT NULL DEFAULT 'Draft',
   publish_flag      BOOLEAN      NOT NULL DEFAULT FALSE,
   last_synced_at    DATETIME     NULL,
@@ -376,11 +377,13 @@ CREATE TABLE exams (
   CONSTRAINT fk_exam_cs      FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE RESTRICT,
   CONSTRAINT fk_exam_creator FOREIGN KEY (created_by)       REFERENCES users(id)          ON DELETE SET NULL,
   CONSTRAINT uq_exam_moodle_quiz UNIQUE (moodle_quiz_id),
+  CONSTRAINT uq_exam_moodle_oq UNIQUE (moodle_offlinequiz_id),
   CONSTRAINT ck_exam_assess   CHECK (assessment_type IN ('process','final')),
   CONSTRAINT ck_exam_type     CHECK (exam_type IN ('online','paper')),
   CONSTRAINT ck_exam_status   CHECK (status IN ('Draft','Published','Synced','Analyzed')),
   CONSTRAINT ck_exam_duration CHECK (duration_minutes IS NULL OR duration_minutes > 0),
-  CONSTRAINT ck_exam_online   CHECK (exam_type = 'online' OR moodle_quiz_id IS NULL)
+  CONSTRAINT ck_exam_online   CHECK (exam_type = 'online' OR moodle_quiz_id IS NULL),
+  CONSTRAINT ck_exam_paper    CHECK (exam_type = 'paper' OR moodle_offlinequiz_id IS NULL)
 ) ENGINE=InnoDB COMMENT='Bài kiểm tra / đề thi';
 
 CREATE TABLE exam_questions (
@@ -432,8 +435,8 @@ CREATE TABLE exam_attempts (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
   exam_id            INT          NOT NULL,
   student_id         INT          NOT NULL,
-  version_id         INT          NULL COMMENT 'Mã đề (bài giấy)',
-  moodle_attempt_id  BIGINT       NULL COMMENT 'mdl_quiz_attempts.id',
+  version_id         INT          NULL COMMENT 'Mã đề = nhóm đề Offline Quiz (bài giấy)',
+  moodle_attempt_id  BIGINT       NULL COMMENT 'mdl_quiz_attempts.id (online) / mdl_offlinequiz_results.id (giấy)',
   source             VARCHAR(10)  NOT NULL DEFAULT 'moodle',
   started_at         DATETIME     NULL,
   finished_at        DATETIME     NULL,
@@ -443,7 +446,7 @@ CREATE TABLE exam_attempts (
   CONSTRAINT fk_att_student FOREIGN KEY (student_id) REFERENCES students(id)      ON DELETE RESTRICT,
   CONSTRAINT fk_att_version FOREIGN KEY (version_id) REFERENCES exam_versions(id) ON DELETE RESTRICT,
   CONSTRAINT uq_att_exam_student UNIQUE (exam_id, student_id),
-  CONSTRAINT uq_att_moodle UNIQUE (moodle_attempt_id),
+  CONSTRAINT uq_att_moodle UNIQUE (exam_id, moodle_attempt_id),
   CONSTRAINT ck_att_source CHECK (source IN ('moodle','paper')),
   CONSTRAINT ck_att_status CHECK (status IN ('finished','absent')),
   CONSTRAINT ck_att_score  CHECK (total_score >= 0),

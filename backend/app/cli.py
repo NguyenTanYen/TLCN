@@ -3,7 +3,6 @@
     python -m app.cli bootstrap        # (container) chờ MySQL, tạo CSDL + dữ liệu minh họa nếu chưa có, cài cầu nối
     python -m app.cli init-db          # tạo 39 bảng + dữ liệu tham chiếu (BM2, phân công PIs)
     python -m app.cli seed-demo        # tài khoản, môn DBMS330284, CLO, câu hỏi, lớp HP, 2 bài KT
-    python -m app.cli simulate-paper   # sinh 2 mã đề, mô phỏng phiếu trả lời, nhập & phân tích
     python -m app.cli simulate-moodle  # (môi trường thử) dựng dữ liệu Moodle mô phỏng, đồng bộ & phân tích
     python -m app.cli install-bridge   # cài view/thủ tục cầu nối vào CSDL (khi đã có CSDL Moodle)
 """
@@ -27,7 +26,7 @@ from .database import SessionLocal
 from .models import (CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, CourseOutline, Enrollment, Exam,
                      ExamQuestion, Lecturer, PIAssessmentPlan, PIPlanCLO, Question, QuestionCLO, QuestionOption, Student, User)
 from .security import hash_password
-from .services import moodle, paper, results
+from .services import moodle, results
 
 DB_DIR = Path(__file__).resolve().parents[2] / "database"
 LABELS = "ABCDEFGHIJ"
@@ -143,39 +142,12 @@ def _answer(rng: random.Random, theta: float, b: float, n_opts: int, correct: in
     return rng.choice(wrong)
 
 
-def simulate_paper() -> None:
-    db = SessionLocal()
-    exam = db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
-    paper.generate_versions(db, exam, ["101", "102"], seed=2024); db.commit(); db.refresh(exam)
-    studs = db.execute(text("""SELECT s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id
-                               WHERE e.class_section_id=:cs ORDER BY s.student_code"""), {"cs": exam.class_section_id}).scalars().all()
-    theta = _abilities(len(studs))
-    rng = random.Random(11)
-    qmeta = {}
-    for ch, bloom, clo, content, opts, correct, b in D.Q:
-        qmeta[content] = (b, correct)
-    out = io.StringIO(); w = csv.writer(out)
-    w.writerow(["student_code", "version_code"] + [f"Q{i}" for i in range(1, len(exam.questions) + 1)])
-    layouts = {v.version_code: paper.version_layout(db, v.id) for v in exam.versions}
-    for k, code in enumerate(studs):
-        if k in (5, 17):  # 2 SV vắng
-            continue
-        vcode = "101" if k % 2 == 0 else "102"
-        row = [code, vcode]
-        for item in layouts[vcode]:
-            b, correct = qmeta[item["content"]]
-            orig_labels = [o["orig"] for o in item["options"]]
-            pick = _answer(rng, theta[k], b, len(orig_labels), correct, False)
-            row.append("" if pick is None else item["options"][orig_labels.index(LABELS[pick])]["label"])
-        w.writerow(row)
-    Path("demo_phieu_tra_loi.csv").write_text(out.getvalue(), encoding="utf-8")
-    res = paper.import_answer_sheets(db, exam, "phieu.csv", out.getvalue().encode("utf-8"))
-    print("Nhập phiếu:", res)
-    print("Phân tích:", results.analyze_exam(db, exam.id))
-
-
 def simulate_moodle() -> None:
-    """Chỉ dùng cho môi trường thử: tạo CSDL `moodle` mô phỏng (22 bảng Moodle 4.4) có bài làm đã xáo đáp án."""
+    """Chỉ dùng cho môi trường thử: tạo CSDL `moodle` mô phỏng (bảng Moodle 4.4 + Offline Quiz) có bài làm đã xáo đáp án.
+
+    - Bài online: Quiz 900 – lượt làm bài của SV (Moodle tự chấm).
+    - Bài giấy: Offline Quiz 910 – 2 mã đề A/B (xáo câu và phương án theo mã đề), phiếu đã được Moodle quét & chấm.
+    """
     conn = _raw_conn(); cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_name=%s",
                 (settings.moodle_db_name, f"{settings.moodle_prefix}config"))
@@ -206,11 +178,12 @@ def simulate_moodle() -> None:
         cur.execute("INSERT INTO mdl_role_assignments (roleid, contextid, userid) VALUES (5,70,%s)", (uid,))
     cur.execute("INSERT INTO mdl_user (id, username, idnumber, firstname, lastname, email, deleted, description) VALUES (99,'gv.son','','Sơn','Nguyễn Thành','son@hcmute.edu.vn',0,'')")
     cur.execute("INSERT INTO mdl_question_categories (id,name,contextid,info,stamp,parent) VALUES (80,'Thi cuối kỳ',70,'','s',0)")
-    # "import XML": mỗi câu -> bank entry (idnumber QB-n), question, answers theo position
+    # "import XML": mỗi câu (của cả đề online và đề giấy) -> bank entry (idnumber QB-n), question, answers theo position
+    pexam = db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
     qmap, ans_ids = {}, {}
     next_ans = 5000
-    for k, eq in enumerate(exam.questions):
-        q = eq.question
+    allq = {eq.question_id: eq.question for eq in list(exam.questions) + list(pexam.questions)}
+    for k, q in enumerate(allq.values()):
         be, mq = 300 + k, 1000 + k
         cur.execute("INSERT INTO mdl_question_bank_entries (id, questioncategoryid, idnumber) VALUES (%s,80,%s)", (be, f"QB-{q.id}"))
         cur.execute("INSERT INTO mdl_question (id,name,questiontext,generalfeedback,qtype,stamp) VALUES (%s,%s,%s,'','multichoice',%s)",
@@ -260,11 +233,65 @@ def simulate_moodle() -> None:
     # một lượt làm thử của GV (phải bị loại)
     cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (999999,70,'mod_quiz','deferredfeedback')")
     cur.execute("INSERT INTO mdl_quiz_attempts (quiz, userid, attempt, uniqueid, layout, preview, state, timestart, timefinish) VALUES (900,99,1,999999,'',1,'finished',%s,%s)", (t0, t0 + 60))
+    _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step + 1000, t0)
     conn.close()
-    exam.moodle_quiz_id = 900; db.commit()
+    exam.moodle_quiz_id = 900; pexam.moodle_offlinequiz_id = 910; db.commit()
     print("Cài cầu nối:", moodle.install_bridge(), "câu lệnh")
-    print("Đồng bộ:", moodle.sync_exam(db, exam.id))
-    print("Phân tích:", results.analyze_exam(db, exam.id))
+    for e in (pexam, exam):
+        print(f"Đồng bộ bài #{e.id}:", moodle.sync_exam(db, e.id))
+        print("Phân tích:", results.analyze_exam(db, e.id))
+
+
+def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> None:
+    """Offline Quiz 910: Moodle sinh 2 mã đề (A, B) – mỗi mã đề một thứ tự câu và thứ tự phương án (template usage);
+    phiếu quét của mỗi SV được Moodle nhận diện thành bước 'answer' trên bản sao usage của mã đề, rồi chấm (status=complete)."""
+    rng = random.Random(11)
+    theta = _abilities(len(studs))
+    cur.execute("""INSERT INTO mdl_offlinequiz (id, course, name, intro, grade, numgroups, shufflequestions, shuffleanswers, docscreated)
+                   VALUES (910, 50, %s, '', 10, 2, 1, 1, 1)""", (pexam.exam_title,))
+    layouts = {}
+    for g in (1, 2):
+        cur.execute("INSERT INTO mdl_offlinequiz_groups (id, offlinequizid, groupnumber, sumgrades, numberofpages, templateusageid) VALUES (%s,910,%s,10,1,0)",
+                    (90 + g, g))
+        eqs = list(pexam.questions); rng.shuffle(eqs)
+        layouts[g] = [(eq, rng.sample(ans_ids[eq.question_id], len(ans_ids[eq.question_id]))) for eq in eqs]
+    t1 = int(datetime(2024, 10, 15, 9, 0).timestamp())
+
+    def result(uid, g, picks, status, when):
+        nonlocal step
+        usage = 60000 + uid * 10 + (1 if status == 'complete' else 2) + (5 if when < t1 else 0)
+        cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (%s,70,'mod_offlinequiz','immediatefeedback')", (usage,))
+        total = 0.0
+        for slot, ((eq, order), pick) in enumerate(zip(layouts[g], picks), 1):
+            cur.execute("""INSERT INTO mdl_question_attempts (questionusageid, slot, behaviour, questionid, maxmark, minfraction, flagged,
+                           questionsummary, rightanswer, responsesummary, timemodified) VALUES (%s,%s,'immediatefeedback',%s,%s,0,0,'','','',0)""",
+                        (usage, slot, qmap[eq.question_id], float(eq.points)))
+            qa = cur.lastrowid
+            cur.execute("INSERT INTO mdl_question_attempt_steps (id, questionattemptid, sequencenumber, state, timecreated) VALUES (%s,%s,0,'todo',0)", (step, qa))
+            cur.execute("INSERT INTO mdl_question_attempt_step_data (attemptstepid, name, value) VALUES (%s,'_order',%s)", (step, ",".join(map(str, order))))
+            step += 1
+            if pick is not None:
+                cur.execute("INSERT INTO mdl_question_attempt_steps (id, questionattemptid, sequencenumber, state, timecreated) VALUES (%s,%s,1,'complete',0)", (step, qa))
+                cur.execute("INSERT INTO mdl_question_attempt_step_data (attemptstepid, name, value) VALUES (%s,'answer',%s)",
+                            (step, str(order.index(ans_ids[eq.question_id][pick]))))
+                step += 1
+                if pick == meta[eq.question.content][1]:
+                    total += float(eq.points)
+        cur.execute("""INSERT INTO mdl_offlinequiz_results (offlinequizid, offlinegroupid, userid, sumgrades, usageid, teacherid, attendant,
+                       status, timestart, timefinish, timemodified) VALUES (910,%s,%s,%s,%s,99,'scanonly',%s,%s,%s,%s)""",
+                    (90 + g, uid, total if status == 'complete' else None, usage, status, when, when, when))
+
+    for k, _ in enumerate(studs):
+        if k in (5, 17):  # 2 SV vắng thi
+            continue
+        g = 1 if k % 2 == 0 else 2
+        picks = [_answer(rng, theta[k], meta[eq.question.content][0], len(order), meta[eq.question.content][1], False)
+                 for eq, order in layouts[g]]
+        if k == 1:  # phiếu quét lần đầu bị tô sai MSSV/nhận diện lại -> Moodle giữ kết quả mới nhất
+            result(100 + k, g, [0] * len(picks), 'complete', t1 - 3600)
+        result(100 + k, g, picks, 'complete', t1)
+        if k == 2:  # một phiếu quét thiếu trang còn ở trạng thái partial -> không được tính
+            result(100 + k, g, [None] * len(picks), 'partial', t1 + 60)
 
 
 def bootstrap() -> None:
@@ -281,16 +308,23 @@ def bootstrap() -> None:
     if fresh:
         init_db()
         if os.getenv("DEMO_DATA", "1") == "1":
-            seed_demo(); simulate_paper()
+            seed_demo()
     if moodle.moodle_available():
         print("Cài cầu nối Moodle:", moodle.install_bridge(), "câu lệnh")
     else:
         print(f"Chưa thấy CSDL Moodle `{settings.moodle_db_name}` – cài cầu nối sau tại trang Kết nối Moodle.")
 
 
+def _install_bridge() -> None:
+    from . import migrate
+    migrate.upgrade_schema()   # CSDL từ bản cũ: thêm cột/ràng buộc mới trước khi tạo view
+    print(moodle.install_bridge(), "câu lệnh" + ("" if moodle.offlinequiz_available()
+          else " (Moodle chưa có Offline Quiz: phần bài thi giấy sẽ được cài khi chạy hệ thống sau bước 3)"))
+
+
 def main(argv: list[str]) -> None:
-    cmds = {"bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo, "simulate-paper": simulate_paper,
-            "simulate-moodle": simulate_moodle, "install-bridge": lambda: print(moodle.install_bridge(), "câu lệnh")}
+    cmds = {"bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
+            "simulate-moodle": simulate_moodle, "install-bridge": _install_bridge}
     if len(argv) < 2 or argv[1] not in cmds:
         print(__doc__); sys.exit(1)
     cmds[argv[1]]()

@@ -1,12 +1,15 @@
 """Giao tiếp với Moodle qua Web Service (plugin local_clo) – chiều GHI của tích hợp.
 
 - Tạo Quiz từ đề đã soạn (UC-02, thay cho bước import XML thủ công): local_clo_create_quiz.
+- Bài thi giấy: tạo Offline Quiz (Moodle sinh đề in, phiếu trả lời, nhận diện phiếu quét và chấm):
+  local_clo_create_offlinequiz / local_clo_get_offlinequiz / local_clo_process_scans; tải tệp đề/phiếu qua webservice/pluginfile.
 - Đẩy kết quả phân tích từng SV + trạng thái công bố về Moodle để SV xem (UC-05): local_clo_push_results.
 Chiều ĐỌC (bài làm của SV) vẫn dùng cầu nối CSDL chỉ đọc + sp_sync_exam như thiết kế (mục V báo cáo).
 """
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from urllib.parse import urlencode
 
 import httpx
@@ -77,6 +80,43 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
         "grade": float(exam.max_score), "timelimit": int(exam.duration_minutes or 0) * 60,
     }, timeout=180)
     return res
+
+
+# ------------------------------------------------------------------ bài thi giấy: Offline Quiz
+def create_offlinequiz(exam: Exam, moodle_course_id: int, numgroups: int = 2, shuffle_questions: bool = True,
+                       shuffle_answers: bool = True, docx: bool = False, intro: str = "") -> dict:
+    xml = xml_export.exam_to_moodle_xml(exam)
+    examdate = int(datetime.combine(exam.exam_date, datetime.min.time()).timestamp()) if exam.exam_date else 0
+    return call("local_clo_create_offlinequiz", {
+        "courseid": moodle_course_id, "examref": exam.id, "name": exam.exam_title, "questionsxml": xml,
+        "grade": float(exam.max_score), "numgroups": numgroups, "shufflequestions": shuffle_questions,
+        "shuffleanswers": shuffle_answers, "examdate": examdate, "fileformat": 1 if docx else 0, "pdfintro": intro,
+    }, timeout=300)
+
+
+def get_offlinequiz(exam: Exam) -> dict:
+    return call("local_clo_get_offlinequiz", {"examref": exam.id})
+
+
+def process_scans(exam: Exam) -> dict:
+    """Moodle nhận diện & chấm ngay các phiếu đã tải lên đang chờ (không phải đợi cron của Moodle)."""
+    return call("local_clo_process_scans", {"examref": exam.id}, timeout=600)
+
+
+def download(url: str) -> tuple[bytes, str]:
+    """Tải tệp Moodle qua webservice/pluginfile.php bằng token (chỉ nhận URL thuộc Moodle đã cấu hình)."""
+    base = settings.moodle_url.rstrip("/") + "/webservice/pluginfile.php/"
+    if not url.startswith(base):
+        raise MoodleWSError("Đường dẫn tệp không thuộc Moodle đã cấu hình")
+    try:
+        with httpx.Client(timeout=120, trust_env=False) as client:
+            r = client.get(url, params={"token": settings.moodle_ws_token})
+    except httpx.HTTPError as ex:
+        raise MoodleWSError(f"Lỗi kết nối LMS: {ex}") from ex
+    ctype = r.headers.get("content-type", "application/octet-stream")
+    if r.status_code != 200 or "json" in ctype:
+        raise MoodleWSError(f"Moodle không trả tệp (HTTP {r.status_code}): {r.text[:200]}")
+    return r.content, ctype
 
 
 # ------------------------------------------------------------------ kết quả từng SV (UC-05)

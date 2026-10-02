@@ -6,7 +6,6 @@ $THEME->name = 'ute';
 $THEME->parents = ['boost'];
 $THEME->sheets = [];
 $THEME->editor_sheets = [];
-$THEME->editor_scss = ['editor'];
 $THEME->usefallback = true;
 $THEME->scss = function($theme) {
     return theme_ute_get_main_scss_content($theme);

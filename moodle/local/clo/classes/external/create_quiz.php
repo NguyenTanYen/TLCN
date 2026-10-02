@@ -33,8 +33,6 @@ class create_quiz extends external_api {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/course/modlib.php');
         require_once($CFG->dirroot . '/mod/quiz/locallib.php');
-        require_once($CFG->dirroot . '/question/editlib.php');
-        require_once($CFG->dirroot . '/question/format/xml/format.php');
 
         $p = self::validate_parameters(self::execute_parameters(), compact('courseid', 'examref', 'name', 'questionsxml',
             'grade', 'timeopen', 'timeclose', 'timelimit'));
@@ -52,28 +50,10 @@ class create_quiz extends external_api {
                 'questions' => (int)$DB->count_records('quiz_slots', ['quizid' => $exam->quizid]), 'created' => false];
         }
 
+        // Toàn bộ các bước trong một giao dịch: lỗi giữa chừng không để lại Quiz/câu hỏi dở dang.
+        $tx = $DB->start_delegated_transaction();
         // 1. Nhập XML vào ngân hàng câu hỏi của khóa học (danh mục mang tên đề, lấy từ tệp XML).
-        $dir = make_request_directory();
-        $file = $dir . '/exam.xml';
-        file_put_contents($file, $p['questionsxml']);
-        $contexts = new \core_question\local\bank\question_edit_contexts($context);
-        $defaultcat = question_make_default_categories($contexts->all());
-        $qformat = new \qformat_xml();
-        $qformat->setCategory($defaultcat);
-        $qformat->setContexts($contexts->having_one_edit_tab_cap('import'));
-        $qformat->setCourse($course);
-        $qformat->setFilename($file);
-        $qformat->setRealfilename('exam.xml');
-        $qformat->setMatchgrades('error');
-        $qformat->setCatfromfile(true);
-        $qformat->setContextfromfile(true);
-        $qformat->setStoponerror(true);
-        ob_start();
-        $ok = $qformat->importpreprocess() && $qformat->importprocess() && $qformat->importpostprocess();
-        $log = ob_get_clean();
-        if (!$ok || empty($qformat->questionids)) {
-            throw new \moodle_exception('importfailed', 'local_clo', '', null, trim(strip_tags($log)));
-        }
+        $questionids = \local_clo\question_importer::import($course, $p['questionsxml']);
 
         // 2. Tạo Quiz: xáo trộn phương án, phản hồi trì hoãn, tính điểm lượt cao nhất (mặc định của Moodle).
         $quiz = (object)[
@@ -98,8 +78,9 @@ class create_quiz extends external_api {
         }
         $modinfo = create_module($quiz);
         $quizrec = $DB->get_record('quiz', ['id' => $modinfo->instance], '*', MUST_EXIST);
-        foreach ($qformat->questionids as $qid) {
-            quiz_add_quiz_question($qid, $quizrec, 0, $DB->get_field('question', 'defaultmark', ['id' => $qid]));
+        $marks = \local_clo\question_importer::marks($p['questionsxml']);
+        foreach ($questionids as $i => $qid) {
+            quiz_add_quiz_question($qid, $quizrec, 0, $marks[$i] ?? $DB->get_field('question', 'defaultmark', ['id' => $qid]));
         }
         \mod_quiz\grade_calculator::create(\mod_quiz\quiz_settings::create($quizrec->id))->recompute_quiz_sumgrades();
 
@@ -112,8 +93,9 @@ class create_quiz extends external_api {
             $DB->insert_record('local_clo_exam', (object)['examref' => $p['examref'], 'courseid' => $course->id,
                 'quizid' => $quizrec->id, 'title' => $p['name'], 'published' => 0, 'timecreated' => $now, 'timemodified' => $now]);
         }
+        $tx->allow_commit();
         return ['quizid' => (int)$quizrec->id, 'cmid' => (int)$modinfo->coursemodule, 'courseid' => (int)$course->id,
-            'questions' => count($qformat->questionids), 'created' => true];
+            'questions' => count($questionids), 'created' => true];
     }
 
     public static function execute_returns(): external_single_structure {
