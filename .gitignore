@@ -1,0 +1,30 @@
+# ---- Môi trường Python (mỗi máy tự tạo bằng 1_CAI_DAT_PYTHON.bat)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---- Cấu hình theo từng máy: mật khẩu CSDL, token Web Service, khóa SSO (bước 3 tự sinh)
+# Mẫu để chép: backend/cau_hinh.env.example
+backend/cau_hinh.env
+backend/.env
+backend/.jwt_secret
+.env
+
+# ---- Frontend: thư viện cài bằng npm ci (frontend/dist VẪN được commit vì backend phục vụ giao diện từ đó)
+frontend/node_modules/
+
+# ---- Tệp tạm, xuất thử, log
+_xuat_thu/
+sql_export/
+*.log
+*.tmp
+~$*
+
+# ---- Hệ điều hành / trình soạn thảo
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
