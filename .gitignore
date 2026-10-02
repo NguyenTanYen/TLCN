@@ -6,8 +6,9 @@ __pycache__/
 .pytest_cache/
 
 # ---- Cấu hình theo từng máy: mật khẩu CSDL, token Web Service, khóa SSO (bước 3 tự sinh)
-# Mẫu để chép: backend/cau_hinh.env.example
+# Mẫu để chép: backend/cau_hinh.env.example, 0_CAU_HINH_MAY.example.bat
 backend/cau_hinh.env
+0_CAU_HINH_MAY.bat
 backend/.env
 backend/.jwt_secret
 .env

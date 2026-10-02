@@ -36,11 +36,11 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 ## Các bước (bấm đúp theo thứ tự)
 
 > Máy mới clone về: chép `backend\cau_hinh.env.example` thành `backend\cau_hinh.env` rồi sửa `DATABASE_URL` (mật khẩu, cổng) cho đúng máy.
-> Tệp `cau_hinh.env`, thư mục `.venv` và `frontend\node_modules` không được đưa lên git (xem `.gitignore`).
+> Tệp `cau_hinh.env`, `0_CAU_HINH_MAY.bat`, thư mục `.venv` và `frontend\node_modules` không được đưa lên git (xem `.gitignore`).
 
 | Bước | Tệp | Việc làm |
 |---|---|---|
-| 0 | `0_CAU_HINH.bat` | (Chỉ sửa nếu đường dẫn khác) thư mục Moodle, `php.exe` của XAMPP, cổng hệ thống |
+| 0 | `0_CAU_HINH.bat` | **Không cần sửa** – tự dò XAMPP (Registry, rồi `C:`…`F:\xampp`), `php.exe` và Moodle 4.5 trong `htdocs\moodle45` hoặc `htdocs\moodle` (bỏ qua Moodle cũ hơn 4.5). Moodle/XAMPP đặt ở chỗ khác: chép `0_CAU_HINH_MAY.example.bat` thành `0_CAU_HINH_MAY.bat` rồi khai báo `MOODLE_DIR`, `PHP_BIN`, `APP_PORT` (tệp này không đưa lên git) |
 | 1 | `1_CAI_DAT_PYTHON.bat` | Tạo `.venv`, cài thư viện Python (chạy 1 lần, cần Internet) |
 | 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (39 bảng), dữ liệu minh họa, cài cầu nối đọc `moodle_db` |
 | 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
@@ -144,4 +144,5 @@ thay đổi → Cập nhật. Câu đã có kết quả thi không bị đổi C
 - `Access denied for user 'root'` → sửa mật khẩu trong `backend\cau_hinh.env` (dòng `DATABASE_URL`).
 - Nút “Tạo Quiz”/“Công bố” báo *Chưa cấu hình kết nối Moodle* → chạy lại bước 3 rồi bước 5.
 - Bấm “Phân tích CĐR” báo *chưa được bộ môn khai báo là giảng viên* → thêm giảng viên (mã GV = tên đăng nhập Moodle).
-- Cổng 8000 bận → đổi `APP_PORT` trong `0_CAU_HINH.bat`, chạy lại bước 3 và 5.
+- Cổng 8000 bận → đặt `APP_PORT` trong `0_CAU_HINH_MAY.bat`, chạy lại bước 3 và 5.
+- Bước 3/4 báo *Chưa xác định được thư mục Moodle 4.5 / php.exe* → khai báo `MOODLE_DIR`, `PHP_BIN` trong `0_CAU_HINH_MAY.bat`.
