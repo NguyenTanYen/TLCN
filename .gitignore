@@ -16,6 +16,8 @@ backend/.jwt_secret
 frontend/node_modules/
 
 # ---- Tệp tạm, xuất thử, log
+# Kết quả sinh lại mỗi lần chạy 4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat (phiếu quét, PDF đề/đáp án, verification.json)
+tools/moodle_e2e/out/
 _xuat_thu/
 sql_export/
 *.log
