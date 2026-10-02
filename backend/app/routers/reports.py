@@ -1,4 +1,4 @@
-"""UC-07: Báo cáo đo lường CĐR – xuất BM6 (môn học) và BM2/BM3 (CTĐT); tổng hợp PLO."""
+"""UC-07: Báo cáo đo lường CĐR – xuất BM6 (môn học), BM2/BM3 (CTĐT), phân công đánh giá PIs; tổng hợp PLO."""
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy import text
@@ -9,10 +9,11 @@ from ..http_utils import attachment
 from ..deps import check_section_access, current_user, require
 from ..models import PLOResult, User
 from ..schemas import PLONarrativeIn
-from ..services import reports_excel, results
+from ..services import reports_excel, reports_word, results
 
 router = APIRouter(prefix="/api/reports", tags=["UC-07 Báo cáo đo lường CĐR"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 @router.get("/class-sections/{cs_id}/bm6.xlsx")
@@ -26,6 +27,23 @@ def bm6(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session
 def bm3(pid: int, academic_year: str, _=Depends(require("admin")), db: Session = Depends(get_db)):
     return Response(reports_excel.build_bm3(db, pid, academic_year), media_type=XLSX,
                     headers=attachment(f"BM2_BM3_{academic_year}.xlsx"))
+
+
+@router.get("/programs/{pid}/bm2.docx")
+def bm2_docx(pid: int, academic_year: str, _=Depends(require("admin")), db: Session = Depends(get_db)):
+    """BM2 dạng Word như biểu mẫu gốc: BM2a (kế hoạch) + BM2b (báo cáo tổng kết)."""
+    return Response(reports_word.build_bm2_docx(db, pid, academic_year), media_type=DOCX,
+                    headers=attachment(f"BM2_{academic_year}.docx"))
+
+
+@router.get("/semesters/{sem_id}/assignments.xlsx")
+def assignments_xlsx(sem_id: int, _=Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Bảng "Phân công đánh giá PIs" của một học kỳ."""
+    name = db.execute(text("SELECT name FROM semesters WHERE id=:s"), {"s": sem_id}).scalar()
+    if not name:
+        raise HTTPException(404, "Không tìm thấy học kỳ")
+    return Response(reports_excel.build_assignments(db, sem_id), media_type=XLSX,
+                    headers=attachment(f"Phân công đánh giá PIs {name}.xlsx"))
 
 
 @router.get("/programs/{pid}/plo-summary")

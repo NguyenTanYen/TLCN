@@ -35,6 +35,9 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 
 ## Các bước (bấm đúp theo thứ tự)
 
+> Máy mới clone về: chép `backend\cau_hinh.env.example` thành `backend\cau_hinh.env` rồi sửa `DATABASE_URL` (mật khẩu, cổng) cho đúng máy.
+> Tệp `cau_hinh.env`, thư mục `.venv` và `frontend\node_modules` không được đưa lên git (xem `.gitignore`).
+
 | Bước | Tệp | Việc làm |
 |---|---|---|
 | 0 | `0_CAU_HINH.bat` | (Chỉ sửa nếu đường dẫn khác) thư mục Moodle, `php.exe` của XAMPP, cổng hệ thống |
@@ -43,7 +46,7 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 | 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
 | 4 | `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat` | *(Tùy chọn)* tạo khóa học + 40 SV; Quiz có bài làm thật; **bài giấy 2 mã đề: 38 phiếu tô sẵn được Moodle nhận diện & chấm**; đồng bộ, phân tích, công bố |
 | 5 | `5_CHAY_HE_THONG.bat` | Chạy hệ thống tại http://localhost:8000 (giữ cửa sổ mở; chạy lại sau bước 3) |
-| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* chạy 72 ca kiểm thử tự động |
+| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* chạy 74 ca kiểm thử tự động |
 | – | `tools\KIEM_TRA_DO_LUONG.bat` | *(Tùy chọn)* tính lại độc lập p, DI, mức đạt CLO, BM6b, PI, PLO, CTĐT từ dữ liệu bài làm và so với số liệu hệ thống (kết quả mong đợi: 0 sai lệch) |
 
 Có thể làm bước 2 bằng HeidiSQL: chạy (F9) lần lượt `database\heidisql\1_tao_csdl_assessment_db.sql`

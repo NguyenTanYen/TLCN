@@ -75,7 +75,7 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Kiểm thử
 
 ```bash
-cd backend && python -m pytest tests -q        # 72 ca: Analysis Engine, BM6c/6d, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, nâng cấp CSDL
+cd backend && python -m pytest tests -q        # 74 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, nâng cấp CSDL
 python tests/ui_screens.py                     # Playwright: chụp 22 màn hình, bắt lỗi console
 python ../tools/moodle_e2e/run_real_moodle_e2e.py /duong/dan/moodle   # E2E với Moodle 4.5 thật
 ```

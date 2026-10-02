@@ -287,13 +287,37 @@ def test_bm6_workbook(client, gv):
     assert r.status_code == 200
     assert any(n.startswith("BM6a") for n in wb.sheetnames) and any(n.startswith("BM6b") for n in wb.sheetnames)
     assert sum(1 for n in wb.sheetnames if n.startswith("BM6c") or n.startswith("BM6d")) == 4
+    # bố cục biểu mẫu: mục lục "Biểu mẫu 6", 6a có chữ ký, 6b tiêu đề 2 tầng và số liệu liên kết sang sheet minh chứng
+    assert wb.sheetnames[:3] == ["BM6", "BM6a_KH-KQ CĐR môn học", "BM6b_KH-KQ CĐR môn học"]
+    assert any("TRƯỞNG ĐƠN VỊ" in str(c.value) for row in wb["BM6a_KH-KQ CĐR môn học"].iter_rows() for c in row if c.value)
+    b = wb["BM6b_KH-KQ CĐR môn học"]
+    assert "D10:F10" in {str(m) for m in b.merged_cells.ranges} and str(b["D12"].value).startswith("='BM6")
 
 
 def test_bm3_workbook(client, admin, gv):
     assert client.get("/api/reports/programs/1/bm3.xlsx?academic_year=2024-2025", headers=gv).status_code == 403
     r = client.get("/api/reports/programs/1/bm3.xlsx?academic_year=2024-2025", headers=admin)
     wb = load_workbook(io.BytesIO(r.content))
-    assert r.status_code == 200 and len(wb.sheetnames) >= 2
+    assert r.status_code == 200 and wb.sheetnames[:2] == ["BM2a_KeHoach", "BM2b_TongKet"]
+    assert any(n.startswith("BM3b_") for n in wb.sheetnames) and any(n.startswith("BM3c_") for n in wb.sheetnames)
+
+
+def test_bm2_docx(client, admin, gv):
+    from docx import Document
+    assert client.get("/api/reports/programs/1/bm2.docx?academic_year=2024-2025", headers=gv).status_code == 403
+    r = client.get("/api/reports/programs/1/bm2.docx?academic_year=2024-2025", headers=admin)
+    assert r.status_code == 200
+    text_all = "\n".join(p.text for p in Document(io.BytesIO(r.content)).paragraphs)
+    assert "KẾ HOẠCH" in text_all and "BÁO CÁO TỔNG KẾT" in text_all and "(năm học trước)" in text_all
+
+
+def test_assignments_xlsx(client, gv):
+    sem = q("SELECT semester_id FROM assessment_assignments LIMIT 1")[0][0]
+    r = client.get(f"/api/reports/semesters/{sem}/assignments.xlsx", headers=gv)
+    ws = load_workbook(io.BytesIO(r.content)).active
+    assert r.status_code == 200 and str(ws["A1"].value).startswith("PHÂN CÔNG ĐÁNH GIÁ PIs HỌC KỲ")
+    assert [ws.cell(5, j).value for j in range(1, 6)] == ["STT", "MÃ MH", "TÊN MH", "GV ĐÁNH GIÁ", "GHI CHÚ"]
+    assert client.get("/api/reports/semesters/999999/assignments.xlsx", headers=gv).status_code == 404
 
 
 def test_plo_narrative(client, admin):

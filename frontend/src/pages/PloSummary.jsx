@@ -18,6 +18,7 @@ export default function PloSummary() {
           <Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
           <ActionButton className="btn" okMsg="Đã tính lại" onRun={async () => { await api.post('/api/reports/programs/1/recompute'); sum.reload() }}>Tính lại</ActionButton>
           <ActionButton className="btn primary" disabled={!year} onRun={() => api.download(`/api/reports/programs/1/bm3.xlsx?academic_year=${year}`, 'BM2_BM3.xlsx')}>⬇ Xuất BM2/BM3 (.xlsx)</ActionButton>
+          <ActionButton className="btn" disabled={!year} onRun={() => api.download(`/api/reports/programs/1/bm2.docx?academic_year=${year}`, 'BM2.docx')}>⬇ Xuất BM2 (.docx)</ActionButton>
         </div></div>
       <Loading {...sum} />
       {s && <>
