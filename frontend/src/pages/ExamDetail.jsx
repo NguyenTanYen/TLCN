@@ -24,7 +24,9 @@ export default function ExamDetail() {
           <h1>{e.exam_title}</h1>
           <p className="muted">{e.course_code} – {e.course_name} · {e.semester} · {e.exam_type === 'online' ? 'Trực tuyến (Moodle)' : 'Trên giấy'} ·
             minh chứng {e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'} · {e.questions.length} câu · thang {e.max_score}</p></div>
-        <div className="row gap">{analyzed && <Link className="btn" to={`/sections/${e.class_section_id}/stats?exam=${e.id}`}>Thống kê lớp</Link>}{e.publish_flag ? <Badge tone="amber">SV đã xem được kết quả</Badge> : <Badge>Đang bảo lưu kết quả</Badge>}</div>
+        <div className="row gap">{analyzed && <Link className="btn" to={`/sections/${e.class_section_id}/stats?exam=${e.id}`}>Thống kê lớp</Link>}
+          {analyzed && <ActionButton className="btn primary" title="Biểu mẫu BM6c riêng của bài kiểm tra này: tổng hợp + minh chứng từng CLO bài KT đo"
+            onRun={() => api.download(`/api/reports/exams/${e.id}/bm6c.xlsx`, `BM6c_${e.section_code}.xlsx`)}>⬇ Xuất BM6c bài KT này</ActionButton>}{e.publish_flag ? <Badge tone="amber">SV đã xem được kết quả</Badge> : <Badge>Đang bảo lưu kết quả</Badge>}</div>
       </div>
       <div className="stepper">{STEPS.map((s, i) => <div key={s} className={STEPS.indexOf(e.status) >= i ? 'done' : ''}><span>{i + 1}</span>{STATUS_VI[s]}</div>)}</div>
       <div className="tabs">

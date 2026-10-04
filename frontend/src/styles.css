@@ -127,3 +127,6 @@ details.bp > summary { cursor: pointer; font-weight: 600; color: var(--brand2); 
 .steps.setup { list-style: none; padding-left: 0; } .steps.setup > li { margin-bottom: 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .steps.setup > li.ok b { color: var(--muted, #667085); } .steps.setup .badge { min-width: 22px; text-align: center; }
 .tbl tr.hl > td { background: #fff7e0; }
+.export-menu { position: relative; display: flex; gap: 8px; align-items: flex-start; }
+.export-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 320px; background: #fff; border: 1px solid #dfe3ec; border-radius: 10px; box-shadow: 0 10px 28px rgba(15,23,42,.14); padding: 10px; display: grid; gap: 6px; }
+.export-pop .btn.block { justify-content: flex-start; text-align: left; }

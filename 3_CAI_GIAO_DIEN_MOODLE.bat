@@ -2,6 +2,9 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 call 0_CAU_HINH.bat
+if not defined MOODLE_DIR goto :thieu_duong_dan
+if not defined PHP_BIN goto :thieu_duong_dan
+if not exist "%MOODLE_DIR%\config.php" goto :thieu_duong_dan
 echo [1/6] Chep giao dien UTE LMS, plugin ket noi local_clo va plugin cham bai giay Offline Quiz vao Moodle...
 xcopy /E /I /Y "moodle\theme\ute" "%MOODLE_DIR%\theme\ute" >nul || goto :loi
 xcopy /E /I /Y "moodle\local\clo" "%MOODLE_DIR%\local\clo" >nul || goto :loi
@@ -22,6 +25,12 @@ echo Xong. Neu he thong (5_CHAY_HE_THONG.bat) dang chay, hay dong cua so do va c
 pause
 exit /b 0
 :loi
-echo *** Co loi - kiem tra duong dan trong 0_CAU_HINH.bat ***
+echo *** Co loi - kiem tra duong dan Moodle/PHP (khai bao trong 0_CAU_HINH_MAY.bat neu can) ***
+pause
+exit /b 1
+
+:thieu_duong_dan
+echo *** Chua xac dinh duoc thu muc Moodle 4.5 / php.exe (MOODLE_DIR=%MOODLE_DIR%, PHP_BIN=%PHP_BIN%).
+echo *** Tao tep 0_CAU_HINH_MAY.bat (chep tu 0_CAU_HINH_MAY.example.bat) va khai bao duong dan dung.
 pause
 exit /b 1

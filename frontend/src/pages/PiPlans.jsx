@@ -24,6 +24,8 @@ export default function PiPlans() {
               <ActionButton className="btn sm ghost" okMsg="Đã xóa" title="Xóa kế hoạch" confirm={`Xóa kế hoạch đo ${p.pi_code} tại môn ${p.course_code}? Kết quả PI của kế hoạch này cũng bị xóa.`} onRun={async () => { await api.del(`/api/pi-plans/${p.id}`); plans.reload() }}>✕</ActionButton></td></tr>)}</tbody></table>
       </Card>
       <Card title="Phân công đánh giá PI theo học kỳ" actions={<button className="btn sm primary" onClick={() => setAForm(true)}>+ Phân công</button>}>
+        <div className="row gap wrap mb">{[...new Map((assigns.data || []).map(a => [a.semester_id, a.semester])).entries()].map(([sid, name]) =>
+          <ActionButton key={sid} className="btn sm" onRun={() => api.download(`/api/reports/semesters/${sid}/assignments.xlsx`, `Phan_cong_danh_gia_PIs_${name}.xlsx`)}>⬇ Xuất bảng phân công {name} (.xlsx)</ActionButton>)}</div>
         <table className="tbl"><thead><tr><th>Học kỳ</th><th>Môn học</th><th>GV phụ trách</th><th>Ghi chú</th><th /></tr></thead>
           <tbody>{assigns.data?.map(a => <tr key={a.id}><td>{a.semester}</td><td>{a.course_code} – {a.course_name}</td>
             <td>{a.all_supervisors ? <span className="pill blue">{a.lecturer}</span> : a.lecturer}</td><td>{a.note}</td>

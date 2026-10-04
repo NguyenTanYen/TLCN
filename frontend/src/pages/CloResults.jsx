@@ -8,6 +8,21 @@ import { useApi } from '../hooks'
 
 const EVID = { process: 'Quá trình', final: 'Cuối kỳ', any: 'Quá trình + Cuối kỳ' }
 
+// Xuất biểu mẫu: bộ BM6 đầy đủ của lớp HP (BM6a, BM6b, BM6c/6d theo kế hoạch minh chứng) hoặc BM6c riêng từng bài KT.
+function ExportMenu({ id, section }) {
+  const exams = useApi(`/api/class-sections/${id}/exams`).data?.filter(x => x.status === 'Analyzed') || []
+  const [open, setOpen] = useState(false)
+  return <div className="export-menu">
+    <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/class-sections/${id}/bm6.xlsx`, `BM6_${section || id}.xlsx`)}>⬇ Xuất bộ BM6 của lớp (.xlsx)</ActionButton>
+    {exams.length > 0 && <button className="btn" onClick={() => setOpen(!open)}>Xuất theo từng bài KT ▾</button>}
+    {open && <div className="export-pop">
+      <div className="small muted">BM6c riêng cho một bài kiểm tra – minh chứng từng CLO bài đó đo (kèm MSSV, họ tên):</div>
+      {exams.map(x => <ActionButton key={x.id} className="btn sm block" onRun={() => api.download(`/api/reports/exams/${x.id}/bm6c.xlsx`, `BM6c_${x.exam_title}.xlsx`)}>
+        ⬇ {x.exam_title} <small className="muted">({x.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'})</small></ActionButton>)}
+    </div>}
+  </div>
+}
+
 export default function CloResults() {
   const { id } = useParams()
   const res = useApi(`/api/class-sections/${id}/clo-results`)
@@ -25,7 +40,7 @@ export default function CloResults() {
       <div className="page-h">
         <div><div className="crumb"><Link to="/">Lớp học phần</Link> / <Link to={`/sections/${id}`}>{cs?.section_code}</Link> / Kết quả CĐR</div>
           <h1>Đo lường CĐR môn học</h1><p className="muted">{r.course} · {r.semester} · GV {cs?.lecturer}</p></div>
-        <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/class-sections/${id}/bm6.xlsx`, 'BM6.xlsx')}>⬇ Xuất biểu mẫu BM6 (.xlsx)</ActionButton>
+        <ExportMenu id={id} section={cs?.section_code} />
       </div>
       {!r.has_data && <div className="alert amber">Lớp chưa có bài kiểm tra nào được phân tích – kết quả CĐR sẽ xuất hiện sau khi đồng bộ/nhập phiếu và phân tích.</div>}
       <div className="stats">

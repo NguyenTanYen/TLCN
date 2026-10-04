@@ -287,13 +287,87 @@ def test_bm6_workbook(client, gv):
     assert r.status_code == 200
     assert any(n.startswith("BM6a") for n in wb.sheetnames) and any(n.startswith("BM6b") for n in wb.sheetnames)
     assert sum(1 for n in wb.sheetnames if n.startswith("BM6c") or n.startswith("BM6d")) == 4
+    # bố cục biểu mẫu: mục lục "Biểu mẫu 6", 6a có chữ ký, 6b tiêu đề 2 tầng và số liệu liên kết sang sheet minh chứng
+    assert wb.sheetnames[:3] == ["BM6", "BM6a_KH-KQ CĐR môn học", "BM6b_KH-KQ CĐR môn học"]
+    assert any("TRƯỞNG ĐƠN VỊ" in str(c.value) for row in wb["BM6a_KH-KQ CĐR môn học"].iter_rows() for c in row if c.value)
+    b = wb["BM6b_KH-KQ CĐR môn học"]
+    assert "D10:F10" in {str(m) for m in b.merged_cells.ranges} and str(b["D12"].value).startswith("='BM6")
+    assert "CÔNG NGHỆ KỸ THUẬT" in str(b["A1"].value)
+
+
+def test_bm6_evidence_follows_plan_and_matches_bm6b(client, gv):
+    """Sheet minh chứng của mỗi CLO chỉ chứa các bài KT đúng loại minh chứng trong BM6a và tổng khớp BM6b."""
+    wb = load_workbook(io.BytesIO(client.get("/api/reports/class-sections/1/bm6.xlsx", headers=gv).content))
+    plans = dict(q("""SELECT c.clo_code, COALESCE(p.evidence_type,'any') FROM clos c JOIN class_sections cs ON cs.course_id=c.course_id
+                      LEFT JOIN clo_assessment_plans p ON p.clo_id=c.id AND p.semester_id=cs.semester_id WHERE cs.id=1"""))
+    exams = q("SELECT exam_title, assessment_type FROM exams WHERE class_section_id=1 AND status='Analyzed'")
+    for name in wb.sheetnames[3:]:
+        clo = name.split("_", 1)[1]
+        text_ = " ".join(str(c.value) for row in wb[name].iter_rows() for c in row if c.value)
+        for title, typ in exams:
+            used = plans[clo] in ("any", typ)
+            assert (f": {title}" in text_) == used, (name, title)
+        n_used = sum(1 for _, typ in exams if plans[clo] in ("any", typ))
+        assert name.startswith("BM6d" if n_used > 1 else "BM6c")
+
+
+def test_bm6c_per_exam(client, gv, gv_other):
+    for eid in (1, 2):
+        r = client.get(f"/api/reports/exams/{eid}/bm6c.xlsx", headers=gv)
+        assert r.status_code == 200 and "BM6c_" in r.headers["content-disposition"]
+        wb = load_workbook(io.BytesIO(r.content))
+        clos = [x[0] for x in q("""SELECT DISTINCT c.clo_code FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                                   JOIN clos c ON c.id=r.clo_id WHERE a.exam_id=:e AND a.status='finished' ORDER BY 1""", e=eid)]
+        assert wb.sheetnames == ["TongHop_BaiKT"] + [f"BM6c_{c}" for c in clos]
+        title = q("SELECT exam_title FROM exams WHERE id=:e", e=eid)[0][0]
+        for c in clos:   # mỗi sheet chỉ có đúng bài KT này, đủ số SV đã làm bài, đúng số SV đạt
+            ws = wb[f"BM6c_{c}"]
+            vals = [x.value for row in ws.iter_rows() for x in row if x.value is not None]
+            assert any(str(v).startswith("Bài KT 1: " + title) for v in vals)
+            assert not any(str(v).startswith("Bài KT 2:") for v in vals)
+            n, ok = q("""SELECT COUNT(*), SUM(r.is_achieved) FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                         JOIN clos c ON c.id=r.clo_id WHERE a.exam_id=:e AND c.clo_code=:c AND a.status='finished'""", e=eid, c=c)[0]
+            summary = {row[1].value.split(":")[0]: (row[2].value, row[3].value) for row in wb["TongHop_BaiKT"].iter_rows()
+                       if isinstance(row[1].value, str) and row[1].value.startswith("CLO")}
+            assert summary[c] == (int(ok), n)
+            mssv = [row[1].value for row in ws.iter_rows() if isinstance(row[0].value, int)]
+            assert len(mssv) == n and all(mssv)
+    assert client.get("/api/reports/exams/2/bm6c.xlsx", headers=gv_other).status_code == 403
+    assert client.get("/api/reports/exams/99999/bm6c.xlsx", headers=gv).status_code == 404
+    r = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Chưa phân tích BM6c", "items": [{"question_id": 3, "points": 1}]})
+    assert client.get(f"/api/reports/exams/{r.json()['id']}/bm6c.xlsx", headers=gv).status_code == 409
 
 
 def test_bm3_workbook(client, admin, gv):
     assert client.get("/api/reports/programs/1/bm3.xlsx?academic_year=2024-2025", headers=gv).status_code == 403
     r = client.get("/api/reports/programs/1/bm3.xlsx?academic_year=2024-2025", headers=admin)
     wb = load_workbook(io.BytesIO(r.content))
-    assert r.status_code == 200 and len(wb.sheetnames) >= 2
+    assert r.status_code == 200 and wb.sheetnames[:2] == ["BM2a_KeHoach", "BM2b_TongKet"]
+    assert any(n.startswith("BM3b_") for n in wb.sheetnames) and any(n.startswith("BM3c_") for n in wb.sheetnames)
+
+
+def test_bm2_docx(client, admin, gv):
+    from docx import Document
+    assert client.get("/api/reports/programs/1/bm2.docx?academic_year=2024-2025", headers=gv).status_code == 403
+    r = client.get("/api/reports/programs/1/bm2.docx?academic_year=2024-2025", headers=admin)
+    assert r.status_code == 200
+    doc = Document(io.BytesIO(r.content))
+    text_all = "\n".join(p.text for p in doc.paragraphs)
+    assert "KẾ HOẠCH" in text_all and "BÁO CÁO TỔNG KẾT" in text_all and "(năm học trước)" in text_all
+    assert "CÔNG NGHỆ KỸ THUẬT" in doc.tables[0].cell(0, 0).text
+
+
+def test_assignments_xlsx(client, gv):
+    sem = q("SELECT semester_id FROM assessment_assignments WHERE all_supervisors=1 LIMIT 1")[0][0]
+    r = client.get(f"/api/reports/semesters/{sem}/assignments.xlsx", headers=gv)
+    ws = load_workbook(io.BytesIO(r.content)).active
+    assert r.status_code == 200 and str(ws["A1"].value).startswith("PHÂN CÔNG ĐÁNH GIÁ PIs HỌC KỲ")
+    assert [ws.cell(5, j).value for j in range(1, 6)] == ["STT", "MÃ MH", "TÊN MH", "GV ĐÁNH GIÁ", "GHI CHÚ"]
+    gv_col = [ws.cell(i, 4).value for i in range(6, ws.max_row + 1)]
+    assert gv_col.count("Tất cả thầy/cô có hướng dẫn") == 2      # PODE434277, POIS431184
+    n = q("SELECT COUNT(*) FROM assessment_assignments WHERE semester_id=:s", s=sem)[0][0]
+    assert sum(1 for v in gv_col if v) == n
+    assert client.get("/api/reports/semesters/999999/assignments.xlsx", headers=gv).status_code == 404
 
 
 def test_plo_narrative(client, admin):

@@ -11,7 +11,7 @@ if not exist ".git" (echo Thu muc nay chua phai kho Git. & pause & exit /b 1)
 git rm -r -q --cached . || goto :loi
 git add -A || goto :loi
 git status --short | find /c /v "" 
-git commit -m "Them .gitignore, bo .venv, __pycache__ va cau hinh rieng khoi Git" || echo (Khong co gi de commit)
+git commit -m "Cap nhat he thong %date%" || echo (Khong co gi de commit)
 echo.
 choice /m "Day len GitHub (git push) ngay bay gio"
 if errorlevel 2 goto :xong

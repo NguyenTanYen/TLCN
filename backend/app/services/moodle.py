@@ -21,6 +21,7 @@ def render_bridge_sql(with_offlinequiz: bool = True, db_name: str | None = None,
     sql = BRIDGE_SQL.read_text(encoding="utf-8")
     if not with_offlinequiz:
         sql = OQ_BLOCK.sub("", sql)
+    sql = sql.replace("USE assessment_db;", f"USE `{settings.app_db_name}`;")   # cầu nối nằm trong CSDL của hệ thống
     return sql.replace("moodle.mdl_", f"`{db_name or settings.moodle_db_name}`.{prefix or settings.moodle_prefix}")
 
 

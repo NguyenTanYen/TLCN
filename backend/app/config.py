@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     moodle_sso_secret: str = ""         # khóa dùng chung để kiểm tra vé đăng nhập một lần từ nút "Phân tích CĐR"
     demo_mode: bool = False             # True: trang đăng nhập hiện nút điền nhanh tài khoản minh họa (bước 4 tự bật)
 
+    @property
+    def app_db_name(self) -> str:
+        """Tên CSDL của hệ thống lấy từ DATABASE_URL (mặc định assessment_db)."""
+        from urllib.parse import urlparse
+        return urlparse(self.database_url.replace("mysql+pymysql", "mysql")).path.lstrip("/") or "assessment_db"
+
 
 settings = Settings()
 

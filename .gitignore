@@ -3,6 +3,7 @@
 venv/
 node_modules/
 frontend/.vite/
+# frontend/dist VẪN được đưa lên Git: backend phục vụ giao diện từ thư mục này (máy chạy không cần Node.js)
 
 # ===== Tệp sinh ra mỗi lần chạy =====
 __pycache__/
@@ -21,13 +22,15 @@ tools/moodle_e2e/out/
 # tools/xuat_sql.py khi chạy không truyền thư mục đích
 sql_export/
 backend/sql_export/
+_xuat_thu/
 # docs/diagrams/gen_erd.py khi chạy lại sơ đồ
 docs/diagrams/fig/
 docs/diagrams/schema.json
 backend/demo_phieu_tra_loi.csv
 
-# ===== Bí mật và cấu hình riêng từng máy (mẫu: backend/cau_hinh.env.mau) =====
+# ===== Bí mật và cấu hình riêng từng máy (mẫu: backend/cau_hinh.env.example, 0_CAU_HINH_MAY.example.bat) =====
 backend/cau_hinh.env
+0_CAU_HINH_MAY.bat
 backend/.env
 .env
 backend/.jwt_secret

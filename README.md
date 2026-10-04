@@ -4,7 +4,7 @@ Tiểu luận chuyên ngành – Nhóm 01 · Nguyễn Trần Quốc Thi (2311033
 
 Hệ thống giúp giảng viên **biên soạn câu hỏi trắc nghiệm gắn CLO**, **tổ chức kiểm tra trực tuyến (Moodle Quiz) và trên giấy (Moodle Offline Quiz: in đề nhiều mã đề, quét phiếu, Moodle chấm)**,
 **kéo bài làm đã chấm từ Moodle về**, **phân tích chất lượng câu hỏi (p, DI)** và **đo lường mức độ đạt CĐR** theo đúng các biểu mẫu của HCMUTE:
-BM6a–6d (CĐR môn học) và BM2, BM3b–3c (CĐR chương trình đào tạo, PI), kèm **lộ trình ôn tập cá nhân hóa** cho sinh viên.
+BM6a–6d (CĐR môn học, cả BM6c riêng từng bài kiểm tra) và BM2a–2b (Excel + Word), BM3b–3c, bảng phân công đánh giá PIs (CĐR chương trình đào tạo, PI), kèm **lộ trình ôn tập cá nhân hóa** cho sinh viên.
 
 Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và xem kết quả phân tích trên **Moodle**. Hai hệ thống nối với nhau qua plugin Moodle `local_clo` (nút *Phân tích CĐR* đăng nhập một lần, Web Service tạo Quiz / Offline Quiz và nhận kết quả) và cầu nối CSDL chỉ đọc để kéo bài làm – xem `HUONG_DAN_CAI_DAT.md`.
 
@@ -27,7 +27,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `docker-compose.yml`, `docker/` | MySQL 8.0 + Moodle 4.5 + hệ thống |
 | `moodle/theme/ute/` | Giao diện Moodle "UTE – Khảo thí & CĐR" (kế thừa Boost) |
 | `database/heidisql/` | Tệp SQL chạy trực tiếp trong HeidiSQL (MariaDB 10.4+) |
-| `.gitignore`, `backend/cau_hinh.env.mau` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu |
+| `.gitignore`, `backend/cau_hinh.env.example`, `0_CAU_HINH_MAY.example.bat` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu; đường dẫn Moodle/PHP riêng từng máy khai báo trong `0_CAU_HINH_MAY.bat` (nếu cần) |
 
 ## Chạy bằng Docker
 
@@ -68,15 +68,15 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
    Bài **giấy**: *Tạo đề thi giấy trên Moodle* (số mã đề, xáo câu/phương án) → tải đề, phiếu trả lời, đáp án từng mã đề (PDF/Word, .zip) để in
    → SV làm bài, ghi MSSV trên phiếu → quét phiếu, tải ảnh lên Moodle → **Moodle nhận diện & chấm** → *Đồng bộ & phân tích*.
 4. Xem *Phân tích câu hỏi* (p, DI Kelley 27%, phân bố phương án), *Kết quả sinh viên* theo CLO.
-5. *Kết quả CĐR (BM6)*: BM6a kế hoạch, BM6b tổng hợp, minh chứng BM6c/6d từng CLO, nhập nhận xét → **Xuất BM6 (.xlsx)**.
+5. *Kết quả CĐR (BM6)*: BM6a kế hoạch, BM6b tổng hợp, minh chứng BM6c/6d từng CLO, nhập nhận xét → **Xuất bộ BM6 của lớp (.xlsx)** hoặc **Xuất theo từng bài KT** (tệp BM6c riêng cho một bài kiểm tra, kèm MSSV – họ tên; cũng có nút ở trang bài KT).
 6. *Công bố kết quả lên Moodle* → đăng nhập Moodle bằng SV `22130001` → khóa học → *Kết quả phân tích CĐR*: radar CLO và lộ trình ôn tập.
 0. Khóa học mới tạo trên Moodle (GV là Teacher) hiện ở trang *Lớp học phần* → **Đưa vào hệ thống**.
-7. **Bộ môn** `admin`: *Học phần & CLO* (thêm môn, lớp HP + GV phụ trách; GV khai báo chương, CLO–PLO – xem HUONG_DAN_CAI_DAT.md), *CTĐT – PLO/PI*, *Kế hoạch đo PI (BM3b)*, *Tổng hợp PLO (BM2/BM3c)* → **Xuất BM2/BM3 (.xlsx)**.
+7. **Bộ môn** `admin`: *Học phần & CLO* (thêm môn, lớp HP + GV phụ trách; GV khai báo chương, CLO–PLO – xem HUONG_DAN_CAI_DAT.md), *CTĐT – PLO/PI*, *Kế hoạch đo PI (BM3b)*, *Tổng hợp PLO (BM2/BM3c)* → **Xuất BM2/BM3 (.xlsx)** (BM2a kế hoạch, BM2b tổng kết, BM3b/BM3c từng CĐR) hoặc **Xuất BM2 (.docx)** đúng mẫu văn bản Word; trang Kế hoạch đo PI có nút **Xuất bảng phân công** đánh giá PIs theo học kỳ.
 
 ## Kiểm thử
 
 ```bash
-cd backend && python -m pytest tests -q        # 73 ca: Analysis Engine, BM6c/6d, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, nâng cấp CSDL
+cd backend && python -m pytest tests -q        # 77 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, nâng cấp CSDL
 python tests/ui_screens.py                     # Playwright: chụp 22 màn hình, bắt lỗi console
 python ../tools/moodle_e2e/run_real_moodle_e2e.py /duong/dan/moodle   # E2E với Moodle 4.5 thật
 ```

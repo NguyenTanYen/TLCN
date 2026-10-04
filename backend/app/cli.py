@@ -43,18 +43,20 @@ def run_sql_file(path: Path, database: str | None = None) -> None:
     try:
         cur = conn.cursor()
         for stmt in moodle.split_statements(path.read_text(encoding="utf-8")):
-            if stmt.upper().startswith("CREATE DATABASE"):
-                continue
+            head = stmt.lstrip().upper()
+            if head.startswith("CREATE DATABASE") or (database and head.startswith("USE ")):
+                continue                          # tệp SQL ghi sẵn "assessment_db" – luôn chạy trên CSDL đích đã chọn
             cur.execute(stmt)
     finally:
         conn.close()
 
 
 def init_db() -> None:
-    conn = _raw_conn(); conn.cursor().execute("CREATE DATABASE IF NOT EXISTS assessment_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); conn.close()
-    run_sql_file(DB_DIR / "01_schema.sql", "assessment_db")
-    run_sql_file(DB_DIR / "03_seed_reference.sql", "assessment_db")
-    print("Đã tạo CSDL assessment_db (39 bảng) và nạp dữ liệu tham chiếu.")
+    name = settings.app_db_name                   # theo DATABASE_URL trong cau_hinh.env
+    conn = _raw_conn(); conn.cursor().execute(f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); conn.close()
+    run_sql_file(DB_DIR / "01_schema.sql", name)
+    run_sql_file(DB_DIR / "03_seed_reference.sql", name)
+    print(f"Đã tạo CSDL {name} (39 bảng) và nạp dữ liệu tham chiếu.")
 
 
 def seed_demo() -> None:
@@ -303,7 +305,7 @@ def bootstrap() -> None:
         except pymysql.err.OperationalError:
             print("Chờ MySQL…"); time.sleep(3)
     conn = _raw_conn(); cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='assessment_db' AND table_name='exams'")
+    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_name='exams'", (settings.app_db_name,))
     fresh = cur.fetchone()[0] == 0; conn.close()
     if fresh:
         init_db()

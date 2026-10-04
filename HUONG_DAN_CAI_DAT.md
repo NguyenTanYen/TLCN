@@ -37,14 +37,14 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 
 | Bước | Tệp | Việc làm |
 |---|---|---|
-| 0 | `0_CAU_HINH.bat` | (Không cần chạy riêng) **tự tìm** thư mục XAMPP ở ổ đĩa chứa dự án rồi `C:`, `D:`, `E:`, `F:`; đặt Moodle = `<XAMPP>\htdocs\moodle`, PHP = `<XAMPP>\php\php.exe`, cổng 8000. Máy cài khác chỗ: đặt biến môi trường `XAMPP_DIR` (hoặc `MOODLE_DIR`, `PHP_BIN`, `APP_PORT`) |
+| 0 | `0_CAU_HINH.bat` | (Không cần chạy, không cần sửa) **tự dò** XAMPP (Registry, ổ đĩa chứa dự án, rồi `C:`…`F:\xampp`) và chọn XAMPP có **Moodle 4.5** trong `htdocs\moodle45` hoặc `htdocs\moodle` (bỏ qua Moodle cũ hơn); PHP = `<XAMPP>\php\php.exe`, cổng 8000; lần đầu tự tạo `backend\cau_hinh.env` từ `cau_hinh.env.example`. Moodle/XAMPP đặt ở chỗ khác: chép `0_CAU_HINH_MAY.example.bat` thành `0_CAU_HINH_MAY.bat` rồi khai báo `MOODLE_DIR`, `PHP_BIN`, `APP_PORT` (tệp này không đưa lên Git) |
 | 1 | `1_CAI_DAT_PYTHON.bat` | Tạo `.venv`, cài thư viện Python (chạy 1 lần, cần Internet) |
 | 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (39 bảng), dữ liệu minh họa, cài cầu nối đọc `moodle_db` |
 | 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
 | 4 | `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat` | *(Tùy chọn)* tạo khóa học + 40 SV; Quiz có bài làm thật; **bài giấy 2 mã đề: 38 phiếu tô sẵn được Moodle nhận diện & chấm**; đồng bộ, phân tích, công bố |
 | 5 | `5_CHAY_HE_THONG.bat` | Chạy hệ thống tại http://localhost:8000 (giữ cửa sổ mở; chạy lại sau bước 3) |
-| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* chạy 73 ca kiểm thử tự động |
-| 7 | `7_DON_DEP_GIT.bat` | *(Khi dùng GitHub)* bỏ `.venv`, `__pycache__`, `cau_hinh.env` (mật khẩu, token) khỏi Git theo `.gitignore`, commit và đẩy lên |
+| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* chạy 77 ca kiểm thử tự động – kiểm thử **dựng lại `assessment_db`**, chạy xong hãy chạy lại bước 4 để có lại dữ liệu demo |
+| 7 | `7_DON_DEP_GIT.bat` | *(Khi dùng GitHub)* bỏ `.venv`, `__pycache__`, `cau_hinh.env`, `0_CAU_HINH_MAY.bat` (mật khẩu, token, đường dẫn riêng) khỏi Git theo `.gitignore`, commit và đẩy lên |
 | – | `tools\KIEM_TRA_DO_LUONG.bat` | *(Tùy chọn)* tính lại độc lập p, DI, mức đạt CLO, BM6b, PI, PLO, CTĐT từ dữ liệu bài làm và so với số liệu hệ thống (kết quả mong đợi: 0 sai lệch) |
 
 Có thể làm bước 2 bằng HeidiSQL: chạy (F9) lần lượt `database\heidisql\1_tao_csdl_assessment_db.sql`
@@ -76,6 +76,8 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
 1. Moodle (giảng viên `gv.son`): menu trên cùng **Phân tích CĐR** → tự vào hệ thống.
 2. Hệ thống: Lớp học phần → Bài kiểm tra → *Thi cuối kỳ (Moodle)* → **Đồng bộ & phân tích** → xem Phân tích câu hỏi,
    Kết quả CĐR (BM6) → **Công bố kết quả lên Moodle**.
+   Xuất biểu mẫu: **Xuất bộ BM6 của lớp** (BM6a, BM6b, minh chứng từng CLO theo đúng loại bài KT trong kế hoạch BM6a) hoặc **Xuất theo từng bài KT** → tệp BM6c riêng của bài đó (cũng có nút *Xuất BM6c bài KT này* ở trang bài kiểm tra).
+   Bộ môn: *Tổng hợp PLO* → **Xuất BM2/BM3 (.xlsx)** hoặc **Xuất BM2 (.docx)**; *Kế hoạch đo PI* → **Xuất bảng phân công** đánh giá PIs của học kỳ.
 3. Moodle (sinh viên `22130001`): chuông thông báo → khóa học → **Kết quả phân tích CĐR**: radar CLO so với ngưỡng
    và trung bình lớp, nhận định, lộ trình ôn tập theo chương.
 4. Bài giấy *Kiểm tra quá trình (giấy)*: tải đề/phiếu/đáp án 2 mã đề (Moodle sinh) → trên Moodle mở Offline Quiz để xem 38 phiếu
@@ -142,4 +144,5 @@ thay đổi → Cập nhật. Câu đã có kết quả thi không bị đổi C
 - `Access denied for user 'root'` → sửa mật khẩu trong `backend\cau_hinh.env` (dòng `DATABASE_URL`).
 - Nút “Tạo Quiz”/“Công bố” báo *Chưa cấu hình kết nối Moodle* → chạy lại bước 3 rồi bước 5.
 - Bấm “Phân tích CĐR” báo *chưa được bộ môn khai báo là giảng viên* → thêm giảng viên (mã GV = tên đăng nhập Moodle).
-- Cổng 8000 bận → đặt biến môi trường `APP_PORT` (VD `setx APP_PORT 8010`, mở cửa sổ mới), chạy lại bước 3 và 5.
+- Cổng 8000 bận → đặt `set "APP_PORT=8010"` trong `0_CAU_HINH_MAY.bat`, chạy lại bước 3 và 5.
+- Bước 3/4 báo *Chưa xác định được thư mục Moodle 4.5 / php.exe* → khai báo `MOODLE_DIR`, `PHP_BIN` trong `0_CAU_HINH_MAY.bat`.
