@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
+if not exist "%~dp0backend\cau_hinh.env" copy /y "%~dp0backend\cau_hinh.env.mau" "%~dp0backend\cau_hinh.env" >nul
 echo [1/2] Tao moi truong ao Python (.venv)...
 where py >nul 2>nul
 if %errorlevel%==0 (py -3 -m venv .venv) else (python -m venv .venv)

@@ -19,10 +19,15 @@ if (Hình thức?) then (trực tuyến)
   :Reverse Shuffle: _order + answer\n→ phương án gốc;
 else (trên giấy)
   |Giảng viên|
-  :Tải lên tệp phiếu trả lời\n(MSSV, mã đề, Q1..Qn);
+  :Nhấn "Đồng bộ & phân tích";
   |Hệ thống|
-  :Tra bảng hoán vị của mã đề\n→ câu hỏi & phương án gốc;
-  :Cảnh báo dòng sai MSSV / mã đề;
+  :Web Service local_clo_process_scans:\nMoodle chấm ngay các phiếu còn chờ;
+  if (Moodle đã chấm được phiếu nào?) then (chưa)
+    :Báo "Moodle chưa chấm phiếu nào";
+    stop
+  endif
+  :sp_sync_exam: đọc offlinequiz_results đã chấm\n(kết quả mới nhất, mã đề A/B/C…);
+  :Reverse Shuffle theo _order của mã đề\n→ phương án gốc;
 endif
 :Ghi exam_attempts, item_level_results\n(answered / blank / absent);
 :Analysis Engine (Pandas): p, DI (Kelley 27%),\nđiểm CLO từng SV (BM6c);
@@ -33,9 +38,13 @@ endif
 fork
   :Xuất BM6 (.xlsx);
 fork again
-  :Công bố kết quả;
+  :Công bố kết quả lên Moodle;
+  |Hệ thống|
+  :Gửi kết quả từng SV qua\nWeb Service local_clo_push_results;
+  |Moodle LMS|
+  :Lưu kết quả, gửi thông báo;
   |Sinh viên|
-  :Xem radar CLO so với ngưỡng & TB lớp,\nlộ trình ôn tập;
+  :Trên Moodle: xem radar CLO so với\nngưỡng & TB lớp, lộ trình ôn tập;
 fork again
   |Bộ môn|
   :Xem tổng hợp PLO năm học,\nnhập nhận xét, xuất BM2/BM3;

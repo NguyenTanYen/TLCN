@@ -1,0 +1,35 @@
+@startuml
+!include ../actstyle.iuml
+|Moodle LMS|
+start
+:SV làm bài trên Quiz;\nMoodle tự chấm;
+|Giảng viên|
+:Mở bài KT trực tuyến;\n"Đồng bộ & phân tích";
+|Hệ thống|
+if (Chưa gắn Quiz?) then (có)
+  :422;
+  stop
+endif
+:sp_sync_exam (1 giao dịch);\nsync_runs = running;
+if (Quiz không còn\ntrên Moodle?) then (có)
+  :ROLLBACK; failed;\n502 "Lỗi kết nối LMS";
+  stop
+endif
+if (Có câu không\nánh xạ QB-n?) then (có)
+  :ROLLBACK; 409;
+  stop
+endif
+if (Câu đã bị sửa trên Moodle\n(số PA / đáp án đúng)?) then (có)
+  :ROLLBACK; 409;
+  stop
+endif
+:Chọn lượt được tính điểm\n(grademethod, bỏ xem trước);
+:Reverse Shuffle:\n_order + answer → PA gốc;
+:Ghi bài làm, kết quả từng câu;\nSV không nộp = vắng;
+:Synced; sync_runs = success;
+:Analysis Engine: p, DI,\nCLO → PI → PLO, lộ trình;
+:Trạng thái Analyzed;
+|Giảng viên|
+:Xem số bài làm, số vắng,\nkết quả phân tích;
+stop
+@enduml

@@ -202,10 +202,13 @@ class PIPlanCLO(Base):
 
 
 class AssessmentAssignment(Base):
+    """Phân công đánh giá PI: một GV cụ thể, hoặc tất cả GV hướng dẫn (all_supervisors, lecturer_id NULL) với môn TLCN/KLTN."""
     __tablename__ = "assessment_assignments"
-    semester_id: Mapped[int] = mapped_column(ForeignKey("semesters.id"), primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), primary_key=True)
-    lecturer_id: Mapped[int] = mapped_column(ForeignKey("lecturers.id"), primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    semester_id: Mapped[int] = mapped_column(ForeignKey("semesters.id"))
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
+    lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"))
+    all_supervisors: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[Optional[str]] = mapped_column(String(255))
 
 # ---------------------------------------------------------------- E. Lớp HP & ngân hàng câu hỏi

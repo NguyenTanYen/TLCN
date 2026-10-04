@@ -1,0 +1,37 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+participant "Moodle\n(Offline Quiz)" as OQ
+boundary "ExamDetail\n(PaperFlow)" as UI
+control "sync router\n+ lms service" as API
+participant "Moodle WS\n(local_clo)" as WS
+database "assessment_db\n(sp_sync_exam)" as DB
+database "moodle_db" as MD
+control "Analysis Engine" as AE
+GV -> UI : "Tải phiếu đã quét lên Moodle ↗"
+UI --> GV : mở report.php?mode=rimport
+GV -> OQ : tải ảnh/PDF/.zip phiếu đã quét
+OQ -> MD : offlinequiz_queue, queue_data (status = new)
+GV -> UI : "Đồng bộ & phân tích"
+UI -> API : POST /api/exams/{id}/sync
+API -> API : bài giấy có moodle_offlinequiz_id? (422);\nMoodle có plugin? (502)
+API -> WS : local_clo_process_scans(examref)
+WS -> OQ : offlinequiz_evaluation_cron(job) cho mỗi lô chờ
+OQ -> OQ : nhận diện MSSV, mã đề, ô đánh dấu
+OQ -> MD : offlinequiz_results (usageid, status = complete);\nphiếu lỗi → scanned_pages (error)
+WS --> API : {results, pending, errorpages, correcturl}
+alt results = 0
+  API --> UI : 409 "Moodle chưa chấm phiếu nào" (+ số phiếu cần sửa)
+else
+  API -> DB : CALL sp_sync_exam(id)
+  DB -> MD : v_mdl_attempts (nhánh Offline Quiz):\nphiếu complete, lần quét cuối/SV, group_code
+  DB -> DB : exam_versions ← mã đề A, B…
+  DB -> MD : v_mdl_responses: _order, answer của usage phiếu
+  DB -> DB : Reverse Shuffle; exam_attempts (+ version_id);\nitem_level_results; SV không có phiếu = absent
+  DB --> API : {n_attempts, n_absent}
+  API -> AE : analyze_exam(id)
+  AE -> DB : kết quả phân tích; status = Analyzed
+  API --> UI : 200 {scans, sync, analysis}
+end
+note over GV, OQ : Phiếu lỗi được sửa tại trang "Sửa phiếu lỗi" của Offline Quiz,\nsau đó GV đồng bộ lại (kết quả cập nhật, không trùng lặp).
+@enduml

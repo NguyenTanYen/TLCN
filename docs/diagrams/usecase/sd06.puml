@@ -1,0 +1,35 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Bộ môn" as BM
+boundary "Program /\nPiPlans" as UI
+control "catalog router" as CA
+control "results service" as RS
+database "assessment_db" as DB
+BM -> UI : mở "CTĐT – PLO/PI"
+UI -> CA : GET /api/programs/{pid}
+CA -> DB : plos, plo_measurement_plans, performance_indicators
+CA --> UI : PLO theo nhóm, chỉ tiêu, năm đo, PI
+opt sửa PLO
+  BM -> UI : nội dung / chỉ tiêu
+  UI -> CA : PUT /api/plos/{id} (chỉ admin)
+  CA -> DB : UPDATE plos
+end
+BM -> UI : mở "Kế hoạch đo PI", chọn năm học
+UI -> CA : GET /api/pi-plans?academic_year=…
+CA -> DB : pi_assessment_plans ⋈ pi_results
+UI -> CA : GET /api/assignments
+CA --> UI : kế hoạch + kết quả; phân công
+BM -> UI : thêm/sửa kế hoạch (PI, môn, học kỳ,\nphương pháp, chu kỳ, chỉ tiêu, GV, CLO)
+UI -> CA : POST /api/pi-plans  |  PUT /api/pi-plans/{id}
+CA -> DB : CLO minh chứng thuộc môn lấy minh chứng?
+alt không thuộc
+  CA --> UI : 422 "CLO không thuộc môn học lấy minh chứng"
+else
+  CA -> DB : lưu pi_assessment_plans, pi_plan_clos
+  CA -> RS : recompute_pi_plans()
+  RS -> DB : Σ clo_results của CLO minh chứng\n(lớp HP của môn, học kỳ) → pi_results
+  CA -> RS : recompute_plo(PLO, năm học cũ/mới)
+  RS -> DB : Σ pi_results → plo_results
+  CA --> UI : 201/200 {kế hoạch + kết quả}
+end
+@enduml

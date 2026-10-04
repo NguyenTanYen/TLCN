@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 set PYTHONUTF8=1
+if not exist "%~dp0backend\cau_hinh.env" copy /y "%~dp0backend\cau_hinh.env.mau" "%~dp0backend\cau_hinh.env" >nul
 cd /d "%~dp0backend"
 echo Luu y: XAMPP (MySQL/MariaDB) phai dang chay. Tai khoan lay tu backend\cau_hinh.env
 echo.

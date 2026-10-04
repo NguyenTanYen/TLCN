@@ -1,0 +1,47 @@
+# ===== Môi trường & thư viện cài trên từng máy (tạo lại bằng 1_CAI_DAT_PYTHON.bat / npm install) =====
+.venv/
+venv/
+node_modules/
+frontend/.vite/
+
+# ===== Tệp sinh ra mỗi lần chạy =====
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.tmp
+*.temp
+*.bak
+# 3_CAI_GIAO_DIEN_MOODLE.bat giải nén plugin Offline Quiz từ tệp .zip (chỉ giữ tệp zip trong Git)
+moodle/mod/offlinequiz/
+# Kiểm thử E2E với Moodle thật: đề XML, phiếu quét, kết quả đối chiếu
+tools/moodle_e2e/out/
+# tools/xuat_sql.py khi chạy không truyền thư mục đích
+sql_export/
+backend/sql_export/
+# docs/diagrams/gen_erd.py khi chạy lại sơ đồ
+docs/diagrams/fig/
+docs/diagrams/schema.json
+backend/demo_phieu_tra_loi.csv
+
+# ===== Bí mật và cấu hình riêng từng máy (mẫu: backend/cau_hinh.env.mau) =====
+backend/cau_hinh.env
+backend/.env
+.env
+backend/.jwt_secret
+*.pem
+
+# ===== Tệp khóa/tạm của Office, LibreOffice và hệ điều hành =====
+~$*
+.~lock.*#
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Trình soạn thảo =====
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,4 +1,4 @@
-digraph M { rankdir=TB; graph [fontname="DejaVu Sans", dpi=160, nodesep=0.3, ranksep=0.55];
+digraph M { rankdir=TB; graph [splines=ortho, fontname="DejaVu Sans", dpi=160, nodesep=1.1, ranksep=0.6, forcelabels=true];
 node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, fillcolor="#EAF2FB", color="#445566"];
 edge [fontname="DejaVu Sans", fontsize=9, color="#445566"];
 q [label="Câu hỏi j\n(điểm_j, đáp án)"];
@@ -9,5 +9,5 @@ course [label="CĐR môn học\nΣ đạt / Σ đánh giá mọi CLO\nso chỉ t
 pi [label="PI k (kế hoạch BM3b)\nΣ kết quả các CLO minh chứng\ncủa môn, HK kế hoạch (BM3c)"];
 plo [label="PLO (năm học)\nΣ kết quả các PI\nso chỉ tiêu CĐR (BM3c)"];
 prog [label="CTĐT\nΣ đạt / Σ đánh giá\ncác PLO đã đo (BM2)", fillcolor="#EAF6EA"];
-q -> clo_i [label="w_jc (Σ_c w_jc = 1)"]; r -> clo_i; clo_i -> clo; clo -> course; clo -> pi [label="pi_plan_clos\n(hoặc clo_plo_mapping)"]; pi -> plo; plo -> prog;
+q -> clo_i [xlabel="w_jc (Σ_c w_jc = 1)"]; r -> clo_i; clo_i -> clo; clo -> course; clo -> pi [xlabel="pi_plan_clos\n(hoặc\nclo_plo_mapping)"]; pi -> plo; plo -> prog;
 }

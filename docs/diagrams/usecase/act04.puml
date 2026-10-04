@@ -1,0 +1,32 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Mở bài KT đã phân tích;
+:Xem các tab: Tổng quan điểm,\nPhân tích câu hỏi,\nKết quả SV, Nhật ký;
+:Mở "Kết quả CĐR" của lớp;
+|Hệ thống|
+:Đọc kết quả CLO và\nkế hoạch CLO (BM6a);\ntính dòng tổng môn học;
+|Giảng viên|
+:Xem BM6b: tỷ lệ đạt\nCLO so với chỉ tiêu;
+if (Sửa kế hoạch CLO?) then (có)
+  :Sửa ngưỡng, chỉ tiêu,\nloại minh chứng;
+  |Hệ thống|
+  :Lưu; tính lại\nCLO → PI → PLO;
+endif
+|Giảng viên|
+:Mở "Minh chứng" một CLO;
+|Hệ thống|
+:Điểm CLO từng SV theo bài\n(BM6c/6d); câu sắp theo DI;
+|Giảng viên|
+:Nhập đánh giá,\nhành động cải tiến;
+|Hệ thống|
+:Lưu nhận xét;
+|Giảng viên|
+:Nhấn "Xuất BM6";
+|Hệ thống|
+:Sinh BM6a, BM6b,\nBM6c/6d (COUNTIF);
+|Giảng viên|
+:Tải tệp .xlsx;
+stop
+@enduml

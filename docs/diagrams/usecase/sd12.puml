@@ -1,0 +1,52 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Bộ môn" as BM
+actor "Giảng viên" as GV
+boundary "Giao diện\nLớp học phần /\nHọc phần & CLO" as UI
+control "courses router" as CR
+control "catalog router" as CA
+database "assessment_db" as DB
+database "moodle_db" as MDB
+opt khóa học đã tạo trên Moodle
+  GV -> UI : mở "Lớp học phần" (hoặc nút Phân tích CĐR của khóa)
+  UI -> CR : GET /api/moodle/my-courses
+  CR -> MDB : khóa học có GV là editingteacher/teacher,\nsố SV ghi danh (chỉ đọc)
+  CR --> UI : khóa chưa có lớp HP + gợi ý môn, học kỳ
+  GV -> UI : "Đưa vào hệ thống": môn học, học kỳ, mã lớp
+  UI -> CR : POST /api/moodle/courses/{id}/import
+  CR -> MDB : is_course_teacher; danh sách SV ghi danh
+  CR -> DB : INSERT class_sections (moodle_course_id),\nstudents, enrollments (1 giao dịch)
+  CR --> UI : 201 {id, n_students} / 403 / 409
+end
+BM -> UI : "+ Môn học mới", "+ Lớp HP"
+UI -> CR : POST /api/courses; POST /api/class-sections
+CR -> DB : kiểm trùng mã; INSERT courses,\nprogram_courses, class_sections
+alt trùng mã môn / mã lớp trong học kỳ
+  CR --> UI : 409
+else
+  CR --> UI : 201 {id}
+end
+GV -> UI : thêm chương (hoặc dán nhiều dòng)
+loop mỗi chương
+  UI -> CR : POST /api/courses/{cid}/outlines
+  CR -> DB : check_course_access; kiểm trùng số chương;\nINSERT course_outlines
+end
+GV -> UI : "+ CLO": nội dung, Bloom, PLO (I/R/M)
+alt CLO mới
+  UI -> CA : POST /api/clos
+  CA -> DB : kiểm trùng mã, PLO tồn tại;\nINSERT clos, clo_plo_mapping
+  CA --> UI : 200 / 409 / 422
+else sửa CLO
+  UI -> CR : PUT /api/clos/{id}
+  CR -> DB : kiểm PLO tồn tại, không trùng;\nthay clo_plo_mapping (1 giao dịch)
+  CR --> UI : 200 / 409 / 422
+end
+UI -> CR : GET /api/courses/{cid}/setup
+CR -> DB : đếm lớp HP, chương, CLO chưa ánh xạ,\nkế hoạch BM6a, câu hỏi đã gán
+CR --> UI : steps[5], ready
+opt xóa chương / CLO / lớp HP
+  UI -> CR : DELETE ...
+  CR -> DB : đang được câu hỏi, kết quả\nhoặc bài KT sử dụng?
+  CR --> UI : 409 (giữ dữ liệu) / 200
+end
+@enduml

@@ -1,0 +1,29 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Mở lớp HP → "Thống kê lớp";
+:Chọn một bài KT hoặc "Tất cả";
+|Hệ thống|
+if (Bài KT đã phân tích và thuộc lớp?) then (không)
+  :404;
+  stop
+endif
+:Tính KPI: dự thi/vắng,\nđiểm TB, SV đạt mọi CLO,\nSV cần hỗ trợ;
+:Tỷ lệ đạt từng CLO; tỷ lệ đúng theo Bloom;\nsố SV cần ôn mỗi chương; phổ điểm;
+:Bản đồ nhiệt SV × CLO; danh sách SV có nguy cơ\n(điểm < 50% hoặc đạt < ½ số CLO); SV vắng;
+|Giảng viên|
+:Xem biểu đồ; lọc "chỉ SV cần hỗ trợ", sắp xếp;
+:Bấm một SV để mở hồ sơ;
+|Hệ thống|
+if (SV thuộc lớp?) then (không)
+  :404;
+  stop
+endif
+:Gộp mọi bài KT đã phân tích: điểm, thứ hạng, TB lớp;\nmức đạt từng CLO qua các bài;
+:Từng câu trả lời (chọn gì, đúng/sai, tỷ lệ lớp đúng);
+:Danh sách "Cần học lại những phần nào"\n(chương, CLO, mức thiếu hụt, ưu tiên);
+|Giảng viên|
+:Xem hồ sơ; chuyển SV trước/sau;\nlên kế hoạch hỗ trợ;
+stop
+@enduml

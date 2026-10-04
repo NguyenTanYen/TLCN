@@ -94,8 +94,9 @@ if plan_rows:
     out.append("INSERT INTO pi_assessment_plans (pi_id, course_id, semester_id, method, cycle, target_pct, lecturer_id) VALUES\n " + ",\n ".join(
         f"({pi},{c},(SELECT id FROM semesters WHERE academic_year={q(s[0])} AND term={s[1]}),{q(m)},{q(cy)},{t:.2f},{l if l else 'NULL'})"
         for pi, c, s, m, cy, t, l in plan_rows) + ";")
-out.append("INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, note) VALUES\n " + ",\n ".join(
-    f"((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),{cid[c]},{names.index(n)+1},{q(note)})"
-    for c, n, note in assign if n) + ";")
+# Môn TLCN/KLTN không giao cho một GV mà cho "tất cả thầy/cô có hướng dẫn" (all_supervisors = 1, lecturer_id NULL)
+out.append("INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, all_supervisors, note) VALUES\n " + ",\n ".join(
+    f"((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),{cid[c]},{names.index(n)+1 if n else 'NULL'},{0 if n else 1},{q(note)})"
+    for c, n, note in assign) + ";")
 open('03_seed_reference.sql', 'w', encoding='utf-8').write("\n\n".join(out) + "\n")
 print('plans', len(plan_rows), 'pi_courses', len(pi_course_rows), 'lecturers', len(names), 'semesters', len(sems))

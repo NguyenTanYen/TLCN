@@ -1,0 +1,36 @@
+@startuml
+!include ../actstyle.iuml
+|Bộ môn|
+start
+:Mở "Học phần & CLO";
+if (Môn học chưa có?) then (có)
+  :"+ Môn học mới":\nmã, tên, tín chỉ, chỉ tiêu;
+endif
+:"+ Lớp HP": học kỳ,\nmã lớp, GV phụ trách;
+|Hệ thống|
+if (Trùng mã môn / mã lớp\ntrong học kỳ?) then (có)
+  :409;
+  stop
+endif
+:Lưu môn học, lớp HP;\ngắn môn vào CTĐT;
+|Giảng viên|
+:Khai báo các chương\n(thêm từng chương hoặc\ndán nhiều dòng);
+:Thêm CLO: nội dung,\nBloom mục tiêu,\nPLO đóng góp (I/R/M);
+|Hệ thống|
+if (PLO không tồn tại /\nánh xạ trùng?) then (có)
+  :422;
+  stop
+endif
+:Lưu CLO và ánh xạ CLO–PLO;
+|Giảng viên|
+:Lập kế hoạch BM6a\n(ngưỡng, chỉ tiêu, minh chứng);
+:Nhập câu hỏi và gán CLO\n(UC-01 / UC-09);
+|Hệ thống|
+:Cập nhật bảng kiểm tra\n5 bước khai báo;
+if (Đủ lớp HP, chương, CLO–PLO\nvà câu hỏi đã gán?) then (có)
+  :Báo "Học phần đã sẵn sàng"\n⇒ ra đề (UC-02);
+else (không)
+  :Đánh dấu "!" các bước còn thiếu;
+endif
+stop
+@enduml

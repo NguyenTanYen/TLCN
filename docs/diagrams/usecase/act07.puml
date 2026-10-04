@@ -1,0 +1,31 @@
+@startuml
+!include ../actstyle.iuml
+|Bộ môn|
+start
+:Mở "Tổng hợp PLO", chọn năm học;
+|Hệ thống|
+:Đọc 19 PLO ⟕ plo_results của năm học;
+:Tính tỷ lệ toàn CTĐT = Σ đạt / Σ đánh giá\ncủa các PLO đã đo (BM2);
+|Bộ môn|
+:Xem biểu đồ PLO đã đo so với chỉ tiêu và bảng tất cả PLO;
+if (Kết quả cũ (đã sửa kế hoạch/phân tích lại)?) then (có)
+  :Nhấn "Tính lại";
+  |Hệ thống|
+  :Tính lại toàn bộ PI và PLO;
+  |Bộ môn|
+endif
+:Nhập 4 mục nhận xét cho PLO đã đo\n(đánh giá, hành động cải tiến,\nkết quả cải tiến, công cụ đánh giá);
+|Hệ thống|
+if (PLO có kết quả trong năm?) then (không)
+  :404 "CĐR chưa có kết quả đo";
+  stop
+endif
+:Lưu nhận xét vào plo_results;
+|Bộ môn|
+:Nhấn "Xuất BM2/BM3";
+|Hệ thống|
+:Sinh trang BM2 tổng hợp; BM3b và BM3c\ncho mỗi PLO đã đo;
+|Bộ môn|
+:Tải tệp .xlsx, nộp báo cáo;
+stop
+@enduml

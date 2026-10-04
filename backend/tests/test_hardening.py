@@ -134,3 +134,26 @@ def test_import_parsers_edge_cases():
     assert qi.parse_clos("CLO1:0.6.1", clos)[0] is None
     links, _ = qi.parse_clos("CLO1; CLO2; CLO3", clos)
     assert abs(sum(w for _, w in links) - 1) < 1e-9
+
+
+def test_assignment_all_supervisors(client, admin, gv, gv_other):
+    """Phân công đánh giá PI cho môn TLCN/KLTN: "Tất cả thầy/cô có hướng dẫn" thay vì một GV."""
+    rows = client.get("/api/assignments", headers=gv).json()
+    tl = [r for r in rows if r["course_code"] in ("PODE434277", "POIS431184")]
+    assert len(tl) == 2 and all(r["all_supervisors"] and r["lecturer_id"] is None and r["lecturer"] == "Tất cả thầy/cô có hướng dẫn" for r in tl)
+    sem, tlcn = tl[0]["semester_id"], tl[0]["course_id"]
+    lec = q("SELECT id FROM lecturers ORDER BY id LIMIT 1")[0][0]
+    # GV bất kỳ được làm việc với môn giao cho tất cả GV hướng dẫn
+    assert client.get(f"/api/questions?course_id={tlcn}", headers=gv_other).status_code == 200
+    # chỉ Bộ môn thêm/xóa; không chọn cả GV lẫn "tất cả"; không trùng
+    body = {"semester_id": sem, "course_id": tlcn, "all_supervisors": True}
+    assert client.post("/api/assignments", headers=gv, json=body).status_code == 403
+    assert client.post("/api/assignments", headers=admin, json=body).status_code == 409
+    assert client.post("/api/assignments", headers=admin, json={**body, "lecturer_id": lec}).status_code == 422
+    assert client.post("/api/assignments", headers=admin, json={**body, "all_supervisors": False}).status_code == 422
+    r = client.post("/api/assignments", headers=admin, json={"semester_id": sem, "course_id": tlcn, "lecturer_id": lec, "note": "GV phản biện"})
+    assert r.status_code == 201, r.text
+    assert client.post("/api/assignments", headers=admin, json={"semester_id": sem, "course_id": tlcn, "lecturer_id": lec}).status_code == 409
+    assert client.delete(f"/api/assignments/{r.json()['id']}", headers=gv).status_code == 403
+    assert client.delete(f"/api/assignments/{r.json()['id']}", headers=admin).status_code == 200
+    assert client.delete(f"/api/assignments/{r.json()['id']}", headers=admin).status_code == 404

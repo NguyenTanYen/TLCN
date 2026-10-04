@@ -1,0 +1,34 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Thu phiếu, quét ảnh\n(200–300 dpi);
+:Mở Offline Quiz →\n"Tải phiếu quét lên";\ntải ảnh / .zip;
+|Moodle LMS|
+:Đưa phiếu vào\nhàng đợi quét;
+|Giảng viên|
+:Hệ thống: "Đồng bộ\n& phân tích";
+|Hệ thống|
+if (Chưa có Offline Quiz?) then (có)
+  :422;
+  stop
+endif
+:Gọi process_scans;
+|Moodle LMS|
+:Nhận diện MSSV, mã đề,\nô đánh dấu; chấm điểm;
+:Phiếu lỗi → "Sửa phiếu lỗi";
+|Hệ thống|
+if (Moodle chưa chấm\nphiếu nào?) then (có)
+  :409 (+ số phiếu cần sửa);
+  |Giảng viên|
+  :Sửa phiếu lỗi trên Moodle,\nđồng bộ lại;
+  stop
+endif
+|Hệ thống|
+:sp_sync_exam: phiếu đã chấm,\nmã đề → exam_versions;
+:Reverse Shuffle;\nSV không có phiếu = vắng;
+:Phân tích → Analyzed;
+|Giảng viên|
+:Xem số phiếu đã chấm,\nsố vắng, phân tích;
+stop
+@enduml

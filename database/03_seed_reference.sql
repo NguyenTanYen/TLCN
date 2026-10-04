@@ -190,13 +190,15 @@ INSERT INTO pi_assessment_plans (pi_id, course_id, semester_id, method, cycle, t
  (52,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,NULL),
  (53,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,NULL);
 
-INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, note) VALUES
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),1,1,'Đánh giá theo 7 CĐR'),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),2,1,'Đánh giá theo 19 CĐR'),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),3,2,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),4,2,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),5,3,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),6,2,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,4,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,5,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,6,NULL);
+INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, all_supervisors, note) VALUES
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),1,1,0,'Đánh giá theo 7 CĐR'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),2,1,0,'Đánh giá theo 19 CĐR'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),3,2,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),4,2,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),5,3,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),6,2,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),7,NULL,1,'Tất cả thầy/cô có HD'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),8,NULL,1,'Tất cả thầy/cô có HD'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,4,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,5,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,6,0,NULL);

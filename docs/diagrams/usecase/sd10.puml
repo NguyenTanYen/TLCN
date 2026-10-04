@@ -1,0 +1,31 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ClassStats" as CS
+boundary "StudentProfile" as SP
+control "insights router" as IN
+database "assessment_db" as DB
+GV -> CS : lớp HP → "Thống kê lớp"; chọn bài KT / tất cả
+CS -> IN : GET /api/class-sections/{cs}/stats?exam_id=…
+IN -> IN : check_section_access (GV phụ trách?)
+IN -> DB : bài KT đã Analyzed thuộc lớp?
+alt không có
+  IN --> CS : 404
+else
+  IN -> DB : exam_attempts (dự thi, vắng, điểm)
+  IN -> DB : attempt_clo_results (đạt CLO từng SV)
+  IN -> DB : item_level_results ⋈ question_bank (Bloom)
+  IN -> DB : learning_path_items (chương cần ôn)
+  IN -> IN : KPI; tỷ lệ đạt CLO vs chỉ tiêu; Bloom;\nchương × số SV; phổ điểm; số CLO đạt/SV;\nbản đồ nhiệt; SV có nguy cơ; SV vắng
+  IN --> CS : JSON thống kê
+  CS -> CS : vẽ biểu đồ (Chart.js), bảng, bản đồ nhiệt
+end
+GV -> CS : bấm "Hồ sơ" một SV
+CS -> SP : /sections/{cs}/students/{sid}?exam=…
+SP -> IN : GET /api/class-sections/{cs}/students/{sid}/profile
+IN -> DB : SV thuộc lớp? (404 nếu không)
+IN -> DB : mọi bài KT đã phân tích: điểm, thứ hạng, TB lớp,\nCLO (SV vs TB lớp), câu trả lời từng câu, lộ trình
+IN -> IN : gộp CLO qua các bài; "Cần học lại những phần nào"\n(sắp theo thiếu hụt); SV trước/sau
+IN --> SP : JSON hồ sơ
+SP --> GV : tổng hợp CLO, phần cần học lại, radar,\nchi tiết câu trả lời (lọc Sai / Bỏ trống / Đúng)
+@enduml

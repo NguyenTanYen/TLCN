@@ -1,0 +1,45 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ExamDetail" as UI
+control "sync router" as API
+control "moodle service" as MS
+database "assessment_db\n(sp_sync_exam,\nview cầu nối)" as DB
+database "moodle_db\n(chỉ đọc)" as MD
+control "results service\n+ Analysis Engine" as AE
+GV -> UI : "Đồng bộ & phân tích"
+UI -> API : POST /api/exams/{id}/sync
+API -> API : get_exam_for (GV phụ trách?);\nbài online đã có moodle_quiz_id? (422)
+API -> MS : sync_exam(db, exam_id)
+MS -> MS : commit phiên ORM (tránh snapshot cũ)
+MS -> DB : CALL sp_sync_exam(id) – kết nối AUTOCOMMIT
+DB -> DB : START TRANSACTION; sync_runs = running
+DB -> MD : v_mdl_exam_course: Quiz còn tồn tại?
+alt không có Quiz
+  DB -> DB : ROLLBACK; sync_runs = failed
+  DB --> MS : SIGNAL "Lỗi kết nối LMS…"
+  MS --> API : DBAPIError
+  API --> UI : 502
+else
+  DB -> MD : v_mdl_item_results: câu không ánh xạ QB-n?
+  DB -> MD : câu trên Moodle còn đúng số phương án,\nvị trí đáp án đúng như đề gốc?
+  alt có câu lỗi / câu đã bị sửa trên Moodle
+    DB --> API : SIGNAL (số câu lỗi) ⇒ 409
+  else
+    DB -> MD : v_mdl_attempts: ROW_NUMBER theo grademethod;\npreview = 0, state = finished
+    DB -> MD : v_mdl_responses: _order (bước 0), answer (bước cuối)
+    DB -> DB : Reverse Shuffle → question_options.id;\nlưu moodle_question_id / moodle_answer_id
+    DB -> MD : v_mdl_exam_roster: SV của khóa
+    DB -> DB : upsert students, enrollments;\nexam_attempts (ON DUPLICATE KEY UPDATE);\nabsent; item_level_results; total_score
+    DB -> DB : status = Synced; sync_runs = success; COMMIT
+    DB --> MS : OK
+    MS -> MS : commit phiên ORM; đọc sync_runs
+    MS --> API : {n_attempts, n_absent}
+    API -> AE : analyze_exam(id)
+    AE -> DB : đọc bài làm, ma trận câu–CLO, kế hoạch CLO
+    AE -> AE : p, DI (Kelley 27%), phân bố PA;\nđiểm CLO có trọng số; đạt ⇔ ≥ ngưỡng;\nlộ trình ôn tập
+    AE -> DB : item_statistics, attempt_clo_results,\nclo_results → pi_results → plo_results,\nlearning paths; status = Analyzed
+    API --> UI : 200 {sync, analysis}
+  end
+end
+@enduml

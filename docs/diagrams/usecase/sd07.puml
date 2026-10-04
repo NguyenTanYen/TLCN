@@ -1,0 +1,34 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Bộ môn" as BM
+boundary "PloSummary" as UI
+control "reports router" as RP
+control "results service" as RS
+control "reports_excel\n(openpyxl)" as XL
+database "assessment_db" as DB
+BM -> UI : mở "Tổng hợp PLO", chọn năm học
+UI -> RP : GET /api/reports/programs/{pid}/plo-summary?academic_year
+RP -> DB : plos ⟕ plo_results (năm học)
+RP -> RP : CTĐT = Σ đạt / Σ đánh giá các PLO đã đo
+RP --> UI : biểu đồ PLO đã đo, bảng 19 PLO, kết quả CTĐT
+opt dữ liệu đã thay đổi
+  BM -> UI : "Tính lại"
+  UI -> RP : POST /api/reports/programs/{pid}/recompute
+  RP -> RS : recompute_pi_plans(); recompute_plo(mọi PLO, năm)
+  RS -> DB : cập nhật pi_results, plo_results
+end
+BM -> UI : nhập 4 mục nhận xét của một PLO
+UI -> RP : PUT /api/reports/plo-results/{plo}/{năm}
+alt PLO chưa có kết quả năm đó
+  RP --> UI : 404
+else
+  RP -> DB : UPDATE plo_results (analysis, improvement_actions,\nimprovement_results, evidence_tools)
+  RP --> UI : 200
+end
+BM -> UI : "Xuất BM2/BM3"
+UI -> RP : GET /api/reports/programs/{pid}/bm3.xlsx?academic_year
+RP -> XL : build_bm3()
+XL -> DB : PLO, PI, kế hoạch, kết quả, nhận xét
+XL -> XL : trang BM2 tổng hợp; BM3b + BM3c mỗi PLO đã đo
+XL --> UI : tệp .xlsx
+@enduml

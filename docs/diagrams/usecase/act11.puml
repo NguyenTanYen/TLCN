@@ -1,0 +1,29 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:(Tùy chọn) xem trước\nkết quả gửi Moodle;
+:Nhấn "Công bố"\n/ "Thu hồi";
+|Hệ thống|
+if (Công bố khi chưa\nAnalyzed?) then (có)
+  :409;
+  stop
+endif
+:Cập nhật publish_flag;
+if (Chưa cấu hình WS hoặc\nlớp chưa gắn khóa Moodle?) then (có)
+  :Lưu trạng thái;\nchưa gửi sang Moodle;
+  stop
+endif
+:Dựng kết quả từng SV;\ngọi push_results;
+|Moodle (local_clo)|
+:Kiểm quyền manage;\nghi bài KT + kết quả\n(1 giao dịch);
+:Đã công bố ⇒ gửi\nthông báo cho SV;
+|Hệ thống|
+if (Lỗi Web Service?) then (có)
+  :Giữ trạng thái công bố;\nbáo để "Gửi lại";
+else (không)
+  :Hiện số đã lưu,\nđã thông báo;
+endif
+|Giảng viên|
+stop
+@enduml

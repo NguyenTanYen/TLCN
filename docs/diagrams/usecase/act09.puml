@@ -1,0 +1,28 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:"Nhập câu hỏi từ file";\nchọn tệp (Excel/CSV,\nAiken, Moodle XML);
+|Hệ thống|
+:Đọc tệp (xem trước);
+if (Không đọc được câu nào?) then (có)
+  :422;
+  stop
+endif
+:Kiểm tra từng câu;\nphát hiện trùng;\nhiện hợp lệ / trùng / lỗi;
+|Giảng viên|
+:Nhấn "Nhập N câu hỏi";
+|Hệ thống|
+:Lưu câu hợp lệ (1 giao dịch);\nthiếu Bloom/CLO = "Chưa gán";
+|Giảng viên|
+:"Gán CLO/Bloom từ file";\ntải tệp mẫu gán CLO;
+:Điền Chương, Bloom, CLO\n(vd. CLO2:0.6; CLO4:0.4);\ntải lên;
+|Hệ thống|
+:Xem trước thay đổi;\nlỗi: CLO lạ, Σ trọng số ≠ 1;\ncâu đã thi giữ nguyên;
+|Giảng viên|
+:Nhấn "Cập nhật";
+|Hệ thống|
+:Cập nhật chương, Bloom,\nánh xạ CLO (1 giao dịch);
+:Câu đủ Bloom + CLO\nđược đưa vào đề;
+stop
+@enduml

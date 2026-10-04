@@ -1,0 +1,36 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Trên Moodle, bấm\n"Phân tích CĐR";
+|Moodle (local_clo)|
+if (Không có quyền launch?) then (có)
+  :Từ chối;
+  stop
+endif
+if (Hệ thống chưa chạy?) then (có)
+  :Hiện hướng dẫn;
+  stop
+endif
+:Ký vé JWT (120 giây, jti);\nchuyển hướng sang hệ thống;
+|Hệ thống|
+if (Vé sai / hết hạn / đã dùng\nhoặc vai trò SV?) then (có)
+  :403;
+  stop
+endif
+if (Chưa có tài khoản?) then (có)
+  if (GV chưa được\nBộ môn khai báo?) then (có)
+    :403;
+    stop
+  endif
+  :Tạo tài khoản GV;
+endif
+if (Vé không phải admin\nnhưng tài khoản admin?) then (có)
+  :403 – không nâng quyền;
+  stop
+endif
+:Cấp phiên; tìm lớp HP\ngắn khóa học Moodle;
+|Giảng viên|
+:Vào thẳng lớp HP;
+stop
+@enduml

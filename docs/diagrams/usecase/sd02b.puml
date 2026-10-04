@@ -1,0 +1,40 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ExamDetail\n(PaperFlow)" as UI
+control "lms router\n+ lms service" as L
+database "assessment_db" as DB
+participant "Moodle WS\n(local_clo)" as WS
+participant "Offline Quiz\n(mod_offlinequiz)" as OQ
+database "moodle_db /\nmoodledata" as MDB
+GV -> UI : số mã đề, xáo câu/PA, định dạng, lời dẫn;\n"Tạo đề thi giấy trên Moodle"
+UI -> L : POST /api/exams/{id}/moodle/create-offlinequiz
+L -> DB : bài giấy? có câu? chưa có Offline Quiz?
+alt sai hình thức / chưa có câu
+  L --> UI : 422
+else đã có Offline Quiz
+  L --> UI : 409
+else
+  L -> WS : local_clo_create_offlinequiz\n(courseid, examref, xml, numgroups, shuffle…, fileformat)
+  WS -> MDB : start_delegated_transaction
+  WS -> MDB : question_importer (dùng lại QB-n)
+  WS -> OQ : create_module(offlinequiz, numgroups)
+  loop mỗi mã đề A, B, …
+    WS -> OQ : thêm câu với điểm của đề (xáo nếu chọn)
+    WS -> OQ : force_current_language(vi);\ncreate_pdf_question / answer / correction
+  end
+  OQ -> MDB : lưu tệp đề, phiếu, đáp án
+  WS -> MDB : local_clo_exam.offlinequizid; commit
+  WS --> L : {offlinequizid, cmid, groups, files[]}
+  L -> DB : moodle_offlinequiz_id; status = Published
+  L --> UI : 200 {nhóm đề, danh sách tệp}
+end
+== Tải đề / phiếu để in ==
+GV -> UI : "Tải tất cả (.zip)" hoặc từng tệp
+UI -> L : GET .../moodle/offlinequiz/files.zip
+L -> WS : local_clo_get_offlinequiz → danh sách tệp
+loop mỗi tệp trong danh sách
+  L -> MDB : webservice/pluginfile.php?token=… (tải tệp)
+end
+L --> UI : tệp .zip (đề, phiếu trả lời, đáp án theo mã đề)
+@enduml

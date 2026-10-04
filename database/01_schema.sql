@@ -263,15 +263,19 @@ CREATE TABLE pi_plan_clos (
 ) ENGINE=InnoDB COMMENT='CLO của môn lấy minh chứng cung cấp dữ liệu cho PI';
 
 CREATE TABLE assessment_assignments (
-  semester_id  INT          NOT NULL,
-  course_id    INT          NOT NULL,
-  lecturer_id  INT          NOT NULL,
-  note         VARCHAR(255) NULL COMMENT 'VD Đánh giá theo 7 CĐR',
-  PRIMARY KEY (semester_id, course_id, lecturer_id),
+  id               INT          AUTO_INCREMENT PRIMARY KEY,
+  semester_id      INT          NOT NULL,
+  course_id        INT          NOT NULL,
+  lecturer_id      INT          NULL COMMENT 'GV được phân công (NULL khi giao cho tất cả GV hướng dẫn)',
+  all_supervisors  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = Tất cả thầy/cô có hướng dẫn (TLCN, KLTN…)',
+  note             VARCHAR(255) NULL COMMENT 'VD Đánh giá theo 7 CĐR',
+  lecturer_key     INT GENERATED ALWAYS AS (IFNULL(lecturer_id, 0)) VIRTUAL COMMENT 'Khóa so trùng (0 = tất cả GV hướng dẫn)',
   CONSTRAINT fk_aa_semester FOREIGN KEY (semester_id) REFERENCES semesters(id) ON DELETE CASCADE,
   CONSTRAINT fk_aa_course   FOREIGN KEY (course_id)   REFERENCES courses(id)   ON DELETE CASCADE,
-  CONSTRAINT fk_aa_lecturer FOREIGN KEY (lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE
-) ENGINE=InnoDB COMMENT='Phân công đánh giá PIs theo học kỳ';
+  CONSTRAINT fk_aa_lecturer FOREIGN KEY (lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE,
+  CONSTRAINT uq_aa UNIQUE (semester_id, course_id, lecturer_key),
+  CONSTRAINT ck_aa_assignee CHECK ((all_supervisors = 1 AND lecturer_id IS NULL) OR (all_supervisors = 0 AND lecturer_id IS NOT NULL))
+) ENGINE=InnoDB COMMENT='Phân công đánh giá PIs theo học kỳ (một GV, hoặc tất cả GV hướng dẫn với môn TLCN/KLTN)';
 
 -- =====================================================================
 -- E. LỚP HỌC PHẦN & NGÂN HÀNG CÂU HỎI

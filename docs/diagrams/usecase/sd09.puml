@@ -1,0 +1,27 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "QuestionBank" as UI
+control "question_io router" as API
+control "question_import\n(đọc Excel/Aiken/XML)" as QI
+database "assessment_db" as DB
+GV -> UI : Chọn tệp câu hỏi (.xlsx/.csv/.txt/.docx/.xml)
+UI -> API : POST /api/questions/import?dry_run=true
+API -> QI : parse_questions(); kiểm tra đáp án, phương án
+API -> DB : đọc nội dung đã có (phát hiện trùng)
+API --> UI : xem trước: hợp lệ / trùng / lỗi theo dòng
+GV -> UI : Nhập N câu hỏi
+UI -> API : POST .../import?dry_run=false
+API -> DB : INSERT question_bank (bloom NULL = chưa gán),\nquestion_options
+GV -> UI : Tải file gán CLO
+UI -> API : GET /api/questions/tagging-template
+API --> UI : .xlsx (ID, nội dung, đáp án, Chương, Bloom, CLO;\nsheet HuongDan + danh sách chọn)
+GV -> UI : Tải lên file đã điền
+UI -> API : POST /api/questions/tagging-import?dry_run=true
+API -> QI : parse_chapter / parse_bloom / parse_clos
+API -> DB : so sánh giá trị hiện tại; khóa câu đã có kết quả thi
+API --> UI : thay đổi từng câu, lỗi (CLO không có, tổng trọng số ≠ 1)
+GV -> UI : Cập nhật
+UI -> API : POST .../tagging-import?dry_run=false
+API -> DB : cập nhật outline, bloom, question_clo_mapping\n(một giao dịch)
+@enduml

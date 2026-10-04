@@ -1,0 +1,21 @@
+@startuml
+!include ../actstyle.iuml
+|Sinh viên|
+start
+:Mở thông báo hoặc\nkhóa học → "Kết quả\nphân tích CĐR";
+|Moodle (local_clo)|
+:Kiểm tra đăng nhập,\nquyền viewown;
+:Đọc bài KT của khóa và\nkết quả của chính SV;
+while (Còn bài KT?) is (có)
+  if (Chưa công bố?) then (có)
+    :"Đang được bảo lưu";
+  elseif (Vắng / không có bài?) then (có)
+    :"Chưa đủ bằng chứng\nđánh giá";
+  else (có kết quả)
+    :Điểm, số CLO đạt,\nradar CLO (SV / θ / TB lớp),\nbảng CLO, nhận định,\nlộ trình ôn tập;
+  endif
+endwhile (hết)
+|Sinh viên|
+:Ôn tập theo lộ trình;
+stop
+@enduml

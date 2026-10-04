@@ -49,7 +49,7 @@ def esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def node(t, full=True, stub=False):
+def node(t, full=True, stub=False, nid=None):
     g = group_of[t][0]
     color = "#EEEEEE" if stub else COLORS[g]
     head = f'<b>{t}</b>' if full else f'<b>{t}</b> <font point-size="8" color="#64748b">({g})</font>'
@@ -64,7 +64,7 @@ def node(t, full=True, stub=False):
             tag = f' <font color="#1d4ed8" point-size="8">{mark.strip()}</font>' if mark.strip() else ""
             rows.append(f'<tr><td align="left" port="{col["name"]}">{name}{tag}</td>'
                         f'<td align="left"><font color="#555555">{esc(typ)}{"" if col["null"] else " NN"}</font></td></tr>')
-    return f'"{t}" [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="3">{"".join(rows)}</table>>];'
+    return f'"{nid or t}" [label=<<table border="0" cellborder="1" cellspacing="0" cellpadding="3">{"".join(rows)}</table>>];'
 
 
 def _pts(d):
@@ -130,7 +130,12 @@ def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""
             lines.append("}")
     else:
         lines += [node(t, full) for t in tables]
-    lines += [node(t, False, stub=True) for t in sorted(stubs)]
+    # sơ đồ từng nhóm: mỗi bảng ngoài nhóm được vẽ riêng cạnh từng bảng con (tránh các đường nối chồng chéo)
+    stub_ids = {}
+    for t, col, rt, rc, cn in fks:
+        if t in tables and rt in stubs and (rt, t) not in stub_ids:
+            stub_ids[(rt, t)] = f"{rt}@{t}"
+    lines += [node(rt, False, stub=True, nid=sid) for (rt, t), sid in sorted(stub_ids.items())]
     seen = set()
     for t, col, rt, rc, cn in fks:
         if t in tables and (rt in tables or rt in stubs):
@@ -139,7 +144,8 @@ def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""
                 continue
             seen.add(key)
             # nét thẳng góc nối bảng cha (‖ một) – bảng con (chân chim nhiều), kiểu MySQL Workbench
-            lines.append(f'"{rt}" -> "{t}" [id="fk__{rt}__{t}__{col}"];')
+            src_id = stub_ids.get((rt, t), rt)
+            lines.append(f'"{src_id}" -> "{t}" [id="fk__{src_id}__{t}__{col}"];')
     lines.append("}")
     src = f"fig/{name}.dot"
     open(src, "w").write("\n".join(lines))

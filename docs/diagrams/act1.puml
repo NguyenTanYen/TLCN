@@ -26,18 +26,24 @@ endif
 :Lưu exams, exam_questions (trạng thái Draft);
 if (Hình thức?) then (trực tuyến)
   :Sinh Moodle XML\n(idnumber = QB-{id}, answer theo position);
-  |Giảng viên|
-  :Nhập XML vào Moodle, tạo Quiz\n(bật xáo trộn phương án);
+  :Gọi Web Service local_clo_create_quiz;
   |Moodle LMS|
-  :Lưu câu hỏi, Quiz;\nSV làm bài, Moodle tự chấm;
-  |Giảng viên|
-  :Nhập ID Quiz để liên kết bài KT;
+  :Nhập câu hỏi vào ngân hàng của khóa học,\ntạo Quiz bật xáo trộn phương án;
+  |Hệ thống|
+  :Lưu moodle_quiz_id (liên kết tự động);
+  |Moodle LMS|
+  :SV làm bài, Moodle tự chấm;
 else (trên giấy)
   |Hệ thống|
-  :Sinh k mã đề: hoán vị câu & phương án,\nlưu exam_versions / _questions / _options;
-  :Xuất đề .docx từng mã, đáp án .xlsx;
+  :Sinh Moodle XML; gọi Web Service\nlocal_clo_create_offlinequiz (số mã đề, xáo trộn);
+  |Moodle LMS|
+  :Offline Quiz: nhập câu hỏi, tạo N mã đề,\nsinh đề in, phiếu trả lời, đáp án (PDF/DOCX);
+  |Hệ thống|
+  :Lưu moodle_offlinequiz_id;\nchuyển tệp đề/phiếu cho GV tải (.zip);
   |Giảng viên|
-  :In đề, tổ chức thi, chấm phiếu bằng máy quét;
+  :In đề & phiếu, tổ chức thi;\nquét phiếu, tải ảnh lên Moodle;
+  |Moodle LMS|
+  :Nhận diện MSSV, mã đề, ô đánh dấu;\nchấm điểm (offlinequiz_results);
 endif
 |Hệ thống|
 :Trạng thái bài KT = Published;

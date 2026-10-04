@@ -27,6 +27,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `docker-compose.yml`, `docker/` | MySQL 8.0 + Moodle 4.5 + hệ thống |
 | `moodle/theme/ute/` | Giao diện Moodle "UTE – Khảo thí & CĐR" (kế thừa Boost) |
 | `database/heidisql/` | Tệp SQL chạy trực tiếp trong HeidiSQL (MariaDB 10.4+) |
+| `.gitignore`, `backend/cau_hinh.env.mau` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu |
 
 ## Chạy bằng Docker
 
@@ -75,7 +76,7 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Kiểm thử
 
 ```bash
-cd backend && python -m pytest tests -q        # 72 ca: Analysis Engine, BM6c/6d, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, nâng cấp CSDL
+cd backend && python -m pytest tests -q        # 73 ca: Analysis Engine, BM6c/6d, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, nâng cấp CSDL
 python tests/ui_screens.py                     # Playwright: chụp 22 màn hình, bắt lỗi console
 python ../tools/moodle_e2e/run_real_moodle_e2e.py /duong/dan/moodle   # E2E với Moodle 4.5 thật
 ```

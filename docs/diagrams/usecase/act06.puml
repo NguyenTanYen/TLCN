@@ -1,0 +1,31 @@
+@startuml
+!include ../actstyle.iuml
+|Bộ môn|
+start
+:Mở "CTĐT – PLO/PI";
+|Hệ thống|
+:Hiện PLO theo nhóm,\nchỉ tiêu, năm đo, PI;
+|Bộ môn|
+if (Sửa PLO?) then (có)
+  :Sửa nội dung,\nchỉ tiêu;
+  |Hệ thống|
+  :Lưu PLO;
+endif
+|Bộ môn|
+:Mở "Kế hoạch đo PI";\nchọn năm học;
+|Hệ thống|
+:Hiện kế hoạch, kết quả,\nphân công;
+|Bộ môn|
+:Thêm / sửa kế hoạch:\nPI, môn, học kỳ, phương pháp,\nchỉ tiêu, GV, CLO minh chứng;
+|Hệ thống|
+if (CLO không thuộc\nmôn minh chứng?) then (có)
+  :422;
+  stop
+endif
+:Lưu kế hoạch\nvà CLO minh chứng;
+:Tính lại PI từ\nkết quả CLO đã có;
+:Tính lại PLO của\nnăm học liên quan;
+|Bộ môn|
+:Xem kết quả PI\ncập nhật ngay;
+stop
+@enduml

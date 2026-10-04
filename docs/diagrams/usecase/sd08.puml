@@ -1,0 +1,30 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "Moodle\n(nút Phân tích CĐR)" as M
+control "launch.php\n(plugin local_clo)" as L
+control "auth router\n/api/auth/moodle-sso" as A
+database "assessment_db" as DB
+boundary "React SPA" as UI
+GV -> M : Bấm "Phân tích CĐR"\n(menu chính hoặc trong khóa học)
+M -> L : GET launch.php?courseid=…
+L -> L : require_login; có quyền local/clo:launch?\n(SV không có quyền ⇒ báo lỗi)
+L -> L : hệ thống phân tích đang chạy?\n(nếu không: thông báo "chưa chạy")
+L -> L : ký vé JWT HS256 {sub, idnumber, role,\ncourseid, iat, exp = +120 s, jti}\nbằng khóa bí mật dùng chung
+L --> GV : 303 → http://…:8000/api/auth/moodle-sso?token=…
+GV -> A : GET moodle-sso?token=…
+A -> A : kiểm chữ ký, aud, iss, exp;\njti chưa dùng (chống dùng lại)
+alt vé không hợp lệ / hết hạn / đã dùng / vai trò SV
+  A --> GV : 403 trang báo lỗi tiếng Việt
+else
+  A -> DB : users.username = sub ?
+  alt chưa có tài khoản
+    A -> DB : lecturers.lecturer_code ∈ {idnumber, sub}\nvà chưa có tài khoản ⇒ tạo user vai trò lecturer
+  else tài khoản admin nhưng vé không phải admin
+    A --> GV : 403 (không nâng quyền)
+  end
+  A -> DB : lớp HP có moodle_course_id = courseid
+  A --> GV : trang lưu JWT của hệ thống vào\nlocalStorage rồi chuyển tới /sections/{id}
+  GV -> UI : làm việc với hệ thống (không cần đăng nhập lại)
+end
+@enduml

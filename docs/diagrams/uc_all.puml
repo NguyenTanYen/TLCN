@@ -1,31 +1,48 @@
 @startuml
 !include ucstyle.iuml
 left to right direction
+skinparam linetype ortho
 actor "Giảng viên" as GV
-actor "Sinh viên" as SV
 actor "Bộ môn /\nQuản trị CTĐT" as BM
+actor "Sinh viên" as SV
 actor "Moodle LMS\n<<hệ thống ngoài>>" as MD
+GV <|-- BM
 rectangle "Hệ thống hỗ trợ kiểm tra, đánh giá và phân tích mức độ đạt CĐR" {
   usecase "UC-00\nĐăng nhập & phân quyền" as U0
-  usecase "UC-01\nQuản lý ngân hàng câu hỏi\n(gắn chương, Bloom, CLO có trọng số)" as U1
-  usecase "UC-02\nKhởi tạo bài kiểm tra\n(Moodle XML / nhiều mã đề)" as U2
-  usecase "UC-03\nĐồng bộ bài làm từ Moodle" as U3
-  usecase "UC-03b\nNhập phiếu trả lời bài giấy" as U3b
-  usecase "UC-04\nThống kê lớp & đo CĐR môn học\n(p, DI, BM6a–6d)" as U4
-  usecase "UC-05\nXem kết quả CLO &\nlộ trình ôn tập cá nhân" as U5
-  usecase "UC-06\nQuản lý CTĐT, PLO/PI\n& kế hoạch đo (BM2, BM3b)" as U6
+  usecase "UC-08\nMở hệ thống từ Moodle (SSO)" as U8
+  usecase "UC-01\nQuản lý ngân hàng câu hỏi" as U1
+  usecase "UC-09\nNhập câu hỏi hàng loạt\n& gán CLO từ tệp" as U9
+  usecase "UC-02\nKhởi tạo bài kiểm tra\n(Quiz / đề giấy Offline Quiz)" as U2
+  usecase "UC-03\nĐồng bộ bài làm trực tuyến\n& phân tích" as U3
+  usecase "UC-03b\nQuét phiếu bài giấy –\nMoodle nhận diện & chấm" as U3b
+  usecase "UC-04\nThống kê bài KT &\nđo CĐR môn học (BM6)" as U4
+  usecase "UC-10\nThống kê lớp &\nhồ sơ từng sinh viên" as U10
+  usecase "UC-11\nCông bố kết quả lên Moodle" as U11
+  usecase "UC-05\nXem kết quả CLO &\nlộ trình ôn tập (trên Moodle)" as U5
+  usecase "UC-12\nKhai báo học phần\n(môn, lớp HP, chương, CLO–PLO)" as U12
+  usecase "UC-06\nQuản lý CTĐT, PLO/PI\n& kế hoạch đo" as U6
   usecase "UC-07\nBáo cáo đo lường CĐR CTĐT\n(BM3c, BM2)" as U7
 }
+GV --> U0
+GV --> U8
 GV --> U1
+GV --> U9
 GV --> U2
 GV --> U3
 GV --> U3b
 GV --> U4
-SV --> U5
+GV --> U10
+GV --> U11
+GV --> U12
 BM --> U6
 BM --> U7
-U3 --> MD : đọc CSDL\n(chỉ đọc)
-U1 ..> U0 : <<include>>
-U5 ..> U0 : <<include>>
-U6 ..> U0 : <<include>>
+SV --> U5
+U9 ..> U1 : <<extend>>
+U8 ..> U0 : <<extend>>
+U2 --> MD
+U3 --> MD
+U3b --> MD
+U11 --> MD
+U8 --> MD
+U5 --> MD
 @enduml

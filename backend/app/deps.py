@@ -41,7 +41,8 @@ def check_section_access(db: Session, user: User, cs_id: int) -> ClassSection:
 
 
 def check_course_access(db: Session, user: User, course_id: int) -> None:
-    """Quản trị: mọi môn. Giảng viên: chỉ môn mình đang/đã dạy (có lớp HP) hoặc được phân công ra đề."""
+    """Quản trị: mọi môn. Giảng viên: chỉ môn mình đang/đã dạy (có lớp HP) hoặc được phân công đánh giá
+    (kể cả môn giao cho "tất cả thầy/cô có hướng dẫn" như TLCN, KLTN)."""
     from sqlalchemy import text
     if not db.execute(text("SELECT 1 FROM courses WHERE id=:c"), {"c": course_id}).scalar():
         raise HTTPException(404, "Không tìm thấy môn học")
@@ -49,7 +50,7 @@ def check_course_access(db: Session, user: User, course_id: int) -> None:
         return
     lid = user.lecturer.id if user.lecturer else None
     ok = lid and db.execute(text("""SELECT 1 FROM class_sections WHERE course_id=:c AND lecturer_id=:l
-                                    UNION SELECT 1 FROM assessment_assignments WHERE course_id=:c AND lecturer_id=:l LIMIT 1"""),
+                                    UNION SELECT 1 FROM assessment_assignments WHERE course_id=:c AND (lecturer_id=:l OR all_supervisors=1) LIMIT 1"""),
                             {"c": course_id, "l": lid}).scalar()
     if not ok:
         raise HTTPException(403, "Bạn không phụ trách môn học này")

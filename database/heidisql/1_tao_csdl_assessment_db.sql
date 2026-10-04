@@ -267,15 +267,19 @@ CREATE TABLE pi_plan_clos (
 ) ENGINE=InnoDB COMMENT='CLO của môn lấy minh chứng cung cấp dữ liệu cho PI';
 
 CREATE TABLE assessment_assignments (
-  semester_id  INT          NOT NULL,
-  course_id    INT          NOT NULL,
-  lecturer_id  INT          NOT NULL,
-  note         VARCHAR(255) NULL COMMENT 'VD Đánh giá theo 7 CĐR',
-  PRIMARY KEY (semester_id, course_id, lecturer_id),
+  id               INT          AUTO_INCREMENT PRIMARY KEY,
+  semester_id      INT          NOT NULL,
+  course_id        INT          NOT NULL,
+  lecturer_id      INT          NULL COMMENT 'GV được phân công (NULL khi giao cho tất cả GV hướng dẫn)',
+  all_supervisors  TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = Tất cả thầy/cô có hướng dẫn (TLCN, KLTN…)',
+  note             VARCHAR(255) NULL COMMENT 'VD Đánh giá theo 7 CĐR',
+  lecturer_key     INT GENERATED ALWAYS AS (IFNULL(lecturer_id, 0)) VIRTUAL COMMENT 'Khóa so trùng (0 = tất cả GV hướng dẫn)',
   CONSTRAINT fk_aa_semester FOREIGN KEY (semester_id) REFERENCES semesters(id) ON DELETE CASCADE,
   CONSTRAINT fk_aa_course   FOREIGN KEY (course_id)   REFERENCES courses(id)   ON DELETE CASCADE,
-  CONSTRAINT fk_aa_lecturer FOREIGN KEY (lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE
-) ENGINE=InnoDB COMMENT='Phân công đánh giá PIs theo học kỳ';
+  CONSTRAINT fk_aa_lecturer FOREIGN KEY (lecturer_id) REFERENCES lecturers(id) ON DELETE CASCADE,
+  CONSTRAINT uq_aa UNIQUE (semester_id, course_id, lecturer_key),
+  CONSTRAINT ck_aa_assignee CHECK ((all_supervisors = 1 AND lecturer_id IS NULL) OR (all_supervisors = 0 AND lecturer_id IS NOT NULL))
+) ENGINE=InnoDB COMMENT='Phân công đánh giá PIs theo học kỳ (một GV, hoặc tất cả GV hướng dẫn với môn TLCN/KLTN)';
 
 -- =====================================================================
 -- E. LỚP HỌC PHẦN & NGÂN HÀNG CÂU HỎI
@@ -627,7 +631,6 @@ JOIN exams e ON e.id = a.exam_id
 JOIN class_sections cs ON cs.id = e.class_section_id
 JOIN clos c ON c.id = r.clo_id
 LEFT JOIN clo_assessment_plans p ON p.clo_id = r.clo_id AND p.semester_id = cs.semester_id;
-
 -- Dữ liệu tham chiếu sinh tự động từ BM2 (KTDL) và bảng phân công đánh giá PIs HKI 2023-2024
 
 USE assessment_db;
@@ -820,13 +823,15 @@ INSERT INTO pi_assessment_plans (pi_id, course_id, semester_id, method, cycle, t
  (52,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,NULL),
  (53,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,NULL);
 
-INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, note) VALUES
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),1,1,'Đánh giá theo 7 CĐR'),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),2,1,'Đánh giá theo 19 CĐR'),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),3,2,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),4,2,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),5,3,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),6,2,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,4,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,5,NULL),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,6,NULL);
+INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, all_supervisors, note) VALUES
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),1,1,0,'Đánh giá theo 7 CĐR'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),2,1,0,'Đánh giá theo 19 CĐR'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),3,2,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),4,2,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),5,3,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),6,2,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),7,NULL,1,'Tất cả thầy/cô có HD'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),8,NULL,1,'Tất cả thầy/cô có HD'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,4,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,5,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,6,0,NULL);

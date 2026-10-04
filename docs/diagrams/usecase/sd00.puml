@@ -1,0 +1,34 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Người dùng\n(GV / Bộ môn)" as U
+boundary "Login\n(React)" as UI
+control "auth router\nPOST /api/auth/login" as A
+control "security\n(PBKDF2, JWT)" as S
+database "assessment_db" as DB
+control "deps\n(require, get_exam_for)" as D
+U -> UI : nhập username, mật khẩu
+UI -> A : POST /api/auth/login {username, password}
+A -> DB : SELECT users WHERE username = ?
+A -> S : verify_password(mật khẩu, password_hash)
+alt không có tài khoản / bị khóa / sai mật khẩu
+  A --> UI : 401 "Sai tên đăng nhập hoặc mật khẩu"
+else vai trò = student
+  A --> UI : 403 "Sinh viên xem kết quả trên Moodle"
+else hợp lệ
+  A -> S : create_token(user_id, role)
+  S --> A : JWT HS256 (hạn cấu hình)
+  A --> UI : 200 {access_token, user}
+  UI -> UI : lưu token; dựng menu theo vai trò
+end
+== Mọi lời gọi API sau đó ==
+UI -> D : GET /api/... (Authorization: Bearer JWT)
+D -> S : giải mã, kiểm hạn JWT
+alt token sai / hết hạn
+  D --> UI : 401 → quay lại trang đăng nhập
+else vai trò không đủ
+  D --> UI : 403
+else
+  D -> DB : check_section_access: GV phụ trách lớp HP?
+  D --> UI : dữ liệu / 403
+end
+@enduml

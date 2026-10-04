@@ -1,0 +1,40 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ExamDetail /\nCloResults" as UI
+control "analytics router" as AN
+control "catalog router" as CA
+control "results service" as RS
+control "reports router\n+ reports_excel" as RP
+database "assessment_db" as DB
+GV -> UI : mở bài KT đã phân tích
+UI -> AN : GET /api/exams/{id}/overview
+AN -> DB : exam_attempts: TB, min–max, tỷ lệ ≥ 5, phổ điểm
+UI -> AN : GET /api/exams/{id}/item-stats
+AN -> DB : item_statistics + phân bố phương án (kể cả 0 lượt chọn)
+UI -> AN : GET /api/exams/{id}/students
+AN -> DB : attempt_clo_results theo SV
+AN --> UI : dữ liệu các tab
+GV -> UI : mở "Kết quả CĐR" của lớp
+UI -> AN : GET /api/class-sections/{cs}/clo-results
+AN -> DB : clo_results ⋈ clo_assessment_plans ⋈ clos;\nv_course_clo_summary (dòng tổng)
+AN --> UI : BM6a + BM6b
+opt sửa kế hoạch CLO (BM6a)
+  GV -> UI : ngưỡng, chỉ tiêu, loại minh chứng
+  UI -> CA : PUT /api/clo-plans
+  CA -> DB : upsert clo_assessment_plans
+  CA -> RS : tính lại CLO lớp → PI → PLO
+end
+GV -> UI : "Minh chứng" một CLO
+UI -> AN : GET .../clo-results/{clo}/evidence
+AN -> DB : điểm CLO từng SV theo từng bài KT;\ncâu đo CLO sắp theo DI
+AN --> UI : BM6c / BM6d
+GV -> UI : nhập đánh giá, hành động cải tiến
+UI -> AN : PUT .../clo-results/{clo} {analysis, improvement}
+AN -> DB : UPDATE clo_results
+GV -> UI : "Xuất BM6"
+UI -> RP : GET /api/reports/class-sections/{cs}/bm6.xlsx
+RP -> DB : kế hoạch, kết quả, minh chứng
+RP -> RP : build_bm6(): BM6a, BM6b, mỗi CLO 1 trang\nBM6c (1 bài) / BM6d (nhiều bài), COUNTIF
+RP --> UI : tệp .xlsx
+@enduml

@@ -99,6 +99,14 @@ class CLOIn(BaseModel):
     plos: list[dict] = []  # [{plo_id, level}]
 
 
+class AssignmentIn(BaseModel):
+    semester_id: int
+    course_id: int
+    lecturer_id: Optional[int] = None
+    all_supervisors: bool = False
+    note: Optional[str] = Field(default=None, max_length=255)
+
+
 class PIPlanIn(BaseModel):
     pi_id: int
     course_id: int

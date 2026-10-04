@@ -1,0 +1,50 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "QuestionBank\n(React)" as UI
+control "questions router" as API
+control "QuestionIn\n(Pydantic)" as VAL
+database "assessment_db" as DB
+GV -> UI : chọn môn; lọc CLO/chương/Bloom/\n"Chưa gán"/từ khóa
+UI -> API : GET /api/questions?course_id&clo_id&chapter&bloom&untagged&q
+API -> DB : question_bank ⋈ options, clo_mapping;\np, DI trung bình (item_statistics)
+API --> UI : danh sách câu (tagged, p TB, DI TB)
+== Thêm câu hỏi ==
+GV -> UI : "+ Thêm câu hỏi": nội dung, chương, Bloom,\nphương án, đáp án, CLO + trọng số
+UI -> API : POST /api/questions
+API -> VAL : kiểm tra cấu trúc
+alt 2–10 PA, đúng 1 đáp án, Σw = 1
+  API -> DB : CLO thuộc môn? chương thuộc môn?
+  alt không thuộc
+    API --> UI : 422 "CLO … không thuộc môn học"
+  else
+    API -> DB : BEGIN; INSERT question_bank, question_options,\nquestion_clo_mapping; COMMIT
+    API --> UI : 201 {câu hỏi}
+  end
+else
+  VAL --> UI : 422 (thông báo từng trường)
+end
+== Sửa / Hủy / Xóa ==
+GV -> UI : Sửa câu hỏi
+UI -> API : PUT /api/questions/{id}
+API -> DB : COUNT item_level_results của câu
+alt đã có kết quả thi
+  API --> UI : 409 "chỉ được Hủy"
+  GV -> UI : nhập lý do, Hủy
+  UI -> API : PATCH /api/questions/{id}/cancel {reason}
+  API -> DB : is_cancelled = 1, cancel_reason
+  API --> UI : 200
+else chưa có kết quả
+  API -> DB : thay nội dung, phương án, ánh xạ CLO
+  API --> UI : 200
+end
+GV -> UI : Xóa câu hỏi
+UI -> API : DELETE /api/questions/{id}
+API -> DB : câu có trong exam_questions?
+alt đã dùng trong đề
+  API --> UI : 409 "chỉ được Hủy, không được xóa"
+else
+  API -> DB : DELETE (CASCADE phương án, ánh xạ)
+  API --> UI : 200
+end
+@enduml

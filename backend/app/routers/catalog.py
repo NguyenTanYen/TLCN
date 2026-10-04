@@ -6,14 +6,15 @@ import unicodedata
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import check_course_access, check_section_access, current_user, require
-from ..models import (CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
+from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
                       PIPlanCLO, PLO, Program, Student, User)
 from ..services import results
-from ..schemas import CLOIn, CLOPlanIn, PIPlanIn, PLOIn
+from ..schemas import AssignmentIn, CLOIn, CLOPlanIn, PIPlanIn, PLOIn
 
 router = APIRouter(prefix="/api", tags=["Danh mục & kế hoạch đo lường"])
 
@@ -144,12 +145,45 @@ def delete_pi_plan(plan_id: int, db: Session = Depends(get_db), _=Depends(requir
     return {"ok": True}
 
 
+ALL_SUPERVISORS = "Tất cả thầy/cô có hướng dẫn"
+
+
 @router.get("/assignments")
 def assignments(semester_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
-    return rows(db, """SELECT a.*, s.name AS semester, c.course_code, c.course_name, l.full_name AS lecturer
+    return rows(db, f"""SELECT a.id, a.semester_id, a.course_id, a.lecturer_id, a.all_supervisors, a.note,
+                       s.name AS semester, c.course_code, c.course_name,
+                       IF(a.all_supervisors=1, '{ALL_SUPERVISORS}', l.full_name) AS lecturer
                        FROM assessment_assignments a JOIN semesters s ON s.id=a.semester_id JOIN courses c ON c.id=a.course_id
-                       JOIN lecturers l ON l.id=a.lecturer_id WHERE (:s IS NULL OR a.semester_id=:s)
-                       ORDER BY s.academic_year DESC, s.term DESC, c.course_code""", s=semester_id)
+                       LEFT JOIN lecturers l ON l.id=a.lecturer_id WHERE (:s IS NULL OR a.semester_id=:s)
+                       ORDER BY s.academic_year DESC, s.term DESC, c.course_code, a.all_supervisors DESC, l.full_name""", s=semester_id)
+
+
+@router.post("/assignments", status_code=201)
+def create_assignment(body: AssignmentIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    """Phân công đánh giá PI: chọn một GV, hoặc all_supervisors = true cho môn không có GV phụ trách riêng (TLCN, KLTN)."""
+    if body.all_supervisors == (body.lecturer_id is not None):
+        raise HTTPException(422, "Chọn một giảng viên hoặc \"Tất cả thầy/cô có hướng dẫn\" (không chọn cả hai)")
+    for t, i, msg in (("semesters", body.semester_id, "Học kỳ"), ("courses", body.course_id, "Môn học"), ("lecturers", body.lecturer_id, "Giảng viên")):
+        if i is not None and not db.execute(text(f"SELECT 1 FROM {t} WHERE id=:i"), {"i": i}).scalar():
+            raise HTTPException(422, f"{msg} không tồn tại")
+    a = AssessmentAssignment(semester_id=body.semester_id, course_id=body.course_id, lecturer_id=body.lecturer_id,
+                             all_supervisors=body.all_supervisors, note=(body.note or "").strip() or None)
+    db.add(a)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Môn học đã có phân công này trong học kỳ")
+    return {"id": a.id}
+
+
+@router.delete("/assignments/{aid}")
+def delete_assignment(aid: int, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    a = db.get(AssessmentAssignment, aid)
+    if not a:
+        raise HTTPException(404, "Không tìm thấy phân công")
+    db.delete(a); db.commit()
+    return {"deleted": aid}
 
 
 # ------------------------------------------------------------------ Môn học & CLO

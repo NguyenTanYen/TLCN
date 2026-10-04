@@ -8,6 +8,7 @@ export default function PiPlans() {
   const plans = useApi(year ? `/api/pi-plans?academic_year=${year}` : null)
   const assigns = useApi('/api/assignments')
   const [form, setForm] = useState(null)
+  const [aForm, setAForm] = useState(false)
   return (
     <>
       <div className="page-h"><div><h1>Kế hoạch đo lường PI (BM3b)</h1><p className="muted">Mỗi PI của CĐR được đo tại một môn học, trong học kỳ xác định, do GV phụ trách, lấy minh chứng từ các CLO của môn.</p></div>
@@ -22,13 +23,39 @@ export default function PiPlans() {
             <td className="row gap"><button className="btn sm" onClick={() => setForm(p)}>Sửa</button>
               <ActionButton className="btn sm ghost" okMsg="Đã xóa" title="Xóa kế hoạch" confirm={`Xóa kế hoạch đo ${p.pi_code} tại môn ${p.course_code}? Kết quả PI của kế hoạch này cũng bị xóa.`} onRun={async () => { await api.del(`/api/pi-plans/${p.id}`); plans.reload() }}>✕</ActionButton></td></tr>)}</tbody></table>
       </Card>
-      <Card title="Phân công đánh giá PI theo học kỳ">
-        <table className="tbl"><thead><tr><th>Học kỳ</th><th>Môn học</th><th>GV phụ trách</th><th>Ghi chú</th></tr></thead>
-          <tbody>{assigns.data?.map((a, i) => <tr key={i}><td>{a.semester}</td><td>{a.course_code} – {a.course_name}</td><td>{a.lecturer}</td><td>{a.note}</td></tr>)}</tbody></table>
+      <Card title="Phân công đánh giá PI theo học kỳ" actions={<button className="btn sm primary" onClick={() => setAForm(true)}>+ Phân công</button>}>
+        <table className="tbl"><thead><tr><th>Học kỳ</th><th>Môn học</th><th>GV phụ trách</th><th>Ghi chú</th><th /></tr></thead>
+          <tbody>{assigns.data?.map(a => <tr key={a.id}><td>{a.semester}</td><td>{a.course_code} – {a.course_name}</td>
+            <td>{a.all_supervisors ? <span className="pill blue">{a.lecturer}</span> : a.lecturer}</td><td>{a.note}</td>
+            <td><ActionButton className="btn sm ghost" okMsg="Đã xóa" title="Xóa phân công" confirm={`Xóa phân công ${a.course_code} – ${a.lecturer}?`}
+              onRun={async () => { await api.del(`/api/assignments/${a.id}`); assigns.reload() }}>✕</ActionButton></td></tr>)}</tbody></table>
+        <p className="muted small">Môn tiểu luận chuyên ngành, khóa luận tốt nghiệp… không có GV phụ trách riêng: chọn "Tất cả thầy/cô có hướng dẫn".</p>
       </Card>
+      {aForm && <AssignForm sems={sems || []} defSem={latestSemesterId} onClose={() => setAForm(false)} onSaved={() => { setAForm(false); assigns.reload() }} />}
       {form && <PlanForm plan={form} sems={sems || []} defSem={latestSemesterId} onClose={() => setForm(null)} onSaved={() => { setForm(null); plans.reload() }} />}
     </>
   )
+}
+
+function AssignForm({ sems, defSem, onClose, onSaved }) {
+  const courses = useApi('/api/courses').data
+  const lecturers = useApi('/api/lecturers').data
+  const [f, setF] = useState({ semester_id: defSem || '', course_id: '', lecturer_id: '', all_supervisors: false, note: '' })
+  return <Modal title="Phân công đánh giá PI" onClose={onClose}>
+    <div className="row gap">
+      <Field label="Học kỳ"><select value={f.semester_id} onChange={e => setF({ ...f, semester_id: e.target.value })}>{sems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+      <Field label="Môn học"><select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value })}><option value="">— chọn —</option>
+        {courses?.map(c => <option key={c.id} value={c.id}>{c.course_code} – {c.course_name}</option>)}</select></Field>
+    </div>
+    <label className="row gap check"><input type="checkbox" checked={f.all_supervisors} onChange={e => setF({ ...f, all_supervisors: e.target.checked, lecturer_id: '' })} /> Tất cả thầy/cô có hướng dẫn (TLCN, KLTN…)</label>
+    {!f.all_supervisors && <Field label="Giảng viên"><select value={f.lecturer_id} onChange={e => setF({ ...f, lecturer_id: e.target.value })}><option value="">— chọn —</option>
+      {lecturers?.map(l => <option key={l.id} value={l.id}>{l.full_name} ({l.lecturer_code})</option>)}</select></Field>}
+    <Field label="Ghi chú"><input value={f.note} onChange={e => setF({ ...f, note: e.target.value })} placeholder="VD Đánh giá theo 7 CĐR" /></Field>
+    <div className="row"><span className="grow" />
+      <ActionButton className="btn primary" disabled={!f.semester_id || !f.course_id || (!f.all_supervisors && !f.lecturer_id)} okMsg="Đã lưu phân công"
+        onRun={async () => { await api.post('/api/assignments', { semester_id: Number(f.semester_id), course_id: Number(f.course_id),
+          lecturer_id: f.all_supervisors ? null : Number(f.lecturer_id), all_supervisors: f.all_supervisors, note: f.note }); onSaved() }}>Lưu</ActionButton></div>
+  </Modal>
 }
 
 function PlanForm({ plan, sems, defSem, onClose, onSaved }) {

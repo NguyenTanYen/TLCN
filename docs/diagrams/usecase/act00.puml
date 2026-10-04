@@ -1,0 +1,29 @@
+@startuml
+!include ../actstyle.iuml
+|Người dùng|
+start
+:Mở trang đăng nhập;
+:Nhập tên đăng nhập,\nmật khẩu;
+|Hệ thống|
+:Tìm tài khoản;\nkiểm tra mật khẩu (PBKDF2);
+if (Sai / khóa?) then (có)
+  :401 "Sai tên đăng nhập\nhoặc mật khẩu";
+  stop
+endif
+if (Vai trò sinh viên?) then (có)
+  :403 – hướng dẫn xem\nkết quả trên Moodle;
+  stop
+endif
+:Ký JWT (id, vai trò, hạn);\ntrả token + tài khoản;
+|Người dùng|
+:Giao diện lưu token;\nhiện menu theo vai trò;
+:Gọi API kèm\nAuthorization: Bearer;
+|Hệ thống|
+:Kiểm token, vai trò,\nquyền trên lớp HP;
+if (Không hợp lệ?) then (có)
+  :401 / 403;
+  stop
+endif
+:Trả dữ liệu;
+stop
+@enduml

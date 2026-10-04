@@ -1,0 +1,23 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Sinh viên" as SV
+participant "Moodle\n(khóa học)" as M
+boundary "results.php\n(local_clo)" as RP
+database "moodle_db\nlocal_clo_exam,\nlocal_clo_result" as MDB
+SV -> M : bấm thông báo "Đã có kết quả phân tích CĐR"\nhoặc menu khóa học → "Kết quả phân tích CĐR"
+M -> RP : GET /local/clo/results.php?courseid=…
+RP -> RP : require_login(course)
+RP -> RP : has_capability(viewall)? (GV)\nnếu không: require_capability(viewown)
+RP -> MDB : SELECT local_clo_exam WHERE courseid
+loop mỗi bài KT
+  RP -> MDB : local_clo_result (cloexamid, userid = SV)
+  alt published = 0
+    RP --> SV : "Kết quả phân tích đang được bảo lưu" (E1)
+  else không có kết quả / absent
+    RP --> SV : "Chưa đủ bằng chứng đánh giá" (E2)
+  else
+    RP -> RP : giải mã data (JSON): CLO, ngưỡng, TB lớp,\nnhận định, lộ trình
+    RP --> SV : điểm quy đổi, số CLO đạt, radar (SV / θ / TB lớp),\nbảng CLO, nhận định, lộ trình ôn tập theo chương
+  end
+end
+@enduml

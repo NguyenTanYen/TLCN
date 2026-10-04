@@ -1,0 +1,40 @@
+@startuml
+!include ../sdstyle.iuml
+actor "Giảng viên" as GV
+boundary "ExamDetail" as UI
+control "exams router" as EX
+control "lms service" as L
+database "assessment_db" as DB
+participant "Moodle WS\nlocal_clo_push_results" as WS
+database "moodle_db\nlocal_clo_*" as MDB
+actor "Sinh viên" as SV
+opt xem trước
+  GV -> UI : "Xem trước kết quả gửi Moodle"
+  UI -> L : GET /api/exams/{id}/moodle/results-preview
+  L -> DB : v_student_clo_radar, learning paths
+  L --> UI : kết quả từng SV
+end
+GV -> UI : "Công bố" / "Thu hồi công bố"
+UI -> EX : PATCH /api/exams/{id}/publish {publish}
+alt công bố khi status ≠ Analyzed
+  EX --> UI : 409
+else
+  EX -> DB : publish_flag; COMMIT
+  EX -> L : push_results(exam) (nếu đã cấu hình và lớp có khóa Moodle)
+  L -> DB : điểm, CLO (mức đạt, ngưỡng, TB lớp),\nnhận định, lộ trình; SV vắng = absent
+  L -> WS : REST: examref, courseid, quizid/offlinequizid,\npublished, results[0..n]
+  WS -> WS : validate_context; require_capability(manage)
+  WS -> MDB : upsert local_clo_exam (published)
+  WS -> MDB : xóa kết quả cũ, ghi kết quả mới (1 giao dịch);\nbỏ qua SV không ghi danh (notfound)
+  opt published = 1
+    WS -> SV : message_send "Đã có kết quả phân tích CĐR"\n(ngôn ngữ của từng SV)
+  end
+  WS --> L : {saved, notfound, notified}
+  alt lỗi Web Service
+    L --> EX : MoodleWSError
+    EX --> UI : 200 {publish_flag, moodle_error} ⇒ nút "Gửi lại"
+  else
+    EX --> UI : 200 {publish_flag, moodle: {saved, notified}}
+  end
+end
+@enduml

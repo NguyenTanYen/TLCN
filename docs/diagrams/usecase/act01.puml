@@ -1,0 +1,37 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Mở Ngân hàng câu hỏi,\nchọn môn, lọc câu;
+:Nhập câu mới hoặc sửa câu:\nnội dung, chương, Bloom,\n2–10 phương án, 1 đáp án,\nCLO + trọng số;
+:Nhấn Lưu;
+|Hệ thống|
+if (Câu đã có kết quả thi\n(khi sửa)?) then (có)
+  :409 – khóa sửa;\nchỉ cho phép Hủy;
+  |Giảng viên|
+  :Nhập lý do, nhấn Hủy;
+  |Hệ thống|
+  :is_cancelled = 1;\nloại khỏi phân tích, đề mới;
+  stop
+endif
+if (Sai cấu trúc: số PA,\nsố đáp án, Σ trọng số ≠ 1?) then (có)
+  :422 – báo lỗi,\ngiữ dữ liệu đã nhập;
+  stop
+endif
+if (CLO / chương\nkhông thuộc môn?) then (có)
+  :422;
+  stop
+endif
+:Lưu câu hỏi, phương án,\nánh xạ CLO (1 giao dịch);
+:Cập nhật danh sách\n(p, DI trung bình);
+|Giảng viên|
+if (Muốn xóa câu?) then (có)
+  |Hệ thống|
+  if (Câu đã nằm trong đề?) then (có)
+    :409 – chỉ được Hủy;
+  else (không)
+    :Xóa câu hỏi;
+  endif
+endif
+stop
+@enduml

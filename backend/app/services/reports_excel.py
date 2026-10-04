@@ -32,7 +32,7 @@ def _header(ws, title: str, unit: str, last_col: int, lines: list[str]) -> int:
     lc = get_column_letter(last_col)
     mid = max(4, last_col // 2 + 1)
     ws.merge_cells(f"A1:{get_column_letter(mid - 1)}1")
-    ws["A1"] = "TRƯỜNG ĐẠI HỌC SƯ PHẠM KỸ THUẬT\nTHÀNH PHỐ HỒ CHÍ MINH"
+    ws["A1"] = "TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT\nTHÀNH PHỐ HỒ CHÍ MINH"
     ws.merge_cells(f"A2:{get_column_letter(mid - 1)}2")
     ws["A2"] = unit.upper()
     ws.merge_cells(f"{get_column_letter(mid)}1:{lc}1")
