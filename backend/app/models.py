@@ -72,6 +72,13 @@ class Program(Base):
     level: Mapped[str] = mapped_column(String(20), default="Đại học")
     department: Mapped[Optional[str]] = mapped_column(String(150))
     target_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=75)
+    name_en: Mapped[Optional[str]] = mapped_column(String(255))
+    faculty: Mapped[Optional[str]] = mapped_column(String(150))
+    major_code: Mapped[Optional[str]] = mapped_column(String(20))
+    cohort_year: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    total_credits: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    decision_no: Mapped[Optional[str]] = mapped_column(String(100))
+    objective: Mapped[Optional[str]] = mapped_column(Text)
     plos: Mapped[list["PLO"]] = relationship(back_populates="program", order_by="PLO.plo_code")
 
 
@@ -83,6 +90,8 @@ class PLO(Base):
     plo_code: Mapped[str] = mapped_column(String(10))
     description: Mapped[str] = mapped_column(Text)
     target_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=75)
+    competency_level: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    plo_type: Mapped[Optional[str]] = mapped_column(String(30))
     program: Mapped[Program] = relationship(back_populates="plos")
     pis: Mapped[list["PerformanceIndicator"]] = relationship(back_populates="plo", order_by="PerformanceIndicator.pi_code")
     measurement_plans: Mapped[list["PLOMeasurementPlan"]] = relationship(order_by="PLOMeasurementPlan.round_no")
@@ -102,6 +111,7 @@ class PerformanceIndicator(Base):
     plo_id: Mapped[int] = mapped_column(ForeignKey("plos.id"))
     pi_code: Mapped[str] = mapped_column(String(10))
     description: Mapped[str] = mapped_column(Text)
+    competency_level: Mapped[Optional[int]] = mapped_column(SmallInteger)
     plo: Mapped[PLO] = relationship(back_populates="pis")
 
 
@@ -109,12 +119,16 @@ class ProgramCourse(Base):
     __tablename__ = "program_courses"
     program_id: Mapped[int] = mapped_column(ForeignKey("programs.id"), primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), primary_key=True)
+    semester_no: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    knowledge_block: Mapped[Optional[str]] = mapped_column(String(150))
+    is_elective: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class PICourse(Base):
     __tablename__ = "pi_courses"
     pi_id: Mapped[int] = mapped_column(ForeignKey("performance_indicators.id"), primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), primary_key=True)
+    level: Mapped[Optional[str]] = mapped_column(String(2))
 
 # ---------------------------------------------------------------- C. Học phần & CLO
 
@@ -126,6 +140,11 @@ class Course(Base):
     course_name: Mapped[str] = mapped_column(String(255))
     credits: Mapped[int] = mapped_column(SmallInteger)
     clo_target_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=75)
+    credits_theory: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    credits_practice: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    course_structure: Mapped[Optional[str]] = mapped_column(String(30))
+    prerequisites: Mapped[Optional[str]] = mapped_column(String(255))
+    description: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     clos: Mapped[list["CLO"]] = relationship(back_populates="course", order_by="CLO.clo_code")
     outlines: Mapped[list["CourseOutline"]] = relationship(order_by="CourseOutline.chapter_number")
@@ -292,6 +311,10 @@ class Exam(Base):
     status: Mapped[str] = mapped_column(String(20), default="Draft")
     publish_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    counts_for_clo: Mapped[bool] = mapped_column(Boolean, default=True)    # gộp vào tổng hợp CLO của lớp
+    parent_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))  # bài phụ đạo
+    target_students: Mapped[Optional[str]] = mapped_column(Text)
+    paper_settings: Mapped[Optional[str]] = mapped_column(Text)            # JSON tùy chọn in đề / bố cục phiếu
     created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     class_section: Mapped[ClassSection] = relationship()

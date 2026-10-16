@@ -57,7 +57,7 @@ def list_questions(course_id: int, clo_id: int | None = None, bloom_level_id: in
                    include_cancelled: bool = False, untagged: bool = False, q: str | None = None, db: Session = Depends(get_db),
                    u: User = Depends(require("admin", "lecturer"))):
     check_course_access(db, u, course_id)
-    query = db.query(Question).filter(Question.course_id == course_id)
+    query = db.query(Question).filter(Question.course_id == course_id, Question.question_type == "multichoice")   # câu/ý chấm tay chỉ thuộc bài nhập điểm
     if not include_cancelled:
         query = query.filter(Question.is_cancelled.is_(False))
     if bloom_level_id:

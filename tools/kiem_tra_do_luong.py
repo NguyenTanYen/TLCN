@@ -99,7 +99,9 @@ for cs, (ne, na) in course_n.items():
 pi = q("""SELECT p.id plan_id, p.target_pct, pr.n_evaluated, pr.n_achieved, pr.achieved_pct, pr.is_achieved,
           GROUP_CONCAT(pc.clo_id) clos, p.course_id, p.semester_id, pi.plo_id, s.academic_year
           FROM pi_assessment_plans p JOIN performance_indicators pi ON pi.id=p.pi_id JOIN semesters s ON s.id=p.semester_id
-          LEFT JOIN pi_results pr ON pr.plan_id=p.id LEFT JOIN pi_plan_clos pc ON pc.plan_id=p.id GROUP BY p.id""")
+          LEFT JOIN pi_results pr ON pr.plan_id=p.id LEFT JOIN pi_plan_clos pc ON pc.plan_id=p.id
+          GROUP BY p.id, p.target_pct, pr.n_evaluated, pr.n_achieved, pr.achieved_pct, pr.is_achieved,
+                   p.course_id, p.semester_id, pi.plo_id, s.academic_year""")
 cs_info = q("SELECT id, course_id, semester_id FROM class_sections")
 plo_sum = {}
 for _, r in pi.iterrows():

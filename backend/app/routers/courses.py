@@ -1,4 +1,4 @@
-"""UC-12: Khai báo học phần – môn học, đề cương (chương), CLO và ánh xạ CLO–PLO, lớp học phần.
+"""UC-12: Khai báo học phần (Bộ môn; giảng viên chỉ xem học phần, chương, CLO) – môn học, đề cương (chương), CLO và ánh xạ CLO–PLO, lớp học phần.
 
 Để đưa một học phần mới vào hệ thống: (1) Bộ môn tạo môn học (nếu chưa có) và lớp học phần, gán GV phụ trách;
 (2) GV/Bộ môn khai báo các chương của đề cương; (3) khai báo CLO, mức Bloom mục tiêu và mức đóng góp cho PLO (I/R/M);
@@ -23,12 +23,23 @@ class CourseIn(BaseModel):
     course_name: str = Field(min_length=2, max_length=255)
     credits: int = Field(ge=1, le=20)
     clo_target_pct: float = Field(default=75, ge=0, le=100)
+    credits_theory: Optional[int] = Field(default=None, ge=0, le=20)
+    credits_practice: Optional[int] = Field(default=None, ge=0, le=20)
+    course_structure: Optional[str] = Field(default=None, max_length=30)
+    prerequisites: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = None
+    program_ids: Optional[list[int]] = None   # CTĐT chứa học phần (bỏ trống = mọi CTĐT, như bản trước)
 
 
 class CourseUpd(BaseModel):
     course_name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     credits: Optional[int] = Field(default=None, ge=1, le=20)
     clo_target_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    credits_theory: Optional[int] = Field(default=None, ge=0, le=20)
+    credits_practice: Optional[int] = Field(default=None, ge=0, le=20)
+    course_structure: Optional[str] = Field(default=None, max_length=30)
+    prerequisites: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = None
 
 
 class OutlineIn(BaseModel):
@@ -77,19 +88,23 @@ def _plos(db: Session, maps: list[PLOMapIn]):
 def create_course(body: CourseIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     if db.query(Course).filter_by(course_code=body.course_code.strip()).first():
         raise HTTPException(409, f"Đã có môn học mã {body.course_code}")
-    c = Course(course_code=body.course_code.strip(), course_name=body.course_name.strip(), credits=body.credits,
-               clo_target_pct=body.clo_target_pct)
+    c = Course(**{**body.model_dump(exclude={"program_ids"}), "course_code": body.course_code.strip(), "course_name": body.course_name.strip()})
     db.add(c); db.flush()
-    db.execute(text("INSERT IGNORE INTO program_courses (program_id, course_id) SELECT id, :c FROM programs"), {"c": c.id})
+    if body.program_ids is None:
+        db.execute(text("INSERT IGNORE INTO program_courses (program_id, course_id) SELECT id, :c FROM programs"), {"c": c.id})
+    for pid in body.program_ids or []:
+        if not db.execute(text("SELECT 1 FROM programs WHERE id=:p"), {"p": pid}).scalar():
+            raise HTTPException(422, f"CTĐT {pid} không tồn tại")
+        db.execute(text("INSERT IGNORE INTO program_courses (program_id, course_id) VALUES (:p, :c)"), {"p": pid, "c": c.id})
     db.commit()
     return {"id": c.id}
 
 
 @router.put("/courses/{cid}")
-def update_course(cid: int, body: CourseUpd, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def update_course(cid: int, body: CourseUpd, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    """Thông tin học phần (đề cương) do Bộ môn quản lý – giảng viên chỉ xem."""
     c = _course(db, cid)
-    check_course_access(db, u, cid)
-    for k, v in body.model_dump(exclude_none=True).items():
+    for k, v in body.model_dump(exclude_unset=True).items():
         setattr(c, k, v)
     db.commit()
     return {"ok": True}
@@ -106,8 +121,8 @@ def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(requ
     n_clo_noplo = q("SELECT COUNT(*) FROM clos c WHERE c.course_id=:c AND NOT EXISTS (SELECT 1 FROM clo_plo_mapping m WHERE m.clo_id=c.id)")
     n_cs = q("SELECT COUNT(*) FROM class_sections WHERE course_id=:c")
     n_plan = q("""SELECT COUNT(DISTINCT p.clo_id) FROM clo_assessment_plans p JOIN clos c ON c.id=p.clo_id WHERE c.course_id=:c""")
-    n_q = q("SELECT COUNT(*) FROM question_bank WHERE course_id=:c AND is_cancelled=0")
-    n_tag = q("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.is_cancelled=0 AND q.bloom_level_id IS NOT NULL
+    n_q = q("SELECT COUNT(*) FROM question_bank WHERE course_id=:c AND question_type='multichoice' AND is_cancelled=0")
+    n_tag = q("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.question_type='multichoice' AND q.is_cancelled=0 AND q.bloom_level_id IS NOT NULL
                  AND EXISTS (SELECT 1 FROM question_clo_mapping m WHERE m.question_id=q.id)""")
     n_clo_noq = q("""SELECT COUNT(*) FROM clos c WHERE c.course_id=:c AND NOT EXISTS (SELECT 1 FROM question_clo_mapping m
                      JOIN question_bank b ON b.id=m.question_id AND b.is_cancelled=0 WHERE m.clo_id=c.id)""")
@@ -126,9 +141,8 @@ def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(requ
 
 # ------------------------------------------------------------------ đề cương (chương)
 @router.post("/courses/{cid}/outlines", status_code=201)
-def create_outline(cid: int, body: OutlineIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def create_outline(cid: int, body: OutlineIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     _course(db, cid)
-    check_course_access(db, u, cid)
     if db.query(CourseOutline).filter_by(course_id=cid, chapter_number=body.chapter_number).first():
         raise HTTPException(409, f"Môn học đã có chương {body.chapter_number}")
     o = CourseOutline(course_id=cid, chapter_number=body.chapter_number, chapter_name=body.chapter_name.strip())
@@ -137,11 +151,10 @@ def create_outline(cid: int, body: OutlineIn, db: Session = Depends(get_db), u: 
 
 
 @router.put("/outlines/{oid}")
-def update_outline(oid: int, body: OutlineIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def update_outline(oid: int, body: OutlineIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     o = db.get(CourseOutline, oid)
     if not o:
         raise HTTPException(404, "Không tìm thấy chương")
-    check_course_access(db, u, o.course_id)
     dup = db.query(CourseOutline).filter(CourseOutline.course_id == o.course_id, CourseOutline.chapter_number == body.chapter_number,
                                          CourseOutline.id != oid).first()
     if dup:
@@ -152,11 +165,10 @@ def update_outline(oid: int, body: OutlineIn, db: Session = Depends(get_db), u: 
 
 
 @router.delete("/outlines/{oid}")
-def delete_outline(oid: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def delete_outline(oid: int, db: Session = Depends(get_db), _=Depends(require("admin"))):
     o = db.get(CourseOutline, oid)
     if not o:
         raise HTTPException(404, "Không tìm thấy chương")
-    check_course_access(db, u, o.course_id)
     n = db.execute(text("SELECT COUNT(*) FROM question_bank WHERE outline_id=:o"), {"o": oid}).scalar()
     if n:
         raise HTTPException(409, f"Chương đang được {n} câu hỏi sử dụng – chuyển các câu sang chương khác trước khi xóa")
@@ -166,11 +178,10 @@ def delete_outline(oid: int, db: Session = Depends(get_db), u: User = Depends(re
 
 # ------------------------------------------------------------------ CLO
 @router.put("/clos/{clo_id}")
-def update_clo(clo_id: int, body: CLOUpd, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def update_clo(clo_id: int, body: CLOUpd, db: Session = Depends(get_db), _=Depends(require("admin"))):
     clo = db.get(CLO, clo_id)
     if not clo:
         raise HTTPException(404, "Không tìm thấy CLO")
-    check_course_access(db, u, clo.course_id)
     if db.query(CLO).filter(CLO.course_id == clo.course_id, CLO.clo_code == body.clo_code.strip(), CLO.id != clo_id).first():
         raise HTTPException(409, f"Môn học đã có {body.clo_code}")
     _plos(db, body.plos)
@@ -183,11 +194,10 @@ def update_clo(clo_id: int, body: CLOUpd, db: Session = Depends(get_db), u: User
 
 
 @router.delete("/clos/{clo_id}")
-def delete_clo(clo_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def delete_clo(clo_id: int, db: Session = Depends(get_db), _=Depends(require("admin"))):
     clo = db.get(CLO, clo_id)
     if not clo:
         raise HTTPException(404, "Không tìm thấy CLO")
-    check_course_access(db, u, clo.course_id)
     used = db.execute(text("""SELECT (SELECT COUNT(*) FROM question_clo_mapping WHERE clo_id=:c)
                                    + (SELECT COUNT(*) FROM attempt_clo_results WHERE clo_id=:c)
                                    + (SELECT COUNT(*) FROM pi_plan_clos WHERE clo_id=:c)"""), {"c": clo_id}).scalar()
@@ -394,3 +404,56 @@ def refresh_roster(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
     db.commit()
     total = db.execute(text("SELECT COUNT(*) FROM enrollments WHERE class_section_id=:c AND status='active'"), {"c": cs_id}).scalar()
     return {"added": n, "n_students": total}
+
+
+# ------------------------------------------------------------------ liên kết mã lớp hệ thống ⇄ khóa học Moodle
+def _autolink(db: Session, u: User, cs: ClassSection) -> dict:
+    """Gắn lớp HP với khóa học Moodle có shortname/idnumber trùng mã lớp (nếu chưa gắn)."""
+    from ..deps import check_moodle_course
+    from ..services import moodle
+    if cs.moodle_course_id:
+        return {"id": cs.id, "section_code": cs.section_code, "moodle_course_id": cs.moodle_course_id, "status": "đã gắn"}
+    found = moodle.find_course_by_code(db, cs.section_code)
+    if not found:
+        return {"id": cs.id, "section_code": cs.section_code, "moodle_course_id": None,
+                "status": "không có khóa học Moodle trùng mã lớp (shortname hoặc mã khóa học)"}
+    if len(found) > 1:
+        return {"id": cs.id, "section_code": cs.section_code, "moodle_course_id": None,
+                "status": f"có {len(found)} khóa học Moodle trùng mã lớp – gắn thủ công"}
+    try:
+        check_moodle_course(db, u, cs, found[0])
+    except HTTPException as ex:
+        return {"id": cs.id, "section_code": cs.section_code, "moodle_course_id": None, "status": ex.detail}
+    cs.moodle_course_id = found[0]
+    db.flush()
+    return {"id": cs.id, "section_code": cs.section_code, "moodle_course_id": found[0], "status": "vừa gắn theo mã lớp"}
+
+
+@router.post("/class-sections/{cs_id}/moodle-autolink")
+def moodle_autolink(cs_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+    cs = check_section_access(db, u, cs_id)
+    _need_moodle()
+    r = _autolink(db, u, cs)
+    db.commit()
+    if not r["moodle_course_id"]:
+        raise HTTPException(404, r["status"])
+    return r
+
+
+@router.post("/courses/{cid}/moodle-sync-sections")
+def sync_course_sections(cid: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+    """Một lần bấm cho cả môn: gắn các lớp HP (của GV) với khóa học Moodle trùng mã lớp và cập nhật danh sách SV từ Moodle."""
+    _course(db, cid)
+    check_course_access(db, u, cid)
+    _need_moodle()
+    q = db.query(ClassSection).filter_by(course_id=cid)
+    if u.role == "lecturer":
+        q = q.filter_by(lecturer_id=u.lecturer.id if u.lecturer else 0)
+    out = []
+    for cs in q.order_by(ClassSection.section_code).all():
+        r = _autolink(db, u, cs)
+        if cs.moodle_course_id:
+            r["added_students"] = _sync_roster(db, cs.id, int(cs.moodle_course_id))
+        out.append(r)
+    db.commit()
+    return {"sections": out}

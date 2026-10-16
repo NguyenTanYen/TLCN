@@ -130,14 +130,15 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
 
 
 def recompute_class_section(db: Session, cs_id: int) -> None:
-    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d)."""
+    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d).
+    Chỉ gộp các bài GV chọn làm minh chứng (counts_for_clo = 1; bài phụ đạo mặc định không gộp)."""
     thr, tgt, ev = clo_thresholds(db, cs_id)
     rows = _df(db, """
         SELECT r.clo_id, e.assessment_type, COUNT(*) AS n_eval, SUM(r.is_achieved) AS n_ok
         FROM attempt_clo_results r
         JOIN exam_attempts a ON a.id = r.attempt_id
         JOIN exams e ON e.id = a.exam_id
-        WHERE e.class_section_id = :cs AND e.status = 'Analyzed' AND a.status = 'finished'
+        WHERE e.class_section_id = :cs AND e.status = 'Analyzed' AND e.counts_for_clo = 1 AND a.status = 'finished'
         GROUP BY r.clo_id, e.assessment_type""", cs=cs_id)
     old = {r.clo_id: (r.analysis, r.improvement) for r in db.execute(
         text("SELECT clo_id, analysis, improvement FROM clo_results WHERE class_section_id = :cs"), {"cs": cs_id})}

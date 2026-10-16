@@ -26,6 +26,9 @@ import pandas as pd
 
 def item_statistics(items: pd.DataFrame) -> pd.DataFrame:
     """items: cột attempt_id, question_id, is_correct (0/1), total_score – chỉ SV dự thi.
+    Có thêm cột score_earned, points (câu chấm tay/nhập điểm): p = điểm TB / điểm tối đa của câu, DI = chênh lệch
+    tỷ lệ điểm TB nhóm trên – nhóm dưới (chỉ số độ khó/độ phân biệt cho câu nhiều mức điểm); với câu trắc nghiệm
+    (0 hoặc đủ điểm) hai công thức trùng với định nghĩa đúng/sai.
 
     Trả về DataFrame: question_id, n_students, p_value, di_value.
     """
@@ -38,11 +41,16 @@ def item_statistics(items: pd.DataFrame) -> pd.DataFrame:
     upper = set(scores.head(n_g).attempt_id) if n_g else set()
     lower = set(scores.tail(n_g).attempt_id) if n_g else set()
     rows = []
+    items = items.copy()
+    if {"score_earned", "points"} <= set(items.columns):
+        items["_v"] = (items.score_earned.astype(float) / items.points.astype(float)).clip(0, 1)
+    else:
+        items["_v"] = items.is_correct.astype(float)
     for qid, g in items.groupby("question_id"):
-        p = g.is_correct.sum() / n
+        p = g._v.sum() / n
         di = None
         if n_g:
-            di = (g[g.attempt_id.isin(upper)].is_correct.sum() - g[g.attempt_id.isin(lower)].is_correct.sum()) / n_g
+            di = (g[g.attempt_id.isin(upper)]._v.sum() - g[g.attempt_id.isin(lower)]._v.sum()) / n_g
         rows.append({"question_id": int(qid), "n_students": n, "p_value": round(float(p), 4),
                      "di_value": None if di is None else round(float(di), 4)})
     return pd.DataFrame(rows)
@@ -131,3 +139,18 @@ def kr20(correct: "pd.DataFrame") -> float | None:
     if var == 0:
         return None
     return round(float(k / (k - 1) * (1 - (p * (1 - p)).sum() / var)), 4)
+
+
+def cronbach_alpha(scores: "pd.DataFrame") -> float | None:
+    """Độ tin cậy Cronbach's alpha cho bài nhiều mức điểm (nhập điểm từng câu/ý).
+    scores: attempt_id, question_id, score_earned. α = k/(k−1) · (1 − Σ σ²_j / σ²_tổng)."""
+    if scores is None or scores.empty:
+        return None
+    m = scores.pivot_table(index="attempt_id", columns="question_id", values="score_earned", aggfunc="max").fillna(0).astype(float)
+    k = m.shape[1]
+    if k < 2 or m.shape[0] < 2:
+        return None
+    var_t = m.sum(axis=1).var(ddof=0)
+    if var_t == 0:
+        return None
+    return round(float(k / (k - 1) * (1 - m.var(axis=0, ddof=0).sum() / var_t)), 4)

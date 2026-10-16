@@ -71,20 +71,31 @@ export default function Courses() {
   )
 }
 
-function CourseInfo({ c, onSaved }) {
-  const [f, setF] = useState({ course_name: c.course_name, credits: c.credits, clo_target_pct: c.clo_target_pct })
-  useEffect(() => setF({ course_name: c.course_name, credits: c.credits, clo_target_pct: c.clo_target_pct }), [c])
-  return <Card title={`Môn học ${c.course_code}`}>
-    <Field label="Tên môn học"><input value={f.course_name} onChange={e => setF({ ...f, course_name: e.target.value })} /></Field>
-    <div className="row gap">
+export function CourseInfo({ c, onSaved }) {
+  const pick = x => ({ course_name: x.course_name, credits: x.credits, clo_target_pct: x.clo_target_pct, credits_theory: x.credits_theory ?? '',
+    credits_practice: x.credits_practice ?? '', course_structure: x.course_structure || '', prerequisites: x.prerequisites || '', description: x.description || '' })
+  const [f, setF] = useState(pick(c))
+  useEffect(() => setF(pick(c)), [c])
+  const num = v => (v === '' || v === null ? null : Number(v))
+  return <Card title={`Thông tin học phần ${c.course_code}`}>
+    <Field label="Tên học phần"><input value={f.course_name} onChange={e => setF({ ...f, course_name: e.target.value })} /></Field>
+    <div className="row gap wrap">
       <Field label="Số tín chỉ"><input className="num" type="number" min="1" value={f.credits} onChange={e => setF({ ...f, credits: e.target.value })} /></Field>
+      <Field label="TC lý thuyết"><input className="num" type="number" min="0" value={f.credits_theory} onChange={e => setF({ ...f, credits_theory: e.target.value })} /></Field>
+      <Field label="TC TN/TH/TT"><input className="num" type="number" min="0" value={f.credits_practice} onChange={e => setF({ ...f, credits_practice: e.target.value })} /></Field>
+      <Field label="Cấu trúc" hint="VD 3(2:1:6)"><input className="num" value={f.course_structure} onChange={e => setF({ ...f, course_structure: e.target.value })} /></Field>
       <Field label="Chỉ tiêu đạt CĐR môn học (%)" hint="Dòng tổng BM6b"><input className="num" type="number" min="0" max="100" value={f.clo_target_pct} onChange={e => setF({ ...f, clo_target_pct: e.target.value })} /></Field>
     </div>
-    <ActionButton className="btn" okMsg="Đã lưu thông tin môn học" onRun={async () => { await api.put(`/api/courses/${c.id}`, { course_name: f.course_name, credits: Number(f.credits), clo_target_pct: Number(f.clo_target_pct) }); onSaved() }}>Lưu</ActionButton>
+    <Field label="Học phần trước / tiên quyết (mã, cách nhau dấu phẩy)"><input value={f.prerequisites} onChange={e => setF({ ...f, prerequisites: e.target.value })} placeholder="VD DBSY230184, DASA230179" /></Field>
+    <Field label="Mô tả vắn tắt học phần"><textarea rows={5} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></Field>
+    <ActionButton className="btn primary" okMsg="Đã lưu thông tin học phần" onRun={async () => {
+      await api.put(`/api/courses/${c.id}`, { course_name: f.course_name, credits: Number(f.credits), clo_target_pct: Number(f.clo_target_pct),
+        credits_theory: num(f.credits_theory), credits_practice: num(f.credits_practice), course_structure: f.course_structure.trim() || null,
+        prerequisites: f.prerequisites.trim() || null, description: f.description.trim() || null }); onSaved() }}>Lưu</ActionButton>
   </Card>
 }
 
-function Outlines({ c, onSaved }) {
+export function Outlines({ c, onSaved }) {
   const [rows, setRows] = useState({})
   const [paste, setPaste] = useState('')
   const next = Math.max(0, ...c.outlines.map(o => o.chapter_number)) + 1
@@ -116,7 +127,7 @@ function Outlines({ c, onSaved }) {
   </Card>
 }
 
-function Clos({ c, onEdit, onSaved }) {
+export function Clos({ c, onEdit, onSaved }) {
   return <Card title={`CĐR môn học – CLO (${c.clos.length})`} actions={<button className="btn sm primary" onClick={() => onEdit({})}>+ CLO</button>}>
     <table className="tbl"><thead><tr><th>Mã</th><th>Nội dung</th><th>Bloom mục tiêu</th><th>Đóng góp cho PLO</th><th /></tr></thead>
       <tbody>{c.clos.map(x => <tr key={x.id}><td><b>{x.clo_code}</b></td><td className="clip">{x.description}</td><td>{x.bloom || '—'}</td>
@@ -127,8 +138,8 @@ function Clos({ c, onEdit, onSaved }) {
   </Card>
 }
 
-function CloForm({ c, clo, onClose, onSaved }) {
-  const prog = useApi('/api/programs/1').data
+export function CloForm({ c, clo, onClose, onSaved }) {
+  const progs = useApi(`/api/courses/${c.id}/plos`).data
   const bloom = useApi('/api/bloom-levels').data
   const [f, setF] = useState({ clo_code: clo.clo_code || `CLO${c.clos.length + 1}`, description: clo.description || '', bloom_level_id: clo.bloom_level_id || '',
     plos: Object.fromEntries((clo.plos || []).map(p => [p.plo_id, p.level])) })
@@ -142,31 +153,35 @@ function CloForm({ c, clo, onClose, onSaved }) {
         <option value="">—</option>{bloom?.map(b => <option key={b.id} value={b.id}>{b.id}. {b.name_vi}</option>)}</select></Field>
     </div>
     <Field label="Nội dung CLO"><textarea rows={2} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} placeholder="VD: Trình bày được kiến trúc của hệ sinh thái Hadoop…" /></Field>
-    <Field group label="Đóng góp cho PLO của CTĐT (chọn PLO và mức I/R/M)">
-      <div className="scroll short">{prog?.plos.map(p => <div key={p.id} className="row gap clo-w">
+    <Field group label="Đóng góp cho PLO của các CTĐT có học phần (chọn PLO và mức I/R/M)">
+      <div className="scroll short">{progs?.map(pr => <div key={pr.id}><div className="small muted" style={{ padding: '6px 4px 2px' }}><b>{pr.code}</b> – {pr.name}</div>
+      {pr.plos.map(p => <div key={p.id} className="row gap clo-w">
         <input type="checkbox" checked={f.plos[p.id] !== undefined} onChange={e => setF(x => { const m = { ...x.plos }; e.target.checked ? m[p.id] = 'R' : delete m[p.id]; return { ...x, plos: m } })} />
         <span className="grow"><b>PLO {p.plo_code}</b> <small className="muted">{p.description}</small></span>
         {f.plos[p.id] !== undefined && <select value={f.plos[p.id]} onChange={e => setF(x => ({ ...x, plos: { ...x.plos, [p.id]: e.target.value } }))}>
           {Object.entries(LEVEL_VI).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
-      </div>)}</div></Field>
+      </div>)}</div>)}</div></Field>
     <div className="row"><span className="grow" />
       <ActionButton className="btn primary" disabled={!f.clo_code.trim() || f.description.trim().length < 3} okMsg="Đã lưu CLO" onRun={save}>Lưu</ActionButton></div>
   </Modal>
 }
 
-function CourseForm({ onClose, onSaved }) {
-  const [f, setF] = useState({ course_code: '', course_name: '', credits: 3, clo_target_pct: 75 })
+export function CourseForm({ onClose, onSaved }) {
+  const progs = useApi('/api/programs').data
+  const [f, setF] = useState({ course_code: '', course_name: '', credits: 3, clo_target_pct: 75, program_ids: [] })
   return <Modal title="Thêm môn học" onClose={onClose}>
     <div className="row gap"><Field label="Mã môn"><input value={f.course_code} onChange={e => setF({ ...f, course_code: e.target.value })} placeholder="VD BDES333877" /></Field>
       <Field label="Số tín chỉ"><input className="num" type="number" min="1" value={f.credits} onChange={e => setF({ ...f, credits: e.target.value })} /></Field></div>
     <Field label="Tên môn học"><input value={f.course_name} onChange={e => setF({ ...f, course_name: e.target.value })} /></Field>
     <Field label="Chỉ tiêu đạt CĐR môn học (%)"><input className="num" type="number" value={f.clo_target_pct} onChange={e => setF({ ...f, clo_target_pct: e.target.value })} /></Field>
+    <Field group label="Thuộc chương trình đào tạo">{progs?.map(p => <label key={p.id} className="row gap check"><input type="checkbox" checked={f.program_ids.includes(p.id)}
+      onChange={e => setF({ ...f, program_ids: e.target.checked ? [...f.program_ids, p.id] : f.program_ids.filter(x => x !== p.id) })} /> {p.code} – {p.name}</label>)}</Field>
     <div className="row"><span className="grow" /><ActionButton className="btn primary" disabled={f.course_code.trim().length < 2 || f.course_name.trim().length < 2} okMsg="Đã thêm môn học"
       onRun={async () => { const r = await api.post('/api/courses', { ...f, credits: Number(f.credits), clo_target_pct: Number(f.clo_target_pct) }); onSaved(r.id) }}>Lưu</ActionButton></div>
   </Modal>
 }
 
-function SectionForm({ s, onClose, onSaved }) {
+export function SectionForm({ s, onClose, onSaved }) {
   const sems = useApi('/api/semesters').data
   const lecs = useApi('/api/lecturers').data
   const courses = useApi('/api/courses').data

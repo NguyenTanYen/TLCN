@@ -72,7 +72,7 @@ SELECT e.id, t.id, t.userid, t.usageid,
 FROM exams e
 JOIN (
   SELECT r.id, r.offlinequizid, r.userid, r.usageid, r.timestart, r.timefinish,
-         CHAR(64 + g.groupnumber USING utf8mb4) COLLATE utf8mb4_unicode_ci AS group_code,
+         SUBSTRING(_utf8mb4'ABCDEFGHIJKLMNOPQRSTUVWXYZ' COLLATE utf8mb4_unicode_ci, g.groupnumber, 1) AS group_code,
          ROW_NUMBER() OVER (PARTITION BY r.offlinequizid, r.userid ORDER BY r.timemodified DESC, r.id DESC) AS rn
   FROM moodle_db.mdl_offlinequiz_results r
   JOIN moodle_db.mdl_offlinequiz_groups g ON g.id = r.offlinegroupid

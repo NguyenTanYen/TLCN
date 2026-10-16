@@ -10,6 +10,7 @@ import time
 import jwt
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -133,6 +134,18 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
         if u.role == "lecturer" and u.lecturer:
             q = q.filter_by(lecturer_id=u.lecturer.id)
         cs = q.first()
+        if not cs:   # lớp HP cùng mã với khóa học Moodle (shortname/idnumber) nhưng chưa gắn -> gắn luôn
+            from ..services import moodle as _m
+            code = db.execute(text(f"SELECT shortname, idnumber FROM {_m._t('course')} WHERE id=:c"), {"c": int(claims["courseid"])}).first() \
+                if _m.moodle_available() else None
+            if code:
+                cand = db.query(ClassSection).filter(ClassSection.moodle_course_id.is_(None),
+                                                     ClassSection.section_code.in_([x for x in code if x]))
+                if u.role == "lecturer" and u.lecturer:
+                    cand = cand.filter_by(lecturer_id=u.lecturer.id)
+                cands = cand.all()
+                if len(cands) == 1:
+                    cs = cands[0]; cs.moodle_course_id = int(claims["courseid"]); db.commit()
         if cs:
             target = f"/sections/{cs.id}"
         else:   # khóa học chưa có lớp HP: mở danh sách khóa học Moodle để đưa vào hệ thống

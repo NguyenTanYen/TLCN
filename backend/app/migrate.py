@@ -7,6 +7,10 @@
 - Tạo lại exam_version_questions, exam_version_options nếu thiếu (bản thử nghiệm từng bỏ 2 bảng này).
 - assessment_assignments: cho phép phân công "Tất cả thầy/cô có hướng dẫn" (TLCN, KLTN) – khóa chính id, lecturer_id NULL,
   cột all_supervisors; bổ sung 2 dòng phân công TLCN/KLTN của dữ liệu tham chiếu.
+- Quản lý theo CTĐT (bản 15/10): thông tin CTĐT, trình độ năng lực PLO/PI, cấu trúc + mô tả học phần, học kỳ/khối kiến thức
+  của học phần trong CTĐT, mức đáp ứng PI của học phần; nạp CTĐT CNTT 2026 và KTDL 2026 (database/04_ctdt_2026.sql).
+- Bài KT nhập điểm (exam_type = manual, câu/ý chấm tay question_type = manual, response_status = graded), chấm phiếu
+  trên hệ thống (source = scan), chọn bài gộp minh chứng CLO (counts_for_clo), bài phụ đạo (parent_exam_id, target_students).
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
 """
 from sqlalchemy import text
@@ -25,6 +29,105 @@ def _ddl(name: str) -> str:
     import re
     sql = (Path(__file__).resolve().parents[2] / "database" / "01_schema.sql").read_text(encoding="utf-8")
     return re.search(rf"CREATE TABLE {name} \(.*?\) ENGINE=InnoDB[^;]*;", sql, re.S).group(0).rstrip(";")
+
+
+NEW_COLUMNS = [
+    ("programs", "name_en", "VARCHAR(255) NULL COMMENT 'Tên CTĐT tiếng Anh'"),
+    ("programs", "faculty", "VARCHAR(150) NULL COMMENT 'Khoa quản lý'"),
+    ("programs", "major_code", "VARCHAR(20) NULL COMMENT 'Mã ngành, VD 7480201'"),
+    ("programs", "cohort_year", "SMALLINT NULL COMMENT 'Áp dụng từ khóa tuyển sinh, VD 2026'"),
+    ("programs", "total_credits", "SMALLINT NULL COMMENT 'Khối lượng học tập (tín chỉ)'"),
+    ("programs", "decision_no", "VARCHAR(100) NULL COMMENT 'Số quyết định ban hành CTĐT'"),
+    ("programs", "objective", "TEXT NULL COMMENT 'Mục tiêu chung của CTĐT'"),
+    ("plos", "competency_level", "TINYINT NULL COMMENT 'Trình độ năng lực của PLO (thang 1–6)'"),
+    ("plos", "plo_type", "VARCHAR(30) NULL COMMENT 'CĐR chung hoặc CĐR chuyên biệt'"),
+    ("performance_indicators", "competency_level", "TINYINT NULL COMMENT 'Trình độ năng lực của PI (thang 1–6)'"),
+    ("courses", "credits_theory", "TINYINT NULL COMMENT 'Số tín chỉ lý thuyết'"),
+    ("courses", "credits_practice", "TINYINT NULL COMMENT 'Số tín chỉ thí nghiệm/thực hành/thực tập'"),
+    ("courses", "course_structure", "VARCHAR(30) NULL COMMENT 'Cấu trúc học phần, VD 3(2:1:6)'"),
+    ("courses", "prerequisites", "VARCHAR(255) NULL COMMENT 'Mã học phần trước, tiên quyết'"),
+    ("courses", "description", "TEXT NULL COMMENT 'Mô tả vắn tắt học phần (đề cương)'"),
+    ("program_courses", "semester_no", "TINYINT NULL COMMENT 'Học kỳ trong kế hoạch giảng dạy (1–8)'"),
+    ("program_courses", "knowledge_block", "VARCHAR(150) NULL COMMENT 'Khối kiến thức, VD Kiến thức cơ sở ngành'"),
+    ("program_courses", "is_elective", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = học phần tự chọn'"),
+    ("pi_courses", "level", "VARCHAR(2) NULL COMMENT 'Mức đáp ứng của học phần với PI: I, R, M hoặc trình độ 1–6 (Phụ lục II)'"),
+    ("exams", "counts_for_clo", "BOOLEAN NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)' AFTER last_synced_at"),
+    ("exams", "parent_exam_id", "INT NULL COMMENT 'Bài phụ đạo: bài KT gốc' AFTER counts_for_clo"),
+    ("exams", "target_students", "TEXT NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)' AFTER parent_exam_id"),
+    ("exams", "paper_settings", "TEXT NULL COMMENT 'Bài giấy chấm trên hệ thống: JSON tùy chọn in đề và bố cục phiếu (phiếu quét được đọc theo đúng bố cục đã in)' AFTER target_students"),
+]
+
+# (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
+NEW_CHECKS = [
+    ("question_bank", "ck_qb_type", "question_type IN ('multichoice','manual')", "manual"),
+    ("exams", "ck_exam_type", "exam_type IN ('online','paper','manual')", "manual"),
+    ("exam_attempts", "ck_att_source", "source IN ('moodle','paper','scan','manual')", "scan"),
+    ("item_level_results", "ck_ilr_status", "response_status IN ('answered','blank','absent','graded')", "graded"),
+    ("item_level_results", "ck_ilr_consistency",
+     "(response_status = 'answered' AND selected_option_id IS NOT NULL) "
+     "OR (response_status = 'graded' AND selected_option_id IS NULL AND score_earned >= 0) "
+     "OR (response_status IN ('blank','absent') AND selected_option_id IS NULL AND is_correct = FALSE AND score_earned = 0)", "graded"),
+    ("sync_runs", "ck_sync_kind", "kind IN ('moodle','paper','scan','manual','analyze')", "scan"),
+]
+
+
+def _check_clause(c, table, name):
+    return c.execute(text("""SELECT cc.CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS cc
+                             JOIN information_schema.TABLE_CONSTRAINTS tc ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
+                               AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+                             WHERE cc.CONSTRAINT_SCHEMA = DATABASE() AND tc.TABLE_NAME = :t AND cc.CONSTRAINT_NAME = :n"""),
+                     {"t": table, "n": name}).scalar()
+
+
+def _upgrade_v3(c, done: list) -> None:
+    """Các cột/ràng buộc của bản quản lý theo CTĐT, nhập điểm, chấm phiếu, phụ đạo."""
+    for table, col, ddl in NEW_COLUMNS:
+        if _col(c, table, col) is None:
+            c.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+            done.append(f"{table}.{col}")
+    if not c.execute(text("""SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE()
+                             AND TABLE_NAME='exams' AND CONSTRAINT_NAME='fk_exam_parent'""")).scalar():
+        c.execute(text("ALTER TABLE exams ADD CONSTRAINT fk_exam_parent FOREIGN KEY (parent_exam_id) REFERENCES exams(id) ON DELETE SET NULL"))
+        done.append("exams.fk_exam_parent")
+    for table, name, clause, marker in NEW_CHECKS:
+        cur = _check_clause(c, table, name)
+        if cur is not None and marker in cur:
+            continue
+        if cur is not None:
+            c.execute(text(f"ALTER TABLE {table} DROP CONSTRAINT {name}"))
+        c.execute(text(f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK ({clause})"))
+        done.append(f"{table}.{name}")
+    view = c.execute(text("""SELECT VIEW_DEFINITION FROM information_schema.VIEWS WHERE TABLE_SCHEMA=DATABASE()
+                             AND TABLE_NAME='v_question_integrity'""")).scalar()
+    if view is not None and "question_type" not in view:
+        import re
+        sql = (_schema_sql())
+        c.execute(text(re.search(r"CREATE OR REPLACE VIEW v_question_integrity AS.*?;", sql, re.S).group(0).rstrip(";")))
+        done.append("v_question_integrity")
+
+
+def _schema_sql() -> str:
+    from pathlib import Path
+    return (Path(__file__).resolve().parents[2] / "database" / "01_schema.sql").read_text(encoding="utf-8")
+
+
+def load_ctdt_2026() -> int:
+    """Nạp hai CTĐT 2026 (CNTT, KTDL) nếu CSDL chưa có – chạy lại an toàn (INSERT IGNORE / không ghi đè)."""
+    from pathlib import Path
+    from .services.moodle import split_statements
+    f = Path(__file__).resolve().parents[2] / "database" / "04_ctdt_2026.sql"
+    if not f.exists():
+        return 0
+    raw = engine.raw_connection()
+    try:
+        cur = raw.cursor()
+        n = 0
+        for st in split_statements(f.read_text(encoding="utf-8")):
+            cur.execute(st); n += 1
+        raw.commit()
+        return n
+    finally:
+        raw.close()
 
 
 def upgrade_schema() -> list[str]:
@@ -68,6 +171,10 @@ def upgrade_schema() -> list[str]:
             if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t"), {"t": t}).scalar():
                 c.execute(text(_ddl(t)))
                 done.append(f"tạo lại bảng {t}")
+        _upgrade_v3(c, done)
+        need_ctdt = not c.execute(text("SELECT 1 FROM programs WHERE code IN ('CNTT-2026','KTDL-2026') LIMIT 1")).scalar()
+    if need_ctdt and load_ctdt_2026():
+        done.append("nạp CTĐT CNTT 2026 và KTDL 2026")
     return done
 
 

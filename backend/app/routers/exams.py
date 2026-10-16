@@ -2,6 +2,7 @@
 import math
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from fastapi.responses import Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,18 +23,21 @@ def exam_dict(db: Session, e: Exam) -> dict:
             "exam_date": e.exam_date, "duration_minutes": e.duration_minutes, "max_score": float(e.max_score),
             "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag,
             "last_synced_at": e.last_synced_at, "class_section_id": e.class_section_id, "section_code": cs.section_code,
+            "counts_for_clo": e.counts_for_clo, "parent_exam_id": e.parent_exam_id, "target_students": e.target_students,
             "moodle_course_id": cs.moodle_course_id,
             "course_id": cs.course_id, "course_code": cs.course.course_code, "course_name": cs.course.course_name,
             "semester": cs.semester.name,
             "questions": [{"question_id": q.question_id, "order_index": q.order_index, "points": float(q.points),
                            "content": q.question.content, "is_cancelled": q.question.is_cancelled,
+                           "question_type": q.question.question_type, "n_options": len(q.question.options),
                            "outline_id": q.question.outline_id, "bloom_level_id": q.question.bloom_level_id,
                            "chapter": q.question.outline.chapter_number if q.question.outline else None,
                            "bloom": q.question.bloom.name_vi if q.question.bloom else None,
                            "clos": ", ".join(c.clo.clo_code for c in q.question.clo_links)} for q in e.questions],
             "versions": [{"id": v.id, "version_code": v.version_code} for v in e.versions],
             "n_attempts": db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='finished'"), {"e": e.id}).scalar(),
-            "n_absent": db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='absent'"), {"e": e.id}).scalar()}
+            "n_absent": db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='absent'"), {"e": e.id}).scalar(),
+            "n_enrolled": db.execute(text("SELECT COUNT(*) FROM enrollments WHERE class_section_id=:c AND status='active'"), {"c": e.class_section_id}).scalar()}
 
 
 @router.get("/class-sections/{cs_id}/exams")
@@ -50,7 +54,7 @@ def _pool(db: Session, course_id: int, outline_ids: list[int]):
                (SELECT AVG(p_value) FROM item_statistics s WHERE s.question_id=q.id) AS avg_p,
                (SELECT AVG(di_value) FROM item_statistics s WHERE s.question_id=q.id) AS avg_di,
                (SELECT COUNT(*) FROM exam_questions eq WHERE eq.question_id=q.id) AS n_exams
-        FROM question_bank q WHERE q.course_id=:c AND q.is_cancelled=0 AND q.bloom_level_id IS NOT NULL"""),
+        FROM question_bank q WHERE q.course_id=:c AND q.question_type='multichoice' AND q.is_cancelled=0 AND q.bloom_level_id IS NOT NULL"""),
                       {"c": course_id}).mappings().all()
     links = {}
     for qid, cid, w in db.execute(text("""SELECT m.question_id, m.clo_id, m.weight FROM question_clo_mapping m
@@ -61,7 +65,7 @@ def _pool(db: Session, course_id: int, outline_ids: list[int]):
                  n_exams=int(r["n_exams"])) for r in rows if r["id"] in links]
     if outline_ids:
         pool = [q for q in pool if q.outline_id in outline_ids]
-    untagged = db.execute(text("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.is_cancelled=0 AND
+    untagged = db.execute(text("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.question_type='multichoice' AND q.is_cancelled=0 AND
              (q.bloom_level_id IS NULL OR NOT EXISTS (SELECT 1 FROM question_clo_mapping m WHERE m.question_id=q.id))"""),
                           {"c": course_id}).scalar()
     return pool, int(untagged)
@@ -238,3 +242,47 @@ def publish(exam_id: int, body: PublishIn, u: User = Depends(require("admin", "l
         except lms.MoodleWSError as ex:
             out["moodle_error"] = str(ex)
     return out
+
+
+# ------------------------------------------------------------------ dùng một đề cho nhiều lớp HP cùng môn
+class CopyIn(BaseModel):
+    class_section_ids: list[int] = Field(min_length=1, max_length=30)
+    create_moodle: bool = True      # bài trực tuyến: tạo luôn Quiz trên khóa học Moodle đã gắn của từng lớp
+
+
+@router.post("/exams/{exam_id}/copy")
+def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """GV dạy nhiều lớp của cùng một môn: sao đề (câu hỏi, điểm, cấu hình, câu/ý nhập điểm) sang các lớp khác và –
+    với bài trực tuyến – phát hành luôn lên Moodle của từng lớp."""
+    e = get_exam_for(db, u, exam_id)
+    src_cs = e.class_section
+    out = []
+    for cs_id in dict.fromkeys(body.class_section_ids):
+        if cs_id == src_cs.id:
+            continue
+        cs = check_section_access(db, u, cs_id)
+        if cs.course_id != src_cs.course_id:
+            raise HTTPException(422, f"Lớp {cs.section_code} không cùng môn học với đề gốc")
+        n = Exam(class_section_id=cs.id, exam_title=e.exam_title, assessment_type=e.assessment_type, exam_type=e.exam_type,
+                 exam_date=e.exam_date, duration_minutes=e.duration_minutes, max_score=e.max_score, counts_for_clo=e.counts_for_clo,
+                 paper_settings=e.paper_settings, status="Published" if e.exam_type == "manual" else "Draft", created_by=u.id)
+        for q in e.questions:
+            n.questions.append(ExamQuestion(question_id=q.question_id, order_index=q.order_index, points=q.points))
+        db.add(n); db.commit(); db.refresh(n)
+        r = {"class_section_id": cs.id, "section_code": cs.section_code, "exam_id": n.id, "moodle": None}
+        if body.create_moodle and e.exam_type == "online":
+            if not cs.moodle_course_id:
+                r["moodle"] = "lớp chưa gắn khóa học Moodle – tạo Quiz sau"
+            elif not lms.configured():
+                r["moodle"] = "chưa cấu hình Web Service Moodle"
+            else:
+                try:
+                    check_moodle_course(db, u, cs, int(cs.moodle_course_id))
+                    res = lms.create_quiz(db, n, int(cs.moodle_course_id))
+                    n.moodle_quiz_id = res["quizid"]; n.status = "Published"; db.commit()
+                    r["moodle"] = f"đã tạo Quiz {res['quizid']}"
+                except (lms.MoodleWSError, HTTPException) as ex:
+                    db.rollback()
+                    r["moodle"] = f"chưa tạo được Quiz: {getattr(ex, 'detail', None) or ex}"
+        out.append(r)
+    return {"copies": out}

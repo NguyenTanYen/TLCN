@@ -56,7 +56,8 @@ def init_db() -> None:
     conn = _raw_conn(); conn.cursor().execute(f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); conn.close()
     run_sql_file(DB_DIR / "01_schema.sql", name)
     run_sql_file(DB_DIR / "03_seed_reference.sql", name)
-    print(f"Đã tạo CSDL {name} (39 bảng) và nạp dữ liệu tham chiếu.")
+    run_sql_file(DB_DIR / "04_ctdt_2026.sql", name)
+    print(f"Đã tạo CSDL {name} (39 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT 2026, KTDL 2026.")
 
 
 def seed_demo() -> None:
@@ -97,6 +98,24 @@ def seed_demo() -> None:
             db.add(PIPlanCLO(plan_id=plan.id, clo_id=clo_ids[c]))
     db.execute(text("""INSERT IGNORE INTO assessment_assignments (semester_id, course_id, lecturer_id, note)
                        VALUES (:s, :c, :l, 'Đánh giá theo 4 CĐR môn học')"""), {"s": sem, "c": course.id, "l": son.id})
+    # --- CTĐT 2026 (CNTT, KTDL): CLO của môn đóng góp cho PLO1/PLO6/PLO7; KTDL 2026 đo PI6.2, PI7.1 tại môn này
+    for prog in ("CNTT-2026", "KTDL-2026"):
+        pid = db.execute(text("SELECT id FROM programs WHERE code=:c"), {"c": prog}).scalar()
+        if not pid:
+            continue
+        p26 = dict(db.execute(text("SELECT plo_code, id FROM plos WHERE program_id=:p"), {"p": pid}).fetchall())
+        for clo, plo, lv in (("CLO1", "PLO1", "R"), ("CLO2", "PLO6", "R"), ("CLO3", "PLO6", "M"), ("CLO4", "PLO7", "M")):
+            if plo in p26:
+                db.add(CLOPLOMapping(clo_id=clo_ids[clo], plo_id=p26[plo], level=lv))
+        if prog == "KTDL-2026":
+            for pi_code, clos in (("PI6.2", ["CLO2", "CLO3"]), ("PI7.1", ["CLO4"])):
+                pi = db.execute(text("""SELECT pi.id FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id
+                                        WHERE p.program_id=:p AND pi.pi_code=:c"""), {"p": pid, "c": pi_code}).scalar()
+                plan = PIAssessmentPlan(pi_id=pi, course_id=course.id, semester_id=sem, method="Bài thi trắc nghiệm + bài tập lớn",
+                                        cycle="2 năm/lần", target_pct=75, lecturer_id=son.id)
+                db.add(plan); db.flush()
+                for c in clos:
+                    db.add(PIPlanCLO(plan_id=plan.id, clo_id=clo_ids[c]))
     # --- lớp HP + sinh viên (mỗi SV có tài khoản: MSSV / Sv@123456)
     cs = ClassSection(course_id=course.id, semester_id=sem, lecturer_id=son.id, section_code="DBMS330284_01"); db.add(cs); db.flush()
     pw = hash_password("Sv@123456")
@@ -122,7 +141,38 @@ def seed_demo() -> None:
     for i, qi in enumerate([4, 8, 9, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29], 1):
         e2.questions.append(ExamQuestion(question_id=qids[qi], order_index=i, points=0.5))
     db.add_all([e1, e2]); db.commit()
-    print(f"Đã tạo dữ liệu minh họa: lớp HP {cs.section_code}, 40 SV, {len(qids)} câu hỏi, bài KT #{e1.id} (giấy) và #{e2.id} (Moodle).")
+    cs2 = _seed_second_section(db, course, sem, son, clo_ids, u_son.id)
+    print(f"Đã tạo dữ liệu minh họa: lớp HP {cs.section_code}, 40 SV, {len(qids)} câu hỏi, bài KT #{e1.id} (giấy) và #{e2.id} (Moodle); "
+          f"lớp {cs2} (cùng GV, cùng môn) có bài nhập điểm.")
+
+
+def _seed_second_section(db, course, sem, lecturer, clo_ids, user_id) -> str:
+    """GV dạy nhiều lớp của cùng một môn: lớp DBMS330284_02 (35 SV) với một bài tự luận nhập điểm từng câu."""
+    from .services import manual
+    cs = ClassSection(course_id=course.id, semester_id=sem, lecturer_id=lecturer.id, section_code="DBMS330284_02"); db.add(cs); db.flush()
+    rng = random.Random(23)
+    for i, (_, name) in enumerate(D.student_list(75)[40:]):
+        s = Student(student_code=f"2213{101 + i:04d}", full_name=name, class_name="22133B"); db.add(s); db.flush()
+        db.add(Enrollment(class_section_id=cs.id, student_id=s.id))
+    e = Exam(class_section_id=cs.id, exam_title="Bài tập lớn: thiết kế và cài đặt CSDL (tự luận)", assessment_type="process",
+             exam_type="manual", exam_date=date(2024, 11, 20), max_score=10, status="Published", created_by=user_id)
+    db.add(e); db.flush()
+    items = [("Câu 1 – Mô hình hóa yêu cầu, lược đồ quan hệ", 3, {"CLO1": 1}), ("Câu 2 – Cài đặt ràng buộc, chỉ mục", 3, {"CLO2": 1}),
+             ("Câu 3 – Thủ tục, trigger và giao tác", 4, {"CLO3": 0.5, "CLO4": 0.5})]
+    manual.add_items(db, e, course.id, [{"title": t, "points": p, "clos": [{"clo_id": clo_ids[c], "weight": w} for c, w in m.items()]}
+                                         for t, p, m in items], user_id)
+    db.flush()
+    qids = [q.question_id for q in sorted(e.questions, key=lambda q: q.order_index)]
+    rows = []
+    for k, (sid,) in enumerate(db.execute(text("SELECT student_id FROM enrollments WHERE class_section_id=:c ORDER BY student_id"), {"c": cs.id})):
+        if k in (5, 21):
+            rows.append({"student_id": sid, "absent": True, "scores": {}}); continue
+        ab = rng.gauss(0.68, 0.18)
+        rows.append({"student_id": sid, "scores": {str(q): round(max(0, min(p, p * (ab + rng.gauss(0, 0.12)))) * 4) / 4
+                                                   for q, (_, p, _m) in zip(qids, items)}})
+    manual.save_grades(db, e, rows)
+    results.analyze_exam(db, e.id)
+    return cs.section_code
 
 
 # ------------------------------------------------------------------ mô phỏng bài làm (mô hình IRT 2 tham số)
@@ -191,6 +241,8 @@ def simulate_moodle() -> None:
         cur.execute("INSERT INTO mdl_question (id,name,questiontext,generalfeedback,qtype,stamp) VALUES (%s,%s,%s,'','multichoice',%s)",
                     (mq, f"QB-{q.id}", q.content, f"st{mq}"))
         cur.execute("INSERT INTO mdl_question_versions (questionbankentryid, version, questionid, status) VALUES (%s,1,%s,'ready')", (be, mq))
+        cur.execute("INSERT INTO mdl_qtype_multichoice_options (questionid, single, correctfeedback, partiallycorrectfeedback, incorrectfeedback) "
+                    "VALUES (%s,1,'','','')", (mq,))
         ids = []
         for o in sorted(q.options, key=lambda o: o.position):
             cur.execute("INSERT INTO mdl_question_answers (id, question, answer, fraction, feedback) VALUES (%s,%s,%s,%s,'')",

@@ -109,6 +109,8 @@ def create_offlinequiz(exam_id: int, body: CreateOfflineQuizIn, u: User = Depend
     e = get_exam_for(db, u, exam_id)
     if e.exam_type != "paper":
         raise HTTPException(422, "Chỉ bài thi giấy mới tạo Offline Quiz")
+    if e.versions and not e.moodle_offlinequiz_id:
+        raise HTTPException(409, "Bài đã sinh mã đề để in và chấm trên hệ thống – xóa các mã đề đó trước nếu muốn dùng Moodle Offline Quiz")
     if not e.questions:
         raise HTTPException(422, "Vui lòng chọn ít nhất 1 câu hỏi")
     if e.moodle_offlinequiz_id:

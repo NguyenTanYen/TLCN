@@ -84,8 +84,9 @@ def test_http_errors_and_inputs(client, gv, admin):
     assert client.delete("/api/pi-plans/987654", headers=admin).status_code == 404
     assert client.get("/api/pi-plans?program_id=999", headers=admin).status_code == 404
     clo = q("SELECT clo_code FROM clos WHERE course_id=:c LIMIT 1", c=COURSE)[0][0]
-    r = client.post("/api/clos", headers=gv, json={"course_id": COURSE, "clo_code": clo, "description": "Trùng mã"})
+    r = client.post("/api/clos", headers=admin, json={"course_id": COURSE, "clo_code": clo, "description": "Trùng mã"})
     assert r.status_code == 409
+    assert client.post("/api/clos", headers=gv, json={"course_id": COURSE, "clo_code": "CLO9", "description": "GV không được thêm"}).status_code == 403
     r = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "x" * 300, "items": [{"question_id": 1, "points": 1}]})
     assert r.status_code == 422
     # Tên tệp tải về: ASCII an toàn + filename* UTF-8

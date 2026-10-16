@@ -3,22 +3,25 @@ import { Bar } from 'react-chartjs-2'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Card, Field, Loading, Modal, Stat } from '../components/ui'
-import { useApi, useDefaultYear } from '../hooks'
+import { useApi, useDefaultYear, useProgram } from '../hooks'
+import { ProgramPicker } from '../components/ui'
 
 export default function PloSummary() {
   const { years, year, setYear } = useDefaultYear()
-  const sum = useApi(year ? `/api/reports/programs/1/plo-summary?academic_year=${year}` : null)
+  const pg = useProgram()
+  const sum = useApi(year && pg.pid ? `/api/reports/programs/${pg.pid}/plo-summary?academic_year=${year}` : null)
   const [edit, setEdit] = useState(null)
   const s = sum.data
   const measured = s?.plos.filter(p => p.n_evaluated) || []
   return (
     <>
       <div className="page-h"><div><h1>Tổng hợp đo lường CĐR CTĐT</h1><p className="muted">UC-07 · BM3c (kết quả từng PLO = cộng dồn các PI) và BM2 (tổng kết chương trình = Σ đạt / Σ đánh giá).</p></div>
-        <div className="row gap">
+        <div className="row gap wrap">
+          <ProgramPicker {...pg} />
           <Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
-          <ActionButton className="btn" okMsg="Đã tính lại" onRun={async () => { await api.post('/api/reports/programs/1/recompute'); sum.reload() }}>Tính lại</ActionButton>
-          <ActionButton className="btn primary" disabled={!year} onRun={() => api.download(`/api/reports/programs/1/bm3.xlsx?academic_year=${year}`, 'BM2_BM3.xlsx')}>⬇ Xuất BM2/BM3 (.xlsx)</ActionButton>
-          <ActionButton className="btn" disabled={!year} onRun={() => api.download(`/api/reports/programs/1/bm2.docx?academic_year=${year}`, `BM2_${year}.docx`)}>⬇ Xuất BM2 (.docx)</ActionButton>
+          <ActionButton className="btn" okMsg="Đã tính lại" onRun={async () => { await api.post(`/api/reports/programs/${pg.pid}/recompute`); sum.reload() }}>Tính lại</ActionButton>
+          <ActionButton className="btn primary" disabled={!year} onRun={() => api.download(`/api/reports/programs/${pg.pid}/bm3.xlsx?academic_year=${year}`, 'BM2_BM3.xlsx')}>⬇ Xuất BM2/BM3 (.xlsx)</ActionButton>
+          <ActionButton className="btn" disabled={!year} onRun={() => api.download(`/api/reports/programs/${pg.pid}/bm2.docx?academic_year=${year}`, `BM2_${year}.docx`)}>⬇ Xuất BM2 (.docx)</ActionButton>
         </div></div>
       <Loading {...sum} />
       {s && <>
