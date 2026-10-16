@@ -199,7 +199,7 @@ def push_to_moodle(db, exam):
     MDL = f"{settings.moodle_db_name}.{settings.moodle_prefix}"
     with engine.connect() as c:
         row = c.execute(text(f"""SELECT e.published, COUNT(r.id), SUM(r.status='absent') FROM {MDL}local_clo_exam e
-                                 LEFT JOIN {MDL}local_clo_result r ON r.cloexamid=e.id WHERE e.examref=:x GROUP BY e.id"""),
+                                 LEFT JOIN {MDL}local_clo_result r ON r.cloexamid=e.id WHERE e.examref=:x GROUP BY e.id, e.published"""),
                         {"x": exam.id}).fetchone()
     report = {"da_gui": res["sent"], "moodle_da_luu": int(row[1]), "sv_vang": int(row[2] or 0), "cong_bo": bool(row[0]),
               "khong_tim_thay": res["notfound"], "thong_bao_da_gui": res["notified"]}

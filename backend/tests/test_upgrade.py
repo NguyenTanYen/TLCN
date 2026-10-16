@@ -20,7 +20,13 @@ def test_upgrade_old_database_adds_offlinequiz_column():
         oq = c.execute(text("SELECT moodle_offlinequiz_id FROM exams WHERE id=1")).scalar()
         c.execute(text("ALTER TABLE exams DROP CONSTRAINT ck_exam_paper"))
         c.execute(text("ALTER TABLE exams DROP INDEX uq_exam_moodle_oq, DROP COLUMN moodle_offlinequiz_id"))
+        c.execute(text("UPDATE question_bank SET bloom_level_id=2 WHERE bloom_level_id IS NULL"))
         c.execute(text("ALTER TABLE question_bank MODIFY bloom_level_id TINYINT NOT NULL"))
+        # bản trước 15/10: chưa có bài nhập điểm, chọn bài minh chứng, bài phụ đạo
+        c.execute(text("ALTER TABLE exams DROP CONSTRAINT ck_exam_type"))       # CSDL cũ: ràng buộc chưa có 'manual' (giả lập: bỏ hẳn)
+        c.execute(text("ALTER TABLE exams DROP FOREIGN KEY fk_exam_parent"))
+        c.execute(text("ALTER TABLE exams DROP COLUMN target_students, DROP COLUMN parent_exam_id, DROP COLUMN counts_for_clo"))
+        c.execute(text("ALTER TABLE courses DROP COLUMN description"))
         # bảng phân công phiên bản cũ: khóa chính (học kỳ, môn, GV) – không ghi được môn TLCN/KLTN "tất cả GV hướng dẫn"
         n_old = c.execute(text("SELECT COUNT(*) FROM assessment_assignments WHERE all_supervisors=0")).scalar()
         c.execute(text("CREATE TABLE aa_bak AS SELECT semester_id, course_id, lecturer_id, note FROM assessment_assignments WHERE all_supervisors=0"))
@@ -38,6 +44,7 @@ def test_upgrade_old_database_adds_offlinequiz_column():
     assert "exams.moodle_offlinequiz_id" in done and "question_bank.bloom_level_id NULL" in done
     assert "tạo lại bảng exam_version_questions" in done and "tạo lại bảng exam_version_options" in done
     assert "assessment_assignments: phân công tất cả GV hướng dẫn" in done
+    assert {"exams.counts_for_clo", "exams.parent_exam_id", "exams.target_students", "exams.ck_exam_type", "courses.description"} <= set(done)
     with engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM assessment_assignments WHERE all_supervisors=0")).scalar() == n_old
         tl = c.execute(text("""SELECT co.course_code FROM assessment_assignments a JOIN courses co ON co.id=a.course_id

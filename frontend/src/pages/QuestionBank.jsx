@@ -3,6 +3,8 @@ import { api, auth } from '../api'
 import { ActionButton, Badge, Card, Field, Loading, Modal, diClass, pClass } from '../components/ui'
 import { useApi } from '../hooks'
 import { ImportQuestions, TagFromFile } from '../components/QuestionImport'
+import QSync from '../components/QSync'
+import { useSearchParams } from 'react-router-dom'
 
 export default function QuestionBank() {
   const sections = useApi('/api/class-sections').data
@@ -16,7 +18,8 @@ export default function QuestionBank() {
     const ids = new Set((sections || []).map(s => s.course_id))
     return courses.filter(c => ids.has(c.id))
   }, [courses, sections, isAdmin])
-  const [courseId, setCourseId] = useState(null)
+  const [sp] = useSearchParams()
+  const [courseId, setCourseId] = useState(Number(sp.get('course')) || null)
   useEffect(() => {
     if (courseId || !myCourses?.length || !sections) return
     setCourseId(sections[0]?.course_id ?? myCourses[0].id)
@@ -36,6 +39,7 @@ export default function QuestionBank() {
       <div className="page-h">
         <div><h1>Ngân hàng câu hỏi</h1><p className="muted">UC-01 · Mỗi câu hỏi gắn chương, mức Bloom và một/nhiều CLO có trọng số (tổng = 1).</p></div>
         <div className="row gap wrap">
+          <button className="btn" disabled={!course} onClick={() => setDlg('qsync')} title="Đẩy câu lên Moodle, lấy câu sửa/soạn trên Moodle về">⇅ Đồng bộ với Moodle</button>
           <button className="btn" disabled={!course} onClick={() => setDlg('import')}>⬆ Nhập câu hỏi từ file</button>
           <button className="btn" disabled={!course} onClick={() => setDlg('tag')}>Gán CLO/Bloom từ file{nUntagged > 0 && <Badge tone="amber">{nUntagged} chưa gán</Badge>}</button>
           <button className="btn primary" disabled={!course} onClick={() => setEdit({})}>+ Thêm câu hỏi</button>
@@ -77,6 +81,7 @@ export default function QuestionBank() {
         </table>
       </Card>
       {dlg === 'import' && course && <ImportQuestions course={course} onClose={() => setDlg(null)} onDone={reloadAll} />}
+      {dlg === 'qsync' && courseId && <QSync courseId={courseId} onClose={() => setDlg(null)} onDone={reloadAll} />}
       {dlg === 'tag' && course && <TagFromFile course={course} untagged={nUntagged} onClose={() => setDlg(null)} onDone={reloadAll} />}
       {edit && course && <QuestionForm q={edit} course={course} bloom={bloom || []} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reloadAll() }} />}
     </>

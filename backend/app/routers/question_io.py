@@ -316,7 +316,7 @@ async def tagging_import(course_id: int, dry_run: bool = True, file: UploadFile 
         db.commit()
     for r in out:
         r.pop("_new", None)
-    after_untagged = db.execute(text("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.is_cancelled=0 AND
+    after_untagged = db.execute(text("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.question_type='multichoice' AND q.is_cancelled=0 AND
                                          (q.bloom_level_id IS NULL OR NOT EXISTS (SELECT 1 FROM question_clo_mapping m WHERE m.question_id=q.id))"""),
                                 {"c": course_id}).scalar()
     return {"dry_run": dry_run, "rows": out,

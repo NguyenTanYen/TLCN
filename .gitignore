@@ -48,3 +48,6 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+docs/kiem_thu/ghi_api.json
+docs/kiem_thu/junit.xml
+docs/screenshots/_tmp/

@@ -33,7 +33,7 @@ export default function Sections() {
 }
 
 // Khóa học trên Moodle (GV là giảng viên của khóa) chưa có lớp HP trong hệ thống → đưa vào bằng một thao tác.
-function MoodleCourses({ onImported }) {
+export function MoodleCourses({ onImported }) {
   const isAdmin = auth.user()?.role === 'admin'
   const mc = useApi('/api/moodle/my-courses')
   const [sp, setSp] = useSearchParams()
@@ -73,13 +73,13 @@ function ImportForm({ c, isAdmin, onClose, onDone }) {
     const sem = f.semester_id === 'new' ? { semester_id: null, new_semester: { academic_year: s.new_semester.academic_year, term: s.new_semester.term } } : { semester_id: Number(f.semester_id) }
     const r = await api.post(`/api/moodle/courses/${c.moodle_course_id}/import`, { course_id, ...sem,
       section_code: f.section_code, lecturer_id: isAdmin ? Number(f.lecturer_id) : null })
-    onDone(); nav(`/courses?course=${course_id}`)
+    onDone(); nav(`/courses/${course_id}`)
     return r
   }
   const noCourse = !s.course_id && !f.course_id
   return <Modal title={`Đưa khóa học Moodle "${c.shortname}" vào hệ thống`} onClose={onClose}>
     <p className="muted small">{c.fullname} · {c.n_students} SV đang ghi danh sẽ được đưa vào danh sách lớp.</p>
-    {!nw && <Field label="Môn học" hint={noCourse ? 'Không tìm thấy môn có mã trùng tên khóa học – chọn môn, hoặc ' + (isAdmin ? 'tạo môn mới.' : 'nhờ Bộ môn thêm môn học (Học phần & CLO → + Môn học mới).') : undefined}>
+    {!nw && <Field label="Môn học" hint={noCourse ? 'Không tìm thấy môn có mã trùng tên khóa học – chọn môn, hoặc ' + (isAdmin ? 'tạo môn mới.' : 'nhờ Bộ môn thêm môn học (menu Học phần → + Học phần mới).') : undefined}>
       <select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value })}><option value="">— chọn môn học —</option>
         {courses.data?.map(x => <option key={x.id} value={x.id}>{x.course_code} – {x.course_name}</option>)}</select></Field>}
     {isAdmin && !nw && <button type="button" className="btn sm ghost" onClick={() => setNw({ course_code: (c.shortname || '').split(/[_\s-]/)[0], course_name: (c.fullname || '').split(' – ')[0], credits: 3 })}>+ Môn học mới</button>}

@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
 import { api, fmtPct } from '../api'
 import { Achieved, ActionButton, Card, Field, Loading, Modal } from '../components/ui'
-import { useApi, useDefaultYear } from '../hooks'
+import { useApi, useDefaultYear, useProgram } from '../hooks'
+import { ProgramPicker } from '../components/ui'
 
 export default function PiPlans() {
   const { sems, years, year, setYear, latestSemesterId } = useDefaultYear()
-  const plans = useApi(year ? `/api/pi-plans?academic_year=${year}` : null)
+  const pg = useProgram()
+  const plans = useApi(year && pg.pid ? `/api/pi-plans?academic_year=${year}&program_id=${pg.pid}` : null)
   const assigns = useApi('/api/assignments')
   const [form, setForm] = useState(null)
   const [aForm, setAForm] = useState(false)
   return (
     <>
       <div className="page-h"><div><h1>Kế hoạch đo lường PI (BM3b)</h1><p className="muted">Mỗi PI của CĐR được đo tại một môn học, trong học kỳ xác định, do GV phụ trách, lấy minh chứng từ các CLO của môn.</p></div>
-        <div className="row gap"><Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
+        <div className="row gap wrap"><ProgramPicker {...pg} /><Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
           <button className="btn primary" onClick={() => setForm({})}>+ Thêm kế hoạch</button></div></div>
       <Card title={`Kế hoạch năm học ${year}`}>
         <Loading {...plans} />
@@ -34,7 +36,7 @@ export default function PiPlans() {
         <p className="muted small">Môn tiểu luận chuyên ngành, khóa luận tốt nghiệp… không có GV phụ trách riêng: chọn "Tất cả thầy/cô có hướng dẫn".</p>
       </Card>
       {aForm && <AssignForm sems={sems || []} defSem={latestSemesterId} onClose={() => setAForm(false)} onSaved={() => { setAForm(false); assigns.reload() }} />}
-      {form && <PlanForm plan={form} sems={sems || []} defSem={latestSemesterId} onClose={() => setForm(null)} onSaved={() => { setForm(null); plans.reload() }} />}
+      {form && <PlanForm plan={form} sems={sems || []} defSem={latestSemesterId} pid={pg.pid} onClose={() => setForm(null)} onSaved={() => { setForm(null); plans.reload() }} />}
     </>
   )
 }
@@ -60,8 +62,8 @@ function AssignForm({ sems, defSem, onClose, onSaved }) {
   </Modal>
 }
 
-function PlanForm({ plan, sems, defSem, onClose, onSaved }) {
-  const prog = useApi('/api/programs/1').data
+function PlanForm({ plan, sems, defSem, pid, onClose, onSaved }) {
+  const prog = useApi(`/api/programs/${pid}`).data
   const courses = useApi('/api/courses').data
   const lecturers = useApi('/api/lecturers').data
   const [f, setF] = useState({ pi_id: plan.pi_id || '', course_id: plan.course_id || '', semester_id: plan.semester_id || defSem || '', method: plan.method || 'Bài thi trắc nghiệm (Moodle/giấy)',

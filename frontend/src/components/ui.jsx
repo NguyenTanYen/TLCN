@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 export function Card({ title, actions, children, className = '' }) {
   return (
@@ -91,4 +92,22 @@ export function pClass(p) {
 export function diClass(di) {
   if (di === null || di === undefined) return ''
   di = Number(di); return di < 0 ? 'bad' : di < 0.2 ? 'warn' : di < 0.3 ? 'mid' : 'ok'
+}
+
+// Chọn CTĐT đang làm việc (dùng với useProgram())
+export function ProgramPicker({ programs, pid, setPid }) {
+  return <Field label="Chương trình đào tạo"><select value={pid || ''} onChange={e => setPid(e.target.value)}>
+    {programs?.map(p => <option key={p.id} value={p.id}>{p.code} – {p.name}{p.cohort_year ? ` (khóa ${p.cohort_year})` : ''}</option>)}</select></Field>
+}
+
+// Đường dẫn phân cấp trên đầu trang: [['/', 'Môn học'], [null, 'DBMS330284_01']]
+export function Crumbs({ items }) {
+  return <nav className="crumb" aria-label="Đường dẫn">{items.filter(Boolean).map(([to, label], i) => <span key={i}>{i > 0 && <span className="sep"> › </span>}
+    {to ? <Link to={to}>{label}</Link> : <span>{label}</span>}</span>)}</nav>
+}
+
+// Thẻ chọn nhanh (tab) đồng bộ với ?tab= trên địa chỉ trang
+export function Tabs({ tabs, value, onChange }) {
+  return <div className="tabs" role="tablist">{tabs.filter(Boolean).map(([k, l, dis]) =>
+    <button key={k} role="tab" aria-selected={value === k} className={value === k ? 'on' : ''} disabled={dis} onClick={() => onChange(k)}>{l}</button>)}</div>
 }

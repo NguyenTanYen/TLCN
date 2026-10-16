@@ -170,3 +170,9 @@ def course_roster(db: Session, course_id: int) -> list[dict]:
         JOIN {_t('role_assignments')} ra ON ra.contextid = cx.id AND ra.userid = u.id
         JOIN {_t('role')} r ON r.id = ra.roleid AND r.shortname = 'student'
         WHERE en.courseid = :c AND en.status = 0"""), {"c": course_id}).mappings()]
+
+
+def find_course_by_code(db: Session, code: str) -> list[int]:
+    """Khóa học Moodle có tên rút gọn (shortname) hoặc mã khóa học (idnumber) trùng mã lớp học phần."""
+    return [int(r[0]) for r in db.execute(text(f"""SELECT id FROM {_t('course')} WHERE id<>1 AND (shortname=:c OR idnumber=:c)
+                                                    ORDER BY id"""), {"c": code.strip()})]

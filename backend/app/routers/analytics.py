@@ -45,13 +45,15 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
     for s in conv:
         bins[min(9, int(s / float(e.max_score) * 10))] += 1
     n_abs = db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='absent'"), {"e": exam_id}).scalar()
-    corr = pd.DataFrame(db.execute(text("""SELECT r.attempt_id, r.question_id, r.is_correct FROM item_level_results r
+    corr = pd.DataFrame(db.execute(text("""SELECT r.attempt_id, r.question_id, r.is_correct, r.score_earned FROM item_level_results r
         JOIN exam_attempts a ON a.id = r.attempt_id JOIN question_bank q ON q.id = r.question_id
         WHERE a.exam_id = :e AND a.status = 'finished' AND q.is_cancelled = 0"""), {"e": exam_id}).fetchall(),
-        columns=["attempt_id", "question_id", "is_correct"])
+        columns=["attempt_id", "question_id", "is_correct", "score_earned"])
     if not corr.empty:
         corr["is_correct"] = corr.is_correct.astype(int)
-    return {"n_students": len(conv), "n_absent": n_abs, "max_score": float(e.max_score), "kr20": analysis.kr20(corr),
+    rel = analysis.cronbach_alpha(corr) if e.exam_type == "manual" else analysis.kr20(corr)
+    return {"n_students": len(conv), "n_absent": n_abs, "max_score": float(e.max_score), "kr20": rel,
+            "reliability": "Cronbach alpha" if e.exam_type == "manual" else "KR-20", "exam_type": e.exam_type,
             "mean": round(sum(conv) / len(conv), 2) if conv else None,
             "min": min(conv) if conv else None, "max": max(conv) if conv else None,
             "pass_rate": round(100 * sum(1 for s in conv if s >= float(e.max_score) / 2) / len(conv), 2) if conv else None,

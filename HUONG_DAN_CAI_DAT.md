@@ -38,13 +38,14 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 | Bước | Tệp | Việc làm |
 |---|---|---|
 | 0 | `0_CAU_HINH.bat` | (Không cần chạy, không cần sửa) **tự dò** XAMPP (Registry, ổ đĩa chứa dự án, rồi `C:`…`F:\xampp`) và chọn XAMPP có **Moodle 4.5** trong `htdocs\moodle45` hoặc `htdocs\moodle` (bỏ qua Moodle cũ hơn); PHP = `<XAMPP>\php\php.exe`, cổng 8000; lần đầu tự tạo `backend\cau_hinh.env` từ `cau_hinh.env.example`. Moodle/XAMPP đặt ở chỗ khác: chép `0_CAU_HINH_MAY.example.bat` thành `0_CAU_HINH_MAY.bat` rồi khai báo `MOODLE_DIR`, `PHP_BIN`, `APP_PORT` (tệp này không đưa lên Git) |
-| 1 | `1_CAI_DAT_PYTHON.bat` | Tạo `.venv`, cài thư viện Python (chạy 1 lần, cần Internet) |
-| 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (39 bảng), dữ liệu minh họa, cài cầu nối đọc `moodle_db` |
-| 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
+| 1 | `1_CAI_DAT_PYTHON.bat` | Tạo `.venv`, cài thư viện Python (chạy 1 lần, cần Internet). **Bản 15/10 thêm thư viện mới** (reportlab – xuất đề/phiếu PDF, opencv – chấm phiếu bằng ảnh): chạy lại bước này một lần |
+| 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (39 bảng), CTĐT CNTT 2026 + KTDL 2026, dữ liệu minh họa, cài cầu nối đọc `moodle_db`. CSDL cũ **không cần tạo lại**: bước 5 tự thêm cột mới và nạp 2 CTĐT |
+| 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | (Bản 15/10: chạy lại để cập nhật plugin `local_clo` 1.3 – Web Service đồng bộ câu hỏi 2 chiều) Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
 | 4 | `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat` | *(Tùy chọn)* tạo khóa học + 40 SV; Quiz có bài làm thật; **bài giấy 2 mã đề: 38 phiếu tô sẵn được Moodle nhận diện & chấm**; đồng bộ, phân tích, công bố |
 | 5 | `5_CHAY_HE_THONG.bat` | Chạy hệ thống tại http://localhost:8000 (giữ cửa sổ mở; chạy lại sau bước 3) |
-| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* chạy 77 ca kiểm thử tự động – kiểm thử **dựng lại `assessment_db`**, chạy xong hãy chạy lại bước 4 để có lại dữ liệu demo |
-| 7 | `7_DON_DEP_GIT.bat` | *(Khi dùng GitHub)* bỏ `.venv`, `__pycache__`, `cau_hinh.env`, `0_CAU_HINH_MAY.bat` (mật khẩu, token, đường dẫn riêng) khỏi Git theo `.gitignore`, commit và đẩy lên |
+| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* **kiểm thử toàn bộ chức năng**: 92 ca kiểm thử tự động (gọi đủ 126/126 API), kiểm tra độ bền chấm phiếu và xuất bảng kết quả `docs\kiem_thu\KET_QUA_KIEM_THU.xlsx` (kèm danh sách ca kiểm thử giao diện để điền khi trình diễn) – kiểm thử **dựng lại `assessment_db`**, chạy xong hãy chạy lại bước 4 để có lại dữ liệu demo |
+| 7 | `7_DON_DEP_GIT.bat` | *(Khi dùng GitHub)* **đẩy đồ án lên nhánh `Tanyen`** (không đụng nhánh `main`): bỏ các tệp cũ không còn dùng, bỏ `.venv`, `__pycache__`, `cau_hinh.env`, `0_CAU_HINH_MAY.bat` (mật khẩu, token, đường dẫn riêng) theo `.gitignore`; chuyển sang nhánh `Tanyen` (tạo mới nếu chưa có), commit, hỏi xác nhận rồi `git push -u origin Tanyen` |
+| 8 | `8_CAP_NHAT_TU_GITHUB.bat` | *(Khi làm nhóm qua GitHub)* **lấy bản mới nhất của nhánh đang dùng** (ví dụ `Tanyen`) từ GitHub về máy (`git fetch` + `git rebase`), tạm cất rồi trả lại các chỉnh sửa chưa đẩy lên; không đụng `.venv`, `cau_hinh.env`, CSDL |
 | – | `tools\KIEM_TRA_DO_LUONG.bat` | *(Tùy chọn)* tính lại độc lập p, DI, mức đạt CLO, BM6b, PI, PLO, CTĐT từ dữ liệu bài làm và so với số liệu hệ thống (kết quả mong đợi: 0 sai lệch) |
 
 Có thể làm bước 2 bằng HeidiSQL: chạy (F9) lần lượt `database\heidisql\1_tao_csdl_assessment_db.sql`
@@ -95,6 +96,25 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
    hồ sơ: điểm, xếp hạng, radar CLO, chẩn đoán, **các chương cần học lại** và từng câu trả lời đúng/sai.
 6. Tạo đề mới trong hệ thống → **Tạo Quiz trên Moodle** → Quiz xuất hiện ngay trong khóa học.
 
+## Chức năng mới theo góp ý 15/10
+
+1. **Chương trình đào tạo** (menu trên): CNTT 2026, KTDL 2026 – PLO/PI, học phần theo học kỳ, ma trận học phần – PI.
+   Bấm một học phần → **Đề cương chi tiết** (thông tin chung, mô tả, tiên quyết, CLO – PLO, PI đáp ứng, chương, kế hoạch BM6a); nút *In đề cương*.
+2. **Môn học của tôi** (trang chính của GV): mỗi môn hiện các lớp GV dạy; *⟳ Đồng bộ các lớp với Moodle* tự gắn lớp với khóa học Moodle
+   **trùng mã lớp** và cập nhật SV. Trong lớp: *Khóa học Moodle #… ↗* mở thẳng Moodle; trên Moodle nút *Phân tích CĐR* mở đúng lớp.
+3. Bài kiểm tra → **⧉ Dùng đề cho lớp khác**: sao đề sang các lớp khác cùng môn và tạo Quiz trên Moodle cho từng lớp.
+4. **Nhập điểm**: Lớp → *+ Tạo bài kiểm tra* → *Nhập điểm* → khai báo câu/ý, điểm tối đa, CLO → nhập trên lưới, hoặc *Bảng điểm mẫu (Excel)* → điền → *Nhập từ Excel*.
+   Bài làm ngoài hệ thống: tab *Tạo từ file Excel có sẵn* (tiêu đề cột kiểu `Bài 1 (5đ) [CLO3]`; thiếu điểm/CLO thì chọn ở bước xem trước).
+5. **Gộp bài KT**: trang môn học → *Gộp bài KT đánh giá CĐR* → chọn 2–3 bài (có thể khác lớp) → *Phân tích gộp* → CLO, PLO/PI từng CTĐT → *Xuất Excel*.
+   Cột *Minh chứng BM6* chọn bài nào được tính vào BM6/PI/PLO của lớp.
+6. **Phụ đạo**: Lớp → *Phụ đạo (câu sai)* → số câu sai từng SV → bấm SV xem câu sai → *Tạo bài phụ đạo* (câu đã sai + câu tương tự cùng CLO).
+7. **Đề giấy trên hệ thống**: bài *Trên giấy* → *In và chấm ngay trên hệ thống* → (1) sinh mã đề → (2) xem trước đề **1 cột hoặc chia 2 cột**,
+   sửa câu tại chỗ (✎), xuất PDF/Word/đáp án/trọn bộ .zip → (3) xem trước và chỉnh **phiếu trả lời** (số chữ số MSSV, phần tự luận) → in →
+   (4) *Chấm phiếu*: tải ảnh quét/PDF hoặc **chụp bằng điện thoại** → soát MSSV, mã đề, đáp án (ô vàng: tô 2 ô/bỏ trống) → *Lưu & phân tích*.
+   Vẫn có thể chọn *Dùng Moodle Offline Quiz* như trước.
+8. **Ngân hàng câu hỏi → ⇅ Đồng bộ với Moodle**: so sánh từng câu (QB-n) với ngân hàng câu hỏi khóa học Moodle → đẩy lên (Moodle tạo phiên bản mới),
+   lấy về câu sửa trên Moodle, nhập câu GV soạn trên Moodle.
+
 ## Khai báo một học phần mới (môn khác) và gán CLO
 
 **Khóa học đã tạo sẵn trên Moodle** (cách nhanh nhất): quản trị Moodle tạo khóa học và ghi danh GV với vai trò
@@ -104,20 +124,19 @@ tự tạo học kỳ mới nếu chưa có), mã lớp → hệ thống tạo l
 Bấm nút *Phân tích CĐR* trong khóa học đó trên Moodle cũng mở thẳng hộp thoại này. Môn học chưa có thì Bộ môn
 (`admin`) làm thao tác trên (chọn GV, tạo môn mới ngay trong hộp thoại). SV ghi danh thêm sau: nút **↻ SV**.
 
-Trang **Học phần & CLO** (menu trái) có *bảng kiểm tra 5 bước*; làm lần lượt đến khi hiện "Học phần đã sẵn sàng".
+Trang học phần, tab **Khai báo (Bộ môn)** có *bảng kiểm tra 5 bước*; làm lần lượt đến khi hiện "Học phần đã sẵn sàng".
 
 | Bước | Ai làm | Làm ở đâu |
 |---|---|---|
-| 1. Môn học (nếu chưa có): mã, tên, số tín chỉ, chỉ tiêu đạt CĐR môn | **Bộ môn** (`admin`) | Học phần & CLO → *+ Môn học mới* |
-| 2. Lớp học phần: học kỳ, mã lớp, **GV phụ trách** | **Bộ môn** | Học phần & CLO → *+ Lớp HP* |
-| 3. Các chương của đề cương (thêm từng chương hoặc dán nhiều dòng "1. Tên chương") | GV phụ trách hoặc Bộ môn | Học phần & CLO → *Đề cương* |
-| 4. CLO: mã, nội dung, mức Bloom mục tiêu, PLO đóng góp + mức I/R/M | GV phụ trách hoặc Bộ môn | Học phần & CLO → *+ CLO* |
+| 1. Môn học (nếu chưa có): mã, tên, số tín chỉ, chỉ tiêu đạt CĐR môn | **Bộ môn** (`admin`) | Học phần & đề cương → *+ Học phần mới* |
+| 2. Lớp học phần: học kỳ, mã lớp, **GV phụ trách** | **Bộ môn** | trang học phần → tab *Lớp học phần* → *+ Lớp HP* |
+| 3. Các chương của đề cương (thêm từng chương hoặc dán nhiều dòng "1. Tên chương") | **Bộ môn** | Học phần & đề cương → học phần → *Khai báo (Bộ môn)* |
+| 4. CLO: mã, nội dung, mức Bloom mục tiêu, PLO đóng góp (theo các CTĐT có học phần) + mức I/R/M | **Bộ môn** | như trên → *+ CLO* |
 | 5. Kế hoạch BM6a (ngưỡng đạt, chỉ tiêu, loại minh chứng) – không bắt buộc | GV | nút *BM6a* của lớp |
 | 6. Câu hỏi + gán chương/Bloom/CLO (file mẫu, cột CLO dạng `CLO2:0.6; CLO4:0.4`) | GV | Ngân hàng câu hỏi |
 | 7. Ra đề theo ma trận → nhập **ID khóa học Moodle** khi tạo Quiz/đề giấy lần đầu | GV | Lớp học phần → Tạo bài kiểm tra |
 
-**Phân quyền:** GV *không* tạo được môn học, *không* tạo tay lớp HP (403) – chỉ được đưa vào khóa học Moodle mà mình là giảng viên, gắn với môn đã có. GV chỉ sửa chương/CLO của môn mình
-có lớp phụ trách. **Khóa học Moodle** do quản trị Moodle tạo và ghi danh GV với vai trò *Teacher/Non-editing teacher*;
+**Phân quyền:** GV *không* tạo được môn học, *không* tạo tay lớp HP (403) – chỉ được đưa vào khóa học Moodle mà mình là giảng viên, gắn với môn đã có. Chương, CLO, thông tin học phần do **Bộ môn** quản lý theo CTĐT – GV chỉ xem (góp ý 15/10). **Khóa học Moodle** do quản trị Moodle tạo và ghi danh GV với vai trò *Teacher/Non-editing teacher*;
 hệ thống chỉ cho GV gắn lớp HP với khóa học Moodle mà GV đó là giảng viên (tên đăng nhập Moodle trùng tên đăng nhập hệ thống),
 mỗi khóa học chỉ gắn một lớp HP. Chương/CLO đã có câu hỏi hoặc kết quả, lớp HP đã có bài KT thì không xóa được (409).
 

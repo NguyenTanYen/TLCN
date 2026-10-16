@@ -1,0 +1,11 @@
+# Chuẩn hóa xuống dòng: tệp .bat luôn CRLF khi checkout (cmd.exe cần CRLF để nhảy nhãn đúng), tệp nhị phân không bị đổi
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh  text eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
+*.xlsx binary
+*.docx binary

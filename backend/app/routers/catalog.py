@@ -39,28 +39,6 @@ def lecturers(db: Session = Depends(get_db), _=Depends(current_user)):
 
 
 # ------------------------------------------------------------------ CTĐT, PLO, PI
-@router.get("/programs")
-def programs(db: Session = Depends(get_db), _=Depends(current_user)):
-    return rows(db, "SELECT * FROM programs ORDER BY code")
-
-
-@router.get("/programs/{pid}")
-def program_detail(pid: int, db: Session = Depends(get_db), _=Depends(current_user)):
-    prog = db.get(Program, pid)
-    if not prog:
-        raise HTTPException(404, "Không tìm thấy CTĐT")
-    plos = rows(db, "SELECT * FROM plos WHERE program_id=:p ORDER BY plo_code", p=pid)
-    pis = rows(db, """SELECT pi.*, (SELECT GROUP_CONCAT(c.course_code) FROM pi_courses pc JOIN courses c ON c.id=pc.course_id
-                                     WHERE pc.pi_id=pi.id) AS courses
-                      FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id WHERE p.program_id=:p ORDER BY pi.pi_code""", p=pid)
-    mplans = rows(db, "SELECT m.* FROM plo_measurement_plans m JOIN plos p ON p.id=m.plo_id WHERE p.program_id=:p", p=pid)
-    for p in plos:
-        p["pis"] = [x for x in pis if x["plo_id"] == p["id"]]
-        p["measurement_plans"] = sorted([m for m in mplans if m["plo_id"] == p["id"]], key=lambda m: m["round_no"])
-    return {"id": prog.id, "code": prog.code, "name": prog.name, "department": prog.department,
-            "target_pct": float(prog.target_pct), "plos": plos}
-
-
 @router.put("/plos/{plo_id}")
 def update_plo(plo_id: int, body: PLOIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     plo = db.get(PLO, plo_id)
@@ -188,8 +166,11 @@ def delete_assignment(aid: int, db: Session = Depends(get_db), _=Depends(require
 
 # ------------------------------------------------------------------ Môn học & CLO
 @router.get("/courses")
-def courses(db: Session = Depends(get_db), _=Depends(current_user)):
-    return rows(db, "SELECT * FROM courses ORDER BY course_code")
+def courses(program_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+    return rows(db, """SELECT c.*, (SELECT GROUP_CONCAT(p.code ORDER BY p.code SEPARATOR ', ') FROM program_courses pc
+                                    JOIN programs p ON p.id=pc.program_id WHERE pc.course_id=c.id) AS programs
+                       FROM courses c WHERE :p IS NULL OR EXISTS (SELECT 1 FROM program_courses pc WHERE pc.course_id=c.id AND pc.program_id=:p)
+                       ORDER BY c.course_code""", p=program_id)
 
 
 @router.get("/courses/{cid}")
@@ -207,13 +188,17 @@ def course_detail(cid: int, semester_id: int | None = None, db: Session = Depend
         x["plos"] = [m for m in maps if m["clo_id"] == x["id"]]
         x["plan"] = next((p for p in plans if p["clo_id"] == x["id"]), None)
     return {"id": c.id, "course_code": c.course_code, "course_name": c.course_name, "credits": c.credits,
+            "credits_theory": c.credits_theory, "credits_practice": c.credits_practice, "course_structure": c.course_structure,
+            "prerequisites": c.prerequisites, "description": c.description,
             "clo_target_pct": float(c.clo_target_pct), "clos": clos,
             "outlines": rows(db, "SELECT * FROM course_outlines WHERE course_id=:c ORDER BY chapter_number", c=cid)}
 
 
 @router.post("/clos")
-def create_clo(body: CLOIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    check_course_access(db, u, body.course_id)
+def create_clo(body: CLOIn, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
+    """CLO do Bộ môn quản lý theo CTĐT – giảng viên chỉ xem (góp ý 15/10)."""
+    if not db.get(Course, body.course_id):
+        raise HTTPException(404, "Không tìm thấy môn học")
     if db.query(CLO).filter_by(course_id=body.course_id, clo_code=body.clo_code).first():
         raise HTTPException(409, f"Môn học đã có {body.clo_code}")
     for m in body.plos:
