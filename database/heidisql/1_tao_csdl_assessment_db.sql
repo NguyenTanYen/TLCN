@@ -1,5 +1,5 @@
 -- =============================================================
--- Chạy trong HeidiSQL (F9) – tạo CSDL assessment_db: 39 bảng + dữ liệu tham chiếu + CTĐT CNTT 2026, KTDL 2026
+-- Chạy trong HeidiSQL (F9) – tạo CSDL assessment_db: 46 bảng + dữ liệu tham chiếu + CTĐT CNTT 2026, KTDL 2026
 -- (tương đương lệnh: python -m app.cli init-db)
 -- =============================================================
 -- =====================================================================
@@ -17,15 +17,18 @@
 --   * BM6c/6d : Bảng minh chứng đo lường từ kết quả kiểm tra (1 hoặc nhiều bài KT)
 --   * Phân công đánh giá PIs theo học kỳ
 --
---  39 bảng, 7 nhóm:
+--  46 bảng, 7 nhóm:
 --   A. Người dùng & tổ chức      (4)  users, lecturers, students, semesters
 --   B. Chương trình & CĐR CTĐT   (6)  programs, plos, plo_measurement_plans,
 --                                     performance_indicators, program_courses, pi_courses
---   C. Học phần & CĐR môn học    (5)  courses, course_outlines, bloom_levels, clos, clo_plo_mapping
+--   C. Học phần & CĐR môn học    (11) courses, course_outlines, bloom_levels, clos, clo_plo_mapping,
+--                                     clo_pi_mapping, course_syllabi, syllabus_references,
+--                                     syllabus_assessments, syllabus_assessment_clos, outline_clos
 --   D. Kế hoạch đo lường         (4)  clo_assessment_plans, pi_assessment_plans,
 --                                     pi_plan_clos, assessment_assignments
---   E. Lớp học phần & ngân hàng  (5)  class_sections, enrollments,
---                                     question_bank, question_options, question_clo_mapping
+--   E. Lớp học phần & ngân hàng  (6)  class_sections, enrollments,
+--                                     question_bank, question_options, question_clo_mapping,
+--                                     question_moodle_links
 --   F. Đề thi                    (5)  exams, exam_questions, exam_versions,
 --                                     exam_version_questions, exam_version_options
 --   G. Kết quả & báo cáo         (10) exam_attempts, item_level_results, item_statistics,
@@ -43,9 +46,10 @@ DROP TABLE IF EXISTS sync_runs, learning_path_items, personalized_learning_paths
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
-  question_clo_mapping, question_options, question_bank, enrollments, class_sections,
+  question_moodle_links, question_clo_mapping, question_options, question_bank, enrollments, class_sections,
   assessment_assignments, pi_plan_clos, pi_assessment_plans, clo_assessment_plans,
-  clo_plo_mapping, clos, bloom_levels, course_outlines, courses,
+  outline_clos, syllabus_assessment_clos, syllabus_assessments, syllabus_references, course_syllabi,
+  clo_pi_mapping, clo_plo_mapping, clos, bloom_levels, course_outlines, courses,
   pi_courses, program_courses, performance_indicators, plo_measurement_plans, plos, programs,
   semesters, students, lecturers, users;
 SET FOREIGN_KEY_CHECKS = 1;
@@ -205,6 +209,10 @@ CREATE TABLE course_outlines (
   course_id       INT          NOT NULL,
   chapter_number  TINYINT      NOT NULL COMMENT 'Số thứ tự chương',
   chapter_name    VARCHAR(255) NOT NULL COMMENT 'Tên chương',
+  content             TEXT     NULL COMMENT 'Nội dung chi tiết của chương',
+  theory_hours        SMALLINT NULL COMMENT 'Số tiết lý thuyết',
+  practice_hours      SMALLINT NULL COMMENT 'Số tiết thực hành',
+  teaching_activities TEXT     NULL COMMENT 'Hoạt động dạy và học',
   CONSTRAINT fk_outline_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT uq_outline_chapter UNIQUE (course_id, chapter_number),
   CONSTRAINT ck_outline_chapter CHECK (chapter_number > 0)
@@ -238,6 +246,85 @@ CREATE TABLE clo_plo_mapping (
   CONSTRAINT fk_cpm_plo FOREIGN KEY (plo_id) REFERENCES plos(id) ON DELETE CASCADE,
   CONSTRAINT ck_cpm_level CHECK (level IN ('I','R','M'))
 ) ENGINE=InnoDB COMMENT='Ma trận đóng góp CLO – PLO';
+
+CREATE TABLE clo_pi_mapping (
+  clo_id  INT     NOT NULL,
+  pi_id   INT     NOT NULL,
+  level   CHAR(1) NOT NULL DEFAULT 'R' COMMENT 'I = Giới thiệu, R = Củng cố, M = Thành thạo',
+  PRIMARY KEY (clo_id, pi_id),
+  CONSTRAINT fk_cpi_clo FOREIGN KEY (clo_id) REFERENCES clos(id)                   ON DELETE CASCADE,
+  CONSTRAINT fk_cpi_pi  FOREIGN KEY (pi_id)  REFERENCES performance_indicators(id) ON DELETE RESTRICT,
+  CONSTRAINT ck_cpi_level CHECK (level IN ('I','R','M'))
+) ENGINE=InnoDB COMMENT='CLO đóng góp cho chỉ số PI nào của CĐR CTĐT (góp ý F2a); clo_plo_mapping được suy ra từ bảng này';
+CREATE INDEX ix_cpi_pi ON clo_pi_mapping (pi_id);
+
+-- Đề cương chi tiết học phần có phiên bản, Bộ môn soạn và duyệt; GV chỉ xem (góp ý F1).
+-- Tên, mã, số tín chỉ, cấu trúc, học phần tiên quyết và mô tả vắn tắt vẫn nằm ở bảng courses.
+CREATE TABLE course_syllabi (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  course_id             INT          NOT NULL,
+  version_no            SMALLINT     NOT NULL DEFAULT 1 COMMENT 'Phiên bản đề cương của môn',
+  english_name          VARCHAR(255) NULL     COMMENT 'Tên học phần tiếng Anh',
+  self_study_hours      SMALLINT     NULL     COMMENT 'Số giờ tự học',
+  objectives            TEXT         NULL     COMMENT 'Mục tiêu học phần',
+  teaching_methods      TEXT         NULL     COMMENT 'Phương pháp giảng dạy',
+  course_policy         TEXT         NULL     COMMENT 'Quy định của học phần',
+  status                VARCHAR(10)  NOT NULL DEFAULT 'draft' COMMENT 'draft = bản nháp, approved = đang áp dụng, archived = đã thay thế',
+  effective_semester_id INT          NULL     COMMENT 'Áp dụng từ học kỳ',
+  approved_by           INT          NULL,
+  approved_at           DATETIME     NULL,
+  updated_by            INT          NULL,
+  updated_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_syl_course   FOREIGN KEY (course_id)             REFERENCES courses(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_syl_semester FOREIGN KEY (effective_semester_id) REFERENCES semesters(id) ON DELETE SET NULL,
+  CONSTRAINT fk_syl_approver FOREIGN KEY (approved_by)           REFERENCES users(id)     ON DELETE SET NULL,
+  CONSTRAINT fk_syl_updater  FOREIGN KEY (updated_by)            REFERENCES users(id)     ON DELETE SET NULL,
+  CONSTRAINT uq_syl_version  UNIQUE (course_id, version_no),
+  CONSTRAINT ck_syl_status   CHECK (status IN ('draft','approved','archived')),
+  CONSTRAINT ck_syl_approved CHECK (status = 'draft' OR approved_at IS NOT NULL),
+  CONSTRAINT ck_syl_hours    CHECK (self_study_hours IS NULL OR self_study_hours >= 0)
+) ENGINE=InnoDB COMMENT='Đề cương chi tiết học phần – phiên bản, mục tiêu, phương pháp, quy định (góp ý F1)';
+
+CREATE TABLE syllabus_references (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  syllabus_id  INT         NOT NULL,
+  ref_type     VARCHAR(10) NOT NULL DEFAULT 'main' COMMENT 'main = giáo trình chính, extra = tài liệu tham khảo',
+  citation     TEXT        NOT NULL,
+  sort_order   SMALLINT    NOT NULL DEFAULT 1,
+  CONSTRAINT fk_ref_syllabus FOREIGN KEY (syllabus_id) REFERENCES course_syllabi(id) ON DELETE CASCADE,
+  CONSTRAINT ck_ref_type CHECK (ref_type IN ('main','extra'))
+) ENGINE=InnoDB COMMENT='Tài liệu học tập của đề cương';
+
+CREATE TABLE syllabus_assessments (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  syllabus_id     INT          NOT NULL,
+  component_code  VARCHAR(10)  NOT NULL COMMENT 'VD A1, A2, A3',
+  name            VARCHAR(255) NOT NULL COMMENT 'VD Kiểm tra giữa kỳ',
+  method          VARCHAR(150) NULL     COMMENT 'Hình thức: trắc nghiệm, tự luận, báo cáo ...',
+  timing          VARCHAR(100) NULL     COMMENT 'Thời điểm: tuần 8, cuối kỳ ...',
+  weight_pct      DECIMAL(5,2) NOT NULL COMMENT 'Tỷ lệ % trong điểm học phần',
+  sort_order      SMALLINT     NOT NULL DEFAULT 1,
+  CONSTRAINT fk_sas_syllabus FOREIGN KEY (syllabus_id) REFERENCES course_syllabi(id) ON DELETE CASCADE,
+  CONSTRAINT uq_sas_code   UNIQUE (syllabus_id, component_code),
+  CONSTRAINT ck_sas_weight CHECK (weight_pct > 0 AND weight_pct <= 100)
+) ENGINE=InnoDB COMMENT='Đánh giá học phần trong đề cương: thành phần, hình thức, tỷ trọng';
+
+CREATE TABLE syllabus_assessment_clos (
+  assessment_id  INT NOT NULL,
+  clo_id         INT NOT NULL,
+  PRIMARY KEY (assessment_id, clo_id),
+  CONSTRAINT fk_sac_assessment FOREIGN KEY (assessment_id) REFERENCES syllabus_assessments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sac_clo        FOREIGN KEY (clo_id)        REFERENCES clos(id)                 ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='CLO được đánh giá ở từng thành phần';
+
+CREATE TABLE outline_clos (
+  outline_id  INT NOT NULL,
+  clo_id      INT NOT NULL,
+  PRIMARY KEY (outline_id, clo_id),
+  CONSTRAINT fk_oc_outline FOREIGN KEY (outline_id) REFERENCES course_outlines(id) ON DELETE CASCADE,
+  CONSTRAINT fk_oc_clo     FOREIGN KEY (clo_id)     REFERENCES clos(id)            ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='CLO mà chương góp phần đạt được';
+
 
 -- =====================================================================
 -- D. KẾ HOẠCH ĐO LƯỜNG
@@ -377,6 +464,18 @@ CREATE TABLE question_clo_mapping (
   CONSTRAINT fk_qcm_clo      FOREIGN KEY (clo_id)      REFERENCES clos(id)          ON DELETE RESTRICT,
   CONSTRAINT ck_qcm_weight CHECK (weight > 0 AND weight <= 1)
 ) ENGINE=InnoDB COMMENT='Câu hỏi đo CLO nào (ma trận đề thi)';
+
+-- Đồng bộ câu hỏi hai chiều (góp ý F3): mỗi câu có thể nằm trong ngân hàng câu hỏi của nhiều khóa học Moodle (nhiều lớp HP).
+-- sync_hash = dấu vân tay nội dung + phương án lúc hai bên giống nhau lần cuối → biết bên nào đã sửa (hoặc cả hai = xung đột).
+CREATE TABLE question_moodle_links (
+  question_id         INT       NOT NULL,
+  moodle_course_id    BIGINT    NOT NULL COMMENT 'mdl_course.id',
+  moodle_question_id  BIGINT    NOT NULL COMMENT 'mdl_question.id của phiên bản đã đồng bộ',
+  sync_hash           CHAR(64)  NOT NULL COMMENT 'SHA-256 nội dung + phương án lúc hai bên giống nhau lần cuối',
+  synced_at           DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (question_id, moodle_course_id),
+  CONSTRAINT fk_qml_question FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Trạng thái đồng bộ của câu hỏi với ngân hàng câu hỏi của từng khóa học Moodle';
 
 -- =====================================================================
 -- F. ĐỀ THI

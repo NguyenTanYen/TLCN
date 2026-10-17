@@ -116,6 +116,28 @@ def seed_demo() -> None:
                 db.add(plan); db.flush()
                 for c in clos:
                     db.add(PIPlanCLO(plan_id=plan.id, clo_id=clo_ids[c]))
+    # --- CLO → PI (góp ý F2a): mỗi cặp CLO–PLO gắn với PI mà kế hoạch đo lấy CLO làm minh chứng (hoặc PI đầu tiên của PLO)
+    db.flush()
+    from .services.outcomes import backfill_clo_pi
+    backfill_clo_pi(db.connection(), course.id)
+    # --- đề cương chi tiết phiên bản 1 đã duyệt (góp ý F1): nội dung chương, đánh giá học phần, tài liệu
+    from .models import CourseSyllabus, SyllabusAssessment, SyllabusReference
+    clo_obj = {c.clo_code: c for c in db.query(CLO).filter_by(course_id=course.id)}
+    for o in db.query(CourseOutline).filter_by(course_id=course.id):
+        content, lt, th, act, cl = D.CHAPTER_DETAIL[o.chapter_number]
+        o.content, o.theory_hours, o.practice_hours, o.teaching_activities = content, lt, th, act
+        o.clos = [clo_obj[x] for x in cl]
+    syl = CourseSyllabus(course_id=course.id, version_no=1, status="approved", effective_semester_id=sem,
+                         approved_by=admin.id, approved_at=datetime(2024, 8, 15), updated_by=admin.id, **D.SYLLABUS)
+    for i, (code, name, method, timing, w, cl) in enumerate(D.SYL_ASSESS, 1):
+        syl.assessments.append(SyllabusAssessment(component_code=code, name=name, method=method, timing=timing, weight_pct=w,
+                                                  sort_order=i, clos=[clo_obj[x] for x in cl]))
+    for i, (t, cit) in enumerate(D.SYL_REFS, 1):
+        syl.references.append(SyllabusReference(ref_type=t, citation=cit, sort_order=i))
+    db.add(syl)
+    if not course.description:
+        course.description = ("Học phần trình bày kiến trúc và hoạt động của hệ quản trị CSDL SQL Server: lập trình T-SQL, trigger, "
+                              "giao tác và điều khiển đồng thời, chỉ mục và tối ưu truy vấn, bảo mật, sao lưu và phục hồi.")
     # --- lớp HP + sinh viên (mỗi SV có tài khoản: MSSV / Sv@123456)
     cs = ClassSection(course_id=course.id, semester_id=sem, lecturer_id=son.id, section_code="DBMS330284_01"); db.add(cs); db.flush()
     pw = hash_password("Sv@123456")

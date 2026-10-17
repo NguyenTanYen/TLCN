@@ -6,7 +6,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_clo';
-$plugin->version   = 2026101700;
-$plugin->release   = '1.3.1';
+$plugin->version   = 2026101800;
+$plugin->release   = '1.4.0';
 $plugin->requires  = 2024100700;   // Moodle 4.5
 $plugin->maturity  = MATURITY_STABLE;

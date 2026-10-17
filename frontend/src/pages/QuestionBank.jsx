@@ -25,14 +25,16 @@ export default function QuestionBank() {
     setCourseId(sections[0]?.course_id ?? myCourses[0].id)
   }, [sections, myCourses, courseId])
   const course = useApi(courseId ? `/api/courses/${courseId}` : null).data
-  const [flt, setFlt] = useState({ clo_id: '', outline_id: '', bloom_level_id: '', q: '', include_cancelled: false, untagged: false })
+  const [flt, setFlt] = useState({ plo_id: '', pi_id: '', clo_id: '', outline_id: '', bloom_level_id: '', q: '', include_cancelled: false, untagged: false })
+  const tree = useApi(courseId ? `/api/questions/tree?course_id=${courseId}` : null)   // góp ý F2a: cây PLO → PI → CLO → câu hỏi
+  const pick = (k, v) => setFlt(x => ({ ...x, plo_id: '', pi_id: '', clo_id: '', [k]: v }))
   const qs = new URLSearchParams(Object.entries({ course_id: courseId, ...flt }).filter(([, v]) => v !== '' && v !== false && v !== null)).toString()
   const list = useApi(courseId ? `/api/questions?${qs}` : null)
   const [edit, setEdit] = useState(null)
   const [dlg, setDlg] = useState(null)
   const untagged = useApi(courseId ? `/api/questions?course_id=${courseId}&untagged=true` : null)
   const nUntagged = untagged.data?.length || 0
-  const reloadAll = () => { list.reload(); untagged.reload() }
+  const reloadAll = () => { list.reload(); untagged.reload(); tree.reload() }
 
   return (
     <>
@@ -51,9 +53,9 @@ export default function QuestionBank() {
         <button className="btn sm primary" onClick={() => setDlg('tag')}>Gán từ file</button></div>}
       <Card>
         <div className="row gap wrap">
-          <Field label="Môn học"><select value={courseId || ''} onChange={e => { setCourseId(Number(e.target.value)); setFlt(x => ({ ...x, clo_id: '', outline_id: '' })) }}>
+          <Field label="Môn học"><select value={courseId || ''} onChange={e => { setCourseId(Number(e.target.value)); setFlt(x => ({ ...x, plo_id: '', pi_id: '', clo_id: '', outline_id: '' })) }}>
             {myCourses?.map(c => <option key={c.id} value={c.id}>{c.course_code} – {c.course_name}</option>)}</select></Field>
-          <Field label="CLO"><select value={flt.clo_id} onChange={e => setFlt({ ...flt, clo_id: e.target.value })}><option value="">Tất cả</option>
+          <Field label="CLO"><select value={flt.clo_id} onChange={e => pick('clo_id', e.target.value)}><option value="">Tất cả</option>
             {course?.clos.map(c => <option key={c.id} value={c.id}>{c.clo_code}</option>)}</select></Field>
           <Field label="Chương"><select value={flt.outline_id} onChange={e => setFlt({ ...flt, outline_id: e.target.value })}><option value="">Tất cả</option>
             {course?.outlines.map(o => <option key={o.id} value={o.id}>Chương {o.chapter_number}</option>)}</select></Field>
@@ -64,6 +66,11 @@ export default function QuestionBank() {
           <label className="row gap check"><input type="checkbox" checked={flt.include_cancelled} onChange={e => setFlt({ ...flt, include_cancelled: e.target.checked })} /> Hiện câu đã Hủy</label>
         </div>
       </Card>
+      <div className="row gap top">
+      <Card title="Theo chuẩn đầu ra" className="otree">
+        <OutcomeTree t={tree.data} flt={flt} pick={pick} />
+      </Card>
+      <div className="grow">
       <Card title={`${list.data?.length ?? 0} câu hỏi`}>
         <Loading {...list} />
         <table className="tbl">
@@ -72,7 +79,9 @@ export default function QuestionBank() {
             <tr key={q.id} className={q.is_cancelled ? 'cancel' : ''}>
               <td>{q.id}</td><td className="clip">{q.content}{q.is_cancelled && <Badge tone="red">Đã Hủy</Badge>}</td>
               <td>{q.chapter || '—'}</td><td>{q.bloom || '—'}</td>
-              <td>{q.clos.length ? q.clos.map(c => c.weight < 1 ? `${c.clo_code}(${c.weight})` : c.clo_code).join(', ') : ''}{!q.tagged && <Badge tone="amber">Chưa gán</Badge>}</td>
+              <td>{q.clos.length ? q.clos.map(c => c.weight < 1 ? `${c.clo_code}(${c.weight})` : c.clo_code).join(', ') : ''}{!q.tagged && <Badge tone="amber">Chưa gán</Badge>}
+                {q.clos.some(c => c.pis?.length) && <div className="chain" title="Chuỗi PLO › PI › CLO">
+                  {[...new Set(q.clos.flatMap(c => (c.pis || []).map(p => `${p.plo_code} › ${p.pi_code}`)))].join(' · ')}</div>}</td>
               <td>{q.options.find(o => o.is_correct)?.label}</td><td>{q.usage?.n_exams}</td>
               <td className={`num-c ${pClass(q.usage?.avg_p)}`}>{q.usage?.avg_p ?? '—'}</td>
               <td className={`num-c ${diClass(q.usage?.avg_di)}`}>{q.usage?.avg_di ?? '—'}</td>
@@ -80,12 +89,43 @@ export default function QuestionBank() {
             </tr>))}</tbody>
         </table>
       </Card>
+      </div>
+      </div>
       {dlg === 'import' && course && <ImportQuestions course={course} onClose={() => setDlg(null)} onDone={reloadAll} />}
       {dlg === 'qsync' && courseId && <QSync courseId={courseId} onClose={() => setDlg(null)} onDone={reloadAll} />}
       {dlg === 'tag' && course && <TagFromFile course={course} untagged={nUntagged} onClose={() => setDlg(null)} onDone={reloadAll} />}
       {edit && course && <QuestionForm q={edit} course={course} bloom={bloom || []} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reloadAll() }} />}
     </>
   )
+}
+
+// Cây PLO → PI → CLO kèm số câu hỏi; bấm một nút để lọc danh sách (góp ý F2a)
+function OutcomeTree({ t, flt, pick }) {
+  if (!t) return <Loading />
+  const on = (k, id) => String(flt[k]) === String(id)
+  const Node = ({ k, id, cls, label, n, title }) => (
+    <div className={`node ${cls} ${on(k, id) ? 'on' : ''}`} title={title} onClick={() => pick(k, on(k, id) ? '' : id)}>
+      <span>{label}</span><span className="n">{n}</span></div>)
+  return <div>
+    <div className={`node ${!flt.plo_id && !flt.pi_id && !flt.clo_id ? 'on' : ''}`} onClick={() => pick('clo_id', '')}>
+      <span>Tất cả</span><span className="n">{t.total}</span></div>
+    {t.programs.map(pr => <div key={pr.program_id}>
+      <div className="grp" title={pr.program_name}>{pr.program_code}</div>
+      {pr.plos.map(pl => <div key={pl.id}>
+        <Node k="plo_id" id={pl.id} cls="l1" label={<b>PLO {pl.plo_code}</b>} n={pl.n} title={pl.description} />
+        {pl.pis.map(pi => <div key={pi.id}>
+          <Node k="pi_id" id={pi.id} cls="l2" label={pi.pi_code} n={pi.n} title={pi.description} />
+          {pi.clos.map(c => <Node key={c.id} k="clo_id" id={c.id} cls="l3" label={<>{c.clo_code} <small className="muted">({c.level})</small></>} n={c.n} title={c.description} />)}
+        </div>)}
+      </div>)}
+    </div>)}
+    {t.clos_without_pi?.length > 0 && <>
+      <div className="grp">CLO chưa gắn PI</div>
+      {t.clos_without_pi.map(c => <Node key={c.id} k="clo_id" id={c.id} cls="l1" label={c.clo_code} n={c.n} title={c.description} />)}
+    </>}
+    {!t.programs.length && <p className="small muted">Học phần chưa có CLO nào gắn PI của CTĐT.</p>}
+    {t.untagged > 0 && <p className="small muted">{t.untagged} câu chưa gán CLO.</p>}
+  </div>
 }
 
 function QuestionForm({ q, course, bloom, onClose, onSaved }) {

@@ -13,10 +13,17 @@ So sánh từng câu cho ra trạng thái và hành động đề xuất:
   moodle_newer  – Moodle có phiên bản mới         → kéo về (cập nhật câu bên hệ thống)
   conflict      – hai bên đều khác và chưa từng nối phiên bản → GV chọn chiều
   only_moodle   – câu soạn trên Moodle chưa có idnumber QB → kéo về (tạo câu mới, chưa gán CLO/Bloom) và gắn QB-n
+
+Góp ý F3: mỗi lần hai bên giống nhau, hệ thống lưu dấu vân tay nội dung vào question_moodle_links (theo từng khóa học
+Moodle). Lần sau so dấu vân tay đó với từng bên để biết chính xác bên nào đã sửa: chỉ hệ thống → system_newer, chỉ
+Moodle → moodle_newer, cả hai → conflict (không tự chọn chiều, tránh ghi đè mất bản sửa). Câu chưa có liên kết vẫn
+so như cũ theo id phiên bản Moodle đã nối.
 """
 from __future__ import annotations
 
+import hashlib
 import html
+import json
 import re
 
 from sqlalchemy import text
@@ -66,6 +73,31 @@ def _same(q: Question, m: dict) -> bool:
         norm(o.content) == norm(a["text"]) and bool(o.is_correct) == (a["fraction"] > 0.5) for o, a in zip(opts, m["answers"]))
 
 
+def _fingerprint(content: str | None, opts: list[tuple[str, bool]]) -> str:
+    return hashlib.sha256(json.dumps([norm(content), [[norm(t), bool(c)] for t, c in opts]], ensure_ascii=False).encode()).hexdigest()
+
+
+def sys_hash(q: Question) -> str:
+    return _fingerprint(q.content, [(o.content, o.is_correct) for o in sorted(q.options, key=lambda o: o.position)])
+
+
+def moodle_hash(m: dict) -> str:
+    return _fingerprint(m["questiontext"], [(a["text"], a["fraction"] > 0.5) for a in m["answers"]])
+
+
+def _links(db: Session, moodle_course_id: int) -> dict[int, tuple[int, str]]:
+    return {r[0]: (int(r[1]), r[2]) for r in db.execute(text(
+        "SELECT question_id, moodle_question_id, sync_hash FROM question_moodle_links WHERE moodle_course_id=:m"), {"m": moodle_course_id})}
+
+
+def _save_link(db: Session, qid: int, moodle_course_id: int, moodle_qid: int, h: str) -> None:
+    """Ghi nhận hai bên đang giống nhau (dấu vân tay h) – mốc để lần sau biết bên nào sửa."""
+    db.execute(text("""INSERT INTO question_moodle_links (question_id, moodle_course_id, moodle_question_id, sync_hash, synced_at)
+                       VALUES (:q, :m, :mq, :h, NOW())
+                       ON DUPLICATE KEY UPDATE moodle_question_id=VALUES(moodle_question_id), sync_hash=VALUES(sync_hash), synced_at=NOW()"""),
+               {"q": qid, "m": moodle_course_id, "mq": moodle_qid, "h": h})
+
+
 def _n_results(db: Session, qid: int) -> int:
     return db.execute(text("SELECT COUNT(*) FROM item_level_results WHERE question_id=:q"), {"q": qid}).scalar()
 
@@ -73,6 +105,8 @@ def _n_results(db: Session, qid: int) -> int:
 def compare(db: Session, course_id: int, moodle_course_id: int) -> dict:
     sysq = _sys_questions(db, course_id)
     mq = moodle_questions(db, moodle_course_id)
+    links = _links(db, moodle_course_id)
+    learned = 0
     by_idn = {}
     rows = []
     for m in mq:
@@ -95,8 +129,22 @@ def compare(db: Session, course_id: int, moodle_course_id: int) -> dict:
                 continue
             rows.append({**base, "state": "only_system", "action": "push"}); continue
         info = {"moodle_questionid": m["questionid"], "moodle_version": m["version"], "moodle_content": norm(m["questiontext"])[:200]}
+        link = links.get(qid)
+        conflict_note = None
         if _same(q, m):
             st, act = "synced", None
+            h = sys_hash(q)
+            if not link or link != (int(m["questionid"]), h):   # mốc mới cho lần so sau
+                _save_link(db, qid, moodle_course_id, m["questionid"], h); learned += 1
+        elif link:     # đã có mốc: so từng bên với lần giống nhau gần nhất
+            local, remote = sys_hash(q) != link[1], moodle_hash(m) != link[1]
+            if local and not remote:
+                st, act = "system_newer", "push"
+            elif remote and not local:
+                st, act = "moodle_newer", "pull"
+            else:
+                st, act = "conflict", None
+                conflict_note = "Cả hệ thống và Moodle đều đã sửa từ lần đồng bộ trước – chọn giữ bản nào (đẩy lên hoặc lấy về)"
         elif q.moodle_question_id and int(q.moodle_question_id) == int(m["questionid"]):
             st, act = "system_newer", "push"
         elif q.moodle_question_id:
@@ -105,10 +153,12 @@ def compare(db: Session, course_id: int, moodle_course_id: int) -> dict:
             st, act = "conflict", None
         locked = act == "pull" and _n_results(db, qid) > 0
         rows.append({**base, **info, "state": st, "action": None if locked else act,
-                     "note": "Câu đã có kết quả thi – không ghi đè từ Moodle (Hủy câu và tạo câu mới nếu cần)" if locked else None})
+                     "note": "Câu đã có kết quả thi – không ghi đè từ Moodle (Hủy câu và tạo câu mới nếu cần)" if locked else conflict_note})
     order = {"conflict": 0, "moodle_newer": 1, "only_moodle": 2, "system_newer": 3, "only_system": 4, "synced": 5}
     rows.sort(key=lambda r: (order[r["state"]], r["question_id"] or 0))
     summary = {k: sum(1 for r in rows if r["state"] == k) for k in order}
+    if learned:
+        db.commit()
     return {"moodle_course_id": moodle_course_id, "rows": rows, "summary": summary, "n_moodle": len(mq), "n_system": len(sysq)}
 
 
@@ -127,15 +177,18 @@ def push(db: Session, course_id: int, moodle_course_id: int, qids: list[int], ca
     for i in range(0, len(payload), 50):
         res = call("local_clo_sync_questions", {"courseid": moodle_course_id, "questions": payload[i:i + 50]}, timeout=180)
         out += res["results"]
-    _relink(db, out)
+    _relink(db, out, moodle_course_id)
     return out
 
 
-def _relink(db: Session, results: list[dict]) -> None:
-    """Ghi lại id câu / id phương án phiên bản mới nhất trên Moodle cho câu bên hệ thống."""
+def _relink(db: Session, results: list[dict], moodle_course_id: int) -> None:
+    """Ghi lại id câu / id phương án phiên bản mới nhất trên Moodle cho câu bên hệ thống (và mốc đồng bộ của khóa học)."""
     for r in results:
         qid = int(r["idnumber"][3:])
         db.execute(text("UPDATE question_bank SET moodle_question_id=:m WHERE id=:q"), {"m": r["questionid"], "q": qid})
+        q = db.get(Question, qid)
+        if q:   # vừa đẩy lên / lấy về: hai bên giống nhau
+            _save_link(db, qid, moodle_course_id, r["questionid"], sys_hash(q))
         ans = [a[0] for a in db.execute(text(f"SELECT id FROM {_t('question_answers')} WHERE question=:m ORDER BY id"), {"m": r["questionid"]})]
         opts = db.execute(text("SELECT id FROM question_options WHERE question_id=:q ORDER BY position"), {"q": qid}).scalars().all()
         db.execute(text("UPDATE question_options SET moodle_answer_id=NULL WHERE question_id=:q"), {"q": qid})
@@ -191,7 +244,7 @@ def pull(db: Session, course_id: int, moodle_course_id: int, qids: list[int], mo
     if tags:
         res = call("local_clo_sync_questions", {"courseid": moodle_course_id, "questions": tags}, timeout=120)
         tagged = res["results"]
-        _relink(db, tagged)
-    else:
-        _relink(db, [{"idnumber": f"QB-{qid}", "questionid": by_idn[qid]["questionid"]} for qid in updated])
+        _relink(db, tagged, moodle_course_id)
+    if updated:
+        _relink(db, [{"idnumber": f"QB-{qid}", "questionid": by_idn[qid]["questionid"]} for qid in updated], moodle_course_id)
     return {"updated": updated, "created": created, "tagged": len(tagged)}

@@ -129,12 +129,14 @@ export function Outlines({ c, onSaved }) {
 
 export function Clos({ c, onEdit, onSaved }) {
   return <Card title={`CĐR môn học – CLO (${c.clos.length})`} actions={<button className="btn sm primary" onClick={() => onEdit({})}>+ CLO</button>}>
-    <table className="tbl"><thead><tr><th>Mã</th><th>Nội dung</th><th>Bloom mục tiêu</th><th>Đóng góp cho PLO</th><th /></tr></thead>
+    <table className="tbl"><thead><tr><th>Mã</th><th>Nội dung</th><th>Bloom mục tiêu</th><th>Đóng góp cho PI (PLO)</th><th /></tr></thead>
       <tbody>{c.clos.map(x => <tr key={x.id}><td><b>{x.clo_code}</b></td><td className="clip">{x.description}</td><td>{x.bloom || '—'}</td>
-        <td>{x.plos.length ? x.plos.map(p => <span key={p.plo_id} className="pill blue">PLO {p.plo_code} ({p.level})</span>) : <Badge tone="red">Chưa ánh xạ</Badge>}</td>
+        <td>{x.pis?.length ? x.pis.map(p => <span key={p.pi_id} className="pill blue" title={p.program_code}>{p.plo_code} › {p.pi_code} ({p.level})</span>)
+          : x.plos.length ? <>{x.plos.map(p => <span key={p.plo_id} className="pill">PLO {p.plo_code} ({p.level})</span>)} <Badge tone="amber">Chưa gắn PI</Badge></>
+          : <Badge tone="red">Chưa ánh xạ</Badge>}</td>
         <td className="row gap"><button className="btn sm" onClick={() => onEdit(x)}>Sửa</button>
           <ActionButton className="btn sm ghost" confirm={`Xóa ${x.clo_code}?`} okMsg="Đã xóa" onRun={async () => { await api.del(`/api/clos/${x.id}`); onSaved() }}>✕</ActionButton></td></tr>)}</tbody></table>
-    {!c.clos.length && <p className="muted small">Chưa có CLO. Mỗi CLO cần mô tả, mức Bloom mục tiêu và ít nhất một PLO mà CLO đóng góp (mức I, R hoặc M) – dùng để tính PI/PLO.</p>}
+    {!c.clos.length && <p className="muted small">Chưa có CLO. Mỗi CLO cần mô tả, mức Bloom mục tiêu và ít nhất một PI của CTĐT mà CLO đóng góp (mức I, R hoặc M) – PLO được suy ra từ PI, dùng để tính PI/PLO.</p>}
   </Card>
 }
 
@@ -142,9 +144,11 @@ export function CloForm({ c, clo, onClose, onSaved }) {
   const progs = useApi(`/api/courses/${c.id}/plos`).data
   const bloom = useApi('/api/bloom-levels').data
   const [f, setF] = useState({ clo_code: clo.clo_code || `CLO${c.clos.length + 1}`, description: clo.description || '', bloom_level_id: clo.bloom_level_id || '',
-    plos: Object.fromEntries((clo.plos || []).map(p => [p.plo_id, p.level])) })
+    pis: Object.fromEntries((clo.pis || []).map(p => [p.pi_id, p.level])) })
+  // góp ý F2a: CLO ánh xạ tới PI (PI thuộc PLO); ma trận CLO – PLO được hệ thống suy ra từ PI
   const body = () => ({ clo_code: f.clo_code, description: f.description, bloom_level_id: f.bloom_level_id ? Number(f.bloom_level_id) : null,
-    plos: Object.entries(f.plos).map(([plo_id, level]) => ({ plo_id: Number(plo_id), level })) })
+    pis: Object.entries(f.pis).map(([pi_id, level]) => ({ pi_id: Number(pi_id), level })), plos: [] })
+  const legacy = !clo.pis?.length && clo.plos?.length
   const save = async () => { clo.id ? await api.put(`/api/clos/${clo.id}`, body()) : await api.post('/api/clos', { course_id: c.id, ...body() }); onSaved() }
   return <Modal title={clo.id ? `Sửa ${clo.clo_code}` : 'Thêm CLO'} onClose={onClose} wide>
     <div className="row gap">
@@ -153,13 +157,19 @@ export function CloForm({ c, clo, onClose, onSaved }) {
         <option value="">—</option>{bloom?.map(b => <option key={b.id} value={b.id}>{b.id}. {b.name_vi}</option>)}</select></Field>
     </div>
     <Field label="Nội dung CLO"><textarea rows={2} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} placeholder="VD: Trình bày được kiến trúc của hệ sinh thái Hadoop…" /></Field>
-    <Field group label="Đóng góp cho PLO của các CTĐT có học phần (chọn PLO và mức I/R/M)">
+    <Field group label="Đóng góp cho PI của các CTĐT có học phần (chọn PI và mức I/R/M – PLO được suy ra từ PI)">
+      {legacy && <p className="small muted">CLO này đang ánh xạ thẳng tới PLO ({clo.plos.map(p => `PLO ${p.plo_code}`).join(', ')}). Chọn PI tương ứng rồi lưu để chuyển sang CLO → PI.</p>}
       <div className="scroll short">{progs?.map(pr => <div key={pr.id}><div className="small muted" style={{ padding: '6px 4px 2px' }}><b>{pr.code}</b> – {pr.name}</div>
-      {pr.plos.map(p => <div key={p.id} className="row gap clo-w">
-        <input type="checkbox" checked={f.plos[p.id] !== undefined} onChange={e => setF(x => { const m = { ...x.plos }; e.target.checked ? m[p.id] = 'R' : delete m[p.id]; return { ...x, plos: m } })} />
-        <span className="grow"><b>PLO {p.plo_code}</b> <small className="muted">{p.description}</small></span>
-        {f.plos[p.id] !== undefined && <select value={f.plos[p.id]} onChange={e => setF(x => ({ ...x, plos: { ...x.plos, [p.id]: e.target.value } }))}>
-          {Object.entries(LEVEL_VI).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
+      {pr.plos.map(p => <div key={p.id}>
+        <div className="small" style={{ padding: '4px 4px 0' }}><b>PLO {p.plo_code}</b> <span className="muted">{p.description}</span></div>
+        {(p.pis || []).map(i => <div key={i.id} className="row gap clo-w" style={{ paddingLeft: 18 }}>
+          <input type="checkbox" checked={f.pis[i.id] !== undefined} onChange={e => setF(x => { const m = { ...x.pis }; e.target.checked ? m[i.id] = 'R' : delete m[i.id]; return { ...x, pis: m } })} />
+          <span className="grow"><b>{i.pi_code}</b> <small className="muted">{i.description}</small>
+            {i.course_level && <span className="pill green" title="Mức học phần đáp ứng PI theo ma trận CTĐT">CTĐT giao: {i.course_level}</span>}</span>
+          {f.pis[i.id] !== undefined && <select value={f.pis[i.id]} onChange={e => setF(x => ({ ...x, pis: { ...x.pis, [i.id]: e.target.value } }))}>
+            {Object.entries(LEVEL_VI).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
+        </div>)}
+        {!p.pis?.length && <div className="small muted" style={{ paddingLeft: 18 }}>PLO chưa có PI</div>}
       </div>)}</div>)}</div></Field>
     <div className="row"><span className="grow" />
       <ActionButton className="btn primary" disabled={!f.clo_code.trim() || f.description.trim().length < 3} okMsg="Đã lưu CLO" onRun={save}>Lưu</ActionButton></div>

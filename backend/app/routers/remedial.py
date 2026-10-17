@@ -3,6 +3,9 @@ cho một SV hoặc một nhóm SV (câu đã sai + câu tương tự cùng CLO/
 
 Bài phụ đạo là bài KT bình thường của lớp HP (phát hành lên Moodle Quiz hoặc in giấy, chấm như mọi bài) nhưng mặc định
 KHÔNG gộp vào minh chứng CLO (counts_for_clo = 0), có parent_exam_id = bài gốc và target_students = MSSV được giao.
+
+Góp ý F5: Quiz phụ đạo trên Moodle chỉ các SV được giao thấy và làm được (nhóm Moodle + điều kiện truy cập, xem
+routers/lms.py), và theo dõi tiến bộ của từng SV: tỷ lệ điểm trên chính các câu đó ở bài trước → ở bài phụ đạo.
 """
 import random
 from typing import Literal, Optional
@@ -113,6 +116,71 @@ def remedial_overview(cs_id: int, exam_ids: str = "", u: User = Depends(require(
         x["n_wrong"] = int(x["n_wrong"] or 0)
         x["wrong_pct"] = round(100 * x["n_wrong"] / x["n_students"], 1) if x["n_students"] else 0
     return {"exams": exams, "selected": ids, "students": studs, "questions": qs}
+
+
+def target_moodle_users(db: Session, e: Exam) -> list[int]:
+    """Tài khoản Moodle của các SV được giao bài phụ đạo; thiếu tài khoản thì báo lỗi trước khi tạo gì trên Moodle."""
+    codes = [x.strip() for x in (e.target_students or "").split(",") if x.strip()]
+    if not codes:
+        return []
+    rows = db.execute(text("""SELECT s.student_code, s.moodle_user_id FROM students s JOIN enrollments en ON en.student_id=s.id
+                              WHERE en.class_section_id=:cs AND s.student_code IN :codes""").bindparams(bindparam("codes", expanding=True)),
+                      {"cs": e.class_section_id, "codes": codes}).all()
+    found = {r[0]: r[1] for r in rows}
+    missing = [c for c in codes if not found.get(c)]
+    if missing:
+        raise HTTPException(422, f"SV {', '.join(missing)} chưa gắn tài khoản Moodle (hoặc không thuộc lớp) – đồng bộ danh sách SV từ Moodle trước")
+    return [int(found[c]) for c in codes]
+
+
+def _pct(db: Session, exam_ids: list[int], student_id: int, qids: list[int]):
+    """Tỷ lệ điểm (%) của SV trên các câu qids ở các bài exam_ids (bài đã nộp); chưa làm câu nào → None."""
+    if not exam_ids or not qids:
+        return None
+    r = db.execute(text("""SELECT SUM(r.score_earned), SUM(eq.points) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                           JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
+                           WHERE a.exam_id IN :e AND a.student_id=:s AND a.status='finished' AND r.question_id IN :q""").bindparams(
+                       bindparam("e", expanding=True), bindparam("q", expanding=True)),
+                   {"e": exam_ids, "s": student_id, "q": qids}).one()
+    return round(100 * float(r[0]) / float(r[1]), 1) if r[1] else None
+
+
+@router.get("/class-sections/{cs_id}/remedial-exams")
+def remedial_progress(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Các bài phụ đạo của lớp và tiến bộ của từng SV được giao (góp ý F5):
+    - before_pct: điểm trên các câu của bài phụ đạo mà SV đã làm ở các bài KT chính thức trước đó (câu đã sai được đưa lại);
+    - after_same_pct: điểm trên chính các câu đó ở bài phụ đạo; after_pct: điểm cả bài phụ đạo (gồm câu tương tự)."""
+    check_section_access(db, u, cs_id)
+    regular = [r[0] for r in db.execute(text("""SELECT id FROM exams WHERE class_section_id=:cs AND target_students IS NULL
+                                                AND status IN ('Synced','Analyzed')"""), {"cs": cs_id})]
+    out = []
+    for e in db.query(Exam).filter(Exam.class_section_id == cs_id, Exam.target_students.isnot(None)).order_by(Exam.id):
+        qids = [q.question_id for q in e.questions if not q.question.is_cancelled]
+        codes = [x.strip() for x in e.target_students.split(",") if x.strip()]
+        studs = db.execute(text("""SELECT s.id, s.student_code, s.full_name FROM students s WHERE s.student_code IN :c""").bindparams(
+            bindparam("c", expanding=True)), {"c": codes}).mappings().all() if codes else []
+        by_code = {s["student_code"]: s for s in studs}
+        rows = []
+        for code in codes:
+            s = by_code.get(code)
+            if not s:
+                continue
+            seen = [r[0] for r in db.execute(text("""SELECT DISTINCT r.question_id FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                                                     WHERE a.student_id=:s AND a.status='finished' AND a.exam_id IN :e AND r.question_id IN :q""").bindparams(
+                bindparam("e", expanding=True), bindparam("q", expanding=True)), {"s": s["id"], "e": regular or [0], "q": qids or [0]})]
+            st = db.execute(text("SELECT status FROM exam_attempts WHERE exam_id=:e AND student_id=:s ORDER BY status='finished' DESC LIMIT 1"),
+                            {"e": e.id, "s": s["id"]}).scalar()
+            before, after_same = _pct(db, regular, s["id"], seen), _pct(db, [e.id], s["id"], seen)
+            rows.append({"student_id": s["id"], "student_code": code, "full_name": s["full_name"], "n_reused": len(seen),
+                         "before_pct": before, "after_same_pct": after_same, "after_pct": _pct(db, [e.id], s["id"], qids),
+                         "gain": round(after_same - before, 1) if before is not None and after_same is not None else None,
+                         "status": st or "not_started"})
+        done = [r for r in rows if r["gain"] is not None]
+        out.append({"exam_id": e.id, "exam_title": e.exam_title, "exam_type": e.exam_type, "status": e.status,
+                    "parent_exam_id": e.parent_exam_id, "moodle_quiz_id": e.moodle_quiz_id, "n_questions": len(qids),
+                    "n_targets": len(codes), "n_done": sum(1 for r in rows if r["status"] == "finished"),
+                    "avg_gain": round(sum(r["gain"] for r in done) / len(done), 1) if done else None, "students": rows})
+    return out
 
 
 @router.get("/class-sections/{cs_id}/remedial/students/{student_id}")

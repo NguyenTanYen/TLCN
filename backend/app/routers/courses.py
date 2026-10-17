@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import check_course_access, check_section_access, require
 from ..models import CLO, CLOPLOMapping, ClassSection, Course, CourseOutline, PLO, User
+from ..services import outcomes
 
 router = APIRouter(prefix="/api", tags=["UC-12 Học phần, chương, CLO, lớp học phần"])
 
@@ -45,10 +46,33 @@ class CourseUpd(BaseModel):
 class OutlineIn(BaseModel):
     chapter_number: int = Field(ge=1, le=99)
     chapter_name: str = Field(min_length=1, max_length=255)
+    # góp ý F1 – nội dung chi tiết của chương trong đề cương; không gửi thì giữ nguyên
+    content: Optional[str] = None
+    theory_hours: Optional[int] = Field(default=None, ge=0, le=500)
+    practice_hours: Optional[int] = Field(default=None, ge=0, le=500)
+    teaching_activities: Optional[str] = None
+    clo_ids: Optional[list[int]] = None
+
+
+def _outline_detail(db: Session, o: CourseOutline, body: OutlineIn) -> None:
+    for k in ("content", "theory_hours", "practice_hours", "teaching_activities"):
+        if k in body.model_fields_set:
+            v = getattr(body, k)
+            setattr(o, k, (v.strip() or None) if isinstance(v, str) else v)
+    if body.clo_ids is not None:
+        clos = db.query(CLO).filter(CLO.id.in_(set(body.clo_ids))).all() if body.clo_ids else []
+        if len(clos) != len(set(body.clo_ids)) or any(x.course_id != o.course_id for x in clos):
+            raise HTTPException(422, "CLO không thuộc môn học này")
+        o.clos = clos
 
 
 class PLOMapIn(BaseModel):
     plo_id: int
+    level: Literal["I", "R", "M"] = "R"
+
+
+class PIMapIn(BaseModel):
+    pi_id: int
     level: Literal["I", "R", "M"] = "R"
 
 
@@ -57,6 +81,7 @@ class CLOUpd(BaseModel):
     description: str = Field(min_length=3)
     bloom_level_id: Optional[int] = Field(default=None, ge=1, le=6)
     plos: list[PLOMapIn] = []
+    pis: list[PIMapIn] = []      # góp ý F2a: CLO → PI; có PI thì ma trận CLO – PLO được suy ra từ PI
 
 
 class SectionIn(BaseModel):
@@ -121,6 +146,8 @@ def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(requ
     n_clo_noplo = q("SELECT COUNT(*) FROM clos c WHERE c.course_id=:c AND NOT EXISTS (SELECT 1 FROM clo_plo_mapping m WHERE m.clo_id=c.id)")
     n_cs = q("SELECT COUNT(*) FROM class_sections WHERE course_id=:c")
     n_plan = q("""SELECT COUNT(DISTINCT p.clo_id) FROM clo_assessment_plans p JOIN clos c ON c.id=p.clo_id WHERE c.course_id=:c""")
+    syl = db.execute(text("""SELECT MAX(CASE WHEN status='approved' THEN version_no END), MAX(version_no)
+                             FROM course_syllabi WHERE course_id=:c"""), {"c": cid}).one()
     n_q = q("SELECT COUNT(*) FROM question_bank WHERE course_id=:c AND question_type='multichoice' AND is_cancelled=0")
     n_tag = q("""SELECT COUNT(*) FROM question_bank q WHERE q.course_id=:c AND q.question_type='multichoice' AND q.is_cancelled=0 AND q.bloom_level_id IS NOT NULL
                  AND EXISTS (SELECT 1 FROM question_clo_mapping m WHERE m.question_id=q.id)""")
@@ -135,8 +162,11 @@ def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(requ
          "detail": f"{n_plan}/{n_clo} CLO có kế hoạch (thiếu thì dùng ngưỡng 60%, chỉ tiêu của môn)"},
         {"key": "questions", "label": "Ngân hàng câu hỏi đã gán CLO/Bloom", "ok": n_tag > 0 and n_clo_noq == 0,
          "detail": f"{n_tag}/{n_q} câu đã gán" + (f"; {n_clo_noq} CLO chưa có câu hỏi" if n_clo_noq else "")},
+        {"key": "syllabus", "label": "Đề cương chi tiết đã được Bộ môn duyệt", "ok": syl[0] is not None,
+         "detail": f"đang áp dụng phiên bản {syl[0]}" + (f", có bản nháp {syl[1]}" if syl[1] != syl[0] else "") if syl[0]
+                   else (f"bản nháp {syl[1]} chưa duyệt" if syl[1] else "chưa soạn")},
     ]
-    return {"course_id": cid, "steps": steps, "ready": all(s["ok"] for s in steps if s["key"] != "plans")}
+    return {"course_id": cid, "steps": steps, "ready": all(s["ok"] for s in steps if s["key"] not in ("plans", "syllabus"))}
 
 
 # ------------------------------------------------------------------ đề cương (chương)
@@ -146,6 +176,7 @@ def create_outline(cid: int, body: OutlineIn, db: Session = Depends(get_db), _=D
     if db.query(CourseOutline).filter_by(course_id=cid, chapter_number=body.chapter_number).first():
         raise HTTPException(409, f"Môn học đã có chương {body.chapter_number}")
     o = CourseOutline(course_id=cid, chapter_number=body.chapter_number, chapter_name=body.chapter_name.strip())
+    _outline_detail(db, o, body)
     db.add(o); db.commit()
     return {"id": o.id}
 
@@ -160,6 +191,7 @@ def update_outline(oid: int, body: OutlineIn, db: Session = Depends(get_db), _=D
     if dup:
         raise HTTPException(409, f"Môn học đã có chương {body.chapter_number}")
     o.chapter_number, o.chapter_name = body.chapter_number, body.chapter_name.strip()
+    _outline_detail(db, o, body)
     db.commit()
     return {"ok": True}
 
@@ -184,11 +216,18 @@ def update_clo(clo_id: int, body: CLOUpd, db: Session = Depends(get_db), _=Depen
         raise HTTPException(404, "Không tìm thấy CLO")
     if db.query(CLO).filter(CLO.course_id == clo.course_id, CLO.clo_code == body.clo_code.strip(), CLO.id != clo_id).first():
         raise HTTPException(409, f"Môn học đã có {body.clo_code}")
-    _plos(db, body.plos)
     clo.clo_code, clo.description, clo.bloom_level_id = body.clo_code.strip(), body.description.strip(), body.bloom_level_id
-    db.query(CLOPLOMapping).filter_by(clo_id=clo_id).delete()
-    for m in body.plos:
-        db.add(CLOPLOMapping(clo_id=clo_id, plo_id=m.plo_id, level=m.level))
+    if body.pis:
+        try:
+            outcomes.set_clo_pis(db, clo, [(m.pi_id, m.level) for m in body.pis])
+        except ValueError as ex:
+            raise HTTPException(422, str(ex))
+    else:   # chưa chọn PI: cách cũ – ánh xạ thẳng CLO → PLO
+        _plos(db, body.plos)
+        clo.pi_links.clear()
+        db.query(CLOPLOMapping).filter_by(clo_id=clo_id).delete()
+        for m in body.plos:
+            db.add(CLOPLOMapping(clo_id=clo_id, plo_id=m.plo_id, level=m.level))
     db.commit()
     return {"ok": True}
 

@@ -240,3 +240,23 @@ details.bp > summary { cursor: pointer; font-weight: 600; color: var(--brand2); 
 /* thời gian làm bài */
 .tab-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
 ul.tight { margin: 0 0 10px; padding-left: 18px; } ul.tight li { margin-bottom: 8px; line-height: 1.9; }
+
+/* góp ý F2a: PI CTĐT giao cho học phần nhưng chưa có CLO đáp ứng; cây PLO → PI → CLO của ngân hàng câu hỏi */
+tr.warn-row td { background: var(--red-soft); }
+.otree { min-width: 250px; max-width: 320px; font-size: 13px; }
+.otree .node { display: flex; gap: 6px; align-items: center; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+.otree .node:hover { background: #f2f4f7; } .otree .node.on { background: var(--brand-soft); color: var(--brand2); font-weight: 600; }
+.otree .node .n { margin-left: auto; color: #667085; font-size: 12px; } .otree .l1 { padding-left: 14px; } .otree .l2 { padding-left: 28px; } .otree .l3 { padding-left: 42px; }
+.otree .grp { font-size: 12px; color: #667085; padding: 8px 6px 2px; text-transform: uppercase; letter-spacing: .02em; }
+.chain { font-size: 12px; color: #667085; }
+.row.top { align-items: flex-start; } .row.top > .grow { min-width: 0; }
+@media (max-width: 900px) { .row.top { flex-direction: column; align-items: stretch; } .otree { max-width: none; } }
+/* đề cương chi tiết có phiên bản (góp ý F1) */
+.chk { display: inline-flex; align-items: center; gap: 4px; margin: 2px 12px 2px 0; font-size: 13px; }
+.neg { color: var(--red, #b42318); font-weight: 600; } .pos { color: var(--green, #067647); font-weight: 600; }
+.checklist { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 4px; font-size: 13.5px; }
+.checklist li span[aria-hidden] { display: inline-block; width: 18px; font-weight: 700; }
+.checklist li.ok span[aria-hidden] { color: #067647; } .checklist li.bad span[aria-hidden] { color: #b42318; } .checklist li.warn span[aria-hidden] { color: #b54708; }
+.prewrap { white-space: pre-wrap; } .syl ol.refs { margin: 4px 0 8px; padding-left: 22px; font-size: 13.5px; }
+.syl h4 .btn { margin-left: 6px; text-transform: none; letter-spacing: 0; }
+@media print { .no-print { display: none !important; } }
