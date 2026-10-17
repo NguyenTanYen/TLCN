@@ -95,7 +95,7 @@ function PlanForm({ plan, sems, defSem, pid, onClose, onSaved }) {
       <Field label="GV phụ trách"><select value={f.lecturer_id} onChange={set('lecturer_id')}><option value="">—</option>
         {lecturers?.map(l => <option key={l.id} value={l.id}>{l.full_name}</option>)}</select></Field>
     </div>
-    {course && <Field group label="CLO của môn dùng làm minh chứng" hint="Không chọn CLO nào = dùng mọi CLO của môn có đóng góp cho CĐR của PI"><div className="row gap wrap">{course.clos.map(c => <label key={c.id} className="row gap check">
+    {course && <Field group label="CLO của môn dùng làm minh chứng" hint="Không chọn CLO nào = dùng các CLO của môn gắn với chính PI này (CLO → PI); nếu chưa có thì dùng mọi CLO có đóng góp cho CĐR của PI"><div className="row gap wrap">{course.clos.map(c => <label key={c.id} className="row gap check">
       <input type="checkbox" checked={f.clo_ids.includes(c.id)} onChange={e => setF({ ...f, clo_ids: e.target.checked ? [...f.clo_ids, c.id] : f.clo_ids.filter(x => x !== c.id) })} />{c.clo_code}</label>)}</div></Field>}
     <div className="row"><span className="grow" /><ActionButton className="btn primary" disabled={!f.pi_id || !f.course_id || !f.semester_id || !String(f.method).trim()} okMsg="Đã lưu kế hoạch" onRun={save}>Lưu</ActionButton></div>
   </Modal>

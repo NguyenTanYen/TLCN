@@ -122,7 +122,7 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
         <td>{o.clos.map(x => x.clo_code).join(', ') || <span className="muted">—</span>}</td>
         {isAdmin && <td className="no-print"><button className="btn sm ghost" onClick={() => setDlg({ kind: 'outline', o })}>Sửa</button></td>}</tr>)}
         <tr className="sub"><td colSpan={2}><b>Tổng số tiết</b></td><td className="num-c"><b>{lt}</b></td><td className="num-c"><b>{th}</b></td><td colSpan={isAdmin ? 2 : 1} /></tr></tbody></table>
-      : <p className="muted">Chưa khai báo các chương.</p>}
+      : <p className="muted">Chưa khai báo các chương.{isAdmin && <> Thêm chương ở tab <button className="btn sm ghost no-print" onClick={onEdit}>Khai báo (Bộ môn)</button>, sau đó bấm <b>Sửa</b> từng chương ở đây để nhập nội dung, số tiết và CLO.</>}</p>}
     {text(7, 'teaching_methods')}
     <h4>8. Đánh giá học phần {edit('assess')}</h4>
     {d?.assessments.length ? <table className="tbl compact"><thead><tr><th>Mã</th><th>Thành phần</th><th>Hình thức</th><th>Thời điểm</th><th className="num-c">Tỷ trọng</th><th>CLO</th></tr></thead>

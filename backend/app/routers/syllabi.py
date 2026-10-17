@@ -159,6 +159,9 @@ def _replace_children(db: Session, s: CourseSyllabus, cid: int, body: SyllabusIn
         codes = [a.component_code.strip().upper() for a in body.assessments]
         if len(codes) != len(set(codes)):
             raise HTTPException(422, "Mã thành phần đánh giá bị trùng")
+        total = sum(a.weight_pct for a in body.assessments)
+        if body.assessments and abs(total - 100) > 0.01:     # không lưu kế hoạch đánh giá có tỷ trọng sai
+            raise HTTPException(422, f"Tổng tỷ trọng các thành phần đánh giá phải bằng 100% (hiện tại {total:g}%)")
         s.assessments.clear()
         db.flush()
         for i, a in enumerate(body.assessments, 1):

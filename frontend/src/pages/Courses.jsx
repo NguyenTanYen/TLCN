@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
-import { ActionButton, Badge, Card, Field, Loading, Modal } from '../components/ui'
+import { ActionButton, Badge, Card, Field, Loading, Modal, ploLabel } from '../components/ui'
 import { useApi } from '../hooks'
+import { OutlineForm } from '../components/SyllabusForms'
 
 const LEVEL_VI = { I: 'I – Giới thiệu', R: 'R – Củng cố', M: 'M – Thành thạo' }
 
@@ -100,6 +101,8 @@ export function Outlines({ c, onSaved }) {
   const [paste, setPaste] = useState('')
   const next = Math.max(0, ...c.outlines.map(o => o.chapter_number)) + 1
   const [nw, setNw] = useState({ chapter_number: next, chapter_name: '' })
+  const [detail, setDetail] = useState(null)      // góp ý F1: nội dung, số tiết, CLO của chương
+  const enter = e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.closest('tr').querySelector('button.enter-save')?.click() } }
   useEffect(() => setNw({ chapter_number: next, chapter_name: '' }), [c.id, c.outlines.length])  // eslint-disable-line
   const addMany = async () => {   // mỗi dòng một chương: "3. Tên chương" hoặc "Tên chương"
     let n = next, added = 0
@@ -111,19 +114,24 @@ export function Outlines({ c, onSaved }) {
     setPaste(''); onSaved(); return added
   }
   return <Card title={`Đề cương – các chương (${c.outlines.length})`}>
-    <table className="tbl compact"><thead><tr><th style={{ width: 90 }}>Chương</th><th>Tên chương</th><th /></tr></thead>
+    <table className="tbl compact"><thead><tr><th style={{ width: 90 }}>Chương</th><th>Tên chương</th><th>Số tiết LT/TH · CLO</th><th /></tr></thead>
       <tbody>{c.outlines.map(o => { const r = rows[o.id] || o; return <tr key={o.id}>
-        <td><input className="num tiny" type="number" min="1" value={r.chapter_number} onChange={e => setRows({ ...rows, [o.id]: { ...r, chapter_number: e.target.value } })} /></td>
-        <td><input style={{ width: '100%' }} value={r.chapter_name} onChange={e => setRows({ ...rows, [o.id]: { ...r, chapter_name: e.target.value } })} /></td>
-        <td className="row gap">{rows[o.id] && <ActionButton className="btn sm primary" okMsg="Đã lưu chương" onRun={async () => { await api.put(`/api/outlines/${o.id}`, { chapter_number: Number(r.chapter_number), chapter_name: r.chapter_name }); setRows({ ...rows, [o.id]: undefined }); onSaved() }}>Lưu</ActionButton>}
+        <td><input className="num tiny" type="number" min="1" value={r.chapter_number} onChange={e => setRows({ ...rows, [o.id]: { ...r, chapter_number: e.target.value } })} onKeyDown={enter} /></td>
+        <td><input style={{ width: '100%' }} value={r.chapter_name} onChange={e => setRows({ ...rows, [o.id]: { ...r, chapter_name: e.target.value } })} onKeyDown={enter} /></td>
+        <td className="small nowrap">{o.theory_hours ?? '—'}/{o.practice_hours ?? '—'} · {o.clos?.length ? o.clos.map(x => x.clo_code).join(', ') : <span className="muted">chưa gắn CLO</span>}</td>
+        <td className="row gap"><ActionButton className={`btn sm enter-save ${rows[o.id] ? 'primary' : ''}`} disabled={!rows[o.id] || !String(r.chapter_name).trim()} title={rows[o.id] ? 'Lưu số và tên chương (Enter)' : 'Sửa số hoặc tên chương rồi bấm Lưu'}
+            okMsg="Đã lưu chương" onRun={async () => { await api.put(`/api/outlines/${o.id}`, { chapter_number: Number(r.chapter_number), chapter_name: r.chapter_name }); setRows({ ...rows, [o.id]: undefined }); onSaved() }}>Lưu</ActionButton>
+          <button className="btn sm" title="Nội dung, số tiết, hoạt động dạy học, CLO của chương" onClick={() => setDetail(o)}>Chi tiết</button>
           <ActionButton className="btn sm ghost" confirm={`Xóa chương ${o.chapter_number}?`} okMsg="Đã xóa" onRun={async () => { await api.del(`/api/outlines/${o.id}`); onSaved() }}>✕</ActionButton></td></tr> })}
-        <tr className="sub"><td><input className="num tiny" type="number" min="1" value={nw.chapter_number} onChange={e => setNw({ ...nw, chapter_number: e.target.value })} /></td>
-          <td><input style={{ width: '100%' }} placeholder="Tên chương mới…" value={nw.chapter_name} onChange={e => setNw({ ...nw, chapter_name: e.target.value })} /></td>
-          <td><ActionButton className="btn sm" disabled={!nw.chapter_name.trim()} okMsg="Đã thêm chương" onRun={async () => { await api.post(`/api/courses/${c.id}/outlines`, { chapter_number: Number(nw.chapter_number), chapter_name: nw.chapter_name }); onSaved() }}>+ Thêm</ActionButton></td></tr>
+        <tr className="sub"><td><input className="num tiny" type="number" min="1" value={nw.chapter_number} onChange={e => setNw({ ...nw, chapter_number: e.target.value })} onKeyDown={enter} /></td>
+          <td><input style={{ width: '100%' }} placeholder="Tên chương mới… (nhấn Enter để thêm)" value={nw.chapter_name} onChange={e => setNw({ ...nw, chapter_name: e.target.value })} onKeyDown={enter} />
+            {nw.chapter_name.trim() && <div className="small neg">Chưa lưu – nhấn Enter hoặc bấm "+ Thêm"</div>}</td>
+          <td /><td><ActionButton className={`btn sm enter-save ${nw.chapter_name.trim() ? 'primary' : ''}`} disabled={!nw.chapter_name.trim()} okMsg="Đã thêm chương" onRun={async () => { await api.post(`/api/courses/${c.id}/outlines`, { chapter_number: Number(nw.chapter_number), chapter_name: nw.chapter_name }); onSaved() }}>+ Thêm</ActionButton></td></tr>
       </tbody></table>
     <details className="mt"><summary className="muted">Dán nhanh nhiều chương (mỗi dòng một chương, VD "1. Tổng quan…")</summary>
       <textarea rows={4} value={paste} onChange={e => setPaste(e.target.value)} placeholder={'1. Tổng quan về dữ liệu lớn\n2. Hệ sinh thái Hadoop\n3. Spark và xử lý phân tán'} />
       <ActionButton className="btn sm mt" disabled={!paste.trim()} okMsg={n => `Đã thêm ${n} chương`} onRun={addMany}>Thêm các chương</ActionButton></details>
+    {detail && <OutlineForm s={c} o={detail} onClose={() => setDetail(null)} onSaved={() => { setDetail(null); onSaved() }} />}
   </Card>
 }
 
@@ -132,7 +140,7 @@ export function Clos({ c, onEdit, onSaved }) {
     <table className="tbl"><thead><tr><th>Mã</th><th>Nội dung</th><th>Bloom mục tiêu</th><th>Đóng góp cho PI (PLO)</th><th /></tr></thead>
       <tbody>{c.clos.map(x => <tr key={x.id}><td><b>{x.clo_code}</b></td><td className="clip">{x.description}</td><td>{x.bloom || '—'}</td>
         <td>{x.pis?.length ? x.pis.map(p => <span key={p.pi_id} className="pill blue" title={p.program_code}>{p.plo_code} › {p.pi_code} ({p.level})</span>)
-          : x.plos.length ? <>{x.plos.map(p => <span key={p.plo_id} className="pill">PLO {p.plo_code} ({p.level})</span>)} <Badge tone="amber">Chưa gắn PI</Badge></>
+          : x.plos.length ? <>{x.plos.map(p => <span key={p.plo_id} className="pill">{ploLabel(p.plo_code)} ({p.level})</span>)} <Badge tone="amber">Chưa gắn PI</Badge></>
           : <Badge tone="red">Chưa ánh xạ</Badge>}</td>
         <td className="row gap"><button className="btn sm" onClick={() => onEdit(x)}>Sửa</button>
           <ActionButton className="btn sm ghost" confirm={`Xóa ${x.clo_code}?`} okMsg="Đã xóa" onRun={async () => { await api.del(`/api/clos/${x.id}`); onSaved() }}>✕</ActionButton></td></tr>)}</tbody></table>
@@ -158,10 +166,10 @@ export function CloForm({ c, clo, onClose, onSaved }) {
     </div>
     <Field label="Nội dung CLO"><textarea rows={2} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} placeholder="VD: Trình bày được kiến trúc của hệ sinh thái Hadoop…" /></Field>
     <Field group label="Đóng góp cho PI của các CTĐT có học phần (chọn PI và mức I/R/M – PLO được suy ra từ PI)">
-      {legacy && <p className="small muted">CLO này đang ánh xạ thẳng tới PLO ({clo.plos.map(p => `PLO ${p.plo_code}`).join(', ')}). Chọn PI tương ứng rồi lưu để chuyển sang CLO → PI.</p>}
+      {legacy && <p className="small muted">CLO này đang ánh xạ thẳng tới PLO ({clo.plos.map(p => ploLabel(p.plo_code)).join(', ')}). Chọn PI tương ứng rồi lưu để chuyển sang CLO → PI.</p>}
       <div className="scroll short">{progs?.map(pr => <div key={pr.id}><div className="small muted" style={{ padding: '6px 4px 2px' }}><b>{pr.code}</b> – {pr.name}</div>
       {pr.plos.map(p => <div key={p.id}>
-        <div className="small" style={{ padding: '4px 4px 0' }}><b>PLO {p.plo_code}</b> <span className="muted">{p.description}</span></div>
+        <div className="small" style={{ padding: '4px 4px 0' }}><b>{ploLabel(p.plo_code)}</b> <span className="muted">{p.description}</span></div>
         {(p.pis || []).map(i => <div key={i.id} className="row gap clo-w" style={{ paddingLeft: 18 }}>
           <input type="checkbox" checked={f.pis[i.id] !== undefined} onChange={e => setF(x => { const m = { ...x.pis }; e.target.checked ? m[i.id] = 'R' : delete m[i.id]; return { ...x, pis: m } })} />
           <span className="grow"><b>{i.pi_code}</b> <small className="muted">{i.description}</small>

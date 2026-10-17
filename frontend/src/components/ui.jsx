@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+// Nhãn PLO: CTĐT cũ lưu mã '1.3', CTĐT 2026 lưu 'PLO6' → không lặp chữ PLO
+export const ploLabel = c => (/^PLO/i.test(String(c || '')) ? c : `PLO ${c}`)
+
 export function Card({ title, actions, children, className = '' }) {
   return (
     <section className={`card ${className}`}>

@@ -54,8 +54,9 @@ export function AssessmentsForm({ s, onClose, onSaved }) {
         <td>{s.clos.map(c => <label key={c.id} className="chk" title={c.description}><input type="checkbox" checked={r.clo_ids.includes(c.id)} onChange={() => toggle(i, c.id)} /> {c.clo_code}</label>)}</td>
         <td><button className="btn sm ghost" onClick={() => setRows(x => x.filter((_, j) => j !== i))}>✕</button></td></tr>)}</tbody></table>
     <div className="row gap mt"><button className="btn sm" onClick={() => setRows(x => [...x, blank(x.length + 1)])}>+ Thành phần</button>
-      <span className={Math.abs(total - 100) > 0.01 ? 'neg' : 'pos'}>Tổng: {total}%</span></div>
-    <Save disabled={rows.some(r => !r.component_code.trim() || r.name.trim().length < 2 || !(Number(r.weight_pct) > 0))} msg="Đã lưu đánh giá học phần"
+      <span className={Math.abs(total - 100) > 0.01 ? 'neg' : 'pos'}>Tổng: {total}%</span>
+      {rows.length > 0 && Math.abs(total - 100) > 0.01 && <span className="small neg">– tổng tỷ trọng phải bằng 100% mới lưu được</span>}</div>
+    <Save disabled={(rows.length > 0 && Math.abs(total - 100) > 0.01) || rows.some(r => !r.component_code.trim() || r.name.trim().length < 2 || !(Number(r.weight_pct) > 0))} msg="Đã lưu đánh giá học phần"
       onRun={async () => { await save(s.id, { assessments: rows.map(r => ({ component_code: r.component_code, name: r.name, method: r.method || null,
         timing: r.timing || null, weight_pct: Number(r.weight_pct), clo_ids: r.clo_ids })) }); onSaved() }} />
   </Modal>

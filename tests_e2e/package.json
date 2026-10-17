@@ -1,0 +1,14 @@
+{
+  "name": "tlcn-kiem-thu-giao-dien",
+  "private": true,
+  "description": "Kiểm thử giao diện theo kịch bản Bộ môn / Giảng viên / Sinh viên bằng Playwright Test",
+  "scripts": {
+    "test": "playwright test",
+    "ui": "playwright test --ui",
+    "khong-moodle": "playwright test --grep-invert @moodle",
+    "bao-cao": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}

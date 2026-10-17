@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, auth } from '../api'
-import { ActionButton, Badge, Card, Field, Loading, Modal, diClass, pClass } from '../components/ui'
+import { ActionButton, Badge, Card, Field, Loading, Modal, diClass, pClass, ploLabel } from '../components/ui'
 import { useApi } from '../hooks'
 import { ImportQuestions, TagFromFile } from '../components/QuestionImport'
 import QSync from '../components/QSync'
@@ -112,7 +112,7 @@ function OutcomeTree({ t, flt, pick }) {
     {t.programs.map(pr => <div key={pr.program_id}>
       <div className="grp" title={pr.program_name}>{pr.program_code}</div>
       {pr.plos.map(pl => <div key={pl.id}>
-        <Node k="plo_id" id={pl.id} cls="l1" label={<b>PLO {pl.plo_code}</b>} n={pl.n} title={pl.description} />
+        <Node k="plo_id" id={pl.id} cls="l1" label={<b>{ploLabel(pl.plo_code)}</b>} n={pl.n} title={pl.description} />
         {pl.pis.map(pi => <div key={pi.id}>
           <Node k="pi_id" id={pi.id} cls="l2" label={pi.pi_code} n={pi.n} title={pi.description} />
           {pi.clos.map(c => <Node key={c.id} k="clo_id" id={c.id} cls="l3" label={<>{c.clo_code} <small className="muted">({c.level})</small></>} n={c.n} title={c.description} />)}
