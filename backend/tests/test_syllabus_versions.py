@@ -46,13 +46,17 @@ def test_syllabus_version_flow(client, admin, gv):
     if other:
         assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json={"assessments": [
             {"component_code": "A1", "name": "Giữa kỳ", "weight_pct": 100, "clo_ids": [other]}]}).status_code == 422
-    # tổng tỷ trọng 90% và CLO4 chưa được đánh giá -> chưa duyệt được
+    # tổng tỷ trọng 90% -> không lưu được
     body = {"objectives": "Mục tiêu bản 2", "assessments": [
         {"component_code": "A1", "name": "Giữa kỳ", "weight_pct": 40, "clo_ids": [clo["CLO1"], clo["CLO2"]]},
         {"component_code": "A2", "name": "Cuối kỳ", "weight_pct": 50, "clo_ids": [clo["CLO3"]]}]}
+    r = client.put(f"/api/courses/{cid}/syllabus", headers=admin, json=body)
+    assert r.status_code == 422 and "100%" in r.json()["detail"] and "90%" in r.json()["detail"]
+    # đủ 100% nhưng CLO4 chưa được đánh giá -> lưu được bản nháp, chưa duyệt được
+    body["assessments"][1]["weight_pct"] = 60
     assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json=body).status_code == 200
     r = client.post(f"/api/courses/{cid}/syllabus/approve", headers=admin)
-    assert r.status_code == 422 and "100%" in r.json()["detail"] and "CLO4" in r.json()["detail"]
+    assert r.status_code == 422 and "CLO4" in r.json()["detail"]
     body["assessments"][1].update(weight_pct=60, clo_ids=[clo["CLO3"], clo["CLO4"]])
     assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json=body).status_code == 200
     assert client.post(f"/api/courses/{cid}/syllabus/approve", headers=gv).status_code == 403
