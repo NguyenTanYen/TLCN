@@ -52,7 +52,7 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
             my_raw = float(db.execute(text("SELECT total_score FROM exam_attempts WHERE id=:a"), {"a": att["id"]}).scalar())
             rank = 1 + sum(1 for s in scores if s > my_raw + 1e-9)
             answers = rows(db, """
-                SELECT eq.order_index, q.id AS question_id, q.content, r.response_status, r.is_correct, r.score_earned, eq.points,
+                SELECT eq.order_index, q.id AS question_id, q.content, r.response_status, r.is_correct, r.score_earned, eq.points, r.response_time_sec, r.n_answer_saves,
                        (SELECT o.opt_label FROM question_options o WHERE o.id=r.selected_option_id) AS chosen,
                        (SELECT GROUP_CONCAT(o.opt_label ORDER BY o.position SEPARATOR ',') FROM question_options o
                          WHERE o.question_id=q.id AND o.is_correct=1) AS correct,

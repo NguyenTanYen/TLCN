@@ -86,7 +86,9 @@ def sync_exam(db: Session, exam_id: int) -> dict:
     db.expire_all()
     r = db.execute(text("SELECT status, n_attempts, n_absent FROM sync_runs WHERE exam_id=:e AND kind='moodle' ORDER BY id DESC LIMIT 1"),
                    {"e": exam_id}).one()
-    return {"status": r.status, "n_attempts": r.n_attempts, "n_absent": r.n_absent}
+    from .timing import compute_response_times          # thời gian trả lời từng câu (bài Moodle Quiz)
+    n_timed = compute_response_times(db, exam_id) if r.status == "success" else 0
+    return {"status": r.status, "n_attempts": r.n_attempts, "n_absent": r.n_absent, "n_timed_answers": n_timed}
 
 
 # ------------------------------------------------------------------ kiểm tra quyền trên khóa học / hoạt động Moodle (chỉ đọc)

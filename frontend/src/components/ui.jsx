@@ -25,7 +25,8 @@ export function Loading({ error, loading }) {
   return null
 }
 
-export function Modal({ title, onClose, children, wide }) {
+// size: 'sm' (hộp xác nhận) | mặc định (biểu mẫu ngắn) | 'md' (lựa chọn, danh sách) | 'wide' (bảng, soạn đề)
+export function Modal({ title, onClose, children, wide, size }) {
   const hid = useId()
   useEffect(() => {  // Esc để đóng
     const onKey = e => { if (e.key === 'Escape') onClose() }
@@ -34,7 +35,7 @@ export function Modal({ title, onClose, children, wide }) {
   }, [onClose])
   return (
     <div className="modal-bg" onMouseDown={onClose}>
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={hid} onMouseDown={e => e.stopPropagation()}>
+      <div className={`modal ${wide ? 'wide' : size || ''}`} role="dialog" aria-modal="true" aria-labelledby={hid} onMouseDown={e => e.stopPropagation()}>
         <header className="card-h"><h3 id={hid}>{title}</h3><button className="btn ghost" aria-label="Đóng" autoFocus onClick={onClose}>✕</button></header>
         <div className="card-b">{children}</div>
       </div>

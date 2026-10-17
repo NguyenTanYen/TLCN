@@ -68,6 +68,8 @@ GIAO_DIEN = [
     ("GV", "Liên kết lớp ⇄ Moodle", "Lớp chưa gắn Moodle → 'Tự nối theo mã lớp'; hoặc bấm 'Phân tích CĐR' trong khóa trùng mã", "Lớp được gắn với khóa học có shortname = mã lớp"),
     ("Bộ môn", "Kế hoạch đo PI (BM3b), Tổng hợp PLO", "Kế hoạch đo PI → thêm/sửa; Tổng hợp PLO → xuất Excel/Word", "BM2, BM3 đúng biểu mẫu"),
     ("Bộ môn", "Kết nối Moodle", "Kết nối Moodle", "CSDL Moodle đọc được, cầu nối đã cài, Web Service OK (7 hàm)"),
+    ("GV", "Tạo bài KT ở trang môn học, giao lớp khi xuất", "Môn học của tôi → '+ Tạo bài KT' ở môn DBMS330284 → chọn hình thức (3 thẻ) → soạn đề → Lưu đề của môn → 'Giao cho lớp HP / Xuất' → chọn lớp 02", "Hộp chọn hình thức hiển thị đủ chữ, không cuộn ngang; đề nằm ở thẻ Đề kiểm tra của môn; lớp 02 có bài mới 'giao từ đề #…'; giao lại lớp đã có bị bỏ qua"),
+    ("GV", "Thời gian làm bài & cảnh báo", "Bài Thi cuối kỳ (Moodle) > thẻ 'Thời gian làm bài'; bấm 'Diễn biến' của SV 22130017; đổi ngưỡng giây/câu rồi Áp dụng; Xuất Excel", "4 SV bị cảnh báo (2 làm quá nhanh, 2 để hết giờ tự nộp); biểu đồ từng câu; danh sách đổi theo ngưỡng; tải được Excel"),
 ]
 
 

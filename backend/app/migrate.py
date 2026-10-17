@@ -11,6 +11,7 @@
   của học phần trong CTĐT, mức đáp ứng PI của học phần; nạp CTĐT CNTT 2026 và KTDL 2026 (database/04_ctdt_2026.sql).
 - Bài KT nhập điểm (exam_type = manual, câu/ý chấm tay question_type = manual, response_status = graded), chấm phiếu
   trên hệ thống (source = scan), chọn bài gộp minh chứng CLO (counts_for_clo), bài phụ đạo (parent_exam_id, target_students).
+- Đề của môn: exams.class_section_id cho phép NULL, thêm course_id và source_exam_id (bài giao/sao từ đề nào).
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
 """
 from sqlalchemy import text
@@ -54,7 +55,16 @@ NEW_COLUMNS = [
     ("exams", "counts_for_clo", "BOOLEAN NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)' AFTER last_synced_at"),
     ("exams", "parent_exam_id", "INT NULL COMMENT 'Bài phụ đạo: bài KT gốc' AFTER counts_for_clo"),
     ("exams", "target_students", "TEXT NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)' AFTER parent_exam_id"),
+    ("exam_attempts", "time_limit_sec", "INT NULL COMMENT 'Giới hạn thời gian của Quiz khi làm bài (giây; NULL = không giới hạn)'"),
+    ("exam_attempts", "last_answer_at", "DATETIME NULL COMMENT 'Lần cuối SV chọn/đổi một đáp án (từ các bước question engine của Moodle)'"),
+    ("exam_attempts", "finished_by_timeout", "BOOLEAN NULL COMMENT '1 = bài được nộp khi hết giờ (Moodle tự nộp), không do SV bấm nộp'"),
+    ("item_level_results", "first_answer_at", "DATETIME NULL COMMENT 'Lần đầu SV chọn đáp án câu này (bài trên Moodle Quiz)'"),
+    ("item_level_results", "last_answer_at", "DATETIME NULL COMMENT 'Lần cuối SV chọn/đổi đáp án câu này'"),
+    ("item_level_results", "n_answer_saves", "SMALLINT NULL COMMENT 'Số lần lưu đáp án của câu (> 1 = có đổi đáp án)'"),
+    ("item_level_results", "response_time_sec", "DECIMAL(8,1) NULL COMMENT 'Thời gian trả lời câu (giây) = khoảng cách tới lần chọn đáp án liền trước trong lượt làm'"),
+    ("exams", "course_id", "INT NULL COMMENT 'Đề của môn (tạo ở trang môn học): môn học; giao cho lớp HP khi xuất' AFTER class_section_id"),
     ("exams", "paper_settings", "TEXT NULL COMMENT 'Bài giấy chấm trên hệ thống: JSON tùy chọn in đề và bố cục phiếu (phiếu quét được đọc theo đúng bố cục đã in)' AFTER target_students"),
+    ("exams", "source_exam_id", "INT NULL COMMENT 'Bài được giao/sao từ đề này (đề của môn hoặc bài của lớp khác)' AFTER paper_settings"),
 ]
 
 # (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
@@ -89,6 +99,16 @@ def _upgrade_v3(c, done: list) -> None:
                              AND TABLE_NAME='exams' AND CONSTRAINT_NAME='fk_exam_parent'""")).scalar():
         c.execute(text("ALTER TABLE exams ADD CONSTRAINT fk_exam_parent FOREIGN KEY (parent_exam_id) REFERENCES exams(id) ON DELETE SET NULL"))
         done.append("exams.fk_exam_parent")
+    # đề của môn: bài KT chưa giao lớp HP (class_section_id NULL, course_id = môn) – giao cho các lớp khi xuất
+    if _col(c, "exams", "class_section_id") == "NO":
+        c.execute(text("ALTER TABLE exams MODIFY class_section_id INT NULL COMMENT 'Lớp HP của bài KT; NULL = đề của môn chưa giao lớp (course_id)'"))
+        done.append("exams.class_section_id NULL")
+    for name, ddl in (("fk_exam_course", "FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE RESTRICT"),
+                      ("fk_exam_source", "FOREIGN KEY (source_exam_id) REFERENCES exams(id) ON DELETE SET NULL")):
+        if not c.execute(text("""SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE()
+                                 AND TABLE_NAME='exams' AND CONSTRAINT_NAME=:n"""), {"n": name}).scalar():
+            c.execute(text(f"ALTER TABLE exams ADD CONSTRAINT {name} {ddl}"))
+            done.append(f"exams.{name}")
     for table, name, clause, marker in NEW_CHECKS:
         cur = _check_clause(c, table, name)
         if cur is not None and marker in cur:

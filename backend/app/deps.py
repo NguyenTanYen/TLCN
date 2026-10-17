@@ -56,10 +56,17 @@ def check_course_access(db: Session, user: User, course_id: int) -> None:
         raise HTTPException(403, "Bạn không phụ trách môn học này")
 
 
-def get_exam_for(db: Session, user: User, exam_id: int) -> Exam:
+def get_exam_for(db: Session, user: User, exam_id: int, allow_template: bool = False) -> Exam:
+    """Bài KT mà người dùng được thao tác. Đề của môn (chưa giao lớp HP) chỉ được xem/sửa/xóa/giao cho lớp –
+    các thao tác cần lớp (tạo Quiz, in đề, nhập điểm, đồng bộ…) bị chặn với thông báo hướng dẫn."""
     exam = db.get(Exam, exam_id)
     if not exam:
         raise HTTPException(404, "Không tìm thấy bài kiểm tra")
+    if exam.class_section_id is None:
+        check_course_access(db, user, exam.course_id)
+        if not allow_template:
+            raise HTTPException(409, "Đây là đề của môn, chưa giao cho lớp học phần – hãy bấm \"Giao cho lớp HP / Xuất\" để chọn lớp trước")
+        return exam
     check_section_access(db, user, exam.class_section_id)
     return exam
 
