@@ -383,7 +383,8 @@ CREATE TABLE question_clo_mapping (
 -- =====================================================================
 CREATE TABLE exams (
   id                INT AUTO_INCREMENT PRIMARY KEY,
-  class_section_id  INT          NOT NULL,
+  class_section_id  INT          NULL COMMENT 'Lớp HP của bài KT; NULL = đề của môn chưa giao lớp (course_id)',
+  course_id         INT          NULL COMMENT 'Đề của môn (tạo ở trang môn học): môn học; giao cho lớp HP khi xuất',
   exam_title        VARCHAR(255) NOT NULL COMMENT 'Tên bài kiểm tra',
   assessment_type   VARCHAR(10)  NOT NULL DEFAULT 'final' COMMENT 'process = Quá trình | final = Cuối kỳ',
   exam_type         VARCHAR(10)  NOT NULL DEFAULT 'online' COMMENT 'online (Moodle) | paper (giấy, trắc nghiệm) | manual (nhập điểm từng câu/ý)',
@@ -399,11 +400,14 @@ CREATE TABLE exams (
   parent_exam_id    INT          NULL COMMENT 'Bài phụ đạo: bài KT gốc',
   target_students   TEXT         NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)',
   paper_settings    TEXT         NULL COMMENT 'Bài giấy chấm trên hệ thống: JSON tùy chọn in đề và bố cục phiếu (phiếu quét được đọc theo đúng bố cục đã in)',
+  source_exam_id    INT          NULL COMMENT 'Bài được giao/sao từ đề này (đề của môn hoặc bài của lớp khác)',
   created_by        INT          NULL COMMENT 'Người tạo bài KT',
   created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_exam_cs      FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE RESTRICT,
   CONSTRAINT fk_exam_creator FOREIGN KEY (created_by)       REFERENCES users(id)          ON DELETE SET NULL,
   CONSTRAINT fk_exam_parent  FOREIGN KEY (parent_exam_id)   REFERENCES exams(id)          ON DELETE SET NULL,
+  CONSTRAINT fk_exam_course  FOREIGN KEY (course_id)        REFERENCES courses(id)        ON DELETE RESTRICT,
+  CONSTRAINT fk_exam_source  FOREIGN KEY (source_exam_id)   REFERENCES exams(id)          ON DELETE SET NULL,
   CONSTRAINT uq_exam_moodle_quiz UNIQUE (moodle_quiz_id),
   CONSTRAINT uq_exam_moodle_oq UNIQUE (moodle_offlinequiz_id),
   CONSTRAINT ck_exam_assess   CHECK (assessment_type IN ('process','final')),
@@ -470,6 +474,9 @@ CREATE TABLE exam_attempts (
   finished_at        DATETIME     NULL COMMENT 'Nộp bài',
   status             VARCHAR(20)  NOT NULL COMMENT 'finished = có làm bài, absent = vắng',
   total_score        DECIMAL(6,2) NOT NULL DEFAULT 0.00 COMMENT 'Tổng điểm thô (Σ points)',
+  time_limit_sec     INT          NULL COMMENT 'Giới hạn thời gian của Quiz khi làm bài (giây; NULL = không giới hạn)',
+  last_answer_at     DATETIME     NULL COMMENT 'Lần cuối SV chọn/đổi một đáp án (từ các bước question engine của Moodle)',
+  finished_by_timeout BOOLEAN     NULL COMMENT '1 = bài được nộp khi hết giờ (Moodle tự nộp), không do SV bấm nộp',
   CONSTRAINT fk_att_exam    FOREIGN KEY (exam_id)    REFERENCES exams(id)         ON DELETE CASCADE,
   CONSTRAINT fk_att_student FOREIGN KEY (student_id) REFERENCES students(id)      ON DELETE RESTRICT,
   CONSTRAINT fk_att_version FOREIGN KEY (version_id) REFERENCES exam_versions(id) ON DELETE RESTRICT,
@@ -489,6 +496,10 @@ CREATE TABLE item_level_results (
   response_status     VARCHAR(20)  NOT NULL COMMENT 'answered | blank | absent | graded (điểm nhập tay)',
   is_correct          BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = trả lời đúng',
   score_earned        DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Điểm đạt của câu',
+  first_answer_at     DATETIME     NULL COMMENT 'Lần đầu SV chọn đáp án câu này (bài trên Moodle Quiz)',
+  last_answer_at      DATETIME     NULL COMMENT 'Lần cuối SV chọn/đổi đáp án câu này',
+  n_answer_saves      SMALLINT     NULL COMMENT 'Số lần lưu đáp án của câu (> 1 = có đổi đáp án)',
+  response_time_sec   DECIMAL(8,1) NULL COMMENT 'Thời gian trả lời câu (giây) = khoảng cách tới lần chọn đáp án liền trước trong lượt làm',
   CONSTRAINT fk_ilr_attempt  FOREIGN KEY (attempt_id)         REFERENCES exam_attempts(id)    ON DELETE CASCADE,
   CONSTRAINT fk_ilr_question FOREIGN KEY (question_id)        REFERENCES question_bank(id)    ON DELETE RESTRICT,
   CONSTRAINT fk_ilr_option   FOREIGN KEY (selected_option_id) REFERENCES question_options(id) ON DELETE RESTRICT,
@@ -656,7 +667,6 @@ JOIN exams e ON e.id = a.exam_id
 JOIN class_sections cs ON cs.id = e.class_section_id
 JOIN clos c ON c.id = r.clo_id
 LEFT JOIN clo_assessment_plans p ON p.clo_id = r.clo_id AND p.semester_id = cs.semester_id;
-
 -- Dữ liệu tham chiếu sinh tự động từ BM2 (KTDL) và bảng phân công đánh giá PIs HKI 2023-2024
 
 USE assessment_db;

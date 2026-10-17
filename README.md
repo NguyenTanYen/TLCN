@@ -9,7 +9,8 @@ BM6a–6d (CĐR môn học, cả BM6c riêng từng bài kiểm tra) và BM2a–
 Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và xem kết quả phân tích trên **Moodle**. Hai hệ thống nối với nhau qua plugin Moodle `local_clo` (nút *Phân tích CĐR* đăng nhập một lần, Web Service tạo Quiz / Offline Quiz và nhận kết quả) và cầu nối CSDL chỉ đọc để kéo bài làm – xem `HUONG_DAN_CAI_DAT.md`.
 
 > **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp `.bat` 0–8). Sau khi cập nhật bản 15/10 cần chạy lại **1_CAI_DAT_PYTHON.bat**
-> (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.3 – Web Service đồng bộ câu hỏi), sau đó vào Moodle → Quản trị trang để nâng cấp.
+> (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.3.1 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu), sau đó vào Moodle → Quản trị trang để nâng cấp.
+> Bài trực tuyến đã đồng bộ trước bản thời gian làm bài: bấm **Đồng bộ lại** để lấy thời điểm trả lời từng câu.
 
 ### Bổ sung theo góp ý 15/10
 
@@ -24,6 +25,8 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | Gộp 2–3 bài để đánh giá CĐR | Chọn bài làm minh chứng BM6; **Phân tích gộp** (cộng điểm theo SV hoặc cộng dồn lượt) → CLO và đóng góp PLO/PI từng CTĐT, xuất Excel. |
 | Phụ đạo | Mỗi SV sai bao nhiêu câu, bấm SV xem danh sách câu sai (đã chọn – đáp án đúng – CLO – chương), **tạo bài phụ đạo** (câu đã sai + câu tương tự cùng CLO). |
 | Đề & phiếu giấy, chấm phiếu | **Hệ thống tự sinh mã đề**, xem trước đề (1 cột hoặc **chia 2 cột**) và **phiếu trả lời** ngay trên màn hình, sửa câu tại chỗ, xuất PDF/Word/đáp án; mỗi câu 2–6 phương án, phiếu in đúng số ô. **Chấm phiếu bằng ảnh quét hoặc ảnh chụp điện thoại** (OpenCV: 4 ô định vị, nắn phối cảnh), soát/sửa rồi lưu. Vẫn giữ lựa chọn Moodle Offline Quiz. |
+| Tạo bài KT ở môn học, chọn lớp khi xuất | Nút **+ Tạo bài KT** ngay trên thẻ môn; đề lưu ở môn (*đề của môn*), khi xuất bấm **Giao cho lớp HP / Xuất** chọn các lớp – mỗi lớp nhận bài riêng (kèm Quiz Moodle). Hộp chọn hình thức dạng thẻ, hộp thoại chuẩn hóa cỡ, không tràn ngang trên màn hình hẹp. |
+| Thời gian trả lời từng câu, cảnh báo GV | Lấy thời điểm SV chọn đáp án từng câu từ Moodle (`question_attempt_steps`, chỉ đọc) → thời gian từng câu, thẻ **Thời gian làm bài**: cảnh báo SV **chọn đại rồi nộp** (vd. 50 câu/5 phút), **chọn xong không nộp chờ hết giờ**, bỏ dở; ngưỡng chỉnh được, diễn biến từng SV, xuất Excel; số cảnh báo hiện ở danh sách bài KT. Nên đặt Quiz 1 câu/trang. |
 
 ## Cấu trúc thư mục
 
@@ -79,7 +82,7 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Quy trình demo
 
 1. **GV** `gv.son` → *Ngân hàng câu hỏi*: xem/sửa câu hỏi, gắn CLO có trọng số; câu đã có kết quả thi bị khóa, chỉ được *Hủy*.
-2. *Lớp học phần → DBMS330284_01 → Tạo bài kiểm tra*: chọn câu theo CLO/chương, xem độ phủ điểm theo CLO.
+2. *Môn học của tôi → DBMS330284 → + Tạo bài KT*: chọn hình thức, chọn câu theo CLO/chương (hoặc sinh đề theo ma trận), xem độ phủ điểm theo CLO → *Lưu đề của môn* → **Giao cho lớp HP / Xuất** chọn lớp (mỗi lớp một bài, tạo luôn Quiz Moodle).
 3. Bài **online**: *Tải Moodle XML* → nhập vào Moodle, tạo Quiz → *Liên kết* ID quiz → *Đồng bộ & phân tích*.
    Bài **giấy**: *Tạo đề thi giấy trên Moodle* (số mã đề, xáo câu/phương án) → tải đề, phiếu trả lời, đáp án từng mã đề (PDF/Word, .zip) để in
    → SV làm bài, ghi MSSV trên phiếu → quét phiếu, tải ảnh lên Moodle → **Moodle nhận diện & chấm** → *Đồng bộ & phân tích*.
@@ -92,10 +95,10 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Kiểm thử
 
 ```bash
-python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 92 ca + độ phủ 126/126 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
-cd backend && python -m pytest tests -q        # 92 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), nâng cấp CSDL
+python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 99 ca + độ phủ 133/133 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
+cd backend && python -m pytest tests -q        # 99 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), thời gian làm bài & cảnh báo, nâng cấp CSDL
 python ../tools/omr/kiem_tra_omr.py          # độ bền bộ chấm phiếu: 6 điều kiện ảnh × 30 phiếu, 7 kiểu tô
-python tests/ui_screens.py                     # Playwright: chụp 41 màn hình, bắt lỗi console
+python tests/ui_screens.py                     # Playwright: chụp 47 màn hình, bắt lỗi console
 python ../tools/moodle_e2e/run_real_moodle_e2e.py /duong/dan/moodle   # E2E với Moodle 4.5 thật
 python ../tools/moodle_e2e/kiem_tra_dong_bo_cau_hoi.py http://localhost:8000 gv.son Gv@123456 <id môn> <id khóa học Moodle>   # đồng bộ câu hỏi 2 chiều
 ```

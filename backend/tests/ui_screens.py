@@ -70,12 +70,28 @@ with sync_playwright() as pw:
     page.screenshot(path=str(OUT / "05_cau_hoi_bi_khoa.png")); page.keyboard.press("Escape"); page.goto(BASE + "/questions"); page.wait_for_selector(".tbl tbody tr")
     page.click("text=+ Thêm câu hỏi"); page.wait_for_selector(".modal"); page.wait_for_timeout(300)
     page.screenshot(path=str(OUT / "06_them_cau_hoi.png"))
-    page.goto(BASE + "/sections/1"); page.wait_for_selector(".card"); page.click("text=+ Tạo bài kiểm tra"); page.click("text=Trắc nghiệm trực tuyến trên Moodle Quiz"); page.wait_for_selector(".modal tbody tr")
+    page.goto(BASE + "/sections/1"); page.wait_for_selector(".card"); page.click("text=+ Tạo bài kiểm tra"); page.click(".choice:has-text('Trắc nghiệm trực tuyến')"); page.wait_for_selector(".modal tbody tr")
     page.click(".modal button.chip:has-text('CLO2')"); page.click("text=Chọn tất cả đang lọc"); page.wait_for_timeout(300)
     page.screenshot(path=str(OUT / "07_tao_bai_kt.png"))
     shot(page, "08_quy_trinh_online", "/exams/2")
     shot(page, "09_quy_trinh_giay", "/exams/1", wait="text=Bài đã chấm trên Moodle")
     shot(page, "10_tong_quan_diem", "/exams/2", click="text=Tổng quan điểm", wait="canvas")
+    # tạo bài kiểm tra ở trang môn học (đề của môn) – chọn lớp HP khi xuất
+    cid = next(x["course_id"] for x in requests.get(BASE + "/api/class-sections", headers=gv).json() if x["id"] == 1)
+    page.goto(BASE + f"/courses/{cid}?tab=exams"); page.wait_for_selector("text=Đề kiểm tra của môn")
+    page.click(".page-h >> text=+ Tạo bài kiểm tra"); page.wait_for_selector(".choice"); page.wait_for_timeout(400)
+    page.screenshot(path=str(OUT / "45_chon_hinh_thuc_bai_kt.png")); print("saved chooser"); page.keyboard.press("Escape")
+    tpl = requests.post(BASE + "/api/exams", headers=gv, json={"course_id": cid, "exam_title": "Kiểm tra giữa kỳ – đề chung của môn", "exam_type": "online",
+                        "assessment_type": "process", "max_score": 10, "duration_minutes": 30,
+                        "items": [{"question_id": q, "points": 1} for q in range(1, 11)]}).json()["id"]
+    shot(page, "46_de_cua_mon", f"/exams/{tpl}", wait="text=Đề chưa gắn lớp học phần", full=False)
+    page.click("text=Giao cho lớp HP / Xuất >> nth=0"); page.wait_for_selector(".pick"); page.click(".pick:has-text('DBMS330284_02') input"); page.wait_for_timeout(300)
+    page.screenshot(path=str(OUT / "47_giao_de_cho_lop.png")); print("saved deploy"); page.keyboard.press("Escape")
+    requests.delete(BASE + f"/api/exams/{tpl}", headers=gv)
+    shot(page, "42_thoi_gian_lam_bai", "/exams/2?tab=timing", wait="text=Cách hệ thống cảnh báo")
+    page.click("tr:has-text('22130017') >> text=Diễn biến"); page.wait_for_selector(".modal canvas"); page.wait_for_timeout(800)
+    page.screenshot(path=str(OUT / "43_dien_bien_lam_bai.png")); page.keyboard.press("Escape"); print("saved timeline")
+    shot(page, "44_canh_bao_lop", "/sections/1", wait="text=cảnh báo", full=False)
     page.goto(BASE + "/exams/2"); page.click("text=Phân tích câu hỏi"); page.wait_for_selector("canvas")
     page.click("tr:has-text('YEAR(NgayLap)') >> text=Phương án"); page.wait_for_timeout(600)
     page.screenshot(path=str(OUT / "11_phan_tich_cau_hoi.png"), full_page=True); print("saved items")
@@ -132,7 +148,7 @@ with sync_playwright() as pw:
     man = [e for e in requests.get(BASE + "/api/class-sections/2/exams", headers=gv).json() if e["exam_type"] == "manual"]
     if man:
         shot(page, "36_nhap_diem", f"/exams/{man[0]['id']}", wait=".grade-grid", full=False)
-    page.goto(BASE + "/sections/1"); page.wait_for_selector(".card"); page.click("text=+ Tạo bài kiểm tra"); page.click("text=Nhập điểm (tự luận"); page.wait_for_timeout(600)
+    page.goto(BASE + "/sections/1"); page.wait_for_selector(".card"); page.click("text=+ Tạo bài kiểm tra"); page.click(".choice:has-text('Nhập điểm')"); page.wait_for_timeout(600)
     page.screenshot(path=str(OUT / "37_tao_bai_nhap_diem.png")); page.keyboard.press("Escape")
     qs = [q for q in requests.get(BASE + "/api/questions?course_id=5", headers=gv).json() if q["tagged"]][:12]
     pe = requests.post(BASE + "/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Kiểm tra giữa kỳ (giấy, chấm trên hệ thống)", "exam_type": "paper",

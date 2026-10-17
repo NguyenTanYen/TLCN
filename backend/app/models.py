@@ -299,7 +299,8 @@ class QuestionCLO(Base):
 class Exam(Base):
     __tablename__ = "exams"
     id: Mapped[int] = mapped_column(primary_key=True)
-    class_section_id: Mapped[int] = mapped_column(ForeignKey("class_sections.id"))
+    class_section_id: Mapped[Optional[int]] = mapped_column(ForeignKey("class_sections.id"))  # NULL = đề của môn chưa giao lớp
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))                # đề của môn
     exam_title: Mapped[str] = mapped_column(String(255))
     assessment_type: Mapped[str] = mapped_column(String(10), default="final")
     exam_type: Mapped[str] = mapped_column(String(10), default="online")
@@ -315,9 +316,11 @@ class Exam(Base):
     parent_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))  # bài phụ đạo
     target_students: Mapped[Optional[str]] = mapped_column(Text)
     paper_settings: Mapped[Optional[str]] = mapped_column(Text)            # JSON tùy chọn in đề / bố cục phiếu
+    source_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))  # giao/sao từ đề nào
     created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    class_section: Mapped[ClassSection] = relationship()
+    class_section: Mapped[Optional[ClassSection]] = relationship()
+    course: Mapped[Optional["Course"]] = relationship()
     questions: Mapped[list["ExamQuestion"]] = relationship(order_by="ExamQuestion.order_index", cascade="all, delete-orphan")
     versions: Mapped[list["ExamVersion"]] = relationship(order_by="ExamVersion.version_code", cascade="all, delete-orphan")
 
@@ -372,6 +375,9 @@ class ExamAttempt(Base):
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(20))
     total_score: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
+    time_limit_sec: Mapped[Optional[int]] = mapped_column(Integer)
+    last_answer_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    finished_by_timeout: Mapped[Optional[bool]] = mapped_column(Boolean)
     student: Mapped[Student] = relationship()
 
 
@@ -384,6 +390,10 @@ class ItemResult(Base):
     response_status: Mapped[str] = mapped_column(String(20))
     is_correct: Mapped[bool] = mapped_column(Boolean, default=False)
     score_earned: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0)
+    first_answer_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_answer_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    n_answer_saves: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    response_time_sec: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 1))
 
 
 class ItemStatistic(Base):

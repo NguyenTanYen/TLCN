@@ -15,20 +15,23 @@ function CloPick({ clos, value, onChange }) {
 
 export const weights = ids => ids.map((id, i) => ({ clo_id: id, weight: i < ids.length - 1 ? Math.round(100 / ids.length) / 100 : Math.round((1 - Math.round(100 / ids.length) / 100 * (ids.length - 1)) * 100) / 100 }))
 
-export function ManualExamForm({ cs, onClose }) {
+// cs: bài của một lớp HP; courseId (+ sections): đề nhập điểm của môn – giao cho lớp HP sau
+export function ManualExamForm({ cs, courseId, sections, onClose }) {
   const nav = useNavigate()
-  const course = useApi(`/api/courses/${cs.course_id}`).data
+  const cid = cs ? cs.course_id : courseId
+  const course = useApi(`/api/courses/${cid}`).data
+  const [xcs, setXcs] = useState(cs || (sections?.length === 1 ? sections[0] : null))  // lớp nhận file Excel có điểm
   const [f, setF] = useState({ exam_title: '', assessment_type: 'process', exam_date: '', max_score: 10, counts_for_clo: true })
   const [items, setItems] = useState([blank(1), blank(2), blank(3)])
   const [mode, setMode] = useState('form')
   const total = items.reduce((a, b) => a + Number(b.points || 0), 0)
   const bad = items.some(i => !i.title.trim() || !(Number(i.points) > 0) || !i.clos.length)
   const save = async () => {
-    const r = await api.post(`/api/class-sections/${cs.id}/manual-exams`, { ...f, exam_date: f.exam_date || null, max_score: Number(f.max_score),
+    const r = await api.post(cs ? `/api/class-sections/${cs.id}/manual-exams` : `/api/courses/${cid}/manual-exams`, { ...f, exam_date: f.exam_date || null, max_score: Number(f.max_score),
       items: items.map(i => ({ title: i.title.trim(), points: Number(i.points), clos: weights(i.clos) })) })
-    nav(`/exams/${r.id}?tab=grades`)
+    nav(cs ? `/exams/${r.id}?tab=grades` : `/exams/${r.id}`)
   }
-  return <Modal wide title="Bài kiểm tra nhập điểm (tự luận, thực hành, đồ án, bài làm ngoài hệ thống…)" onClose={onClose}>
+  return <Modal size="wide" title={`Bài kiểm tra nhập điểm${cs ? ` – lớp ${cs.section_code}` : ' – đề của môn'}`} onClose={onClose}>
     <div className="tabs">{[['form', 'Khai báo câu/ý chấm điểm'], ['excel', 'Tạo từ file Excel có sẵn']].map(([k, l]) =>
       <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>
     <div className="grid3">
@@ -47,8 +50,13 @@ export function ManualExamForm({ cs, onClose }) {
       <div className="row gap mt"><button className="btn sm" onClick={() => setItems(x => [...x, blank(x.length + 1)])}>+ Thêm câu/ý</button>
         <span className="muted small">Tổng điểm tối đa: <b>{total}</b> (quy đổi về thang {f.max_score})</span><span className="grow" />
         {bad && <small className="bad-t">Mỗi câu/ý cần tên, điểm &gt; 0 và ít nhất một CLO</small>}
-        <ActionButton className="btn primary" disabled={bad || f.exam_title.trim().length < 3 || !items.length} onRun={save}>Tạo bài và nhập điểm</ActionButton></div>
-    </> : <ExcelCreate cs={cs} f={f} clos={course?.clos || []} />}
+        <ActionButton className="btn primary" disabled={bad || f.exam_title.trim().length < 3 || !items.length} onRun={save}>{cs ? 'Tạo bài và nhập điểm' : 'Lưu đề của môn'}</ActionButton></div>
+      {!cs && <p className="muted small mt">Sau khi lưu, bấm "Giao cho lớp HP" để chọn các lớp sẽ nhập điểm – mỗi lớp nhận một bảng điểm riêng.</p>}
+    </> : <>
+      {!cs && <Field label="File điểm của lớp học phần"><select value={xcs?.id || ''} onChange={e => setXcs(sections.find(s => String(s.id) === e.target.value) || null)}>
+        <option value="">– Chọn lớp –</option>{(sections || []).map(s => <option key={s.id} value={s.id}>{s.section_code} · {s.semester} · {s.n_students} SV</option>)}</select></Field>}
+      {xcs ? <ExcelCreate key={xcs.id} cs={xcs} f={f} clos={course?.clos || []} /> : <p className="muted small">File Excel đã có điểm của sinh viên nên cần chọn lớp học phần trước.</p>}
+    </>}
   </Modal>
 }
 

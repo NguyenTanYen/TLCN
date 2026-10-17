@@ -16,7 +16,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import check_section_access, get_exam_for, require
+from ..deps import check_course_access, check_section_access, get_exam_for, require
 from ..http_utils import attachment
 from ..models import Exam, Student, User
 from ..services import combine, manual, results
@@ -103,6 +103,23 @@ def create_manual_exam(cs_id: int, body: ManualExamIn, u: User = Depends(require
     db.add(e); db.flush()
     try:
         manual.add_items(db, e, cs.course_id, [i.model_dump() for i in body.items], u.id)
+    except manual.GradeError as ex:
+        db.rollback(); raise HTTPException(422, str(ex))
+    db.commit()
+    return {"id": e.id}
+
+
+@router.post("/courses/{course_id}/manual-exams", status_code=201)
+def create_course_manual_exam(course_id: int, body: ManualExamIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Đề nhập điểm của môn (tạo ở trang môn học): khai báo câu/ý gắn CLO một lần, giao cho các lớp HP để nhập điểm."""
+    check_course_access(db, u, course_id)
+    _check_items(db, course_id, body.items)
+    e = Exam(class_section_id=None, course_id=course_id, exam_title=body.exam_title.strip(), assessment_type=body.assessment_type,
+             exam_type="manual", exam_date=body.exam_date, max_score=body.max_score, counts_for_clo=body.counts_for_clo,
+             status="Draft", created_by=u.id)
+    db.add(e); db.flush()
+    try:
+        manual.add_items(db, e, course_id, [i.model_dump() for i in body.items], u.id)
     except manual.GradeError as ex:
         db.rollback(); raise HTTPException(422, str(ex))
     db.commit()

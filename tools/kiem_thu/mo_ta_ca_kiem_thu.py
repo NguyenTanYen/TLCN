@@ -13,6 +13,7 @@ NHOM = [
     "10. Tích hợp Moodle: Web Service, SSO, đồng bộ câu hỏi, liên kết lớp",
     "11. Thống kê lớp, hồ sơ sinh viên",
     "12. Nâng cấp CSDL, cầu nối",
+    "13. Thời gian làm bài & cảnh báo bất thường",
 ]
 
 M = {
@@ -121,4 +122,11 @@ M = {
     "test_moodle_web_service_flows": (9, "Web Service: Quiz, Offline Quiz, công bố", "Tạo Quiz, tạo đề giấy, trạng thái, xử lý phiếu, tải tệp/.zip, công bố, gửi kết quả, trạng thái WS", "Đúng tham số gửi Moodle; không lộ token; 40 kết quả"),
     "test_copy_exam_manual_items_and_paper_versions": (3, "Dùng đề cho lớp khác, sửa câu/ý, sinh lại mã đề", "Sao chép đề sang lớp 02; sửa câu/ý bài nhập điểm; xóa mã đề chưa chấm", "Đủ câu; GV khác 403; cấu trúc mới đúng"),
     "test_question_bank_two_way_sync": (9, "Đồng bộ ngân hàng câu hỏi hai chiều", "Đẩy câu mới, nhập câu soạn trên Moodle, Moodle sửa (phiên bản 2) → kéo về", "Trạng thái đúng từng bước; câu có kết quả không bị ghi đè"),
+    "test_response_time_split_and_page_resolution": (12, "Tính thời gian trả lời từng câu", "Dãy thời điểm chọn đáp án; nhiều câu cùng một trang (cùng thời điểm)", "Thời gian = khoảng cách tới lần chọn trước; câu cùng trang chia đều; báo độ phân giải theo trang"),
+    "test_sync_stores_answer_times": (12, "Đồng bộ thời điểm chọn đáp án từ Moodle", "Đồng bộ Quiz có giới hạn 45 phút, tự nộp khi hết giờ", "Lưu lần chọn đầu/cuối, số lần lưu từng câu; giới hạn thời gian; lượt hết giờ tự nộp"),
+    "test_timing_report_flags_planted_students": (12, "Cảnh báo SV chọn đại / chọn xong để hết giờ", "Dữ liệu có 2 SV chọn ~20 câu trong 1 phút và 2 SV chọn xong không nộp chờ hết giờ", "Đúng 4 SV bị cảnh báo đúng loại; SV bình thường không bị gắn cờ; số cảnh báo hiện ở danh sách bài KT"),
+    "test_timing_thresholds_timeline_and_export": (12, "Đổi ngưỡng, diễn biến từng SV, xuất Excel", "Gửi ngưỡng tùy chỉnh / sai; xem diễn biến 1 SV; tải Excel; bài giấy", "Kết quả theo ngưỡng; ngưỡng sai 422; SV không làm 404; Excel 2 sheet; bài giấy báo không áp dụng"),
+    "test_course_exam_create_and_blocked_actions": (3, "Tạo bài kiểm tra ở trang môn học (đề của môn)", "Sinh đề theo ma trận cấp môn rồi lưu đề chưa gắn lớp; gọi tạo Quiz, đồng bộ, thống kê; GV khác; gửi cả lớp và môn", "Đề lưu ở môn; thao tác cần lớp 409 kèm hướng dẫn chọn lớp; Moodle XML được; GV khác 403; 422"),
+    "test_course_exam_deploy_to_sections": (3, "Giao đề của môn cho lớp HP khi xuất", "Giao đề giấy cho 2 lớp, sinh mã đề ở bài của lớp, giao lại lớp đã có, xóa đề của môn", "Mỗi lớp một bài cùng câu hỏi; không tạo trùng; xóa đề gốc không mất bài của lớp"),
+    "test_course_manual_exam_deploy_and_grade": (7, "Đề nhập điểm của môn giao cho lớp", "Khai báo câu/ý gắn CLO ở cấp môn, giao cho lớp 02 rồi nhập điểm", "Bảng điểm đủ 35 SV của lớp; nhập điểm ở đề chưa giao bị chặn (409)"),
 }

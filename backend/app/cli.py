@@ -194,6 +194,31 @@ def _answer(rng: random.Random, theta: float, b: float, n_opts: int, correct: in
     return rng.choice(wrong)
 
 
+# ------------------------------------------------------------------ mô phỏng THỜI GIAN làm bài trên Quiz (dữ liệu minh họa)
+QUIZ_TIME_LIMIT = 45 * 60           # Quiz cuối kỳ: 45 phút, hết giờ Moodle tự nộp
+RAPID_GUESSERS = (16, 17)           # SV thứ 17, 18 (22130017, 22130018): chọn đại 20 câu trong khoảng 1 phút rồi nộp
+IDLE_UNTIL_TIMEOUT = (5, 22)        # SV thứ 6, 23 (22130006, 22130023): chọn xong trong ~6 phút, không nộp, để hết giờ tự nộp
+
+
+def timing_plan(trng: random.Random, i: int, n_answered: int, limit: int = QUIZ_TIME_LIMIT, last_attempt: bool = True):
+    """Thời điểm (giây kể từ lúc bắt đầu) SV thứ i chọn đáp án từng câu đã trả lời và lúc nộp bài.
+    Trả về (offsets, finish, kiểu). Dùng chung cho Moodle mô phỏng và kịch bản tạo dữ liệu trên Moodle thật."""
+    t, offs = 0.0, []
+    if last_attempt and i in RAPID_GUESSERS:
+        for _ in range(n_answered):
+            t += trng.uniform(1.5, 4.0); offs.append(round(t))
+        return offs, round(t + trng.uniform(5, 20)), "chon_dai"
+    if last_attempt and i in IDLE_UNTIL_TIMEOUT:
+        for _ in range(n_answered):
+            t += trng.uniform(10, 25); offs.append(round(t))
+        return offs, limit, "treo_may"
+    gaps = [min(300.0, max(12.0, trng.lognormvariate(math.log(70), 0.5))) for _ in range(n_answered)]
+    scale = min(1.0, limit * 0.85 / max(1.0, sum(gaps)))
+    for g in gaps:
+        t += g * scale; offs.append(round(t))
+    return offs, min(limit - 30, round(t + trng.uniform(20, 240))), "binh_thuong"
+
+
 def simulate_moodle() -> None:
     """Chỉ dùng cho môi trường thử: tạo CSDL `moodle` mô phỏng (bảng Moodle 4.4 + Offline Quiz) có bài làm đã xáo đáp án.
 
@@ -248,11 +273,13 @@ def simulate_moodle() -> None:
             cur.execute("INSERT INTO mdl_question_answers (id, question, answer, fraction, feedback) VALUES (%s,%s,%s,%s,'')",
                         (next_ans, mq, o.content, 1 if o.is_correct else 0)); ids.append(next_ans); next_ans += 1
         qmap[q.id] = mq; ans_ids[q.id] = ids
-    cur.execute("INSERT INTO mdl_quiz (id, course, name, intro, grade, sumgrades) VALUES (900,50,'Thi cuối kỳ HQTCSDL','',10,10)")
+    cur.execute("INSERT INTO mdl_quiz (id, course, name, intro, grade, sumgrades, timelimit, overduehandling) "
+                "VALUES (900,50,'Thi cuối kỳ HQTCSDL','',10,10,%s,'autosubmit')", (QUIZ_TIME_LIMIT,))
     meta = {c: (b, corr) for ch, bl, clo, c, opts, corr, b in D.Q}
     trap_content = D.Q[D.TRAP_QUESTION_INDEX][3]
     step = 100000
     t0 = int(datetime(2025, 1, 8, 7, 30).timestamp())
+    trng = random.Random(4242)          # thời gian làm bài: bộ sinh riêng, không làm đổi đáp án của dữ liệu minh họa
     for i, (code, name) in enumerate(studs):
         if i in (3, 29):  # 2 SV vắng thi
             continue
@@ -261,9 +288,11 @@ def simulate_moodle() -> None:
         for att_no in range(1, attempts + 1):
             usage_id = usage * 10 + att_no
             cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (%s,70,'mod_quiz','deferredfeedback')", (usage_id,))
+            tstart = t0 + att_no * 4000
             cur.execute("""INSERT INTO mdl_quiz_attempts (quiz, userid, attempt, uniqueid, layout, preview, state, timestart, timefinish, sumgrades)
-                           VALUES (900,%s,%s,%s,'',0,'finished',%s,%s,0)""", (uid, att_no, usage_id, t0 + att_no * 4000, t0 + att_no * 4000 + 3000))
+                           VALUES (900,%s,%s,%s,'',0,'finished',%s,%s,0)""", (uid, att_no, usage_id, tstart, tstart))
             qa_id = cur.lastrowid; sumgrades = 0.0
+            answer_steps = []                 # (bước chọn đáp án, câu Moodle, số phương án, chỉ số đã chọn) -> gán thời điểm sau vòng lặp
             for slot, eq in enumerate(exam.questions, 1):
                 q = eq.question
                 b, corr = meta[q.content]
@@ -280,10 +309,25 @@ def simulate_moodle() -> None:
                 if pick is not None:
                     cur.execute("INSERT INTO mdl_question_attempt_steps (id, questionattemptid, sequencenumber, state, timecreated) VALUES (%s,%s,1,'complete',0)", (step, qa))
                     cur.execute("INSERT INTO mdl_question_attempt_step_data (attemptstepid, name, value) VALUES (%s,'answer',%s)", (step, str(order.index(ids[pick]))))
+                    answer_steps.append((step, qa, len(ids), order.index(ids[pick])))
                     step += 1
                     if pick == corr:
                         sumgrades += 0.5  # Moodle tự chấm: maxmark 0.5 x fraction 1
-            cur.execute("UPDATE mdl_quiz_attempts SET sumgrades=%s WHERE id=%s", (sumgrades, qa_id))
+            # thời điểm chọn đáp án và nộp bài (Quiz 45 phút); vài SV bình thường đổi đáp án một lần trước khi chốt
+            offs, finish, kind = timing_plan(trng, i, len(answer_steps), last_attempt=att_no == attempts)
+            for (st, qa, nopt, idx), off in zip(answer_steps, offs):
+                if kind == "binh_thuong" and trng.random() < 0.12 and off > 20:
+                    cur.execute("UPDATE mdl_question_attempt_steps SET sequencenumber=2 WHERE id=%s", (st,))
+                    cur.execute("INSERT INTO mdl_question_attempt_steps (id, questionattemptid, sequencenumber, state, timecreated) VALUES (%s,%s,1,'complete',%s)",
+                                (step, qa, tstart + off - trng.randint(5, 15)))
+                    cur.execute("INSERT INTO mdl_question_attempt_step_data (attemptstepid, name, value) VALUES (%s,'answer',%s)",
+                                (step, str((idx + 1) % nopt)))
+                    step += 1
+                    off += trng.randint(30, 400) if trng.random() < 0.5 else 0      # đổi lại sau khi xem các câu khác
+                cur.execute("UPDATE mdl_question_attempt_steps SET timecreated=%s WHERE id=%s", (tstart + min(off, finish), st))
+            cur.execute("UPDATE mdl_question_attempt_steps s JOIN mdl_question_attempts q ON q.id=s.questionattemptid SET s.timecreated=%s "
+                        "WHERE q.questionusageid=%s AND s.sequencenumber=0", (tstart, usage_id))
+            cur.execute("UPDATE mdl_quiz_attempts SET sumgrades=%s, timefinish=%s WHERE id=%s", (sumgrades, tstart + finish, qa_id))
     # một lượt làm thử của GV (phải bị loại)
     cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (999999,70,'mod_quiz','deferredfeedback')")
     cur.execute("INSERT INTO mdl_quiz_attempts (quiz, userid, attempt, uniqueid, layout, preview, state, timestart, timefinish) VALUES (900,99,1,999999,'',1,'finished',%s,%s)", (t0, t0 + 60))

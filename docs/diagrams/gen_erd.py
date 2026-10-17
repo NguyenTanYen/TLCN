@@ -14,14 +14,14 @@ GROUPS = {
 }
 COLORS = {"A": "#FDF3E1", "B": "#E8F1FB", "C": "#EAF6EA", "D": "#F3ECFA", "E": "#FFF7D6", "F": "#FDE9E7", "G": "#E6F4F4"}
 import os
-c = pymysql.connect(host="127.0.0.1", port=int(os.environ.get("DBPORT", 3307)), user="root", password="1234", database="information_schema", charset="utf8mb4")
+c = pymysql.connect(host="127.0.0.1", port=int(os.environ.get("DBPORT", 3307)), user=os.environ.get("DBUSER","root"), password=os.environ.get("DBPASS","1234"), database="information_schema", charset="utf8mb4")
 cur = c.cursor()
-cur.execute("""SELECT table_name, column_name, column_type, is_nullable, column_key, column_default, extra, ordinal_position
+cur.execute("""SELECT table_name, column_name, column_type, is_nullable, column_key, column_default, extra, ordinal_position, column_comment
                FROM columns WHERE table_schema='assessment_db' AND table_name IN (SELECT table_name FROM tables WHERE table_schema='assessment_db' AND table_type='BASE TABLE')
                ORDER BY table_name, ordinal_position""")
 cols = {}
-for t, col, typ, nul, key, dflt, extra, _ in cur.fetchall():
-    cols.setdefault(t, []).append(dict(name=col, type=typ, null=nul == "YES", key=key, default=dflt, extra=extra))
+for t, col, typ, nul, key, dflt, extra, _, cmt in cur.fetchall():
+    cols.setdefault(t, []).append(dict(name=col, type=typ, null=nul == "YES", key=key, default=dflt, extra=extra, comment=cmt))
 cur.execute("""SELECT table_name, column_name, referenced_table_name, referenced_column_name, constraint_name FROM key_column_usage
                WHERE table_schema='assessment_db' AND referenced_table_name IS NOT NULL""")
 fks = cur.fetchall()

@@ -20,7 +20,8 @@ export function MatrixTable({ chapters, cells, blooms, value, render }) {
   </table></div>
 }
 
-export default function Blueprint({ cs, maxScore, picked, onApply }) {
+// base: /api/class-sections/{id} (bài của lớp) hoặc /api/courses/{id} (đề của môn)
+export default function Blueprint({ base, maxScore, picked, onApply }) {
   const [n, setN] = useState(20)
   const [scope, setScope] = useState([])            // outline_id đã chọn; rỗng = mọi chương
   const [preset, setPreset] = useState('balanced')
@@ -30,8 +31,8 @@ export default function Blueprint({ cs, maxScore, picked, onApply }) {
   const [keepPicked, setKeepPicked] = useState(false)
   const [res, setRes] = useState(null)
   const [seed, setSeed] = useState(1)
-  const pool = useApi(`/api/class-sections/${cs.id}/exam-blueprint/pool${scope.length ? `?outline_ids=${scope.join(',')}` : ''}`)
-  const allCh = useApi(`/api/class-sections/${cs.id}/exam-blueprint/pool`).data?.chapters || []
+  const pool = useApi(`${base}/exam-blueprint/pool${scope.length ? `?outline_ids=${scope.join(',')}` : ''}`)
+  const allCh = useApi(`${base}/exam-blueprint/pool`).data?.chapters || []
   const p = pool.data
   const avail = useMemo(() => Object.fromEntries((p?.cells || []).map(c => [`${c.outline_id}:${c.bloom_level_id}`, c.available])), [p])
   const matTotal = Object.values(mat).reduce((a, b) => a + (Number(b) || 0), 0)
@@ -42,7 +43,7 @@ export default function Blueprint({ cs, maxScore, picked, onApply }) {
     if (useMatrix) body.matrix = Object.entries(mat).filter(([, v]) => Number(v) > 0)
       .map(([k, v]) => { const [o, b] = k.split(':'); return { outline_id: o === 'null' ? null : Number(o), bloom_level_id: Number(b), n: Number(v) } })
     else body.n_questions = Number(n)
-    const r = await api.post(`/api/class-sections/${cs.id}/exam-blueprint`, body)
+    const r = await api.post(`${base}/exam-blueprint`, body)
     setRes(r)
     if (r.items.length) onApply(r.items)
     return r

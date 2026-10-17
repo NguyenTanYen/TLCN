@@ -40,7 +40,7 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 | 0 | `0_CAU_HINH.bat` | (Không cần chạy, không cần sửa) **tự dò** XAMPP (Registry, ổ đĩa chứa dự án, rồi `C:`…`F:\xampp`) và chọn XAMPP có **Moodle 4.5** trong `htdocs\moodle45` hoặc `htdocs\moodle` (bỏ qua Moodle cũ hơn); PHP = `<XAMPP>\php\php.exe`, cổng 8000; lần đầu tự tạo `backend\cau_hinh.env` từ `cau_hinh.env.example`. Moodle/XAMPP đặt ở chỗ khác: chép `0_CAU_HINH_MAY.example.bat` thành `0_CAU_HINH_MAY.bat` rồi khai báo `MOODLE_DIR`, `PHP_BIN`, `APP_PORT` (tệp này không đưa lên Git) |
 | 1 | `1_CAI_DAT_PYTHON.bat` | Tạo `.venv`, cài thư viện Python (chạy 1 lần, cần Internet). **Bản 15/10 thêm thư viện mới** (reportlab – xuất đề/phiếu PDF, opencv – chấm phiếu bằng ảnh): chạy lại bước này một lần |
 | 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (39 bảng), CTĐT CNTT 2026 + KTDL 2026, dữ liệu minh họa, cài cầu nối đọc `moodle_db`. CSDL cũ **không cần tạo lại**: bước 5 tự thêm cột mới và nạp 2 CTĐT |
-| 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | (Bản 15/10: chạy lại để cập nhật plugin `local_clo` 1.3 – Web Service đồng bộ câu hỏi 2 chiều) Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
+| 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | (Bản mới: chạy lại để cập nhật plugin `local_clo` 1.3.1 – Web Service đồng bộ câu hỏi 2 chiều, Quiz 1 câu/trang để lấy thời gian từng câu) Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
 | 4 | `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat` | *(Tùy chọn)* tạo khóa học + 40 SV; Quiz có bài làm thật; **bài giấy 2 mã đề: 38 phiếu tô sẵn được Moodle nhận diện & chấm**; đồng bộ, phân tích, công bố |
 | 5 | `5_CHAY_HE_THONG.bat` | Chạy hệ thống tại http://localhost:8000 (giữ cửa sổ mở; chạy lại sau bước 3) |
 | 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* **kiểm thử toàn bộ chức năng**: 92 ca kiểm thử tự động (gọi đủ 126/126 API), kiểm tra độ bền chấm phiếu và xuất bảng kết quả `docs\kiem_thu\KET_QUA_KIEM_THU.xlsx` (kèm danh sách ca kiểm thử giao diện để điền khi trình diễn) – kiểm thử **dựng lại `assessment_db`**, chạy xong hãy chạy lại bước 4 để có lại dữ liệu demo |
@@ -70,7 +70,11 @@ Giảng viên đăng nhập bằng nút trên Moodle lần đầu sẽ được 
 trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên không đăng nhập vào hệ thống của nhóm.
 
 ## Luồng demo
-0. **Ra đề theo ma trận:** Lớp học phần → *+ Tạo bài kiểm tra* → khung *Sinh đề tự động theo ma trận*: nhập số câu
+0. **Tạo bài kiểm tra ở môn học, chọn lớp khi xuất:** *Môn học của tôi* → thẻ môn DBMS330284 → **+ Tạo bài KT** (hoặc trang môn → **+ Tạo bài kiểm tra**)
+   → chọn hình thức (trực tuyến / trên giấy / nhập điểm) → soạn đề → **Lưu đề của môn**. Đề nằm ở thẻ *Đề kiểm tra* của môn, chưa gắn lớp.
+   Khi xuất: bấm **Giao cho lớp HP / Xuất** → tích các lớp (VD DBMS330284_01, _02) → mỗi lớp có một bài riêng (bài trực tuyến tạo luôn Quiz
+   trên khóa học Moodle đã gắn của lớp). Vẫn có thể tạo bài cho riêng một lớp ở trang lớp.
+   **Ra đề theo ma trận:** trong hộp soạn đề → khung *Sinh đề tự động theo ma trận*: nhập số câu
    (vd 20), chọn phạm vi chương (bấm vài chương = kiểm tra chương) và phân bố mức Bloom → **Sinh đề theo ma trận**.
    Hệ thống tự chọn câu phủ đủ chương, mức độ, CLO; ô/CLO thiếu câu được báo cụ thể. Có thể tích *Nhập ma trận chi tiết*
    để tự đặt số câu từng ô (số nhỏ cạnh ô là số câu ngân hàng đang có), rồi chỉnh tay trong danh sách câu bên dưới.
@@ -103,7 +107,7 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
 2. **Môn học của tôi** (trang chính của GV): mỗi môn hiện các lớp GV dạy; *⟳ Đồng bộ các lớp với Moodle* tự gắn lớp với khóa học Moodle
    **trùng mã lớp** và cập nhật SV. Trong lớp: *Khóa học Moodle #… ↗* mở thẳng Moodle; trên Moodle nút *Phân tích CĐR* mở đúng lớp.
 3. Bài kiểm tra → **⧉ Dùng đề cho lớp khác**: sao đề sang các lớp khác cùng môn và tạo Quiz trên Moodle cho từng lớp.
-4. **Nhập điểm**: Lớp → *+ Tạo bài kiểm tra* → *Nhập điểm* → khai báo câu/ý, điểm tối đa, CLO → nhập trên lưới, hoặc *Bảng điểm mẫu (Excel)* → điền → *Nhập từ Excel*.
+4. **Nhập điểm**: Môn học hoặc Lớp → *+ Tạo bài kiểm tra* → *Nhập điểm* → khai báo câu/ý, điểm tối đa, CLO → nhập trên lưới, hoặc *Bảng điểm mẫu (Excel)* → điền → *Nhập từ Excel*.
    Bài làm ngoài hệ thống: tab *Tạo từ file Excel có sẵn* (tiêu đề cột kiểu `Bài 1 (5đ) [CLO3]`; thiếu điểm/CLO thì chọn ở bước xem trước).
 5. **Gộp bài KT**: trang môn học → *Gộp bài KT đánh giá CĐR* → chọn 2–3 bài (có thể khác lớp) → *Phân tích gộp* → CLO, PLO/PI từng CTĐT → *Xuất Excel*.
    Cột *Minh chứng BM6* chọn bài nào được tính vào BM6/PI/PLO của lớp.
@@ -114,6 +118,21 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
    Vẫn có thể chọn *Dùng Moodle Offline Quiz* như trước.
 8. **Ngân hàng câu hỏi → ⇅ Đồng bộ với Moodle**: so sánh từng câu (QB-n) với ngân hàng câu hỏi khóa học Moodle → đẩy lên (Moodle tạo phiên bản mới),
    lấy về câu sửa trên Moodle, nhập câu GV soạn trên Moodle.
+9. **Thời gian làm bài & cảnh báo** (bài trực tuyến đã đồng bộ): bài KT → thẻ **Thời gian làm bài**. Hệ thống lấy thời điểm SV chọn đáp án từng câu
+   từ Moodle và cảnh báo:
+   - **Làm quá nhanh – nghi chọn đại**: trung bình < 6 giây/câu, hoặc ≥ 25% số câu trả lời "chớp nhoáng" (dưới 3 giây hoặc dưới 10% thời gian
+     trung vị của câu, tối đa 10 giây). Ví dụ 50 câu trong 5 phút = 6 giây/câu.
+   - **Chọn xong không nộp – để hết giờ**: Moodle tự nộp khi hết giờ và trước đó SV không thao tác ≥ 10 phút và ≥ 30% thời gian làm bài.
+   - **Bỏ dở**: bỏ trống từ một nửa số câu rồi nộp. *Lưu ý* (mức nhẹ): để lâu mới tự nộp; dồn nhiều đáp án vào 60 giây cuối.
+
+   Các ngưỡng sửa ngay trên trang (*Áp dụng ngưỡng*), *Diễn biến* xem từng câu của một SV, *Xuất Excel*. Danh sách bài KT của lớp hiện **⚠ N cảnh báo**.
+   Đây là **dấu hiệu để xem lại**, không phải kết luận gian lận.
+   - Để có thời gian **từng câu**, đặt Quiz **1 câu mỗi trang** (Quiz tạo bằng nút *Tạo Quiz trên Moodle* đã đặt sẵn) và bật *Khi hết giờ: tự nộp bài*.
+     Nếu nhiều câu một trang, Moodle chỉ lưu khi chuyển trang nên thời gian chỉ chính xác tới từng trang (trang có thông báo).
+   - Bài đã đồng bộ trước bản cập nhật này: bấm **Đồng bộ lại** để lấy thời gian. Dữ liệu demo (bat 4) có 2 SV chọn đại (22130017, 22130018)
+     và 2 SV chọn xong để hết giờ (22130006, 22130023).
+10. **Tạo bài KT ở môn học**: nút **+ Tạo bài KT** ngay trên thẻ môn; đề lưu ở môn (thẻ *Đề kiểm tra*), khi xuất mới **Giao cho lớp HP**
+   (chọn một hoặc nhiều lớp; lớp đã giao được đánh dấu, không tạo trùng). Thao tác cần danh sách SV (tạo Quiz, in đề, nhập điểm) làm ở bài của lớp.
 
 ## Khai báo một học phần mới (môn khác) và gán CLO
 
@@ -134,7 +153,7 @@ Trang học phần, tab **Khai báo (Bộ môn)** có *bảng kiểm tra 5 bư�
 | 4. CLO: mã, nội dung, mức Bloom mục tiêu, PLO đóng góp (theo các CTĐT có học phần) + mức I/R/M | **Bộ môn** | như trên → *+ CLO* |
 | 5. Kế hoạch BM6a (ngưỡng đạt, chỉ tiêu, loại minh chứng) – không bắt buộc | GV | nút *BM6a* của lớp |
 | 6. Câu hỏi + gán chương/Bloom/CLO (file mẫu, cột CLO dạng `CLO2:0.6; CLO4:0.4`) | GV | Ngân hàng câu hỏi |
-| 7. Ra đề theo ma trận → nhập **ID khóa học Moodle** khi tạo Quiz/đề giấy lần đầu | GV | Lớp học phần → Tạo bài kiểm tra |
+| 7. Ra đề theo ma trận → nhập **ID khóa học Moodle** khi tạo Quiz/đề giấy lần đầu | GV | Môn học → + Tạo bài kiểm tra → Giao cho lớp HP / Xuất (hoặc Lớp học phần → Tạo bài kiểm tra) |
 
 **Phân quyền:** GV *không* tạo được môn học, *không* tạo tay lớp HP (403) – chỉ được đưa vào khóa học Moodle mà mình là giảng viên, gắn với môn đã có. Chương, CLO, thông tin học phần do **Bộ môn** quản lý theo CTĐT – GV chỉ xem (góp ý 15/10). **Khóa học Moodle** do quản trị Moodle tạo và ghi danh GV với vai trò *Teacher/Non-editing teacher*;
 hệ thống chỉ cho GV gắn lớp HP với khóa học Moodle mà GV đó là giảng viên (tên đăng nhập Moodle trùng tên đăng nhập hệ thống),

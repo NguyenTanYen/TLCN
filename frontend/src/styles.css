@@ -90,9 +90,27 @@ fieldset.field { border: 0; padding: 0; margin-inline: 0; min-width: 0; } fields
 .path { padding-left: 18px; } .path > li { margin-bottom: 14px; } .prio { background: var(--amber-soft); color: var(--amber); border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
 
 /* modal & toast */
-.modal-bg { position: fixed; inset: 0; background: rgba(16,24,40,.45); display: grid; place-items: start center; padding: 40px 16px; overflow: auto; z-index: 50; }
+.modal-bg { position: fixed; inset: 0; background: rgba(16,24,40,.45); display: grid; grid-template-columns: minmax(0, 1fr); place-items: start center; padding: 40px 16px; overflow: auto; z-index: 50; }
 .modal { background: #fff; border-radius: 12px; width: min(620px, 100%); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
 .modal.wide { width: min(1180px, 100%); }
+/* kích thước hộp thoại chuẩn: sm xác nhận · mặc định biểu mẫu ngắn · md lựa chọn/danh sách · wide bảng, soạn đề */
+.modal.sm { width: min(440px, 100%); } .modal.md { width: min(860px, 100%); }
+.modal { max-width: 100%; min-width: 0; } .modal .card-b { overflow-wrap: break-word; min-width: 0; }
+.btn.block { white-space: normal; text-align: center; line-height: 1.35; }
+/* thẻ lựa chọn (VD chọn hình thức bài kiểm tra) – chữ xuống dòng, không tràn ngang */
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.choice { display: grid; gap: 4px; align-content: start; text-align: left; padding: 16px; border: 1px solid var(--line); border-radius: 12px;
+  background: #fff; cursor: pointer; font: inherit; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.choice:hover, .choice:focus-visible { border-color: var(--brand2); box-shadow: 0 0 0 3px rgba(37,99,235,.12); transform: translateY(-1px); outline: none; }
+.choice-ic { font-size: 26px; line-height: 1; margin-bottom: 6px; }
+.choice-t { font-weight: 700; font-size: 15px; color: #101828; } .choice-s { font-size: 12.5px; color: var(--brand2); font-weight: 600; }
+.choice-d { font-size: 13px; color: #475467; line-height: 1.45; margin-top: 4px; }
+/* danh sách chọn lớp */
+.pick-list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.pick { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.pick:last-child { border-bottom: 0; } .pick:hover { background: #f9fafb; } .pick.all { background: #f8fafc; } .pick.dim { opacity: .6; cursor: default; }
+.empty { display: grid; justify-items: center; gap: 10px; padding: 28px 12px; color: #667085; text-align: center; }
+.stats.two { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0; }
 .toasts { position: fixed; right: 18px; bottom: 18px; display: grid; gap: 8px; z-index: 99; }
 .toast { background: #fff; border-left: 4px solid var(--green); padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.15); max-width: 420px; }
 .toast.red { border-left-color: var(--red); } .toast.amber { border-left-color: var(--amber); }
@@ -159,7 +177,7 @@ details.bp > summary { cursor: pointer; font-weight: 600; color: var(--brand2); 
 .crumb .sep { color: #98a2b3; margin: 0 2px; }
 @media (max-width: 1520px) { .mainnav a { padding: 8px 10px; } }
 @media (max-width: 1180px) { .uname small, .tb-link { display: none; } .mainnav a { padding: 7px 9px; } }
-@media (max-width: 860px) { .topbar-in { flex-wrap: wrap; padding: 8px 14px; gap: 8px; } .mainnav { order: 3; width: 100%; } .uname { display: none; } }
+@media (max-width: 860px) { .topbar-in { flex-wrap: wrap; padding: 8px 14px; gap: 8px; } .topbar-r { margin-left: auto; } .mainnav { order: 3; flex: 1 0 100%; overflow-x: auto; flex-wrap: nowrap; } .uname { display: none; } }
 
 /* ===== môn học / lớp / đề cương ===== */
 .course-card { display: grid; gap: 10px; }
@@ -218,3 +236,7 @@ details.bp > summary { cursor: pointer; font-weight: 600; color: var(--brand2); 
 .ans-cells input.warn { border-color: var(--amber); background: var(--amber-soft); }
 .ans-cells input.wrong { color: var(--red); }
 @media (max-width: 900px) { .scan-grid { grid-template-columns: 1fr; } .a4 { width: auto; min-height: 0; padding: 22px; } .a4 .qs.c2 { column-count: 1; } }
+
+/* thời gian làm bài */
+.tab-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+ul.tight { margin: 0 0 10px; padding-left: 18px; } ul.tight li { margin-bottom: 8px; line-height: 1.9; }

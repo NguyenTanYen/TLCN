@@ -63,7 +63,7 @@ class create_quiz extends external_api {
             'overduehandling' => 'autosubmit', 'graceperiod' => 0,
             'preferredbehaviour' => 'deferredfeedback', 'canredoquestions' => 0,
             'attempts' => 1, 'attemptonlast' => 0, 'grademethod' => QUIZ_GRADEHIGHEST,
-            'decimalpoints' => 2, 'questiondecimalpoints' => -1, 'questionsperpage' => 5,
+            'decimalpoints' => 2, 'questiondecimalpoints' => -1, 'questionsperpage' => 1,   // 1 câu/trang: Moodle lưu thời điểm chọn từng câu (phân tích thời gian làm bài)
             'navmethod' => QUIZ_NAVMETHOD_FREE, 'shuffleanswers' => 1,
             'sumgrades' => 0, 'grade' => $p['grade'], 'quizpassword' => '', 'subnet' => '', 'browsersecurity' => '-',
             'delay1' => 0, 'delay2' => 0, 'showuserpicture' => 0, 'showblocks' => 0,

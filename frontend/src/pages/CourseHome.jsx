@@ -1,8 +1,9 @@
 // Trang một học phần: đề cương chi tiết (mọi tài khoản xem), các lớp HP, kết quả CĐR của môn, gộp bài KT, khai báo (Bộ môn).
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { api, auth, fmtPct } from '../api'
+import { api, auth, fmtPct, STATUS_VI } from '../api'
 import { Achieved, ActionButton, Badge, Card, Crumbs, Loading, Tabs } from '../components/ui'
+import { DeployDialog, NewExamFlow, TYPE_VI } from '../components/NewExam'
 import { useApi } from '../hooks'
 import { useMoodleBase } from '../moodle'
 import Combine from '../components/Combine'
@@ -17,6 +18,9 @@ export default function CourseHome() {
   const isAdmin = auth.user()?.role === 'admin'
   const syl = useApi(`/api/courses/${id}/syllabus`)
   const s = syl.data
+  const cex = useApi(`/api/courses/${id}/exams`)
+  const [creating, setCreating] = useState(sp.get('new') === '1')
+  const closeNew = () => { setCreating(false); if (sp.get('new')) setSp({ tab }) }
   return <>
     <div className="page-h">
       <div><Crumbs items={[isAdmin ? ['/courses', 'Học phần'] : ['/', 'Môn học của tôi'], [null, s?.course_code || '…']]} />
@@ -26,15 +30,19 @@ export default function CourseHome() {
       <div className="row gap wrap">
         <Link className="btn" to={`/questions?course=${id}`}>Ngân hàng câu hỏi ({s?.n_questions ?? '…'})</Link>
         {tab === 'syllabus' && <button className="btn" onClick={() => window.print()}>🖶 In đề cương</button>}
+        <button className="btn primary" onClick={() => setCreating(true)}>+ Tạo bài kiểm tra</button>
       </div>
     </div>
     <Tabs value={tab} onChange={t => setSp({ tab: t })} tabs={[
-      ['syllabus', 'Đề cương chi tiết'], ['sections', `Lớp học phần (${s?.sections.length ?? 0})`], ['results', 'Kết quả CĐR của môn'],
+      ['syllabus', 'Đề cương chi tiết'], ['sections', `Lớp học phần (${s?.sections.length ?? 0})`], ['exams', `Đề kiểm tra (${cex.data?.exams.length ?? 0})`],
+      ['results', 'Kết quả CĐR của môn'],
       ['combine', 'Gộp bài KT đánh giá CĐR'], isAdmin && ['setup', 'Khai báo (Bộ môn)']]} />
     <Loading {...syl} />
     {s && tab === 'syllabus' && <Syllabus s={s} isAdmin={isAdmin} onEdit={() => setSp({ tab: 'setup' })} />}
     {s && tab === 'sections' && <SectionsTab s={s} isAdmin={isAdmin} reload={syl.reload} />}
+    {s && tab === 'exams' && <ExamsTab data={cex} onNew={() => setCreating(true)} />}
     {s && tab === 'results' && <ResultsTab s={s} />}
+    {creating && s && cex.data && <NewExamFlow course={{ id: Number(id), code: s.course_code }} sections={cex.data.sections} onClose={closeNew} />}
     {s && tab === 'combine' && <Combine courseId={Number(id)} />}
     {s && tab === 'setup' && isAdmin && <Setup courseId={Number(id)} s={s} reload={syl.reload} />}
   </>
@@ -98,6 +106,26 @@ function SectionsTab({ s, isAdmin, reload }) {
     {!s.sections.length && <p className="muted">Chưa có lớp học phần.</p>}
     <p className="muted small mt">"Đồng bộ các lớp với Moodle": lớp chưa gắn được tự gắn với khóa học Moodle có tên rút gọn hoặc mã khóa học trùng mã lớp; lớp đã gắn được cập nhật danh sách SV đang ghi danh.</p>
     {form && <SectionForm s={form} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload() }} />}
+  </Card>
+}
+
+// Đề của môn: soạn ở trang môn học, khi xuất mới giao cho lớp HP (mỗi lớp một bài riêng)
+function ExamsTab({ data, onNew }) {
+  const [dep, setDep] = useState(null)
+  const d = data.data
+  if (!d) return <Loading {...data} />
+  return <Card title="Đề kiểm tra của môn" actions={<button className="btn sm primary" onClick={onNew}>+ Tạo bài kiểm tra</button>}>
+    <p className="muted small">Soạn đề một lần cho cả môn; khi xuất (tạo Quiz trên Moodle, in đề và chấm phiếu, nhập điểm) chọn giao cho lớp học phần nào. Bài của từng lớp nằm ở trang lớp.</p>
+    {d.exams.length ? <table className="tbl"><thead><tr><th>#</th><th>Tên đề</th><th>Hình thức</th><th>Loại minh chứng</th><th className="num-c">Số câu</th><th>Đã giao cho lớp</th><th /></tr></thead>
+      <tbody>{d.exams.map(e => <tr key={e.id}><td>{e.id}</td><td><Link to={`/exams/${e.id}`}><b>{e.exam_title}</b></Link></td><td>{TYPE_VI[e.exam_type]}</td>
+        <td>{e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'}</td><td className="num-c">{e.questions.length}</td>
+        <td>{e.deployments.length ? e.deployments.map(x => <Link key={x.exam_id} to={`/exams/${x.exam_id}`} className="chip-l" title={`${x.semester} · ${STATUS_VI[x.status]}`}>
+          {x.section_code} <Badge tone={x.status === 'Analyzed' ? 'green' : x.status === 'Draft' ? 'gray' : 'blue'}>{STATUS_VI[x.status]}</Badge></Link>)
+          : <span className="muted small">Chưa giao lớp nào</span>}</td>
+        <td><div className="row gap"><button className="btn sm primary" onClick={() => setDep(e)}>Giao cho lớp HP / Xuất</button>
+          <Link className="btn sm" to={`/exams/${e.id}`}>Mở</Link></div></td></tr>)}</tbody></table>
+      : <div className="empty"><p>Chưa có đề nào của môn.</p><button className="btn primary" onClick={onNew}>+ Tạo bài kiểm tra</button></div>}
+    {dep && <DeployDialog e={dep} onClose={() => setDep(null)} onDone={data.reload} />}
   </Card>
 }
 

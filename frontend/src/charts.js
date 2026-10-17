@@ -1,8 +1,8 @@
 import { ArcElement, BarController, BarElement, CategoryScale, Chart, Filler, Legend, LinearScale, LineController, LineElement,
-  PointElement, RadarController, RadialLinearScale, Tooltip } from 'chart.js'
+  PointElement, RadarController, RadialLinearScale, ScatterController, Tooltip } from 'chart.js'
 
 Chart.register(ArcElement, BarController, BarElement, CategoryScale, Filler, Legend, LinearScale, LineController, LineElement,
-  PointElement, RadarController, RadialLinearScale, Tooltip)
+  PointElement, RadarController, RadialLinearScale, ScatterController, Tooltip)
 Chart.defaults.font.family = "'Segoe UI', Roboto, Arial, sans-serif"
 Chart.defaults.color = '#475467'
 export const C = { blue: '#1d4ed8', blueA: 'rgba(29,78,216,.25)', green: '#16a34a', red: '#dc2626', amber: '#d97706', gray: '#98a2b3', grayA: 'rgba(152,162,179,.25)' }

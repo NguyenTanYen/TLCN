@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, STATUS_VI } from '../api'
-import { ActionButton, Badge, Card, Crumbs, Field, FileButton, Loading, Modal, useToast } from '../components/ui'
+import { ActionButton, Badge, Card, Crumbs, FileButton, Loading, useToast } from '../components/ui'
 import { useApi } from '../hooks'
-import Blueprint from '../components/Blueprint'
-import { ManualExamForm } from '../components/ManualExam'
+import { NewExamFlow, TYPE_VI } from '../components/NewExam'
 import { useMoodleBase } from '../moodle'
 
-const TYPE_VI = { online: 'Trực tuyến (Moodle)', paper: 'Trên giấy', manual: 'Nhập điểm' }
 const ASSESS_VI = { process: 'Quá trình', final: 'Cuối kỳ' }
 
 export default function SectionDetail() {
@@ -40,7 +38,7 @@ export default function SectionDetail() {
           <Link className="btn" to={`/sections/${id}/stats`}>Thống kê lớp &amp; từng SV</Link>
           <Link className="btn" to={`/sections/${id}/remedial`}>Phụ đạo (câu sai)</Link>
           <Link className="btn" to={`/sections/${id}/clo`}>Kết quả CĐR (BM6)</Link>
-          <button className="btn primary" onClick={() => setCreating('choose')}>+ Tạo bài kiểm tra</button></div>
+          <button className="btn primary" onClick={() => setCreating(true)}>+ Tạo bài kiểm tra</button></div>
       </div>
       <div className="tabs">
         <button className={tab === 'exams' ? 'on' : ''} onClick={() => setTab('exams')}>Bài kiểm tra ({exams.data?.length ?? 0})</button>
@@ -52,10 +50,11 @@ export default function SectionDetail() {
           <thead><tr><th>#</th><th>Tên bài KT</th><th>Hình thức</th><th>Loại minh chứng</th><th>Ngày</th><th>Số câu</th><th>Bài làm</th><th>Trạng thái</th><th title="Gộp vào kết quả CLO của lớp (BM6)">Minh chứng</th><th /></tr></thead>
           <tbody>{exams.data?.map(e => (
             <tr key={e.id}>
-              <td>{e.id}</td><td><b>{e.exam_title}</b></td><td>{TYPE_VI[e.exam_type]}</td><td>{ASSESS_VI[e.assessment_type]}</td>
+              <td>{e.id}</td><td><b>{e.exam_title}</b>{e.source_exam_id && <div className="muted small">giao từ đề #{e.source_exam_id}</div>}</td><td>{TYPE_VI[e.exam_type]}</td><td>{ASSESS_VI[e.assessment_type]}</td>
               <td>{e.exam_date || '—'}</td><td>{e.questions.length}</td><td>{e.n_attempts} dự thi · {e.n_absent} vắng</td>
               <td><Badge tone={e.status === 'Analyzed' ? 'green' : e.status === 'Draft' ? 'gray' : 'blue'}>{STATUS_VI[e.status]}</Badge>
-                {e.publish_flag && <Badge tone="amber">Đã công bố</Badge>}</td>
+                {e.publish_flag && <Badge tone="amber">Đã công bố</Badge>}
+                {e.timing_alerts?.n_warning > 0 && <Link to={`/exams/${e.id}?tab=timing`} title="Lượt làm bài có dấu hiệu bất thường (thời gian làm bài)"><Badge tone="red">⚠ {e.timing_alerts.n_warning} cảnh báo</Badge></Link>}</td>
               <td>{e.counts_for_clo ? <Badge tone="green">Có gộp</Badge> : <Badge>Không</Badge>}</td>
               <td><Link className="btn sm" to={`/exams/${e.id}`}>Mở</Link></td>
             </tr>))}
@@ -69,85 +68,7 @@ export default function SectionDetail() {
             <td>{s.moodle_user_id ?? '—'}</td><td>{s.status === 'active' ? 'Đang học' : 'Rút HP'}</td>
             <td><Link className="btn sm" to={`/sections/${id}/students/${s.id}`} onClick={e => e.stopPropagation()}>Xem kết quả</Link></td></tr>)}</tbody></table>
       </Card>}
-      {creating === 'choose' && cs && <Modal title="Tạo bài kiểm tra" onClose={() => setCreating(false)}>
-        <div className="stack">
-          <button className="btn block" onClick={() => setCreating('online')}>🖥 Trắc nghiệm trực tuyến trên Moodle Quiz</button>
-          <button className="btn block" onClick={() => setCreating('paper')}>📝 Trắc nghiệm trên giấy (hệ thống in đề, chấm phiếu bằng ảnh quét/điện thoại – hoặc dùng Moodle Offline Quiz)</button>
-          <button className="btn block" onClick={() => setCreating('manual')}>✍ Nhập điểm (tự luận, thực hành, đồ án, bài làm ngoài hệ thống – nhập tay hoặc Excel)</button>
-        </div></Modal>}
-      {(creating === 'online' || creating === 'paper') && cs && <CreateExam cs={cs} type={creating} onClose={() => setCreating(false)} />}
-      {creating === 'manual' && cs && <ManualExamForm cs={cs} onClose={() => setCreating(false)} />}
+      {creating && cs && <NewExamFlow cs={cs} onClose={() => setCreating(false)} />}
     </>
-  )
-}
-
-function CreateExam({ cs, type, onClose }) {
-  const nav = useNavigate()
-  const bank = useApi(`/api/questions?course_id=${cs.course_id}`)
-  const [f, setF] = useState({ exam_title: '', exam_type: type || 'online', assessment_type: 'final', exam_date: '', duration_minutes: 45, max_score: 10 })
-  const [picked, setPicked] = useState({}) // question_id -> points
-  const [filter, setFilter] = useState('')
-  const list = useMemo(() => (bank.data || []).filter(q => !q.is_cancelled && q.tagged !== false &&
-    (!filter || q.clos.some(c => c.clo_code === filter) || q.chapter === filter)), [bank.data, filter])
-  const chips = useMemo(() => [...new Set((bank.data || []).flatMap(q => [...q.clos.map(c => c.clo_code), q.chapter]).filter(Boolean))].sort(), [bank.data])
-  const n = Object.keys(picked).length
-  const badPts = Object.values(picked).some(v => !(Number(v) > 0))
-  const total = Object.values(picked).reduce((a, b) => a + Number(b || 0), 0)
-  const coverage = useMemo(() => {
-    const m = {}
-    for (const q of bank.data || []) if (picked[q.id]) for (const c of q.clos) m[c.clo_code] = (m[c.clo_code] || 0) + c.weight * Number(picked[q.id])
-    return m
-  }, [bank.data, picked])
-
-  const save = async () => {
-    const items = Object.entries(picked).map(([question_id, points]) => ({ question_id: Number(question_id), points: Number(points) }))
-    const body = { ...f, class_section_id: cs.id, items, exam_date: f.exam_date || null, duration_minutes: Number(f.duration_minutes) || null, max_score: Number(f.max_score) }
-    const e = await api.post('/api/exams', body)
-    nav(`/exams/${e.id}`)
-  }
-  return (
-    <Modal title="Tạo bài kiểm tra (UC-02)" onClose={onClose} wide>
-      <div className="grid3">
-        <Field label="Tên bài kiểm tra"><input value={f.exam_title} onChange={e => setF({ ...f, exam_title: e.target.value })} placeholder="VD: Thi cuối kỳ" /></Field>
-        <Field label="Hình thức"><select value={f.exam_type} onChange={e => setF({ ...f, exam_type: e.target.value })}>
-          <option value="online">Trực tuyến (Moodle Quiz)</option><option value="paper">Trên giấy (in đề, chấm phiếu)</option></select></Field>
-        <Field label="Bài KT lấy minh chứng (BM6a)"><select value={f.assessment_type} onChange={e => setF({ ...f, assessment_type: e.target.value })}>
-          <option value="process">Quá trình</option><option value="final">Cuối kỳ</option></select></Field>
-        <Field label="Ngày kiểm tra"><input type="date" value={f.exam_date} onChange={e => setF({ ...f, exam_date: e.target.value })} /></Field>
-        <Field label="Thời gian (phút)"><input type="number" value={f.duration_minutes} onChange={e => setF({ ...f, duration_minutes: e.target.value })} /></Field>
-        <Field label="Thang điểm"><input type="number" value={f.max_score} onChange={e => setF({ ...f, max_score: e.target.value })} /></Field>
-      </div>
-      <details className="bp mt" open>
-        <summary>⚙ Sinh đề tự động theo ma trận (chương × mức Bloom, phủ đủ CLO) – hoặc chọn câu thủ công bên dưới</summary>
-        <Blueprint cs={cs} maxScore={f.max_score} picked={picked}
-          onApply={items => { setFilter(''); setPicked(Object.fromEntries(items.map(i => [i.question_id, i.points]))) }} />
-      </details>
-      <div className="row gap wrap mt"><b>Lọc:</b>
-        <button className={`chip ${!filter ? 'on' : ''}`} onClick={() => setFilter('')}>Tất cả</button>
-        {chips.map(c => <button key={c} className={`chip ${filter === c ? 'on' : ''}`} onClick={() => setFilter(c)}>{c}</button>)}
-        <span className="grow" />
-        {(bank.data || []).some(q => q.tagged === false) && <span className="muted small">Ẩn {(bank.data || []).filter(q => q.tagged === false).length} câu chưa gán CLO/Bloom</span>}
-        <button className="btn sm" onClick={() => setPicked(p => ({ ...p, ...Object.fromEntries(list.filter(q => p[q.id] === undefined).map(q => [q.id, 0.5])) }))}>Chọn tất cả đang lọc</button>
-        {n > 0 && <button className="btn sm ghost" onClick={() => setPicked({})}>Bỏ chọn tất cả</button>}
-      </div>
-      <div className="scroll mt">
-        <table className="tbl"><thead><tr><th /><th>ID</th><th>Nội dung</th><th>Chương</th><th>Bloom</th><th>CLO (trọng số)</th><th>p TB</th><th>Điểm</th></tr></thead>
-          <tbody>{list.map(q => (
-            <tr key={q.id} className={picked[q.id] ? 'sel' : ''}>
-              <td><input type="checkbox" checked={!!picked[q.id]} onChange={e => setPicked(p => { const x = { ...p }; e.target.checked ? x[q.id] = 0.5 : delete x[q.id]; return x })} /></td>
-              <td>{q.id}</td><td className="clip">{q.content}</td><td>{q.chapter}</td><td>{q.bloom}</td>
-              <td>{q.clos.map(c => `${c.clo_code}${c.weight < 1 ? ` (${c.weight})` : ''}`).join(', ')}</td>
-              <td>{q.usage?.avg_p ?? '—'}</td>
-              <td>{picked[q.id] !== undefined && <input className="num" type="number" step="0.25" min="0.25" value={picked[q.id]} onChange={e => setPicked(p => ({ ...p, [q.id]: e.target.value }))} />}</td>
-            </tr>))}</tbody></table>
-      </div>
-      <div className="row gap mt wrap">
-        <span>Đã chọn <b>{n}</b> câu · tổng điểm thô <b>{total.toFixed(2)}</b></span>
-        {Object.entries(coverage).sort().map(([c, v]) => <span key={c} className="pill blue">{c}: {v.toFixed(2)} đ</span>)}
-        <span className="grow" />
-        {badPts && <small className="bad-t">Điểm mỗi câu phải lớn hơn 0</small>}
-        <ActionButton className="btn primary" disabled={!n || badPts || f.exam_title.trim().length < 3 || !(Number(f.max_score) > 0)} onRun={save}>Lưu bài kiểm tra</ActionButton>
-      </div>
-    </Modal>
   )
 }

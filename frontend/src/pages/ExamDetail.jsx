@@ -3,16 +3,18 @@ import { Bar } from 'react-chartjs-2'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, fmtNum, STATUS_VI } from '../api'
 import { C } from '../charts'
-import { ActionButton, Badge, Card, Crumbs, Field, Loading, Modal, Stat, diClass, pClass, useToast } from '../components/ui'
+import { ActionButton, Badge, Card, Crumbs, Field, Loading, Stat, diClass, pClass, useToast } from '../components/ui'
 import { ManualGrades } from '../components/ManualExam'
 import PaperSystem from '../components/PaperSystem'
 import { useApi } from '../hooks'
 import { MatrixTable } from '../components/Blueprint'
+import Timing from '../components/Timing'
+import ExamTemplate from '../components/ExamTemplate'
+import { DeployDialog, TYPE_VI } from '../components/NewExam'
 
 const STEPS = ['Draft', 'Published', 'Synced', 'Analyzed']
 const CLS_TONE = { 'Tốt': 'green', 'Chấp nhận được': 'blue', 'Quá dễ': 'amber', 'Quá khó': 'amber', 'Cần xem lại (DI thấp)': 'amber', 'Cần loại bỏ/kiểm tra đáp án': 'red' }
 
-const TYPE_VI = { online: 'Trực tuyến (Moodle)', paper: 'Trên giấy', manual: 'Nhập điểm' }
 
 export default function ExamDetail() {
   const { id } = useParams()
@@ -23,6 +25,7 @@ export default function ExamDetail() {
   const [copy, setCopy] = useState(false)
   const e = exam.data
   if (!e) return <Loading {...exam} />
+  if (e.is_template) return <ExamTemplate e={e} reload={exam.reload} />
   const analyzed = e.status === 'Analyzed'
   return (
     <>
@@ -43,17 +46,23 @@ export default function ExamDetail() {
             onRun={() => api.download(`/api/reports/exams/${e.id}/bm6c.xlsx`, `BM6c_${e.section_code}.xlsx`)}>⬇ Xuất BM6c bài KT này</ActionButton>}
           {e.publish_flag ? <Badge tone="amber">SV đã xem được kết quả</Badge> : <Badge>Đang bảo lưu kết quả</Badge>}</div>
       </div>
+      {e.timing_alerts?.n_warning > 0 && tab !== 'timing' && <div className="alert amber row gap wrap">
+        <span>⚠ <b>{e.timing_alerts.n_warning} SV</b> có dấu hiệu làm bài bất thường (làm quá nhanh – nghi chọn đại, chọn xong không nộp để hết giờ…).</span>
+        <span className="grow" /><button className="btn sm" onClick={() => setTab('timing')}>Xem thời gian làm bài</button></div>}
       <div className="stepper">{STEPS.map((s, i) => <div key={s} className={STEPS.indexOf(e.status) >= i ? 'done' : ''}><span>{i + 1}</span>{e.exam_type === 'manual' && s === 'Synced' ? 'Đã nhập điểm' : STATUS_VI[s]}</div>)}</div>
       <div className="tabs">
-        {[['flow', e.exam_type === 'manual' ? 'Câu/ý & nhập điểm' : 'Quy trình & dữ liệu'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['students', 'Kết quả sinh viên'], ['log', 'Nhật ký']].map(([k, l]) =>
-          <button key={k} className={tab === k ? 'on' : ''} disabled={!analyzed && ['overview', 'items', 'students'].includes(k)} onClick={() => setTab(k)}>{l}</button>)}
+        {[['flow', e.exam_type === 'manual' ? 'Câu/ý & nhập điểm' : 'Quy trình & dữ liệu'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['students', 'Kết quả sinh viên'],
+          ...(e.exam_type === 'online' ? [['timing', 'Thời gian làm bài']] : []), ['log', 'Nhật ký']].map(([k, l]) =>
+          <button key={k} className={tab === k ? 'on' : ''} disabled={(!analyzed && ['overview', 'items', 'students'].includes(k)) || (k === 'timing' && !['Synced', 'Analyzed'].includes(e.status))} onClick={() => setTab(k)}>
+            {l}{k === 'timing' && e.timing_alerts?.n_warning ? <span className="tab-badge">{e.timing_alerts.n_warning}</span> : null}</button>)}
       </div>
       {(tab === 'flow' || tab === 'grades') && (e.exam_type === 'manual' ? <ManualFlow e={e} reload={exam.reload} /> : <Flow e={e} reload={exam.reload} />)}
       {tab === 'overview' && <Overview id={id} />}
       {tab === 'items' && <Items id={id} manual={e.exam_type === 'manual'} />}
       {tab === 'students' && <Students id={id} cs={e.class_section_id} />}
+      {tab === 'timing' && <Timing examId={id} sectionCode={e.section_code} />}
       {tab === 'log' && <Log id={id} />}
-      {copy && <CopyExam e={e} onClose={() => setCopy(false)} />}
+      {copy && <DeployDialog e={e} onClose={() => setCopy(false)} />}
     </>
   )
 }
@@ -73,28 +82,6 @@ function ManualFlow({ e, reload }) {
       <p className="mt"><b>{e.n_attempts}</b> SV có điểm · <b>{e.n_absent}</b> vắng / {e.n_enrolled} SV của lớp</p>
     </Card>
   </>
-}
-
-function CopyExam({ e, onClose }) {
-  const secs = useApi('/api/class-sections').data
-  const others = (secs || []).filter(s => s.course_id === e.course_id && s.id !== e.class_section_id)
-  const [sel, setSel] = useState([])
-  const [moodle, setMoodle] = useState(true)
-  const [res, setRes] = useState(null)
-  return <Modal title={`Dùng đề "${e.exam_title}" cho các lớp khác của môn ${e.course_code}`} onClose={onClose}>
-    {!res ? <>
-      {others.length ? others.map(s => <label key={s.id} className="row gap check"><input type="checkbox" checked={sel.includes(s.id)}
-        onChange={x => setSel(x.target.checked ? [...sel, s.id] : sel.filter(i => i !== s.id))} /> <b>{s.section_code}</b> <span className="muted">{s.semester} · {s.n_students} SV
-          {s.moodle_course_id ? ` · Moodle #${s.moodle_course_id}` : ' · chưa gắn Moodle'}</span></label>) : <p className="muted">Bạn không có lớp nào khác của môn này.</p>}
-      {e.exam_type === 'online' && <label className="row gap check mt"><input type="checkbox" checked={moodle} onChange={x => setMoodle(x.target.checked)} /> Tạo luôn Quiz trên khóa học Moodle của từng lớp</label>}
-      <p className="muted small">Mỗi lớp nhận một bài KT riêng (cùng câu hỏi, điểm, cấu hình); kết quả mỗi lớp được đồng bộ và phân tích riêng, rồi có thể gộp ở trang môn học.</p>
-      <div className="row"><span className="grow" /><ActionButton className="btn primary" disabled={!sel.length}
-        onRun={async () => setRes(await api.post(`/api/exams/${e.id}/copy`, { class_section_ids: sel, create_moodle: moodle }))}>Sao đề sang {sel.length} lớp</ActionButton></div>
-    </> : <>
-      <table className="tbl compact"><thead><tr><th>Lớp</th><th>Bài KT mới</th><th>Moodle</th></tr></thead>
-        <tbody>{res.copies.map(c => <tr key={c.exam_id}><td>{c.section_code}</td><td><Link to={`/exams/${c.exam_id}`} onClick={onClose}>#{c.exam_id}</Link></td><td className="small">{c.moodle || '—'}</td></tr>)}</tbody></table>
-    </>}
-  </Modal>
 }
 
 const escapeHtml = t => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -272,6 +259,7 @@ function Items({ id, manual }) {
   const [open, setOpen] = useState(null)
   if (!data) return <Loading {...st} />
   const flagged = data.filter(d => !['Tốt', 'Chấp nhận được'].includes(d.classification))
+  const hasT = data.some(d => d.median_time_sec != null)
   return (
     <>
       <div className="stats">
@@ -290,15 +278,16 @@ function Items({ id, manual }) {
       </Card>
       <Card title="Bảng chỉ số câu hỏi">
         <table className="tbl">
-          <thead><tr><th>#</th><th>ID</th><th>Nội dung</th><th>Chương</th><th>CLO</th><th>p</th><th>DI</th><th>Phân loại</th><th /></tr></thead>
+          <thead><tr><th>#</th><th>ID</th><th>Nội dung</th><th>Chương</th><th>CLO</th><th>p</th><th>DI</th>{hasT && <th title="Trung vị thời gian trả lời của lớp (Moodle Quiz)">TG trả lời</th>}<th>Phân loại</th><th /></tr></thead>
           <tbody>{data.map(d => <Fragment key={d.question_id}>
             <tr>
               <td>{d.order_index}</td><td>{d.question_id}</td><td className="clip">{d.content}</td><td>{d.chapter}</td><td>{d.clos}</td>
               <td className={`num-c ${pClass(d.p_value)}`}>{fmtNum(d.p_value, 3)}</td><td className={`num-c ${diClass(d.di_value)}`}>{fmtNum(d.di_value, 3)}</td>
+              {hasT && <td className="num-c">{d.median_time_sec != null ? `${d.median_time_sec}″` : '—'}</td>}
               <td><Badge tone={CLS_TONE[d.classification] || 'gray'}>{d.classification}</Badge></td>
               <td><button className="btn sm ghost" onClick={() => setOpen(open === d.question_id ? null : d.question_id)}>{open === d.question_id ? '▲' : 'Phương án ▼'}</button></td>
             </tr>
-            {open === d.question_id && <tr key={`${d.question_id}-x`} className="sub"><td colSpan={9}>
+            {open === d.question_id && <tr key={`${d.question_id}-x`} className="sub"><td colSpan={hasT ? 10 : 9}>
               <div className="dist">{d.distribution.map(x => {
                 const pct = 100 * x.n / d.n_students
                 return <div key={x.label} className="dist-row"><span className="dl">{x.label}{x.is_correct && ' ✓'}</span>
