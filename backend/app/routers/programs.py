@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import current_user, require
 from ..models import Course, Program, User
+from . import syllabi
 
 router = APIRouter(prefix="/api", tags=["Chương trình đào tạo & đề cương học phần"])
 
@@ -157,12 +158,20 @@ def course_plos(cid: int, db: Session = Depends(get_db), _=Depends(current_user)
         progs = rows(db, "SELECT id, code, name, cohort_year FROM programs ORDER BY cohort_year IS NULL, cohort_year DESC, code")
     for p in progs:
         p["plos"] = rows(db, "SELECT id, plo_code, description, group_no FROM plos WHERE program_id=:p ORDER BY LENGTH(plo_code), plo_code", p=p["id"])
+        # góp ý F2a: CLO ánh xạ tới PI; kèm mức học phần đáp ứng PI theo ma trận CTĐT (pi_courses.level) để gợi ý
+        pis = rows(db, """SELECT i.id, i.plo_id, i.pi_code, i.description, i.competency_level, pc.level AS course_level
+                          FROM performance_indicators i JOIN plos l ON l.id=i.plo_id
+                          LEFT JOIN pi_courses pc ON pc.pi_id=i.id AND pc.course_id=:c
+                          WHERE l.program_id=:p ORDER BY i.pi_code""", p=p["id"], c=cid)
+        for plo in p["plos"]:
+            plo["pis"] = [i for i in pis if i["plo_id"] == plo["id"]]
     return progs
 
 
 @router.get("/courses/{cid}/syllabus")
-def syllabus(cid: int, db: Session = Depends(get_db), u: User = Depends(current_user)):
-    """Đề cương chi tiết học phần (mọi tài khoản đều xem được – thông tin công khai trong trường)."""
+def syllabus(cid: int, version: Optional[int] = None, db: Session = Depends(get_db), u: User = Depends(current_user)):
+    """Đề cương chi tiết học phần (mọi tài khoản đều xem được – thông tin công khai trong trường).
+    Góp ý F1: kèm phiên bản đề cương (mặc định Bộ môn xem bản mới nhất, GV xem bản đang áp dụng) và bảng kiểm tra trước khi duyệt."""
     c = db.get(Course, cid)
     if not c:
         raise HTTPException(404, "Không tìm thấy học phần")
@@ -194,9 +203,19 @@ def syllabus(cid: int, db: Session = Depends(get_db), u: User = Depends(current_
                        WHERE c.course_id=:c ORDER BY pr.code, p.plo_code""", c=cid)
     plans = rows(db, """SELECT p.*, s.name AS semester FROM clo_assessment_plans p JOIN clos c ON c.id=p.clo_id
                         JOIN semesters s ON s.id=p.semester_id WHERE c.course_id=:c ORDER BY s.academic_year DESC, s.term DESC""", c=cid)
+    pimaps = rows(db, """SELECT m.clo_id, m.pi_id, m.level, i.pi_code, pl.plo_code, pr.code AS program_code
+                         FROM clo_pi_mapping m JOIN performance_indicators i ON i.id=m.pi_id JOIN plos pl ON pl.id=i.plo_id
+                         JOIN programs pr ON pr.id=pl.program_id JOIN clos c ON c.id=m.clo_id WHERE c.course_id=:c
+                         ORDER BY pr.code, LENGTH(pl.plo_code), pl.plo_code, i.pi_code""", c=cid)
     for x in clos:
         x["plos"] = [m for m in maps if m["clo_id"] == x["id"]]
+        x["pis"] = [m for m in pimaps if m["clo_id"] == x["id"]]      # góp ý F2a: CLO → PI
         x["plan"] = next((p for p in plans if p["clo_id"] == x["id"]), None)
+    covered = {m["pi_id"] for m in pimaps}
+    for p in programs:   # PI mà CTĐT giao cho học phần: đã có CLO đáp ứng chưa
+        for pi in p["pis"]:
+            pi["clos"] = [m for m in pimaps if m["pi_id"] == pi["id"]]
+            pi["covered"] = pi["id"] in covered
     lid = u.lecturer.id if u.role == "lecturer" and u.lecturer else None
     sections = rows(db, """SELECT cs.id, cs.section_code, cs.moodle_course_id, s.name AS semester, s.academic_year, l.full_name AS lecturer,
                                   cs.lecturer_id = :l AS mine,
@@ -210,5 +229,5 @@ def syllabus(cid: int, db: Session = Depends(get_db), u: User = Depends(current_
                           ORDER BY s.academic_year DESC, s.term DESC, v.clo_code""", c=cid)
     n_q = db.execute(text("SELECT COUNT(*) FROM question_bank WHERE course_id=:c AND is_cancelled=0"), {"c": cid}).scalar()
     return {**info, "programs": programs, "clos": clos, "sections": sections, "clo_summary": summary, "n_questions": n_q,
-            "outlines": rows(db, "SELECT * FROM course_outlines WHERE course_id=:c ORDER BY chapter_number", c=cid),
-            "can_edit": u.role == "admin"}
+            "outlines": syllabi.outlines(db, cid), "can_edit": u.role == "admin",
+            **syllabi.doc(db, c, syllabi.pick_version(c, version, u.role == "admin"))}

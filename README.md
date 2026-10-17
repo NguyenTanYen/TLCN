@@ -9,7 +9,7 @@ BM6a–6d (CĐR môn học, cả BM6c riêng từng bài kiểm tra) và BM2a–
 Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và xem kết quả phân tích trên **Moodle**. Hai hệ thống nối với nhau qua plugin Moodle `local_clo` (nút *Phân tích CĐR* đăng nhập một lần, Web Service tạo Quiz / Offline Quiz và nhận kết quả) và cầu nối CSDL chỉ đọc để kéo bài làm – xem `HUONG_DAN_CAI_DAT.md`.
 
 > **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp `.bat` 0–8). Sau khi cập nhật bản 15/10 cần chạy lại **1_CAI_DAT_PYTHON.bat**
-> (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.3.1 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu), sau đó vào Moodle → Quản trị trang để nâng cấp.
+> (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.4.0 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu; giới hạn Quiz phụ đạo cho SV được giao), sau đó vào Moodle → Quản trị trang để nâng cấp.
 > Bài trực tuyến đã đồng bộ trước bản thời gian làm bài: bấm **Đồng bộ lại** để lấy thời điểm trả lời từng câu.
 
 ### Bổ sung theo góp ý 15/10

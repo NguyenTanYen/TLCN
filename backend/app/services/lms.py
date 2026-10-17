@@ -4,6 +4,7 @@
 - Bài thi giấy: tạo Offline Quiz (Moodle sinh đề in, phiếu trả lời, nhận diện phiếu quét và chấm):
   local_clo_create_offlinequiz / local_clo_get_offlinequiz / local_clo_process_scans; tải tệp đề/phiếu qua webservice/pluginfile.
 - Đẩy kết quả phân tích từng SV + trạng thái công bố về Moodle để SV xem (UC-05): local_clo_push_results.
+- Bài phụ đạo (góp ý F5): chỉ các SV được giao thấy và làm được Quiz – nhóm + điều kiện truy cập: local_clo_restrict_users.
 Chiều ĐỌC (bài làm của SV) vẫn dùng cầu nối CSDL chỉ đọc + sp_sync_exam như thiết kế (mục V báo cáo).
 """
 from __future__ import annotations
@@ -80,6 +81,12 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
         "grade": float(exam.max_score), "timelimit": int(exam.duration_minutes or 0) * 60,
     }, timeout=180)
     return res
+
+
+def restrict_users(moodle_course_id: int, quizid: int, groupname: str, userids: list[int], cmid: int = 0) -> dict:
+    """Giới hạn Quiz cho đúng các tài khoản Moodle này (gọi lại thì đồng bộ lại thành viên nhóm)."""
+    return call("local_clo_restrict_users", {"courseid": moodle_course_id, "cmid": cmid, "quizid": quizid,
+                                             "groupname": groupname[:250], "userids": userids})
 
 
 # ------------------------------------------------------------------ bài thi giấy: Offline Quiz

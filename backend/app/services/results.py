@@ -170,7 +170,11 @@ def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: i
     years = set()
     for p in plans.itertuples():
         clo_ids = [r[0] for r in db.execute(text("SELECT clo_id FROM pi_plan_clos WHERE plan_id=:p"), {"p": p.id})]
-        if not clo_ids:  # mặc định: các CLO của môn có đóng góp cho PLO của PI
+        if not clo_ids:  # mặc định: các CLO của môn gắn với chính PI này (CLO → PI, góp ý F2a)
+            clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_pi_mapping m ON m.clo_id = c.id
+                                                        WHERE c.course_id = :c AND m.pi_id = :pi"""),
+                                                {"c": p.course_id, "pi": p.pi_id})]
+        if not clo_ids:  # chưa có CLO → PI: các CLO của môn có đóng góp cho PLO của PI
             clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_plo_mapping m ON m.clo_id = c.id
                                                         WHERE c.course_id = :c AND m.plo_id = :plo"""),
                                                 {"c": p.course_id, "plo": p.plo_id})]

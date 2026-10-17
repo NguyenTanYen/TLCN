@@ -351,15 +351,38 @@ def test_question_bank_two_way_sync(client, gv, gv_other, moodle_ws):
         assert "NHANH" in got["content"] and got["options"][2]["content"].startswith("DELETE FROM")
         cmp = client.get("/api/courses/5/moodle-sync?moodle_course_id=50", headers=gv).json()
         assert next(r for r in cmp["rows"] if r.get("question_id") == created)["state"] == "synced"
+        # (4) góp ý F3: sửa ở CẢ hai bên sau lần đồng bộ -> "Hai bên khác nhau", không tự chọn chiều (trước đây báo
+        #     "Moodle mới hơn" và kéo về sẽ ghi đè mất bản sửa ở hệ thống)
+        ex("UPDATE question_bank SET content='Lệnh nào xóa nhanh dữ liệu bảng (sửa ở hệ thống)?' WHERE id=:q", q=created)
+        ex(f"""INSERT INTO `{M}`.mdl_question (id, parent, name, questiontext, generalfeedback, defaultmark, qtype, timecreated, timemodified)
+               VALUES (1102, 0, 'Soạn trên Moodle', 'Lệnh nào xóa dữ liệu bảng (sửa trên Moodle)?', '', 1, 'multichoice', 3, 3)""")
+        ex(f"INSERT INTO `{M}`.mdl_question_versions (id, questionbankentryid, version, questionid, status) VALUES (102, 400, 3, 1102, 'ready')")
+        for i, (a, f) in enumerate([("TRUNCATE TABLE", 1), ("DROP TABLE", 0), ("DELETE FROM … (không WHERE)", 0)]):
+            ex(f"INSERT INTO `{M}`.mdl_question_answers (id, question, answer, fraction, feedback) VALUES (:i, 1102, :a, :f, '')", i=6021 + i, a=a, f=f)
+        ex(f"""INSERT INTO `{M}`.mdl_qtype_multichoice_options (id, questionid, single, correctfeedback, partiallycorrectfeedback, incorrectfeedback)
+               VALUES (902, 1102, 1, '', '', '')""")
+        cmp = client.get("/api/courses/5/moodle-sync?moodle_course_id=50", headers=gv).json()
+        row = next(r for r in cmp["rows"] if r.get("question_id") == created)
+        assert row["state"] == "conflict" and row["action"] is None and "Cả hệ thống và Moodle" in row["note"]
+        # GV chọn lấy bản Moodle -> hai bên khớp lại
+        r = client.post("/api/courses/5/moodle-sync", headers=gv, json={"moodle_course_id": 50, "pull": [created]})
+        assert r.status_code == 200, r.text
+        cmp = client.get("/api/courses/5/moodle-sync?moodle_course_id=50", headers=gv).json()
+        assert next(r for r in cmp["rows"] if r.get("question_id") == created)["state"] == "synced"
+        # chỉ hệ thống sửa -> "Hệ thống mới hơn" (đề xuất đẩy lên)
+        ex("UPDATE question_bank SET content='Chỉ sửa ở hệ thống?' WHERE id=:q", q=created)
+        cmp = client.get("/api/courses/5/moodle-sync?moodle_course_id=50", headers=gv).json()
+        row = next(r for r in cmp["rows"] if r.get("question_id") == created)
+        assert row["state"] == "system_newer" and row["action"] == "push"
         # câu đã có kết quả thi không bị ghi đè từ Moodle
         locked = [r for r in cmp["rows"] if r["state"] == "moodle_newer" and r["action"] is None]
         assert all("đã có kết quả thi" in r["note"] for r in locked)
     finally:
-        ex(f"DELETE FROM `{M}`.mdl_qtype_multichoice_options WHERE id IN (900, 901)")
-        ex(f"DELETE FROM `{M}`.mdl_question_answers WHERE question IN (1100, 1101)")
-        ex(f"DELETE FROM `{M}`.mdl_question_versions WHERE id IN (100, 101)")
+        ex(f"DELETE FROM `{M}`.mdl_qtype_multichoice_options WHERE id IN (900, 901, 902)")
+        ex(f"DELETE FROM `{M}`.mdl_question_answers WHERE question IN (1100, 1101, 1102)")
+        ex(f"DELETE FROM `{M}`.mdl_question_versions WHERE id IN (100, 101, 102)")
         ex(f"DELETE FROM `{M}`.mdl_question_bank_entries WHERE id=400")
-        ex(f"DELETE FROM `{M}`.mdl_question WHERE id IN (1100, 1101)")
+        ex(f"DELETE FROM `{M}`.mdl_question WHERE id IN (1100, 1101, 1102)")
         for i in (new_q, created):
             if i:
                 ex("DELETE FROM question_bank WHERE id=:i", i=i)

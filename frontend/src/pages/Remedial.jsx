@@ -10,6 +10,7 @@ export default function Remedial() {
   const cs = useApi('/api/class-sections').data?.find(x => String(x.id) === id)
   const [exams, setExams] = useState(null)       // null = mọi bài đã phân tích
   const ov = useApi(`/api/class-sections/${id}/remedial${exams ? `?exam_ids=${exams.join(',')}` : ''}`)
+  const prog = useApi(`/api/class-sections/${id}/remedial-exams`)      // góp ý F5: tiến bộ sau phụ đạo
   const [open, setOpen] = useState(null)
   const [pick, setPick] = useState([])
   const [mk, setMk] = useState(false)
@@ -56,9 +57,31 @@ export default function Remedial() {
             <td className={`num-c ${q.wrong_pct >= 60 ? 'bad' : q.wrong_pct >= 40 ? 'warn' : ''}`}>{q.wrong_pct}%</td></tr>)}</tbody></table>
       </Card>}
     </>}
+    {prog.data?.length > 0 && <Progress list={prog.data} />}
     {open && <WrongList cs={id} s={open} exams={sel} onClose={() => setOpen(null)} onMake={() => { setPick([open.student_id]); setOpen(null); setMk(true) }} />}
     {mk && <MakeRemedial cs={id} ids={pick} exams={sel} students={d?.students || []} onClose={() => setMk(false)} />}
   </>
+}
+
+const pctCell = v => v == null ? <span className="muted">—</span> : `${v}%`
+const ST_VI = { finished: 'Đã nộp', inprogress: 'Đang làm', not_started: 'Chưa làm' }
+
+// Mỗi bài phụ đạo: SV được giao, điểm trên chính các câu đã đưa lại ở bài trước → ở bài phụ đạo
+function Progress({ list }) {
+  return <Card title={`Bài phụ đạo đã giao (${list.length}) – tiến bộ của sinh viên`}>
+    <p className="muted small">"Trước": tỷ lệ điểm trên các câu của bài phụ đạo mà SV đã làm ở bài KT chính thức. "Sau (cùng câu)": tỷ lệ điểm trên chính các câu đó ở bài phụ đạo. "Cả bài": gồm cả câu tương tự.</p>
+    {list.map(x => <details key={x.exam_id} className="mb" open={list.length === 1}>
+      <summary className="row gap wrap"><Link to={`/exams/${x.exam_id}`} onClick={e => e.stopPropagation()}><b>{x.exam_title}</b></Link>
+        <span className="small muted">{x.n_questions} câu · {x.n_done}/{x.n_targets} SV đã nộp{x.moodle_quiz_id ? ` · Quiz ${x.moodle_quiz_id}` : ''}</span>
+        {x.avg_gain != null && <Badge tone={x.avg_gain > 0 ? 'green' : x.avg_gain < 0 ? 'red' : 'gray'}>{x.avg_gain > 0 ? '+' : ''}{x.avg_gain} điểm %</Badge>}</summary>
+      <table className="tbl compact"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Trạng thái</th><th className="num-c">Câu đưa lại</th><th className="num-c">Trước</th><th className="num-c">Sau (cùng câu)</th><th className="num-c">Thay đổi</th><th className="num-c">Cả bài</th></tr></thead>
+        <tbody>{x.students.map(s => <tr key={s.student_id}><td>{s.student_code}</td><td>{s.full_name}</td>
+          <td><Badge tone={s.status === 'finished' ? 'green' : 'gray'}>{ST_VI[s.status] || s.status}</Badge></td><td className="num-c">{s.n_reused}</td>
+          <td className="num-c">{pctCell(s.before_pct)}</td><td className="num-c">{pctCell(s.after_same_pct)}</td>
+          <td className={`num-c ${s.gain > 0 ? 'pos' : s.gain < 0 ? 'neg' : ''}`}>{s.gain == null ? '—' : `${s.gain > 0 ? '+' : ''}${s.gain}`}</td>
+          <td className="num-c">{pctCell(s.after_pct)}</td></tr>)}</tbody></table>
+    </details>)}
+  </Card>
 }
 
 function WrongList({ cs, s, exams, onClose, onMake }) {
@@ -92,7 +115,7 @@ function MakeRemedial({ cs, ids, exams, students, onClose }) {
       <Field label="Tối đa số câu"><input className="num" type="number" value={f.max_questions} onChange={e => setF({ ...f, max_questions: Number(e.target.value) })} /></Field>
     </div>
     <label className="row gap check"><input type="checkbox" checked={f.include_wrong} onChange={e => setF({ ...f, include_wrong: e.target.checked })} /> Đưa lại chính các câu SV đã làm sai</label>
-    <p className="muted small">Bài phụ đạo mặc định không gộp vào minh chứng CLO (BM6). Sau khi tạo, phát hành lên Moodle hoặc in đề như bài thường.</p>
+    <p className="muted small">Bài phụ đạo mặc định không gộp vào minh chứng CLO (BM6). Khi tạo Quiz trên Moodle, chỉ các SV được giao thấy và làm được bài (hệ thống tạo nhóm Moodle và đặt điều kiện truy cập).</p>
     <div className="row"><span className="grow" /><ActionButton className="btn primary" okMsg={r => `Đã tạo bài phụ đạo ${r.n_questions} câu (${r.n_wrong_reused} câu đã sai, ${r.n_similar} câu tương tự)`}
       onRun={async () => { const r = await api.post(`/api/class-sections/${cs}/remedial-exams`, { ...f, student_ids: ids, exam_ids: exams }); nav(`/exams/${r.id}`); return r }}>Tạo bài</ActionButton></div>
   </Modal>

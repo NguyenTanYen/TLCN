@@ -13,7 +13,8 @@ from ..database import get_db
 from ..deps import check_course_access, check_section_access, current_user, require
 from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
                       PIPlanCLO, PLO, Program, Student, User)
-from ..services import results
+from ..services import outcomes, results
+from . import syllabi
 from ..schemas import AssignmentIn, CLOIn, CLOPlanIn, PIPlanIn, PLOIn
 
 router = APIRouter(prefix="/api", tags=["Danh mục & kế hoạch đo lường"])
@@ -184,14 +185,19 @@ def course_detail(cid: int, semester_id: int | None = None, db: Session = Depend
                        JOIN clos c ON c.id=m.clo_id WHERE c.course_id=:c""", c=cid)
     plans = rows(db, "SELECT p.* FROM clo_assessment_plans p JOIN clos c ON c.id=p.clo_id WHERE c.course_id=:c AND (:s IS NULL OR p.semester_id=:s)",
                  c=cid, s=semester_id)
+    pimaps = rows(db, """SELECT m.clo_id, m.pi_id, m.level, i.pi_code, p.id AS plo_id, p.plo_code, pr.code AS program_code
+                         FROM clo_pi_mapping m JOIN performance_indicators i ON i.id=m.pi_id JOIN plos p ON p.id=i.plo_id
+                         JOIN programs pr ON pr.id=p.program_id JOIN clos c ON c.id=m.clo_id WHERE c.course_id=:c
+                         ORDER BY pr.code, LENGTH(p.plo_code), p.plo_code, i.pi_code""", c=cid)
     for x in clos:
         x["plos"] = [m for m in maps if m["clo_id"] == x["id"]]
+        x["pis"] = [m for m in pimaps if m["clo_id"] == x["id"]]
         x["plan"] = next((p for p in plans if p["clo_id"] == x["id"]), None)
     return {"id": c.id, "course_code": c.course_code, "course_name": c.course_name, "credits": c.credits,
             "credits_theory": c.credits_theory, "credits_practice": c.credits_practice, "course_structure": c.course_structure,
             "prerequisites": c.prerequisites, "description": c.description,
             "clo_target_pct": float(c.clo_target_pct), "clos": clos,
-            "outlines": rows(db, "SELECT * FROM course_outlines WHERE course_id=:c ORDER BY chapter_number", c=cid)}
+            "outlines": syllabi.outlines(db, cid)}
 
 
 @router.post("/clos")
@@ -208,8 +214,15 @@ def create_clo(body: CLOIn, db: Session = Depends(get_db), u: User = Depends(req
             raise HTTPException(422, "Mức đóng góp CLO–PLO phải là I, R hoặc M")
     clo = CLO(course_id=body.course_id, clo_code=body.clo_code, description=body.description, bloom_level_id=body.bloom_level_id)
     db.add(clo); db.flush()
-    for m in body.plos:
-        db.add(CLOPLOMapping(clo_id=clo.id, plo_id=int(m["plo_id"]), level=m.get("level", "R")))
+    if body.pis:
+        try:
+            outcomes.set_clo_pis(db, clo, [(int(m["pi_id"]), m.get("level", "R")) for m in body.pis])
+        except (ValueError, KeyError, TypeError) as ex:
+            db.rollback()
+            raise HTTPException(422, str(ex) if isinstance(ex, ValueError) else "Ánh xạ PI không hợp lệ")
+    else:
+        for m in body.plos:
+            db.add(CLOPLOMapping(clo_id=clo.id, plo_id=int(m["plo_id"]), level=m.get("level", "R")))
     db.commit()
     return {"id": clo.id}
 

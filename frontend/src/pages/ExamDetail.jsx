@@ -104,10 +104,14 @@ function Flow({ e, reload }) {
       <div className="stack">
         {e.exam_type === 'online' ? <>
           <Card title="2. Phát hành lên Moodle">
-            {e.moodle_quiz_id ? <p>Đã liên kết với <b>Quiz {e.moodle_quiz_id}</b> (khóa học Moodle {e.moodle_course_id || '?'}). Sinh viên vào Moodle để làm bài.</p> : <>
+            {e.moodle_quiz_id ? <><p>Đã liên kết với <b>Quiz {e.moodle_quiz_id}</b> (khóa học Moodle {e.moodle_course_id || '?'}). Sinh viên vào Moodle để làm bài.</p>
+              {e.target_students && <div className="row gap wrap"><span className="small muted grow">Bài phụ đạo: chỉ {e.target_students.split(',').length} SV được giao thấy và làm được Quiz (nhóm Moodle + điều kiện truy cập).</span>
+                <ActionButton className="btn sm" okMsg={r => `Nhóm Moodle có ${r.added.length} SV${r.skipped.length ? `, ${r.skipped.length} SV chưa ghi danh khóa học` : ''}`}
+                  onRun={() => api.post(`/api/exams/${e.id}/moodle/restrict`)}>Giới hạn SV trên Moodle</ActionButton></div>}</> : <>
               <p className="muted">Tạo Quiz trực tiếp trên Moodle qua Web Service: nhập câu hỏi (idnumber <code>QB-&lt;id&gt;</code>) vào ngân hàng câu hỏi của khóa học, bật xáo trộn phương án và tự liên kết với bài KT.</p>
               <div className="row gap"><Field label="ID khóa học Moodle"><input className="num" value={mcourse} onChange={x => setMcourse(x.target.value)} /></Field>
-                <ActionButton className="btn primary" disabled={!mcourse} okMsg={r => `Đã tạo Quiz ${r.quizid} (${r.questions} câu) trên Moodle`}
+                <ActionButton className="btn primary" disabled={!mcourse} okMsg={r => `Đã tạo Quiz ${r.quizid} (${r.questions} câu) trên Moodle`
+                  + (r.restricted ? ` – chỉ ${r.restricted.added.length} SV được giao làm được` : '') + (r.restrict_error ? ` ⚠ ${r.restrict_error}` : '')}
                   onRun={async () => { const r = await api.post(`/api/exams/${e.id}/moodle/create-quiz`, { moodle_course_id: Number(mcourse) }); reload(); return r }}>⇪ Tạo Quiz trên Moodle</ActionButton></div>
               <details className="mt"><summary className="muted">Cách thủ công: tải XML, tự import và nhập ID Quiz</summary>
                 <ActionButton className="btn mt" onRun={async () => { await api.download(`/api/exams/${e.id}/moodle-xml`, 'moodle.xml'); reload() }}>⬇ Tải Moodle XML</ActionButton>

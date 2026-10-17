@@ -32,6 +32,12 @@ $functions = [
         'type'        => 'write',
         'capabilities' => 'local/clo:manage, moodle/question:add',
     ],
+    'local_clo_restrict_users' => [
+        'classname'   => 'local_clo\external\restrict_users',
+        'description' => 'Bài phụ đạo: chỉ cho các SV được giao làm Quiz (nhóm + điều kiện truy cập "thuộc nhóm").',
+        'type'        => 'write',
+        'capabilities' => 'local/clo:manage, moodle/course:managegroups',
+    ],
     'local_clo_push_results' => [
         'classname'   => 'local_clo\external\push_results',
         'description' => 'Nhận kết quả phân tích CĐR (điểm, mức đạt CLO, lộ trình ôn tập) và trạng thái công bố của một bài kiểm tra.',
@@ -43,7 +49,8 @@ $functions = [
 $services = [
     'Hệ thống phân tích CĐR' => [
         'functions' => ['local_clo_create_quiz', 'local_clo_create_offlinequiz', 'local_clo_get_offlinequiz', 'local_clo_process_scans',
-                        'local_clo_sync_questions', 'local_clo_push_results', 'core_webservice_get_site_info'],
+                        'local_clo_sync_questions', 'local_clo_restrict_users', 'local_clo_push_results',
+                        'core_webservice_get_site_info'],
         'shortname' => 'local_clo',
         'restrictedusers' => 0,
         'enabled' => 1,

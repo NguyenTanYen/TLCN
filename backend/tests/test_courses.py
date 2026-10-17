@@ -30,7 +30,7 @@ def test_new_course_setup_flow(client, admin, gv):
     assert client.post("/api/class-sections", headers=admin, json={**sec, "lecturer_id": 999999, "section_code": "X_02"}).status_code == 422
     assert any(s["id"] == cs for s in client.get("/api/class-sections", headers=gv).json())
     st = client.get(f"/api/courses/{cid}/setup", headers=gv).json()
-    assert [s["ok"] for s in st["steps"]] == [True, False, False, False, False] and not st["ready"]
+    assert [s["ok"] for s in st["steps"]] == [True, False, False, False, False, False] and not st["ready"]
 
     # 2. Bộ môn khai báo chương (góp ý 15/10: GV không sửa học phần, chương, CLO – chỉ xem)
     assert client.post(f"/api/courses/{cid}/outlines", headers=gv, json={"chapter_number": 1, "chapter_name": "Tổng quan"}).status_code == 403

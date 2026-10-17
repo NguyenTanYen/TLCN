@@ -21,6 +21,42 @@ CLOS = [
     ("CLO4", "Áp dụng chỉ mục, tối ưu truy vấn và cơ chế bảo mật cho một CSDL cụ thể", 3, [("4.3", "M")]),
 ]
 
+# Đề cương chi tiết (góp ý F1) – chương: (nội dung, tiết LT, tiết TH, hoạt động dạy học, CLO của chương)
+CHAPTER_DETAIL = {
+    1: ("Khái niệm hệ quản trị CSDL, kiến trúc SQL Server, công cụ quản trị; ôn tập SQL (DDL, DML, truy vấn lồng).", 4, 4,
+        "Thuyết giảng, demo trên SQL Server; SV thực hành cài đặt và truy vấn", ["CLO1"]),
+    2: ("Biến, cấu trúc điều khiển, thủ tục lưu trữ, hàm vô hướng và hàm bảng, xử lý lỗi TRY…CATCH.", 5, 6,
+        "Thuyết giảng, bài tập lập trình T-SQL theo nhóm", ["CLO2"]),
+    3: ("Trigger AFTER/INSTEAD OF, bảng inserted/deleted, hiện thực ràng buộc toàn vẹn phức tạp.", 4, 4,
+        "Thuyết giảng, case study ràng buộc nghiệp vụ", ["CLO2"]),
+    4: ("Tính chất ACID, các vấn đề đồng thời, khóa, mức cô lập, deadlock.", 5, 4,
+        "Thuyết giảng, mô phỏng hai phiên làm việc đồng thời, thảo luận", ["CLO3"]),
+    5: ("Cấu trúc chỉ mục B-tree, clustered/non-clustered, kế hoạch thực thi, tối ưu truy vấn.", 4, 6,
+        "Thuyết giảng, SV đo và so sánh kế hoạch thực thi", ["CLO4"]),
+    6: ("Đăng nhập, người dùng, vai trò, phân quyền; sao lưu và phục hồi CSDL.", 3, 6,
+        "Thuyết giảng, bài tập lớn theo nhóm", ["CLO4"]),
+}
+SYLLABUS = {
+    "english_name": "Database Management Systems",
+    "self_study_hours": 90,
+    "objectives": ("Trang bị cho sinh viên kiến thức về kiến trúc và hoạt động của một hệ quản trị CSDL; kỹ năng lập trình T-SQL "
+                   "để hiện thực nghiệp vụ và ràng buộc; hiểu và xử lý các vấn đề giao tác đồng thời; tối ưu và bảo mật CSDL."),
+    "teaching_methods": "Thuyết giảng kết hợp demo; thực hành trên máy; bài tập lớn theo nhóm; thảo luận tình huống.",
+    "course_policy": ("Sinh viên tham dự tối thiểu 80% số buổi. Nộp bài trễ bị trừ 10% mỗi ngày. "
+                      "Gian lận trong kiểm tra, thi sẽ nhận 0 điểm thành phần đó."),
+}
+# (mã, tên, hình thức, thời điểm, tỷ trọng %, CLO)
+SYL_ASSESS = [
+    ("A1", "Kiểm tra quá trình", "Trắc nghiệm trên giấy", "Tuần 7", 20, ["CLO1", "CLO2"]),
+    ("A2", "Bài tập lớn", "Báo cáo và demo theo nhóm", "Tuần 14", 30, ["CLO2", "CLO4"]),
+    ("A3", "Thi cuối kỳ", "Trắc nghiệm trên Moodle", "Cuối học kỳ", 50, ["CLO1", "CLO2", "CLO3", "CLO4"]),
+]
+SYL_REFS = [
+    ("main", "Abraham Silberschatz, Henry F. Korth, S. Sudarshan – Database System Concepts, 7th ed., McGraw-Hill, 2019."),
+    ("main", "Bài giảng Hệ quản trị cơ sở dữ liệu – Khoa CNTT, Trường ĐH Sư phạm Kỹ thuật TP.HCM."),
+    ("extra", "Itzik Ben-Gan – T-SQL Fundamentals, 4th ed., Microsoft Press, 2023."),
+]
+
 # Kế hoạch KT-ĐG CLO HKI 24-25 (BM6a): (clo, các bài KT, bài KT lấy minh chứng, phương pháp, ngưỡng %, chỉ tiêu %)
 CLO_PLANS = [
     ("CLO1", "KT quá trình, Thi cuối kỳ", "any", "Bài KT trắc nghiệm", 60, 80),

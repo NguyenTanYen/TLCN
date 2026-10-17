@@ -12,6 +12,10 @@
 - Bài KT nhập điểm (exam_type = manual, câu/ý chấm tay question_type = manual, response_status = graded), chấm phiếu
   trên hệ thống (source = scan), chọn bài gộp minh chứng CLO (counts_for_clo), bài phụ đạo (parent_exam_id, target_students).
 - Đề của môn: exams.class_section_id cho phép NULL, thêm course_id và source_exam_id (bài giao/sao từ đề nào).
+- clo_pi_mapping (góp ý F2a): CLO → PI → PLO; dữ liệu cũ được sinh CLO → PI từ ma trận CLO – PLO đang có.
+- Đề cương chi tiết có phiên bản (góp ý F1): course_syllabi, syllabus_references, syllabus_assessments,
+  syllabus_assessment_clos, outline_clos; nội dung, số tiết và hoạt động dạy học của từng chương (course_outlines).
+- question_moodle_links (góp ý F3): trạng thái đồng bộ câu hỏi theo từng khóa học Moodle, phát hiện câu bị sửa ở cả hai bên.
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
 """
 from sqlalchemy import text
@@ -65,7 +69,13 @@ NEW_COLUMNS = [
     ("exams", "course_id", "INT NULL COMMENT 'Đề của môn (tạo ở trang môn học): môn học; giao cho lớp HP khi xuất' AFTER class_section_id"),
     ("exams", "paper_settings", "TEXT NULL COMMENT 'Bài giấy chấm trên hệ thống: JSON tùy chọn in đề và bố cục phiếu (phiếu quét được đọc theo đúng bố cục đã in)' AFTER target_students"),
     ("exams", "source_exam_id", "INT NULL COMMENT 'Bài được giao/sao từ đề này (đề của môn hoặc bài của lớp khác)' AFTER paper_settings"),
+    ("course_outlines", "content", "TEXT NULL COMMENT 'Nội dung chi tiết của chương' AFTER chapter_name"),
+    ("course_outlines", "theory_hours", "SMALLINT NULL COMMENT 'Số tiết lý thuyết' AFTER content"),
+    ("course_outlines", "practice_hours", "SMALLINT NULL COMMENT 'Số tiết thực hành' AFTER theory_hours"),
+    ("course_outlines", "teaching_activities", "TEXT NULL COMMENT 'Hoạt động dạy và học' AFTER practice_hours"),
 ]
+
+NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos")
 
 # (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
 NEW_CHECKS = [
@@ -87,6 +97,24 @@ def _check_clause(c, table, name):
                                AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
                              WHERE cc.CONSTRAINT_SCHEMA = DATABASE() AND tc.TABLE_NAME = :t AND cc.CONSTRAINT_NAME = :n"""),
                      {"t": table, "n": name}).scalar()
+
+
+def _upgrade_clo_pi(c, done: list) -> None:
+    """Góp ý F2a: thêm bảng clo_pi_mapping; CLO cũ (chỉ có CLO → PLO) được gắn PI tương ứng để ma trận CLO – PLO không đổi."""
+    from .services.outcomes import backfill_clo_pi
+    if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='clo_pi_mapping'")).scalar():
+        c.execute(text(_ddl("clo_pi_mapping")))
+        c.execute(text("CREATE INDEX ix_cpi_pi ON clo_pi_mapping (pi_id)"))
+        n = backfill_clo_pi(c)
+        done.append(f"clo_pi_mapping (sinh {n} ánh xạ CLO → PI từ CLO → PLO)")
+
+
+def _upgrade_new_tables(c, done: list) -> None:
+    """Bảng mới: đồng bộ câu hỏi theo khóa Moodle (F3), đề cương có phiên bản (F1; cột mới của course_outlines ở NEW_COLUMNS)."""
+    for t in NEW_TABLES:
+        if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t"), {"t": t}).scalar():
+            c.execute(text(_ddl(t)))
+            done.append(f"bảng {t}")
 
 
 def _upgrade_v3(c, done: list) -> None:
@@ -192,6 +220,8 @@ def upgrade_schema() -> list[str]:
                 c.execute(text(_ddl(t)))
                 done.append(f"tạo lại bảng {t}")
         _upgrade_v3(c, done)
+        _upgrade_clo_pi(c, done)
+        _upgrade_new_tables(c, done)
         need_ctdt = not c.execute(text("SELECT 1 FROM programs WHERE code IN ('CNTT-2026','KTDL-2026') LIMIT 1")).scalar()
     if need_ctdt and load_ctdt_2026():
         done.append("nạp CTĐT CNTT 2026 và KTDL 2026")
