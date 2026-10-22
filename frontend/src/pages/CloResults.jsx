@@ -3,56 +3,39 @@ import { Bar } from 'react-chartjs-2'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
-import { Achieved, ActionButton, Badge, Card, Field, Loading, Modal, Stat, diClass } from '../components/ui'
+import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading, Modal, Stat, diClass } from '../components/ui'
 import { useApi } from '../hooks'
 
 const EVID = { process: 'Quá trình', final: 'Cuối kỳ', any: 'Quá trình + Cuối kỳ' }
 
-// Xuất biểu mẫu: bộ BM6 đầy đủ của lớp HP (BM6a, BM6b, BM6c/6d theo kế hoạch minh chứng) hoặc BM6c riêng từng bài KT.
-function ExportMenu({ id, section }) {
-  const exams = useApi(`/api/class-sections/${id}/exams`).data?.filter(x => x.status === 'Analyzed') || []
-  const [open, setOpen] = useState(false)
-  return <div className="export-menu">
-    <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/class-sections/${id}/bm6.xlsx`, `BM6_${section || id}.xlsx`)}>⬇ Xuất bộ BM6 của lớp (.xlsx)</ActionButton>
-    {exams.length > 0 && <button className="btn" onClick={() => setOpen(!open)}>Xuất theo từng bài KT ▾</button>}
-    {open && <div className="export-pop">
-      <div className="small muted">BM6c riêng cho một bài kiểm tra – minh chứng từng CLO bài đó đo (kèm MSSV, họ tên):</div>
-      {exams.map(x => <ActionButton key={x.id} className="btn sm block" onRun={() => api.download(`/api/reports/exams/${x.id}/bm6c.xlsx`, `BM6c_${x.exam_title}.xlsx`)}>
-        ⬇ {x.exam_title} <small className="muted">({x.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'})</small></ActionButton>)}
-    </div>}
-  </div>
-}
-
+// góp ý 21/10: trang BM6 của lớp theo 3 bước – BM6a lập kế hoạch → BM6b kết quả tổng hợp → BM6c/6d minh chứng; xuất Excel luôn ở đầu trang.
 export default function CloResults() {
   const { id } = useParams()
   const res = useApi(`/api/class-sections/${id}/clo-results`)
   const cs = useApi('/api/class-sections').data?.find(x => String(x.id) === id)
   const course = useApi(cs ? `/api/courses/${cs.course_id}?semester_id=${cs.semester_id}` : null)
-  const [sp] = useSearchParams()
-  const [tab, setTab] = useState(sp.get('tab') === 'bm6a' ? 'bm6a' : 'bm6b')
+  const exams = useApi(`/api/class-sections/${id}/exams`).data?.filter(x => x.status === 'Analyzed') || []
+  const [sp, setSp] = useSearchParams()
+  const tab = ['bm6a', 'bm6b', 'bm6c'].includes(sp.get('tab')) ? sp.get('tab') : 'bm6b'
   const [evid, setEvid] = useState(null)
   const [plan, setPlan] = useState(null)
   const r = res.data
   if (!r) return <Loading {...res} />
   const cr = r.course_result
+  const planned = course.data?.clos.filter(c => c.plan).length ?? 0
   return (
     <>
       <div className="page-h">
-        <div><div className="crumb"><Link to="/">Lớp học phần</Link> / <Link to={`/sections/${id}`}>{cs?.section_code}</Link> / Kết quả CĐR</div>
-          <h1>Đo lường CĐR môn học</h1><p className="muted">{r.course} · {r.semester} · GV {cs?.lecturer}</p></div>
-        <ExportMenu id={id} section={cs?.section_code} />
+        <div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], [`/sections/${id}`, cs?.section_code], [null, 'Kết quả CĐR (BM6)']]} />
+          <h1>Đo lường CĐR môn học – lớp {cs?.section_code}</h1><p className="muted">{r.course} · {r.semester} · GV {cs?.lecturer}</p></div>
+        <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/class-sections/${id}/bm6.xlsx`, `BM6_${cs?.section_code || id}.xlsx`)}>⬇ Xuất bộ BM6 của lớp (.xlsx)</ActionButton>
       </div>
       {!r.has_data && <div className="alert amber">Lớp chưa có bài kiểm tra nào được phân tích – kết quả CĐR sẽ xuất hiện sau khi đồng bộ/nhập phiếu và phân tích.</div>}
-      <div className="stats">
-        <Stat label="Số CLO" value={r.clos.length} sub={`${r.clos.filter(c => c.is_achieved).length} đạt`} />
-        <Stat label="Lượt SV được đánh giá" value={cr.n_evaluated} sub={`${cr.n_achieved} lượt đạt`} />
-        <Stat label="Tỷ lệ đạt CĐR môn học" value={fmtPct(cr.achieved_pct)} sub={`chỉ tiêu ${cr.target_pct}%`} tone={cr.is_achieved ? 'green' : 'red'} />
-        <Stat label="Kết luận" value={cr.n_evaluated ? (cr.is_achieved ? 'Đạt' : 'Không đạt') : '—'} tone={cr.is_achieved ? 'green' : 'red'} />
-      </div>
-      <div className="tabs">
-        <button className={tab === 'bm6a' ? 'on' : ''} onClick={() => setTab('bm6a')}>BM6a – Kế hoạch đánh giá</button>
-        <button className={tab === 'bm6b' ? 'on' : ''} onClick={() => setTab('bm6b')}>BM6b – Kết quả tổng hợp</button>
-      </div>
+      <Flow steps={[
+        ['bm6a', 'BM6a – Kế hoạch đánh giá', course.data ? `${planned}/${course.data.clos.length} CLO đã lập kế hoạch` : 'Ngưỡng đạt, chỉ tiêu từng CLO', !!course.data && planned === course.data.clos.length],
+        ['bm6b', 'BM6b – Kết quả tổng hợp', cr.n_evaluated ? `Tỷ lệ đạt môn ${fmtPct(cr.achieved_pct)} / chỉ tiêu ${cr.target_pct}%` : 'Chưa có số liệu', r.has_data],
+        ['bm6c', 'BM6c/6d – Minh chứng', `${exams.length} bài KT đã phân tích`, r.has_data],
+      ].map(([k, label, sub, done]) => ({ tab: true, label, sub, done, on: tab === k, onClick: () => setSp({ tab: k }, { replace: true }) }))} />
       {tab === 'bm6a' && <Card title="Bảng kế hoạch kiểm tra, đánh giá mức độ đạt cho từng CĐR môn học">
         <table className="tbl"><thead><tr><th>CĐR</th><th>Nội dung</th><th>PLO (mức)</th><th>Bài KT có CĐR</th><th>Bài KT lấy minh chứng</th><th>Phương pháp</th><th>Chu kỳ</th><th>Ngưỡng đạt / SV</th><th>Chỉ tiêu</th><th /></tr></thead>
           <tbody>{course.data?.clos.map(c => <tr key={c.id}><td><b>{c.clo_code}</b></td><td className="clip">{c.description}</td>
@@ -62,6 +45,12 @@ export default function CloResults() {
         <p className="muted mt">Chỉ tiêu mong muốn đạt CĐR môn học: <b>{course.data?.clo_target_pct}%</b>. Mỗi SV được tính “đạt” một CLO khi tổng điểm các câu hỏi thuộc CLO ≥ ngưỡng % điểm tối đa của các câu đó.</p>
       </Card>}
       {tab === 'bm6b' && <>
+        <div className="stats">
+          <Stat label="Số CLO" value={r.clos.length} sub={`${r.clos.filter(c => c.is_achieved).length} đạt`} />
+          <Stat label="Lượt SV được đánh giá" value={cr.n_evaluated} sub={`${cr.n_achieved} lượt đạt`} />
+          <Stat label="Tỷ lệ đạt CĐR môn học" value={fmtPct(cr.achieved_pct)} sub={`chỉ tiêu ${cr.target_pct}%`} tone={cr.is_achieved ? 'green' : 'red'} />
+          <Stat label="Kết luận" value={cr.n_evaluated ? (cr.is_achieved ? 'Đạt' : 'Không đạt') : '—'} tone={cr.is_achieved ? 'green' : 'red'} />
+        </div>
         <Card title="Tỷ lệ SV đạt từng CLO so với chỉ tiêu">
           <div className="chart"><Bar data={{ labels: r.clos.map(c => c.clo_code), datasets: [
             { label: 'Tỷ lệ % SV đạt', data: r.clos.map(c => c.achieved_pct), backgroundColor: r.clos.map(c => c.is_achieved ? C.green : C.red), borderRadius: 4 },
@@ -78,6 +67,22 @@ export default function CloResults() {
             </tbody></table>
         </Card>
       </>}
+      {tab === 'bm6c' && <div className="grid2">
+        <Card title="Minh chứng từng CLO (BM6c/6d)">
+          <p className="muted small">Điểm từng SV trên các câu thuộc CLO theo từng bài KT, câu hỏi có DI thấp; ghi nhận xét và hành động cải tiến (xuất vào BM6b).</p>
+          <table className="tbl compact"><thead><tr><th>CLO</th><th>Tỷ lệ đạt</th><th>Nhận xét</th><th /></tr></thead>
+            <tbody>{r.clos.map(c => <tr key={c.clo_id}><td><b>{c.clo_code}</b></td><td>{c.n_evaluated ? <>{fmtPct(c.achieved_pct)} <Achieved ok={!!c.is_achieved} /></> : '—'}</td>
+              <td>{c.analysis || c.improvement ? <Badge tone="green">Đã ghi</Badge> : <span className="muted small">chưa có</span>}</td>
+              <td><button className="btn sm" disabled={!c.n_evaluated} onClick={() => setEvid(c)}>Xem minh chứng</button></td></tr>)}</tbody></table>
+        </Card>
+        <Card title="BM6c riêng của từng bài kiểm tra">
+          <p className="muted small">Minh chứng từng CLO mà bài đó đo (kèm MSSV, họ tên).</p>
+          {exams.length ? <div className="stack">{exams.map(x => <div key={x.id} className="row gap">
+            <Link className="grow" to={`/exams/${x.id}?step=results`}>{x.exam_title}</Link><span className="muted small">{x.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'}</span>
+            <ActionButton className="btn sm" onRun={() => api.download(`/api/reports/exams/${x.id}/bm6c.xlsx`, `BM6c_${x.exam_title}.xlsx`)}>⬇ BM6c</ActionButton></div>)}</div>
+            : <p className="muted">Chưa có bài kiểm tra nào được phân tích.</p>}
+        </Card>
+      </div>}
       {evid && <Evidence cs={id} clo={evid} onClose={() => { setEvid(null); res.reload() }} />}
       {plan && <PlanForm {...plan} onClose={() => setPlan(null)} onSaved={() => { setPlan(null); course.reload(); res.reload() }} />}
     </>

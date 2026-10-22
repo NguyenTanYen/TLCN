@@ -297,8 +297,8 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
     await see(page, 'Đề cương đã duyệt không sửa trực tiếp')
     await expect(page.locator('.syl h4').getByRole('button', { name: 'Sửa' })).toHaveCount(0)
   })
-  await test.step('Bước 8: thẻ Khai báo (Bộ môn) → bước "Đề cương chi tiết đã được Bộ môn duyệt" có ✓', async () => {
-    await tab(page, 'Khai báo (Bộ môn)').click()
+  await test.step('Bước 8: thẻ Thiết lập học phần → bước "Đề cương chi tiết đã được Bộ môn duyệt" có ✓', async () => {
+    await tab(page, 'Thiết lập học phần').click()
     await expect(page.locator('ol.setup li.ok', { hasText: 'Đề cương chi tiết đã được Bộ môn duyệt' })).toBeVisible()
   })
   await test.step('Bước 9: "Tạo phiên bản mới" → bản nháp 2 chép nội dung bản 1; ô chọn xem lại được bản 1', async () => {

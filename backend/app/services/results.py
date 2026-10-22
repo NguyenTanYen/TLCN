@@ -91,14 +91,14 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
             for att, g in clo.groupby("attempt_id"):
                 lost = lost_all[lost_all.attempt_id == att].groupby(["clo_id", "outline_id"], dropna=False, as_index=False).lost_points.sum()
                 recs = analysis.learning_path(g, lost, thr, settings.default_pass_threshold)
-                strong = [clo_names[c] for c in g[g.is_achieved].clo_id]
                 weak = [clo_names[c] for c in g[~g.is_achieved].clo_id]
-                summary = (f"Đạt {len(strong)}/{len(g)} CĐR môn học"
-                           + (f"; chưa đạt: {', '.join(weak)}." if weak else "; đạt toàn bộ CĐR."))
+                # góp ý 21/10: SV được đánh giá bằng điểm; mức CLO của SV chỉ là gợi ý ôn tập (không kết luận "đạt x/y CĐR" cho từng SV)
+                summary = (f"Điểm các câu thuộc {', '.join(weak)} còn dưới mức yêu cầu – nên ôn lại các chương gợi ý bên dưới."
+                           if weak else "Điểm các nội dung của bài đều đạt mức yêu cầu.")
                 plan_lines = []
                 for rec in recs:
                     ch = ch_names.get(rec["outline_id"], "các nội dung liên quan")
-                    plan_lines.append(f"{rec['priority']}. {clo_names[rec['clo_id']]} (thiếu {rec['gap_pct']:.1f}% so với ngưỡng): ôn lại {ch}.")
+                    plan_lines.append(f"{rec['priority']}. Ôn lại {ch} (liên quan {clo_names[rec['clo_id']]}, điểm còn thiếu {rec['gap_pct']:.1f}% so với mức yêu cầu).")
                 pid = db.execute(text("""INSERT INTO personalized_learning_paths (attempt_id, diagnostic_summary, recommended_study_plan)
                                          VALUES (:a, :s, :p)"""),
                                  {"a": int(att), "s": summary, "p": "\n".join(plan_lines) or "Tiếp tục duy trì kết quả."}).lastrowid

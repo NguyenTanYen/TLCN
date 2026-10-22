@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Radar } from 'react-chartjs-2'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { C } from '../charts'
-import { Achieved, Badge, Card, Loading, Stat } from '../components/ui'
+import { Badge, Card, Loading, Stat } from '../components/ui'
 import { useApi } from '../hooks'
 
+// Hồ sơ một SV (góp ý 21/10): SV được đánh giá bằng ĐIỂM; mức CLO của SV chỉ để tham khảo khi ôn tập (không gắn nhãn Đạt/Không đạt –
+// kết luận đạt CLO chỉ có ở cấp lớp, BM6b). Phần chính: điểm từng bài, nội dung cần ôn, chi tiết câu trả lời.
 const RES = { correct: ['Đúng', 'ans-ok', '✓'], wrong: ['Sai', 'ans-bad', '✗'], blank: ['Bỏ trống', 'ans-blank', '–'] }
 
 export default function StudentProfile() {
@@ -18,7 +20,6 @@ export default function StudentProfile() {
   const exams = d.exams
   const cur = exams.find(e => String(e.id) === sp.get('exam')) || exams[exams.length - 1]
   const go = id => nav(`/sections/${cs}/students/${id}${cur ? `?exam=${cur.id}` : ''}`)
-  const nOk = d.overall_clos.filter(c => c.achieved).length
 
   return (
     <>
@@ -36,21 +37,25 @@ export default function StudentProfile() {
 
       {exams.length === 0 ? <div className="alert amber">Lớp chưa có bài kiểm tra nào được phân tích.</div> : <>
         <div className="grid2">
-          <Card title="Tổng hợp mức đạt CLO (mọi bài kiểm tra đã phân tích)">
-            {d.overall_clos.length === 0 ? <div className="alert amber">Chưa đủ bằng chứng đánh giá (SV vắng tất cả bài kiểm tra).</div> :
-              <table className="tbl"><thead><tr><th>CLO</th><th>Mức đạt</th><th>Ngưỡng θ</th><th>Số bài đạt</th><th /></tr></thead>
-                <tbody>{d.overall_clos.map(c => <tr key={c.code}><td><b>{c.code}</b><div className="muted small">{c.description}</div></td>
-                  <td className={c.achieved ? 'ok-t' : 'bad-t'}><b>{c.pct}%</b></td><td>{c.threshold}%</td><td>{c.n_achieved}/{c.n_exams}</td><td><Achieved ok={c.achieved} /></td></tr>)}</tbody></table>}
-            {d.overall_clos.length > 0 && <p className="mt">Đạt <b>{nOk}/{d.overall_clos.length}</b> CLO khi gộp các bài kiểm tra (tổng điểm đạt / tổng điểm tối đa của các câu thuộc CLO).</p>}
+          <Card title="Điểm các bài kiểm tra">
+            <table className="tbl"><thead><tr><th>Bài kiểm tra</th><th className="num-c">Điểm</th><th className="num-c">TB lớp</th><th className="num-c">Xếp hạng</th></tr></thead>
+              <tbody>{exams.map(x => <tr key={x.id} className={`click ${x.id === cur.id ? 'sel' : ''}`} onClick={() => setSp({ exam: x.id })}><td><b>{x.exam_title}</b></td>
+                {x.status === 'finished' ? <><td className="num-c"><b>{x.score}</b> / {x.max_score}</td><td className="num-c">{x.class_mean}</td><td className="num-c">{x.rank}/{x.n_finished}</td></>
+                  : <td colSpan={3} className="muted">Vắng thi</td>}</tr>)}</tbody></table>
           </Card>
-          <Card title="Cần học lại những phần nào">
-            {d.review.length === 0 ? <div className="alert green">SV đạt ngưỡng ở mọi CLO – không có chương nào cần học lại.</div> :
+          <Card title="Cần ôn lại những phần nào">
+            {d.review.length === 0 ? <div className="alert green">Không có chương nào cần ôn lại – điểm các nội dung đều đạt mức yêu cầu.</div> :
               <div className="review">{d.review.map((r, i) => <div key={r.chapter}>
                 <div className="row gap wrap"><span className="prio">Ưu tiên {i + 1}</span><b>{r.chapter}</b></div>
-                <div className="muted small">CLO chưa đạt: {r.clos.join(', ')} · thiếu tối đa {r.max_gap}% so với ngưỡng · từ bài: {r.exams.join('; ')}</div>
+                <div className="muted small">Liên quan {r.clos.join(', ')} · điểm còn thiếu tối đa {r.max_gap}% so với mức yêu cầu · từ bài: {r.exams.join('; ')}</div>
               </div>)}</div>}
           </Card>
         </div>
+        {d.overall_clos.length > 0 && <details className="adv mb"><summary>Tỷ lệ điểm theo nội dung (CLO), gộp mọi bài – tham khảo</summary>
+          <table className="tbl compact mt"><thead><tr><th>CLO</th><th className="num-c">Tỷ lệ điểm của SV</th></tr></thead>
+            <tbody>{d.overall_clos.map(c => <tr key={c.code}><td><b>{c.code}</b> <span className="muted small">{c.description}</span></td><td className="num-c">{c.pct}%</td></tr>)}</tbody></table>
+          <p className="muted small">Chỉ dùng để gợi ý ôn tập. Kết luận đạt chuẩn đầu ra (CLO) được tính cho cả lớp ở trang Kết quả CĐR (BM6).</p>
+        </details>}
 
         <div className="row gap wrap mb"><b>Chi tiết theo bài kiểm tra:</b>
           {exams.map(x => <button key={x.id} className={`chip ${x.id === cur.id ? 'on' : ''}`} onClick={() => setSp({ exam: x.id })}>{x.exam_title}</button>)}
@@ -63,8 +68,7 @@ export default function StudentProfile() {
 
 function ExamBlock({ e }) {
   const [filter, setFilter] = useState('all')
-  if (e.status !== 'finished') return <div className="alert amber"><b>{e.exam_title}:</b> SV vắng thi – chưa đủ bằng chứng đánh giá (E2), không tính vào CLO của bài này.</div>
-  const ok = e.clos.filter(c => c.achieved).length
+  if (e.status !== 'finished') return <div className="alert amber"><b>{e.exam_title}:</b> SV vắng thi – không có điểm bài này.</div>
   const ans = e.answers.filter(a => filter === 'all' || a.result === filter)
   const cnt = r => e.answers.filter(a => a.result === r).length
   const groups = Object.values((e.items || []).reduce((m, i) => { (m[i.priority] ||= { ...i, chapters: [] }).chapters.push(i.chapter); return m }, {}))
@@ -73,29 +77,27 @@ function ExamBlock({ e }) {
       <div className="stats">
         <Stat label="Điểm" value={`${e.score} / ${e.max_score}`} sub={`TB lớp ${e.class_mean}`} tone={e.score >= e.max_score / 2 ? 'green' : 'red'} />
         <Stat label="Xếp hạng trong lớp" value={`${e.rank}/${e.n_finished}`} sub="theo điểm, SV dự thi" />
-        <Stat label="CLO đạt" value={`${ok}/${e.clos.length}`} tone={ok === e.clos.length ? 'green' : 'amber'} />
         <Stat label="Trả lời" value={`${cnt('correct')} đúng`} sub={`${cnt('wrong')} sai · ${cnt('blank')} bỏ trống`} />
         <Stat label="Hiển thị cho SV trên Moodle" value={e.publish_flag ? 'Đã công bố' : 'Đang bảo lưu'} sub={e.source === 'paper' ? 'bài làm trên giấy' : 'bài làm Moodle'} tone={e.publish_flag ? 'green' : ''} />
       </div>
       <div className="grid2">
-        <Card title="Mức đạt từng CLO so với ngưỡng và trung bình lớp">
+        <Card title="Tỷ lệ điểm theo nội dung (CLO) so với trung bình lớp – tham khảo">
           <div className="chart tall"><Radar data={{ labels: e.clos.map(c => c.code), datasets: [
             { label: 'Sinh viên (%)', data: e.clos.map(c => c.pct), borderColor: C.blue, backgroundColor: C.blueA, pointBackgroundColor: C.blue, pointRadius: 4, borderWidth: 2 },
-            { label: 'Trung bình lớp (%)', data: e.clos.map(c => c.class_avg), borderColor: C.gray, backgroundColor: 'transparent', borderDash: [4, 4], pointRadius: 3, borderWidth: 2 },
-            { label: 'Ngưỡng đạt θ (%)', data: e.clos.map(c => c.threshold), borderColor: C.amber, backgroundColor: 'transparent', pointRadius: 0, borderWidth: 2 }] }}
+            { label: 'Trung bình lớp (%)', data: e.clos.map(c => c.class_avg), borderColor: C.gray, backgroundColor: 'transparent', borderDash: [4, 4], pointRadius: 3, borderWidth: 2 }] }}
             options={{ maintainAspectRatio: false, scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, backdropColor: 'transparent' } } },
               plugins: { tooltip: { callbacks: { label: it => `${it.dataset.label}: ${it.raw}%` } } } }} /></div>
         </Card>
-        <Card title="Kết quả CLO & chẩn đoán">
-          <table className="tbl"><thead><tr><th>CLO</th><th>SV</th><th>TB lớp</th><th>Ngưỡng</th><th /></tr></thead>
+        <Card title="Chẩn đoán & lộ trình ôn tập">
+          <table className="tbl"><thead><tr><th>Nội dung (CLO)</th><th className="num-c">SV</th><th className="num-c">TB lớp</th></tr></thead>
             <tbody>{e.clos.map(c => <tr key={c.code}><td><b>{c.code}</b><div className="muted small">{c.description}</div></td>
-              <td className={c.achieved ? 'ok-t' : 'bad-t'}><b>{c.pct}%</b></td><td>{c.class_avg}%</td><td>{c.threshold}%</td><td><Achieved ok={c.achieved} /></td></tr>)}</tbody></table>
+              <td className="num-c"><b>{c.pct}%</b></td><td className="num-c">{c.class_avg}%</td></tr>)}</tbody></table>
           {e.summary && <p className="mt"><b>Chẩn đoán:</b> {e.summary}</p>}
           <h4>Lộ trình ôn tập của bài này</h4>
-          {groups.length === 0 ? <div className="alert green">Đạt mọi CLO của bài kiểm tra.</div> :
-            <ol className="path">{groups.map(g => <li key={g.priority}><div className="row gap wrap"><span className="prio">Ưu tiên {g.priority}</span><b>{g.clo}</b>
-              <span className="muted">thiếu {g.gap}% so với ngưỡng</span></div>
-              <ul>{g.chapters.map(c => <li key={c || 'x'}>Ôn lại <b>{c || 'nội dung của CLO (chưa gắn chương)'}</b></li>)}</ul></li>)}</ol>}
+          {groups.length === 0 ? <div className="alert green">Không có nội dung nào cần ôn lại ở bài này.</div> :
+            <ol className="path">{groups.map(g => <li key={g.priority}><div className="row gap wrap"><span className="prio">Ưu tiên {g.priority}</span>
+              <span className="muted">liên quan {g.clo} · điểm còn thiếu {g.gap}% so với mức yêu cầu</span></div>
+              <ul>{g.chapters.map(c => <li key={c || 'x'}>Ôn lại <b>{c || `nội dung của ${g.clo} (chưa gắn chương)`}</b></li>)}</ul></li>)}</ol>}
         </Card>
       </div>
       <Card title="Chi tiết từng câu trả lời" actions={[['all', `Tất cả (${e.answers.length})`], ['wrong', `Sai (${cnt('wrong')})`], ['blank', `Bỏ trống (${cnt('blank')})`], ['correct', `Đúng (${cnt('correct')})`]].map(([k, l]) =>

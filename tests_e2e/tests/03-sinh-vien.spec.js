@@ -45,14 +45,14 @@ test('SV1 – SV đăng nhập hệ thống bằng MSSV → bị từ chối, h�
 })
 
 // ================================================================== SV3 – Chỉ SV được giao thấy Quiz phụ đạo
-test('SV3 – Nhóm Moodle "Phụ đạo" gồm đúng 2 SV; SV không được giao không làm được Quiz phụ đạo @moodle', async ({ page, browser }) => {
+test('SV3 – Nhóm Moodle "Ôn tập" gồm đúng 2 SV; SV không được giao không làm được Quiz phụ đạo @moodle', async ({ page, browser }) => {
   test.skip(!S.remedialExam, 'Chưa có bài phụ đạo – chạy GV14 (tệp 02) trước')
   const url = await quizUrl(page, S.remedialExam)
   const sv = await H.newPage(browser)
-  await test.step('Bước 1: admin Moodle → Nhóm của khóa học → nhóm "Phụ đạo – …" có đúng 2 SV được giao', async () => {
+  await test.step('Bước 1: admin Moodle → Nhóm của khóa học → nhóm "Ôn tập – …" có đúng 2 SV được giao', async () => {
     await H.moodleLogin(sv, H.MOODLE_ADMIN)
     await sv.goto(`${H.MOODLE}/group/overview.php?id=${H.DEMO.moodleCourse}`)
-    const group = sv.locator('table').filter({ hasText: 'Phụ đạo' }).last()
+    const group = sv.locator('table').filter({ hasText: 'Ôn tập' }).last()
     for (const code of S.remedialStudents) await expect(group).toContainText(code)
   })
   await test.step('Bước 2: SV KHÔNG được giao đăng nhập Moodle, mở thẳng trang Quiz phụ đạo → không có nút làm bài', async () => {
@@ -105,7 +105,7 @@ test('SV2 – SV được giao làm Quiz phụ đạo trên Moodle; GV đồng b
   await test.step('Bước 6: trang Phụ đạo → khung tiến bộ: SV "Đã nộp", cột "Thay đổi" có số (sau – trước)', async () => {
     const e = await api(page, `/api/exams/${S.remedialExam}`)
     await goto(page, `/sections/${e.class_section_id}/remedial`)
-    const box = card(page, 'Bài phụ đạo đã giao').locator('details').filter({ has: page.locator(`a[href='/exams/${S.remedialExam}']`) })
+    const box = card(page, 'Bài ôn tập đã giao').locator('details').filter({ has: page.locator(`a[href='/exams/${S.remedialExam}']`) })
     await box.locator('summary').click()
     const row = box.locator('tr').filter({ hasText: code })
     await see(row, 'Đã nộp')

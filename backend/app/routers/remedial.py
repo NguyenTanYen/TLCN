@@ -19,7 +19,7 @@ from ..database import get_db
 from ..deps import check_section_access, require
 from ..models import Exam, ExamQuestion, User
 
-router = APIRouter(prefix="/api", tags=["Phụ đạo theo câu trả lời sai"])
+router = APIRouter(prefix="/api", tags=["Ôn tập theo câu trả lời sai (phụ đạo)"])
 
 
 class RemedialIn(BaseModel):
@@ -241,7 +241,7 @@ def create_remedial(cs_id: int, body: RemedialIn, u: User = Depends(require("adm
     n = len(chosen)
     each = round(body.max_score / n, 2)
     codes = [enrolled[s] for s in body.student_ids]
-    title = body.exam_title or (f"Phụ đạo – {codes[0]}" if len(codes) == 1 else f"Phụ đạo – nhóm {len(codes)} SV")
+    title = body.exam_title or (f"Ôn tập – {codes[0]}" if len(codes) == 1 else f"Ôn tập – nhóm {len(codes)} SV")
     e = Exam(class_section_id=cs.id, exam_title=title[:255], assessment_type="process", exam_type=body.exam_type,
              max_score=body.max_score, counts_for_clo=False, parent_exam_id=ids[-1] if ids else None,
              target_students=",".join(codes), created_by=u.id)

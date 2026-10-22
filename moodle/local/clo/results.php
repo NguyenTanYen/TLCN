@@ -38,30 +38,25 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     $o .= html_writer::start_div('local-clo-head');
     $o .= html_writer::div(html_writer::span(format_float($res->score, 2), 'local-clo-score') .
         html_writer::span(' / ' . format_float($res->maxscore, 0), 'local-clo-max'), 'local-clo-scorebox');
-    $n = count($clos); $ok = count(array_filter($clos, fn($c) => !empty($c->achieved)));
-    $o .= html_writer::div(get_string('clos_achieved', 'local_clo', (object)['ok' => $ok, 'n' => $n]), 'local-clo-sub');
+    $o .= html_writer::div(get_string('reference', 'local_clo'), 'local-clo-sub');   // điểm là kết quả của SV; mức CLO chỉ để tham khảo
     $o .= html_writer::end_div();
     $o .= html_writer::start_div('local-clo-grid');
     $radar = \local_clo\radar::svg($clos);
     if ($radar) {
         $legend = html_writer::tag('ul',
             html_writer::tag('li', html_writer::span('', 'sw me') . get_string('legend_me', 'local_clo')) .
-            html_writer::tag('li', html_writer::span('', 'sw target') . get_string('legend_target', 'local_clo')) .
             html_writer::tag('li', html_writer::span('', 'sw avg') . get_string('legend_avg', 'local_clo')),
             ['class' => 'local-clo-legend']);
         $o .= html_writer::div($radar . $legend, 'local-clo-chart');
     }
     $table = new html_table();
     $table->attributes['class'] = 'generaltable local-clo-table';
-    $table->head = [get_string('clo', 'local_clo'), get_string('yourscore', 'local_clo'), get_string('target', 'local_clo'),
-        get_string('classavg', 'local_clo'), get_string('status')];
+    $table->head = [get_string('clo', 'local_clo'), get_string('yourscore', 'local_clo'), get_string('classavg', 'local_clo')];
     foreach ($clos as $c) {
         $table->data[] = [
             html_writer::tag('strong', s($c->code)) . html_writer::div(s($c->description ?? ''), 'small text-muted'),
-            format_float($c->pct, 1) . '%', format_float($c->threshold, 0) . '%',
+            format_float($c->pct, 1) . '%',
             isset($c->class_avg) ? format_float($c->class_avg, 1) . '%' : '–',
-            !empty($c->achieved) ? html_writer::span(get_string('achieved', 'local_clo'), 'badge bg-success') :
-                html_writer::span(get_string('notachieved', 'local_clo'), 'badge bg-danger'),
         ];
     }
     $o .= html_writer::div(html_writer::table($table), 'local-clo-tablewrap');
@@ -74,10 +69,11 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $o .= html_writer::tag('h4', get_string('studyplan', 'local_clo'), ['class' => 'h6 mt-3']);
         $li = '';
         foreach ($d->items as $it) {
-            $chap = !empty($it->chapter) ? get_string('chapter', 'local_clo', s($it->chapter)) : '';
-            $li .= html_writer::tag('li', html_writer::tag('strong', s($it->clo)) . ' – ' . s($it->clo_description ?? '') .
-                ($chap ? html_writer::div($chap, 'small') : '') .
-                html_writer::span(get_string('gap', 'local_clo', format_float($it->gap, 1)), 'badge bg-warning text-dark ms-1'));
+            // gợi ý ôn tập theo chương; CLO chỉ ghi kèm "liên quan"
+            $chap = !empty($it->chapter) ? get_string('chapter', 'local_clo', s($it->chapter)) : get_string('chapter', 'local_clo', s($it->clo));
+            $li .= html_writer::tag('li', html_writer::tag('strong', $chap) .
+                html_writer::div(get_string('related', 'local_clo', s($it->clo) . (!empty($it->clo_description) ? ' – ' . s($it->clo_description) : '')), 'small text-muted') .
+                html_writer::span(get_string('gap', 'local_clo', format_float($it->gap, 1)), 'badge bg-warning text-dark'));
         }
         $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
     } else if (!empty($d->study_plan)) {
@@ -116,7 +112,7 @@ if ($canall && !$userid) {
         foreach ($rows as $r) {
             $d = json_decode($r->data ?? '{}');
             $cl = $r->status === 'absent' ? html_writer::span(get_string('absent', 'local_clo'), 'badge bg-secondary') :
-                implode(' ', array_map(fn($c) => html_writer::span(s($c->code), 'badge ' . (!empty($c->achieved) ? 'bg-success' : 'bg-danger')),
+                implode(' ', array_map(fn($c) => html_writer::span(s($c->code) . ' ' . format_float($c->pct ?? 0, 0) . '%', 'badge bg-light text-dark'),
                     $d->clos ?? []));
             $t->data[] = [s($r->username), fullname($r), $r->status === 'absent' ? '–' : format_float($r->score, 2), $cl,
                 html_writer::link(new moodle_url('/local/clo/results.php', ['id' => $course->id, 'userid' => $r->userid]),

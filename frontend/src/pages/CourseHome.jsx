@@ -1,8 +1,8 @@
-// Trang một học phần: đề cương chi tiết (mọi tài khoản xem), các lớp HP, kết quả CĐR của môn, gộp bài KT, khai báo (Bộ môn).
+// Trang một học phần theo luồng công việc: Bộ môn thiết lập → đề cương → lớp HP → kết quả CĐR; giảng viên: đề cương → lớp của mình → kết quả.
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, auth, fmtPct, STATUS_VI } from '../api'
-import { Achieved, ActionButton, Badge, Card, Crumbs, Loading, Tabs } from '../components/ui'
+import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading } from '../components/ui'
 import { DeployDialog, NewExamFlow, TYPE_VI } from '../components/NewExam'
 import { useApi } from '../hooks'
 import { useMoodleBase } from '../moodle'
@@ -15,13 +15,14 @@ import { AssessmentsForm, GeneralForm, OutlineForm, ReferencesForm, SYL_TEXT, Te
 export default function CourseHome() {
   const { id } = useParams()
   const [sp, setSp] = useSearchParams()
-  const tab = sp.get('tab') || 'syllabus'
   const isAdmin = auth.user()?.role === 'admin'
+  const tab = sp.get('tab') || (isAdmin ? 'syllabus' : 'sections')    // giảng viên bắt đầu từ lớp của mình
   const [ver, setVer] = useState(null)   // góp ý F1: xem một phiên bản đề cương cụ thể (mặc định theo vai trò)
   const syl = useApi(`/api/courses/${id}/syllabus${ver ? `?version=${ver}` : ''}`)
   const s = syl.data
-  const cex = useApi(`/api/courses/${id}/exams`)
-  const [creating, setCreating] = useState(sp.get('new') === '1')
+  // góp ý 21/10: đề kiểm tra là việc của giảng viên (gắn với lớp) – Bộ môn không có thẻ "Đề kiểm tra" và nút tạo bài
+  const cex = useApi(isAdmin ? null : `/api/courses/${id}/exams`)
+  const [creating, setCreating] = useState(!isAdmin && sp.get('new') === '1')
   const closeNew = () => { setCreating(false); if (sp.get('new')) setSp({ tab }) }
   return <>
     <div className="page-h">
@@ -31,20 +32,30 @@ export default function CourseHome() {
           {s.programs.length ? ` · ${s.programs.map(p => p.code).join(', ')}` : ''}</p>}</div>
       <div className="row gap wrap">
         <Link className="btn" to={`/questions?course=${id}`}>Ngân hàng câu hỏi ({s?.n_questions ?? '…'})</Link>
-        {tab === 'syllabus' && <button className="btn" onClick={() => window.print()}>🖶 In đề cương</button>}
-        <button className="btn primary" onClick={() => setCreating(true)}>+ Tạo bài kiểm tra</button>
+        {!isAdmin && <button className="btn primary" onClick={() => setCreating(true)}>+ Tạo bài kiểm tra</button>}
       </div>
     </div>
-    <Tabs value={tab} onChange={t => setSp({ tab: t })} tabs={[
-      ['syllabus', 'Đề cương chi tiết'], ['sections', `Lớp học phần (${s?.sections.length ?? 0})`], ['exams', `Đề kiểm tra (${cex.data?.exams.length ?? 0})`],
-      ['results', 'Kết quả CĐR của môn'],
-      ['combine', 'Gộp bài KT đánh giá CĐR'], isAdmin && ['setup', 'Khai báo (Bộ môn)']]} />
+    {/* góp ý 21/10: thay hàng thẻ bằng luồng công việc chính theo vai trò; mục phụ để bên phải */}
+    {s && <Flow steps={(isAdmin ? [
+      ['setup', 'Thiết lập học phần', 'Chương, CLO, ánh xạ PI', s.clos.length > 0 && s.outlines.length > 0],
+      ['syllabus', 'Đề cương chi tiết', s.doc ? `Phiên bản ${s.doc.version_no}: ${s.doc.status_label}` : 'Chưa soạn', s.doc?.status === 'approved'],
+      ['sections', `Lớp học phần (${s.sections.length})`, 'Mở lớp, gán giảng viên', s.sections.length > 0],
+      ['results', 'Kết quả CĐR của môn', 'Theo học kỳ (BM6b cấp môn)', s.clo_summary.length > 0],
+    ] : [
+      ['syllabus', 'Đề cương chi tiết', 'Bộ môn ban hành – xem CLO, cách đánh giá', s.doc?.status === 'approved'],
+      ['sections', `Lớp học phần (${s.sections.length})`, 'Chọn lớp → tạo bài KT, phân tích', s.sections.some(x => x.n_exams > 0)],
+      ['results', 'Kết quả CĐR của môn', 'Tổng hợp mọi lớp theo học kỳ', s.clo_summary.length > 0],
+    ]).map(([k, label, sub, done]) => ({ tab: true, label, sub, done, on: tab === k, onClick: () => setSp({ tab: k }) }))}
+      extra={<>{!isAdmin && (cex.data?.exams.length > 0 || tab === 'exams') &&
+        <button role="tab" aria-selected={tab === 'exams'} className={`btn sm ${tab === 'exams' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'exams' })}>Đề dùng chung ({cex.data?.exams.length ?? 0})</button>}
+        <button role="tab" aria-selected={tab === 'combine'} className={`btn sm ${tab === 'combine' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'combine' })}
+          title="Chọn bài KT nào được tính khi đo CLO của môn">Gộp bài KT đánh giá CĐR</button></>} />}
     <Loading {...syl} />
     {s && tab === 'syllabus' && <Syllabus s={s} isAdmin={isAdmin} onEdit={() => setSp({ tab: 'setup' })} setVer={setVer} reload={syl.reload} />}
     {s && tab === 'sections' && <SectionsTab s={s} isAdmin={isAdmin} reload={syl.reload} />}
-    {s && tab === 'exams' && <ExamsTab data={cex} onNew={() => setCreating(true)} />}
-    {s && tab === 'results' && <ResultsTab s={s} />}
-    {creating && s && cex.data && <NewExamFlow course={{ id: Number(id), code: s.course_code }} sections={cex.data.sections} onClose={closeNew} />}
+    {s && tab === 'exams' && !isAdmin && <ExamsTab data={cex} onNew={() => setCreating(true)} />}
+    {s && tab === 'results' && <ResultsTab s={s} isAdmin={isAdmin} />}
+    {creating && s && cex.data && <NewExamFlow course={{ id: Number(id), code: s.course_code }} sections={s.sections.map(x => cex.data.sections.find(y => y.id === x.id)).filter(Boolean)} onClose={closeNew} />}
     {s && tab === 'combine' && <Combine courseId={Number(id)} />}
     {s && tab === 'setup' && isAdmin && <Setup courseId={Number(id)} s={s} reload={syl.reload} />}
   </>
@@ -71,7 +82,7 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
       : <ActionButton className="btn sm primary" okMsg="Đã tạo bản nháp phiên bản 1" onRun={() => run(`/api/courses/${s.id}/syllabus/versions`)}>+ Soạn đề cương</ActionButton>}>
     <ul className="checklist">{s.checks.map(k => <li key={k.key} className={k.ok ? 'ok' : k.required ? 'bad' : 'warn'}>
       <span aria-hidden>{k.ok ? '✓' : k.required ? '✕' : '!'}</span> {k.label}{k.detail && <span className="small muted"> – {k.detail}</span>}</li>)}</ul>
-    <p className="small muted">Mục ✕ là bắt buộc trước khi duyệt; mục ! chỉ là cảnh báo. Chương và CLO sửa ở tab "Khai báo (Bộ môn)".</p>
+    <p className="small muted">Mục ✕ là bắt buộc trước khi duyệt; mục ! chỉ là cảnh báo. Chương và CLO sửa ở thẻ "Thiết lập học phần".</p>
   </Card>}
   <Card className="syl" title="ĐỀ CƯƠNG CHI TIẾT HỌC PHẦN" actions={<div className="row gap wrap no-print">
     {d && <Badge tone={d.status === 'approved' ? 'green' : d.status === 'draft' ? 'amber' : 'gray'}>Phiên bản {d.version_no}: {d.status_label}</Badge>}
@@ -79,7 +90,8 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
       {s.versions.map(v => <option key={v.version_no} value={v.version_no}>Phiên bản {v.version_no} – {v.status_label}</option>)}</select>}
     {isAdmin && d && d.status !== 'draft' && !s.versions.some(v => v.status === 'draft') &&
       <ActionButton className="btn sm" okMsg="Đã tạo bản nháp mới" onRun={() => run(`/api/courses/${s.id}/syllabus/versions`)}>Tạo phiên bản mới</ActionButton>}
-    {isAdmin ? <button className="btn sm" onClick={onEdit}>Khai báo chương, CLO</button> : <span className="muted small">Bộ môn quản lý – giảng viên chỉ xem</span>}</div>}>
+    {!isAdmin && <span className="muted small">Bộ môn quản lý – giảng viên chỉ xem</span>}
+    <button className="btn sm" onClick={() => window.print()}>🖶 In</button></div>}>
     {isAdmin && d && d.status !== 'draft' && <div className="alert blue no-print">Đề cương đã duyệt không sửa trực tiếp – bấm "Tạo phiên bản mới" để soạn bản nháp (chép nội dung bản này).</div>}
     <h4>1. Thông tin chung {edit('general')}</h4>
     <dl className="kv">
@@ -122,7 +134,7 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
         <td>{o.clos.map(x => x.clo_code).join(', ') || <span className="muted">—</span>}</td>
         {isAdmin && <td className="no-print"><button className="btn sm ghost" onClick={() => setDlg({ kind: 'outline', o })}>Sửa</button></td>}</tr>)}
         <tr className="sub"><td colSpan={2}><b>Tổng số tiết</b></td><td className="num-c"><b>{lt}</b></td><td className="num-c"><b>{th}</b></td><td colSpan={isAdmin ? 2 : 1} /></tr></tbody></table>
-      : <p className="muted">Chưa khai báo các chương.{isAdmin && <> Thêm chương ở tab <button className="btn sm ghost no-print" onClick={onEdit}>Khai báo (Bộ môn)</button>, sau đó bấm <b>Sửa</b> từng chương ở đây để nhập nội dung, số tiết và CLO.</>}</p>}
+      : <p className="muted">Chưa khai báo các chương.{isAdmin && <> Thêm chương ở thẻ <button className="btn sm ghost no-print" onClick={onEdit}>Thiết lập học phần</button>, sau đó bấm <b>Sửa</b> từng chương ở đây để nhập nội dung, số tiết và CLO.</>}</p>}
     {text(7, 'teaching_methods')}
     <h4>8. Đánh giá học phần {edit('assess')}</h4>
     {d?.assessments.length ? <table className="tbl compact"><thead><tr><th>Mã</th><th>Thành phần</th><th>Hình thức</th><th>Thời điểm</th><th className="num-c">Tỷ trọng</th><th>CLO</th></tr></thead>
@@ -151,18 +163,24 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
 function SectionsTab({ s, isAdmin, reload }) {
   const moodle = useMoodleBase()
   const [form, setForm] = useState(null)
+  const sems = [...new Set(s.sections.map(x => x.semester))]           // đã sắp học kỳ mới nhất trước (API)
+  const [sem, setSem] = useState('')                                    // '' = mọi học kỳ
+  const shown = sem ? s.sections.filter(x => x.semester === sem) : s.sections
   return <Card title={isAdmin ? 'Các lớp học phần của môn' : 'Các lớp bạn phụ trách'} actions={<>
-    <ActionButton className="btn sm" okMsg={r => r.sections.map(x => `${x.section_code}: ${x.status}${x.added_students ? `, +${x.added_students} SV` : ''}`).join(' · ') || 'Không có lớp'}
+    <ActionButton className="btn sm" title="Lớp chưa gắn được tự gắn với khóa học Moodle trùng mã lớp; lớp đã gắn được cập nhật danh sách SV đang ghi danh" okMsg={r => r.sections.map(x => `${x.section_code}: ${x.status}${x.added_students ? `, +${x.added_students} SV` : ''}`).join(' · ') || 'Không có lớp'}
       onRun={async () => { const r = await api.post(`/api/courses/${s.id}/moodle-sync-sections`); reload(); return r }}>⟳ Đồng bộ các lớp với Moodle</ActionButton>
     {isAdmin && <button className="btn sm primary" onClick={() => setForm({ course_id: s.id })}>+ Lớp HP</button>}</>}>
+    {sems.length > 0 && <div className="row gap mb"><Field label="Học kỳ"><select value={sem} onChange={e => setSem(e.target.value)}>
+      <option value="">Tất cả học kỳ ({s.sections.length} lớp)</option>
+      {sems.map(x => <option key={x} value={x}>{x} ({s.sections.filter(y => y.semester === x).length} lớp)</option>)}</select></Field></div>}
     <table className="tbl"><thead><tr><th>Mã lớp</th><th>Học kỳ</th><th>Giảng viên</th><th>SV</th><th>Bài KT</th><th>Moodle</th><th /></tr></thead>
-      <tbody>{s.sections.map(x => <tr key={x.id}><td><Link to={`/sections/${x.id}`}><b>{x.section_code}</b></Link></td><td>{x.semester}</td><td>{x.lecturer}</td>
+      <tbody>{shown.map(x => <tr key={x.id}><td><Link to={`/sections/${x.id}`}><b>{x.section_code}</b></Link></td><td>{x.semester}</td><td>{x.lecturer}</td>
         <td>{x.n_students}</td><td>{x.n_exams}</td>
         <td>{x.moodle_course_id ? <a href={moodle && `${moodle}/course/view.php?id=${x.moodle_course_id}`} target="_blank" rel="noreferrer">Khóa học #{x.moodle_course_id} ↗</a> : <span className="muted">chưa gắn</span>}</td>
-        <td className="row gap"><Link className="btn sm primary" to={`/sections/${x.id}`}>Mở lớp</Link><Link className="btn sm" to={`/sections/${x.id}/clo`}>BM6</Link>
-          <Link className="btn sm ghost" to={`/sections/${x.id}/remedial`}>Phụ đạo</Link></td></tr>)}</tbody></table>
+        <td className="row gap"><Link className="btn sm primary" to={`/sections/${x.id}`}>Mở lớp</Link>
+          {x.n_exams > 0 && <Link className="btn sm ghost" to={`/sections/${x.id}/clo`}>BM6</Link>}</td></tr>)}</tbody></table>
     {!s.sections.length && <p className="muted">Chưa có lớp học phần.</p>}
-    <p className="muted small mt">"Đồng bộ các lớp với Moodle": lớp chưa gắn được tự gắn với khóa học Moodle có tên rút gọn hoặc mã khóa học trùng mã lớp; lớp đã gắn được cập nhật danh sách SV đang ghi danh.</p>
+    {!isAdmin && s.sections.length > 0 && <p className="next-hint mt">Bước tiếp theo: bấm <b>Mở lớp</b> để tạo bài kiểm tra cho lớp, đồng bộ bài làm và xem kết quả CĐR (BM6).</p>}
     {form && <SectionForm s={form} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload() }} />}
   </Card>
 }
@@ -172,8 +190,8 @@ function ExamsTab({ data, onNew }) {
   const [dep, setDep] = useState(null)
   const d = data.data
   if (!d) return <Loading {...data} />
-  return <Card title="Đề kiểm tra của môn" actions={<button className="btn sm primary" onClick={onNew}>+ Tạo bài kiểm tra</button>}>
-    <p className="muted small">Soạn đề một lần cho cả môn; khi xuất (tạo Quiz trên Moodle, in đề và chấm phiếu, nhập điểm) chọn giao cho lớp học phần nào. Bài của từng lớp nằm ở trang lớp.</p>
+  return <Card title="Đề dùng chung cho nhiều lớp" actions={<button className="btn sm primary" onClick={onNew}>+ Tạo bài kiểm tra</button>}>
+    <p className="muted small">Đề soạn một lần cho nhiều lớp của môn; khi xuất (tạo Quiz trên Moodle, in đề và chấm phiếu, nhập điểm) chọn giao cho lớp học phần nào. Bài của từng lớp nằm ở trang lớp.</p>
     {d.exams.length ? <table className="tbl"><thead><tr><th>#</th><th>Tên đề</th><th>Hình thức</th><th>Loại minh chứng</th><th className="num-c">Số câu</th><th>Đã giao cho lớp</th><th /></tr></thead>
       <tbody>{d.exams.map(e => <tr key={e.id}><td>{e.id}</td><td><Link to={`/exams/${e.id}`}><b>{e.exam_title}</b></Link></td><td>{TYPE_VI[e.exam_type]}</td>
         <td>{e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'}</td><td className="num-c">{e.questions.length}</td>
@@ -187,19 +205,26 @@ function ExamsTab({ data, onNew }) {
   </Card>
 }
 
-function ResultsTab({ s }) {
-  const sems = [...new Set(s.clo_summary.map(r => r.semester))]
+// Kết quả CĐR của môn theo HỌC KỲ (gộp mọi lớp HP của kỳ – BM6b cấp môn); kết quả từng lớp là phần của giảng viên
+function ResultsTab({ s, isAdmin }) {
+  const sems = [...new Set(s.clo_summary.map(r => r.semester))]        // học kỳ mới nhất trước
+  const [sem, setSem] = useState(sems[0] || '')
+  const rows = s.clo_summary.filter(r => r.semester === sem)
+  const secs = s.sections.filter(x => x.semester === sem)
+  if (!sems.length) return <div className="alert">Môn chưa có kết quả đo CLO (cần ít nhất một bài KT đã phân tích).</div>
   return <>
-    {!sems.length && <div className="alert">Môn chưa có kết quả đo CLO (cần ít nhất một bài KT đã phân tích).</div>}
-    {sems.map(sem => <Card key={sem} title={`Kết quả CLO của môn – ${sem} (gộp các lớp HP, BM6b cấp môn)`}>
+    <div className="row gap wrap mb"><Field label="Học kỳ"><select value={sem} onChange={e => setSem(e.target.value)}>
+      {sems.map(x => <option key={x} value={x}>{x}</option>)}</select></Field>
+      <span className="muted small">{secs.length} lớp học phần · {secs.reduce((n, x) => n + (x.n_students || 0), 0)} sinh viên trong kỳ</span></div>
+    <Card title={`Kết quả CLO của môn – ${sem} (tổng hợp mọi lớp học phần trong kỳ, BM6b cấp môn)`}>
       <table className="tbl"><thead><tr><th>CLO</th><th className="num-c">SV đánh giá</th><th className="num-c">SV đạt</th><th className="num-c">Tỷ lệ đạt</th><th className="num-c">Chỉ tiêu</th><th>Kết luận</th></tr></thead>
-        <tbody>{s.clo_summary.filter(r => r.semester === sem).map(r => <tr key={r.clo_code}><td><b>{r.clo_code}</b></td><td className="num-c">{r.n_evaluated}</td>
+        <tbody>{rows.map(r => <tr key={r.clo_code}><td><b>{r.clo_code}</b></td><td className="num-c">{r.n_evaluated}</td>
           <td className="num-c">{r.n_achieved}</td><td className="num-c">{fmtPct(r.achieved_pct)}</td><td className="num-c">{r.target_pct}%</td>
           <td><Achieved ok={Number(r.achieved_pct) + 1e-9 >= Number(r.target_pct)} /></td></tr>)}</tbody></table>
-    </Card>)}
-    <Card title="Kết quả từng lớp">
-      <div className="row gap wrap">{s.sections.map(x => <Link key={x.id} className="btn" to={`/sections/${x.id}/clo`}>{x.section_code} – BM6</Link>)}</div>
     </Card>
+    {!isAdmin && secs.length > 0 && <Card title="Kết quả lớp bạn phụ trách trong kỳ">
+      <div className="row gap wrap">{secs.map(x => <Link key={x.id} className="btn" to={`/sections/${x.id}/clo`}>{x.section_code} – BM6</Link>)}</div>
+    </Card>}
   </>
 }
 
