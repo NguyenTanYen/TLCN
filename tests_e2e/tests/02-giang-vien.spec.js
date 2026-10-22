@@ -79,10 +79,10 @@ test('GV2 – Thấy môn mình phụ trách, chỉ xem đề cương bản đan
     await see(page, S.code)
     await see(page, H.DEMO.code)
   })
-  await test.step('Bước 2: mở môn kiểm thử → không có thẻ "Khai báo (Bộ môn)"', async () => {
+  await test.step('Bước 2: mở môn kiểm thử → không có thẻ "Thiết lập học phần"', async () => {
     await goto(page, `/courses/${S.cid}`)
     await expect(tab(page, 'Đề cương chi tiết')).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Khai báo (Bộ môn)' })).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Thiết lập học phần' })).toHaveCount(0)
   })
   await test.step('Bước 3: đề cương hiện "Phiên bản 1: Đang áp dụng" (không phải bản nháp 2), không có nút Sửa', async () => {
     await see(page, 'Phiên bản 1: Đang áp dụng')
@@ -289,22 +289,32 @@ test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber Q
     await page.getByRole('button', { name: '+ Tạo bài kiểm tra' }).click()
     await modal(page).getByRole('button', { name: /Trắc nghiệm trực tuyến/ }).click()
   })
-  await test.step('Bước 2: tên bài, minh chứng Cuối kỳ; chờ danh sách câu → "Chọn tất cả đang lọc"', async () => {
+  await test.step('Bước 2 (1. Thông tin bài): tên bài, minh chứng Cuối kỳ → "Tiếp: chọn câu hỏi"', async () => {
     const m = modal(page)
     await m.getByLabel('Tên bài kiểm tra').fill('Thi cuối kỳ (kiểm thử UI)')
     await pick(m.getByLabel('Bài KT lấy minh chứng (BM6a)'), 'Cuối kỳ')
+    await m.getByRole('button', { name: /Tiếp: chọn câu hỏi/ }).click()
+  })
+  await test.step('Bước 3 (2. Chọn câu hỏi): "Tự chọn câu từ ngân hàng" → chờ danh sách câu → "Chọn tất cả đang lọc"', async () => {
+    const m = modal(page)
+    await m.getByRole('button', { name: /Tự chọn câu từ ngân hàng/ }).click()
     await expect(m.locator('tbody input[type=checkbox]').first()).toBeVisible()
     await m.getByRole('button', { name: 'Chọn tất cả đang lọc' }).click()
     await see(m, /Đã chọn [1-9]\d* câu/)
   })
-  await test.step('Bước 3: "Lưu bài kiểm tra" → trang bài ở trạng thái Nháp, có đề', async () => {
+  await test.step('Bước 4 (3. Kiểm tra & lưu): "Tiếp: kiểm tra đề" → "Lưu bài kiểm tra" → trang bài ở trạng thái Nháp, có đề', async () => {
+    await modal(page).getByRole('button', { name: /Tiếp: kiểm tra đề/ }).click()
     await modal(page).getByRole('button', { name: 'Lưu bài kiểm tra' }).click()
     await page.waitForURL(/\/exams\/\d+/)
     S.onlineExam = examIdFromUrl(page)
     await see(page, 'Nháp')
-    await expect(card(page, '1. Đề thi').locator('tbody tr').first()).toBeVisible()
+    await tab(page, 'Đề thi').click()                                            // trang bài KT chia bước; bước "Đề thi"
+    await expect(card(page, 'Đề thi').locator('tbody tr').first()).toBeVisible()
   })
-  await test.step('Bước 4: "Cách thủ công…" → "⬇ Tải Moodle XML" → tệp có <quiz> và idnumber QB-n', async () => {
+  await test.step('Bước 5: bước "Phát hành lên Moodle" → "Cách thủ công…"', async () => {
+    await tab(page, 'Phát hành lên Moodle').click()
+  })
+  await test.step('Bước 6: "Cách thủ công…" → "⬇ Tải Moodle XML" → tệp có <quiz> và idnumber QB-n', async () => {
     await page.getByText('Cách thủ công: tải XML, tự import và nhập ID Quiz').click()
     const dl = page.waitForEvent('download')
     await page.getByRole('button', { name: /Tải Moodle XML/ }).click()
@@ -317,15 +327,18 @@ test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber Q
 // ================================================================== GV8 – Đề giấy chấm trên hệ thống
 test('GV8 – Đề giấy: sinh 2 mã đề, tải đề/đáp án, tải ảnh phiếu đã tô → hệ thống đọc và chấm', async ({ page }) => {
   let eid
-  await test.step('Bước 1: lớp → "+ Tạo bài kiểm tra" → "Trắc nghiệm trên giấy" → chọn tất cả câu → Lưu', async () => {
+  await test.step('Bước 1: lớp → "+ Tạo bài kiểm tra" → "Trắc nghiệm trên giấy" → thông tin → tự chọn tất cả câu → kiểm tra → Lưu', async () => {
     await goto(page, `/sections/${S.cs}`)
     await page.getByRole('button', { name: '+ Tạo bài kiểm tra' }).click()
     await modal(page).getByRole('button', { name: /Trắc nghiệm trên giấy/ }).click()
     const m = modal(page)
     await m.getByLabel('Tên bài kiểm tra').fill('Kiểm tra giữa kỳ trên giấy (kiểm thử UI)')
+    await m.getByRole('button', { name: /Tiếp: chọn câu hỏi/ }).click()
+    await m.getByRole('button', { name: /Tự chọn câu từ ngân hàng/ }).click()
     await expect(m.locator('tbody input[type=checkbox]').first()).toBeVisible()
     await m.getByRole('button', { name: 'Chọn tất cả đang lọc' }).click()
     await see(m, /Đã chọn [1-9]\d* câu/)
+    await m.getByRole('button', { name: /Tiếp: kiểm tra đề/ }).click()
     await m.getByRole('button', { name: 'Lưu bài kiểm tra' }).click()
     await page.waitForURL(/\/exams\/\d+/)
     eid = examIdFromUrl(page)
@@ -403,7 +416,8 @@ test('GV9 – Bài nhập điểm: 2 câu gắn CLO, chặn điểm vượt tố
     await page.getByRole('button', { name: /Lưu .*phân tích/ }).click()
     await toast(page, /Đã lưu 4 SV có điểm, 1 vắng/, 30000)
   })
-  await test.step('Bước 6: thẻ "Kết quả sinh viên": SV 26990003 có CLO1 = 25% (chưa đạt), SV 26990001 = 100%', async () => {
+  await test.step('Bước 6: bước "Kết quả" → "Kết quả sinh viên": SV 26990003 có CLO1 = 25% (chưa đạt), SV 26990001 = 100%', async () => {
+    await tab(page, 'Kết quả').click()
     await page.getByRole('button', { name: 'Kết quả sinh viên' }).click()
     await see(page.locator('tr').filter({ hasText: STUDENTS[2][0] }), '25')
     await see(page.locator('tr').filter({ hasText: STUDENTS[0][0] }), '100')
@@ -416,6 +430,7 @@ test('GV10 – Bài thi cuối kỳ demo: "⟳ Đồng bộ & phân tích" đọ
     const { cs } = await demoIds(page)
     const exams = await api(page, `/api/class-sections/${cs}/exams`)
     await goto(page, `/exams/${exams.find(e => e.exam_title === H.DEMO.finalExam).id}`)
+    await tab(page, 'Thu bài & phân tích').click()                              // bài đã phân tích mở sẵn bước "Kết quả"
     await page.getByRole('button', { name: /Đồng bộ & phân tích/ }).click()
     await toast(page, /Đồng bộ \d+ bài làm/, 60000)
   })
@@ -443,11 +458,13 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
     await page.getByRole('button', { name: /Thời gian làm bài/ }).click()
     await see(page, /thời gian/i)
   })
-  await test.step('Bước 5: thống kê lớp → bản đồ mức đạt CLO; bấm "Hồ sơ" một SV → kết quả CLO & chẩn đoán', async () => {
+  await test.step('Bước 5: thống kê lớp → bản đồ điểm theo nội dung; bấm "Hồ sơ" một SV → điểm các bài, chẩn đoán & lộ trình ôn tập (không có nhãn Đạt/Không đạt theo CLO)', async () => {
     await goto(page, `/sections/${cs}/stats`)
-    await see(page, 'Bản đồ mức đạt CLO của từng sinh viên')
+    await see(page, 'Bản đồ điểm theo nội dung (CLO) của từng sinh viên')
     await page.getByRole('link', { name: 'Hồ sơ' }).first().click()
-    await see(page, 'Kết quả CLO & chẩn đoán')
+    await see(page, 'Điểm các bài kiểm tra')
+    await see(page, 'Chẩn đoán & lộ trình ôn tập')
+    await expect(page.getByText('Không đạt', { exact: true })).toHaveCount(0)
   })
 })
 
@@ -466,7 +483,7 @@ test('GV12 – Lớp kiểm thử: lập kế hoạch BM6a cho CLO1, xem BM6b, x
     await expect(page.locator('.modal')).toHaveCount(0)
   })
   await test.step('Bước 3: thẻ BM6b → CLO1 có tỷ lệ đạt 75% (3/4 SV)', async () => {
-    await page.getByRole('button', { name: /BM6b/ }).click()
+    await tab(page, 'BM6b').click()
     await see(page.locator('tr').filter({ hasText: 'CLO1' }).first(), '75')
   })
   await test.step('Bước 4: "⬇ Xuất bộ BM6 của lớp (.xlsx)" → tải được tệp Excel', async () => {
@@ -517,10 +534,10 @@ test('GV14 – Phụ đạo: xem câu sai, tạo bài cho 2 SV, tạo Quiz chỉ
     await see(modal(page), 'Đáp án đúng')
     await page.keyboard.press('Escape')
   })
-  await test.step('Bước 3: tích 2 SV → "Tạo bài phụ đạo cho 2 SV đã chọn" → câu tương tự 0 → "Tạo bài"', async () => {
+  await test.step('Bước 3: tích 2 SV → "Tạo bài ôn tập cho 2 SV đã chọn" → câu tương tự 0 → "Tạo bài"', async () => {
     await first.locator('input[type=checkbox]').check()
     await second.locator('input[type=checkbox]').check()
-    await page.getByRole('button', { name: 'Tạo bài phụ đạo cho 2 SV đã chọn' }).click()
+    await page.getByRole('button', { name: 'Tạo bài ôn tập cho 2 SV đã chọn' }).click()
     const m = modal(page)
     await pick(m.getByLabel('Câu tương tự / câu sai'), '0')
     await m.getByRole('button', { name: 'Tạo bài' }).click()
@@ -530,12 +547,12 @@ test('GV14 – Phụ đạo: xem câu sai, tạo bài cho 2 SV, tạo Quiz chỉ
   await test.step('Bước 4: "⇪ Tạo Quiz trên Moodle" → "chỉ 2 SV được giao làm được"; có nút "Giới hạn SV trên Moodle"', async () => {
     await page.getByRole('button', { name: /Tạo Quiz trên Moodle/ }).click()
     await toast(page, /chỉ 2 SV được giao làm được/, 60000)
-    await see(page, 'Bài phụ đạo: chỉ 2 SV được giao')
+    await see(page, 'Bài ôn tập: chỉ 2 SV được giao')
     await expect(page.getByRole('button', { name: 'Giới hạn SV trên Moodle' })).toBeVisible()
   })
   await test.step('Bước 5: trang Phụ đạo → khung tiến bộ có bài vừa tạo, 2 SV "Chưa làm" (SV làm bài ở tệp 03)', async () => {
     await goto(page, `/sections/${cs}/remedial`)
-    const box = card(page, 'Bài phụ đạo đã giao').locator('details').filter({ has: page.locator(`a[href='/exams/${S.remedialExam}']`) })
+    const box = card(page, 'Bài ôn tập đã giao').locator('details').filter({ has: page.locator(`a[href='/exams/${S.remedialExam}']`) })
     await box.locator('summary').click()
     await expect(box.getByText('Chưa làm').first()).toBeVisible()
   })

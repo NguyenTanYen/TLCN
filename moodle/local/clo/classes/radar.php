@@ -42,8 +42,6 @@ class radar {
         $svg .= '<text x="' . ($c + 3) . '" y="' . ($c - $r / 2) . '" font-size="9" fill="#98a2b3">50%</text>';
         $svg .= '<polygon points="' . $poly(array_map(fn($x) => $x->class_avg ?? 0, $clos))
               . '" fill="none" stroke="#98a2b3" stroke-width="1.5" stroke-dasharray="2 3"/>';
-        $svg .= '<polygon points="' . $poly(array_map(fn($x) => $x->threshold ?? 0, $clos))
-              . '" fill="none" stroke="#f79009" stroke-width="2" stroke-dasharray="6 4"/>';
         $svg .= '<polygon points="' . $poly(array_map(fn($x) => $x->pct ?? 0, $clos))
               . '" fill="rgba(11,61,145,.22)" stroke="#0b3d91" stroke-width="2.5"/>';
         foreach ($clos as $i => $clo) {

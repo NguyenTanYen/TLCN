@@ -39,7 +39,7 @@ export default function MyCourses() {
             <div className="muted small">{g.code}{c ? ` · ${c.credits} tín chỉ${c.course_structure ? ` ${c.course_structure}` : ''}` : ''}{c?.programs ? ` · CTĐT ${c.programs}` : ''}</div></div>
           <div className="row gap wrap"><Link className="btn sm" to={`/courses/${g.course_id}?tab=syllabus`}>Đề cương</Link>
             <Link className="btn sm" to={`/courses/${g.course_id}?tab=results`}>Kết quả CĐR</Link>
-            <Link className="btn sm primary" to={`/courses/${g.course_id}?tab=exams&new=1`}>+ Tạo bài KT</Link></div>
+            <Link className="btn sm primary" to={`/courses/${g.course_id}?new=1`}>+ Tạo bài KT</Link></div>
         </div>
         <div className="stack" style={{ gap: 8 }}>
           {g.sections.map(s => <div key={s.id} className="secrow">

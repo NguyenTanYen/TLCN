@@ -101,9 +101,9 @@ def restrict_quiz(exam_id: int, u: User = Depends(require("admin", "lecturer")),
     """Bài phụ đạo đã có Quiz: (đồng bộ lại) nhóm Moodle gồm đúng các SV được giao và điều kiện truy cập của Quiz."""
     e = get_exam_for(db, u, exam_id)
     if not e.target_students:
-        raise HTTPException(422, "Chỉ bài phụ đạo (có danh sách SV được giao) mới giới hạn SV")
+        raise HTTPException(422, "Chỉ bài ôn tập (có danh sách SV được giao) mới giới hạn SV")
     if not e.moodle_quiz_id:
-        raise HTTPException(409, "Bài phụ đạo chưa có Quiz trên Moodle")
+        raise HTTPException(409, "Bài ôn tập chưa có Quiz trên Moodle")
     targets = remedial.target_moodle_users(db, e)
     try:
         return lms.restrict_users(int(e.class_section.moodle_course_id), int(e.moodle_quiz_id), e.exam_title, targets)

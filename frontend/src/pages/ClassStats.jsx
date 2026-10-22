@@ -34,6 +34,7 @@ export default function ClassStats() {
   const k = d.kpi
   const e = d.exam
   const codes = d.clos.map(c => c.code)
+  const weakest = [...d.clos].sort((a, b) => a.avg_pct - b.avg_pct)[0]
 
   return (
     <>
@@ -45,8 +46,8 @@ export default function ClassStats() {
       <div className="stats">
         <Stat label="SV dự thi" value={`${k.n_finished}/${k.n_students}`} sub={`${k.n_absent} vắng`} />
         <Stat label="Điểm trung bình" value={fmtNum(k.mean)} sub={`/ ${e.max_score} · ${k.pass_rate}% SV ≥ ${e.max_score / 2}`} />
-        <Stat label="Đạt đủ mọi CLO" value={k.n_all_clo} sub={`${k.n_finished ? Math.round(100 * k.n_all_clo / k.n_finished) : 0}% SV dự thi · ${k.n_clos} CLO`} tone="green" />
-        <Stat label="SV cần hỗ trợ" value={k.n_at_risk} sub="điểm < 50% hoặc đạt < ½ số CLO" tone={k.n_at_risk ? 'red' : ''} />
+        <Stat label="Nội dung điểm thấp nhất" value={weakest?.code || '—'} sub={weakest ? `điểm TB ${weakest.avg_pct}% · ${weakest.n_achieved}/${weakest.n} SV đạt mức yêu cầu` : ''} tone="amber" />
+        <Stat label="SV cần hỗ trợ" value={k.n_at_risk} sub="điểm thấp hoặc nhiều nội dung dưới mức yêu cầu" tone={k.n_at_risk ? 'red' : ''} />
         <Stat label="Chương cần ôn nhiều nhất" value={d.chapters[0] ? d.chapters[0].chapter.split('.')[0] : '—'}
           sub={d.chapters[0] ? `${d.chapters[0].n_students} SV (${d.chapters[0].pct_students}%)` : 'không có'} tone="amber" />
       </div>
@@ -74,14 +75,6 @@ export default function ClassStats() {
             <p className="muted small">Theo lộ trình học tập cá nhân hóa sinh ra khi phân tích (mỗi CLO chưa đạt → các chương có câu hỏi thuộc CLO đó).</p></>}
         </Card>
 
-        <Card title="Số CLO đạt trên mỗi sinh viên">
-          <div className="chart"><Bar data={{ labels: d.clo_count_hist.map(h => `${h.k}/${k.n_clos} CLO`), datasets: [
-            { label: 'Số SV', data: d.clo_count_hist.map(h => h.n), backgroundColor: d.clo_count_hist.map(h => h.k === k.n_clos ? C.green : C.blue), borderRadius: 4 }] }}
-            options={{ maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: it => `${it.raw} SV đạt ${d.clo_count_hist[it.dataIndex].k}/${k.n_clos} CLO` } } },
-              scales: { y: { ticks: { precision: 0 }, title: { display: true, text: 'Số SV' } } } }} /></div>
-          <p className="muted small">Cột xanh lá: SV đạt đủ mọi CLO của bài kiểm tra.</p>
-        </Card>
-
         <Card title="Tỷ lệ trả lời đúng theo mức Bloom">
           <div className="chart"><Bar data={{ labels: d.bloom.map(b => b.level), datasets: [
             { label: 'Trả lời đúng (%)', data: d.bloom.map(b => b.pct_correct), backgroundColor: C.blue, borderRadius: 4 }] }}
@@ -98,28 +91,27 @@ export default function ClassStats() {
 
       <Card title="Sinh viên cần hỗ trợ" actions={<span className="muted">{d.at_risk.length} SV · bấm để xem chi tiết</span>}>
         {d.at_risk.length === 0 ? <div className="alert green">Không có SV nào dưới ngưỡng cảnh báo.</div> :
-          <table className="tbl"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Điểm</th><th>CLO đạt</th><th>CLO chưa đạt</th><th>Số chương cần ôn</th><th /></tr></thead>
+          <table className="tbl"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Điểm</th><th>Nội dung cần ôn (CLO)</th><th>Số chương cần ôn</th><th /></tr></thead>
             <tbody>{d.at_risk.map(s => <tr key={s.student_code} className="click" onClick={() => nav(`/sections/${id}/students/${s.student_id}?exam=${e.id}`)}>
               <td>{s.student_code}</td><td><b>{s.full_name}</b></td><td className={s.score < e.max_score / 2 ? 'bad-t' : ''}>{s.score}</td>
-              <td>{s.n_achieved}/{k.n_clos}</td><td>{Object.entries(s.clos).filter(([, v]) => !v.ok).map(([c]) => c).join(', ') || '—'}</td>
+              <td>{Object.entries(s.clos).filter(([, v]) => !v.ok).map(([c]) => c).join(', ') || '—'}</td>
               <td>{s.n_review}</td><td><Link className="btn sm" to={`/sections/${id}/students/${s.student_id}?exam=${e.id}`} onClick={ev => ev.stopPropagation()}>Hồ sơ</Link></td></tr>)}</tbody></table>}
-        {d.absent.length > 0 && <p className="muted mt">Vắng thi (chưa đủ bằng chứng đánh giá): {d.absent.map((s, i) => <span key={s.student_code}>{i ? ', ' : ''}
+        {d.absent.length > 0 && <p className="muted mt">Vắng thi: {d.absent.map((s, i) => <span key={s.student_code}>{i ? ', ' : ''}
           <Link to={`/sections/${id}/students/${s.student_id}`}>{s.student_code} {s.full_name}</Link></span>)}</p>}
       </Card>
 
-      <Card title="Bản đồ mức đạt CLO của từng sinh viên" actions={<>
+      <Card title="Bản đồ điểm theo nội dung (CLO) của từng sinh viên" actions={<>
         <label className="row gap small"><input type="checkbox" checked={onlyRisk} onChange={ev => setOnlyRisk(ev.target.checked)} /> Chỉ SV cần hỗ trợ</label>
         <select value={sort} onChange={ev => setSort(ev.target.value)}><option value="score">Xếp theo điểm tăng dần</option><option value="code">Xếp theo MSSV</option></select></>}>
-        <div className="row gap wrap small mb"><span className="muted">Mức đạt (%):</span>
+        <div className="row gap wrap small mb"><span className="muted">Tỷ lệ điểm (%):</span>
           {[0, 25, 50, 75, 100].map(v => <span key={v} className="heat-key" style={heat(v)}>{v}</span>)}
-          <span className="muted">· ✗ = dưới ngưỡng θ của CLO</span></div>
+          <span className="muted">· giúp GV thấy SV nào yếu nội dung nào; kết luận đạt CLO chỉ tính cho cả lớp (BM6)</span></div>
         <div className="scroll tall">
-          <table className="tbl heat"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Điểm</th>{codes.map(c => <th key={c} className="c">{c}</th>)}<th className="c">Đạt</th></tr></thead>
+          <table className="tbl heat"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Điểm</th>{codes.map(c => <th key={c} className="c">{c}</th>)}</tr></thead>
             <tbody>{heatRows.map(s => <tr key={s.student_code} className="click" onClick={() => nav(`/sections/${id}/students/${s.student_id}?exam=${e.id}`)}>
               <td>{s.student_code}</td><td>{s.full_name}</td><td>{s.score}</td>
               {codes.map(c => { const v = s.clos[c]; return <td key={c} className="c cell" style={v ? heat(v.pct) : {}}
-                title={v ? `${s.full_name} · ${c}: ${v.pct}% (${v.ok ? 'đạt' : 'chưa đạt'})` : ''}>{v ? `${Math.round(v.pct)}${v.ok ? '' : ' ✗'}` : '—'}</td> })}
-              <td className="c">{s.n_achieved}/{k.n_clos}</td></tr>)}</tbody></table>
+                title={v ? `${s.full_name} · ${c}: ${v.pct}%` : ''}>{v ? Math.round(v.pct) : '—'}</td> })}</tr>)}</tbody></table>
         </div>
       </Card>
     </>

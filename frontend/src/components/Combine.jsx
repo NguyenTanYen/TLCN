@@ -27,7 +27,7 @@ export default function Combine({ courseId, sectionId }) {
           <th title="Bài được gộp vào kết quả CLO của lớp (BM6, PI, PLO)">Minh chứng BM6</th></tr></thead>
           <tbody>{list.filter(e => e.class_section_id === cs).map(e => <tr key={e.id} className={sel.includes(e.id) ? 'sel' : ''}>
             <td><input type="checkbox" aria-label={`Chọn ${e.exam_title}`} checked={sel.includes(e.id)} onChange={() => toggle(e.id)} /></td>
-            <td><Link to={`/exams/${e.id}`}>{e.exam_title}</Link>{e.parent_exam_id && <Badge tone="amber">Phụ đạo</Badge>}</td>
+            <td><Link to={`/exams/${e.id}`}>{e.exam_title}</Link>{e.parent_exam_id && <Badge tone="amber">Ôn tập</Badge>}</td>
             <td>{TYPE[e.exam_type]}</td><td>{e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'}</td><td>{e.exam_date || '—'}</td><td className="num-c">{e.n_students}</td>
             <td><ActionButton className={`btn sm ${e.counts_for_clo ? '' : 'ghost'}`} okMsg={r => r.counts_for_clo ? 'Đã đưa vào minh chứng – BM6 của lớp được tính lại' : 'Đã bỏ khỏi minh chứng – BM6 của lớp được tính lại'}
               onRun={async () => { const r = await api.patch(`/api/exams/${e.id}/evidence`, { counts_for_clo: !e.counts_for_clo }); ex.reload(); return r }}>
@@ -69,7 +69,7 @@ export default function Combine({ courseId, sectionId }) {
             {res.exams.map(e => <td key={e.id} className="num-c">{st.scores[e.id] ?? '—'}</td>)}
             {res.clos.map(c => { const v = st.clos[c.clo_code]; return <td key={c.clo_id} className={v ? (v.ok ? 'ok-t' : 'bad-t') : ''}>{v ? `${v.pct}%` : '—'}</td> })}
             <td>{st.n_ok}/{st.n_clo}</td></tr>)}</tbody></table></div>
-          : <p className="muted small">{res.students.filter(x => x.n_ok < x.n_clo).length} SV chưa đạt ít nhất một CLO – xem bảng hoặc mở trang Phụ đạo của lớp để tạo bài phụ đạo.</p>}
+          : <p className="muted small">{res.students.filter(x => x.n_ok < x.n_clo).length} SV chưa đạt ít nhất một CLO – xem bảng hoặc mở trang Ôn tập của lớp để tạo bài ôn tập.</p>}
       </Card>
     </>}
   </>
