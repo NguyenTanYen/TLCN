@@ -104,6 +104,7 @@ class CLOIn(BaseModel):
     description: str = Field(min_length=3)
     bloom_level_id: Optional[int] = Field(default=None, ge=1, le=6)
     plos: list[dict] = []  # [{plo_id, level}]
+    pis: list[dict] = []   # [{pi_id, level}] – góp ý F2a: CLO → PI (có PI thì CLO – PLO được suy ra)
 
 
 class AssignmentIn(BaseModel):

@@ -31,12 +31,16 @@ export const api = {
   patch: (p, b) => request('PATCH', p, b),
   del: p => request('DELETE', p),
   upload: (p, file) => { const f = new FormData(); f.append('file', file); return request('POST', p, f, true) },
-  async download(p, fallbackName) {
+  async blob(p, fallbackName) {
     const res = await request('GET', p)
     const blob = await res.blob()
     const cd = res.headers.get('content-disposition') || ''
     const star = /filename\*=UTF-8''([^;]+)/i.exec(cd)?.[1]
     const name = (star && decodeURIComponent(star)) || /filename="?([^";]+)"?/.exec(cd)?.[1] || fallbackName
+    return { blob, name }
+  },
+  async download(p, fallbackName) {
+    const { blob, name } = await this.blob(p, fallbackName)
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 2000)
   },

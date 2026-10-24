@@ -28,7 +28,11 @@ def shot(page, name, url=None, click=None, wait=".card", full=True):
         page.goto(BASE + url)
     if click:
         page.click(click)
-    page.wait_for_selector(wait); page.wait_for_timeout(900)
+    try:
+        page.wait_for_selector(wait, timeout=15000)
+    except Exception:
+        print("BỎ QUA (cần dữ liệu Moodle thật):", name); return
+    page.wait_for_timeout(900)
     page.screenshot(path=str(OUT / f"{name}.png"), full_page=full)
     print("saved", name)
 
@@ -55,7 +59,8 @@ def sample_questions() -> Path:
 
 
 with sync_playwright() as pw:
-    b = pw.chromium.launch()
+    import os
+    b = pw.chromium.launch(executable_path=os.environ.get('PW_CHROME') or None)
     ctx = b.new_context(viewport={"width": 1440, "height": 900}, device_scale_factor=1)
     page = ctx.new_page()
     page.on("console", lambda m: m.type == "error" and errors.append(f"{page.url}: {m.text}"))
@@ -66,19 +71,20 @@ with sync_playwright() as pw:
     shot(page, "02_lop_hoc_phan", "/")
     shot(page, "03_bai_kiem_tra", "/sections/1")
     shot(page, "04_ngan_hang_cau_hoi", "/questions", wait=".tbl tbody tr")
-    page.click("text=Chi tiết >> nth=23"); page.wait_for_selector(".modal"); page.wait_for_timeout(400)
+    page.locator("button:has-text(\"Chi tiết\")").last.click(); page.wait_for_selector(".modal"); page.wait_for_timeout(400)
     page.screenshot(path=str(OUT / "05_cau_hoi_bi_khoa.png")); page.keyboard.press("Escape"); page.goto(BASE + "/questions"); page.wait_for_selector(".tbl tbody tr")
     page.click("text=+ Thêm câu hỏi"); page.wait_for_selector(".modal"); page.wait_for_timeout(300)
     page.screenshot(path=str(OUT / "06_them_cau_hoi.png"))
-    page.goto(BASE + "/sections/1"); page.wait_for_selector(".card"); page.click("text=+ Tạo bài kiểm tra"); page.click(".choice:has-text('Trắc nghiệm trực tuyến')"); page.wait_for_selector(".modal tbody tr")
+    page.goto(BASE + "/sections/1"); page.wait_for_selector(".card"); page.click("text=+ Tạo bài kiểm tra"); page.click(".choice:has-text('Trắc nghiệm trực tuyến')")
+    page.fill(".modal input >> nth=0", "Kiểm tra giữa kỳ (minh họa)"); page.click("text=Tiếp: chọn câu hỏi"); page.click("text=Tự chọn câu từ ngân hàng"); page.wait_for_selector(".modal tbody tr")
     page.click(".modal button.chip:has-text('CLO2')"); page.click("text=Chọn tất cả đang lọc"); page.wait_for_timeout(300)
     page.screenshot(path=str(OUT / "07_tao_bai_kt.png"))
     shot(page, "08_quy_trinh_online", "/exams/2")
-    shot(page, "09_quy_trinh_giay", "/exams/1", wait="text=Bài đã chấm trên Moodle")
+    shot(page, "09_quy_trinh_giay", "/exams/1?step=release", wait="text=Bài đã chấm trên Moodle")
     shot(page, "10_tong_quan_diem", "/exams/2", click="text=Tổng quan điểm", wait="canvas")
     # tạo bài kiểm tra ở trang môn học (đề của môn) – chọn lớp HP khi xuất
     cid = next(x["course_id"] for x in requests.get(BASE + "/api/class-sections", headers=gv).json() if x["id"] == 1)
-    page.goto(BASE + f"/courses/{cid}?tab=exams"); page.wait_for_selector("text=Đề kiểm tra của môn")
+    page.goto(BASE + f"/courses/{cid}?tab=exams"); page.wait_for_selector("text=Đề dùng chung cho nhiều lớp")
     page.click(".page-h >> text=+ Tạo bài kiểm tra"); page.wait_for_selector(".choice"); page.wait_for_timeout(400)
     page.screenshot(path=str(OUT / "45_chon_hinh_thuc_bai_kt.png")); print("saved chooser"); page.keyboard.press("Escape")
     tpl = requests.post(BASE + "/api/exams", headers=gv, json={"course_id": cid, "exam_title": "Kiểm tra giữa kỳ – đề chung của môn", "exam_type": "online",
@@ -96,15 +102,18 @@ with sync_playwright() as pw:
     page.click("tr:has-text('YEAR(NgayLap)') >> text=Phương án"); page.wait_for_timeout(600)
     page.screenshot(path=str(OUT / "11_phan_tich_cau_hoi.png"), full_page=True); print("saved items")
     shot(page, "12_ket_qua_sinh_vien", "/exams/2", click="text=Kết quả sinh viên", wait=".tbl tbody tr")
-    shot(page, "13_nhat_ky_dong_bo", "/exams/2", click=".tabs >> text=Nhật ký", wait=".tbl tbody tr")
+    shot(page, "13_nhat_ky_dong_bo", "/exams/2", click="button:has-text(\"Nhật ký\")", wait=".tbl tbody tr")
     shot(page, "14_bm6b", "/sections/1/clo", wait="canvas")
-    shot(page, "15_bm6a", "/sections/1/clo", click="text=BM6a – Kế hoạch đánh giá", wait=".tbl tbody tr")
-    page.goto(BASE + "/sections/1/clo"); page.wait_for_selector("canvas"); page.click("text=Minh chứng >> nth=1"); page.wait_for_selector(".modal .tbl tbody tr"); page.wait_for_timeout(500)
-    page.screenshot(path=str(OUT / "16_minh_chung_bm6c.png")); print("saved evidence")
+    shot(page, "15_bm6a", "/sections/1/clo?tab=bm6a", wait=".tbl tbody tr")
+    try:
+        page.goto(BASE + "/sections/1/clo?tab=bm6b"); page.wait_for_selector(".tbl tbody tr"); page.locator("button:has-text('Minh chứng'):not([disabled])").first.click(); page.wait_for_selector(".modal"); page.wait_for_timeout(500)
+        page.screenshot(path=str(OUT / "16_minh_chung_bm6c.png")); print("saved evidence")
+    except Exception:
+        print("BỎ QUA 16_minh_chung_bm6c (cần kế hoạch BM6a + dữ liệu Moodle)")
     # thống kê lớp và hồ sơ từng sinh viên
     shot(page, "21_thong_ke_lop", "/sections/1/stats?exam=2", wait="canvas")
     sid = requests.get(BASE + "/api/class-sections/1/students", headers=gv).json()[0]["id"]
-    shot(page, "22_ho_so_sinh_vien", f"/sections/1/students/{sid}?exam=2", wait="canvas")
+    shot(page, "22_ho_so_sinh_vien", f"/sections/1/students/{sid}?exam=2", wait=".tbl")
     # bài thi giấy mới: màn hình tạo đề trên Moodle (bài KT tạm, xóa sau khi chụp)
     tmp_exam = requests.post(BASE + "/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Kiểm tra giữa kỳ (giấy)", "exam_type": "paper",
                              "assessment_type": "process", "max_score": 10, "duration_minutes": 30,
@@ -114,7 +123,7 @@ with sync_playwright() as pw:
     tmp_exam = requests.post(BASE + "/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Kiểm tra giữa kỳ", "exam_type": "online",
                              "assessment_type": "process", "max_score": 10, "duration_minutes": 30,
                              "items": [{"question_id": q, "points": 1} for q in range(1, 11)]}).json()["id"]
-    shot(page, "08b_tao_quiz_api", f"/exams/{tmp_exam}", wait="text=Tạo Quiz trên Moodle", full=False)
+    shot(page, "08b_tao_quiz_api", f"/exams/{tmp_exam}", wait="text=Tạo bài trắc nghiệm trên Moodle", full=False)
     requests.delete(BASE + f"/api/exams/{tmp_exam}", headers=gv)
     # nhập câu hỏi hàng loạt rồi gán CLO từ file (thêm câu tạm, xóa ở cuối)
     f = sample_questions()
@@ -132,7 +141,7 @@ with sync_playwright() as pw:
     for row, (ch, bl, clo) in zip(ws.iter_rows(min_row=2), fill):
         row[3].value, row[4].value, row[5].value = ch, bl, clo; new_ids.append(row[0].value)
     tagged = TMP / "gan_clo_da_dien.xlsx"; wb.save(tagged)
-    page.click("button:has-text('Gán CLO/Bloom từ file') >> nth=0"); page.wait_for_selector(".modal")
+    page.click("button:has-text('Gán CLO, mức độ nhận thức từ file') >> nth=0"); page.wait_for_selector(".modal")
     page.set_input_files(".modal input[type=file]", str(tagged)); page.wait_for_selector(".modal .stats"); page.wait_for_timeout(500)
     page.screenshot(path=str(OUT / "24_gan_clo_tu_file.png")); print("saved tagging")
     for q in new_ids:
@@ -143,6 +152,7 @@ with sync_playwright() as pw:
     page.goto(BASE + "/courses/5?tab=combine"); page.wait_for_selector("text=Phân tích gộp"); page.click("text=Phân tích gộp"); page.wait_for_selector("text=2. Mức đạt CĐR môn học")
     page.wait_for_timeout(500); page.screenshot(path=str(OUT / "33_gop_bai_kt.png"), full_page=True)
     shot(page, "34_phu_dao", "/sections/1/remedial", wait=".tbl tbody tr", full=False)
+    page.click(".tabs button:has-text('Theo sinh viên')"); page.wait_for_selector(".tbl tbody tr"); page.wait_for_timeout(300)
     page.click("button:has-text('Câu sai ›') >> nth=0"); page.wait_for_selector(".modal .tbl tbody tr"); page.wait_for_timeout(400)
     page.screenshot(path=str(OUT / "35_phu_dao_cau_sai.png")); page.keyboard.press("Escape")
     man = [e for e in requests.get(BASE + "/api/class-sections/2/exams", headers=gv).json() if e["exam_type"] == "manual"]

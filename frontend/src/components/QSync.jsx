@@ -30,7 +30,7 @@ export default function QSync({ courseId, onClose, onDone }) {
   }
   return <Modal wide title="Đồng bộ ngân hàng câu hỏi hai chiều với Moodle" onClose={onClose}>
     <Loading {...t} />
-    {t.data && !t.data.targets.length && <div className="alert amber">Môn chưa có lớp học phần nào (của bạn) gắn khóa học Moodle. Gắn lớp với Moodle ở trang lớp hoặc "Đồng bộ các lớp với Moodle".</div>}
+    {t.data && !t.data.targets.length && <div className="alert amber">Môn chưa có lớp học phần nào (của bạn) gắn khóa học Moodle. Gắn lớp với Moodle ở trang lớp hoặc "Cập nhật lớp từ Moodle".</div>}
     {t.data && !t.data.ws_configured && <div className="alert amber">Chưa cấu hình Web Service Moodle – chỉ xem được so sánh, chưa đẩy/kéo được.</div>}
     {t.data?.targets.length > 0 && <div className="row gap wrap">
       <Field label="Khóa học Moodle"><select value={mc || ''} onChange={e => setMc(Number(e.target.value))}>
@@ -48,7 +48,7 @@ export default function QSync({ courseId, onClose, onDone }) {
           <td>{r.state === 'synced' ? '—' : <select value={act[key(r)] || ''} onChange={e => setAct({ ...act, [key(r)]: e.target.value || null })}>
             <option value="">Bỏ qua</option>
             {r.question_id && <option value="push">⇪ Đẩy lên Moodle{r.moodle_questionid ? ' (phiên bản mới)' : ''}</option>}
-            {r.moodle_questionid && !r.note && <option value="pull">⇩ Lấy về hệ thống{r.question_id ? '' : ' (câu mới, gán CLO sau)'}</option>}
+            {r.moodle_questionid && (!r.note || r.state === 'conflict') && <option value="pull">⇩ Lấy về hệ thống{r.question_id ? '' : ' (câu mới, gán CLO sau)'}</option>}
           </select>}</td></tr>)}</tbody></table></div>
       {!rows.length && <p className="ok-t">Ngân hàng câu hỏi của môn và khóa học Moodle đã khớp nhau.</p>}
       <div className="row gap mt"><span className="muted small">Đẩy lên: {n('push')} câu · Lấy về: {n('pull')} câu. Moodle lưu bản cũ thành phiên bản trước – bài làm đã có không bị ảnh hưởng.</span><span className="grow" />

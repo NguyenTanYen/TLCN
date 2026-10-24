@@ -1,4 +1,5 @@
 import { api } from '../api'
+import { PageHelp } from '../components/Help'
 import { ActionButton, Badge, Card, Loading } from '../components/ui'
 import { useApi } from '../hooks'
 
@@ -8,8 +9,8 @@ export default function SystemPage() {
   const s = st.data, w = ws.data
   return (
     <>
-      <div className="page-h"><div><h1>Kết nối Moodle</h1><p className="muted">Chiều đọc: bài làm của SV lấy trực tiếp từ CSDL Moodle (chỉ đọc) qua các view và thủ tục “cầu nối”.
-        Chiều ghi: tạo Quiz, gửi kết quả phân tích qua Web Service chính thức của Moodle (plugin <code>local_clo</code>).</p></div></div>
+      <div className="page-h"><div><h1>Kết nối Moodle</h1><p className="muted">Hệ thống lấy bài làm của sinh viên trực tiếp từ cơ sở dữ liệu Moodle (chỉ đọc), rồi tạo bài trắc nghiệm và gửi kết quả sang Moodle qua dịch vụ Web Service chính thức (plugin <code>local_clo</code>). Trang này cho biết các kết nối đã sẵn sàng chưa.</p></div></div>
+      <PageHelp id="system"><p>Bình thường bạn không cần làm gì ở đây. Nếu các mục bên dưới báo "Chưa cài" hoặc "Không truy cập được", hãy chạy lại các file cài đặt (bat 3) trên máy hoặc báo người quản trị.</p></PageHelp>
       <Loading {...st} />
       {s && <Card title="Trạng thái">
         <table className="tbl"><tbody>

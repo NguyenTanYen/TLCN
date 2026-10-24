@@ -5,6 +5,8 @@
 - Thống kê lớp: chỉ số chung, tỷ lệ SV đạt từng CLO so với mục tiêu, chương cần ôn nhiều nhất, phân bố số CLO đạt,
   kết quả theo mức Bloom, bản đồ nhiệt SV × CLO, danh sách SV cần hỗ trợ.
 """
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
@@ -71,36 +73,26 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
                       "status": mine["status"], "score": mine["score"], "source": att["source"] if att else None,
                       "rank": rank, "n_finished": len(scores),
                       "class_mean": round(sum(scores) / len(scores) * float(ex["max_score"]) / _raw_max(db, ex["id"]), 2) if scores else None,
-                      **mine["data"], "answers": answers})
-
-    # tổng hợp CLO trên mọi bài KT đã phân tích (điểm đạt / điểm tối đa của các câu thuộc CLO)
-    overall = rows(db, """
-        SELECT c.clo_code AS code, c.description, ROUND(100*SUM(r.score_earned)/NULLIF(SUM(r.score_max),0), 2) AS pct,
-               COUNT(*) AS n_exams, SUM(r.is_achieved) AS n_achieved,
-               (SELECT COALESCE(p.pass_threshold_pct, :thr0) FROM class_sections cs
-                  LEFT JOIN clo_assessment_plans p ON p.clo_id=c.id AND p.semester_id=cs.semester_id WHERE cs.id=:cs) AS threshold
-        FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id JOIN exams e ON e.id=a.exam_id
-        JOIN clos c ON c.id=r.clo_id
-        WHERE e.class_section_id=:cs AND e.status='Analyzed' AND a.student_id=:s AND a.status='finished'
-        GROUP BY c.id, c.clo_code, c.description ORDER BY c.clo_code""", cs=cs_id, s=student_id,
-        thr0=settings.default_pass_threshold)
-    for o in overall:
-        o["pct"] = float(o["pct"] or 0); o["threshold"] = float(o["threshold"])
-        o["achieved"] = o["pct"] + 1e-9 >= o["threshold"]
-        o["n_achieved"] = int(o["n_achieved"] or 0)
+                      **{k: v for k, v in mine["data"].items() if k != "clos"},     # không đánh giá từng SV theo CLO
+                      "answers": answers})
 
     # các chương cần học lại (gộp mọi bài KT; ưu tiên theo mức thiếu hụt lớn nhất)
     review: dict[str, dict] = {}
     for ex in exams:
         for it in ex.get("items") or []:
-            key = it["chapter"] or f"(chưa gắn chương) {it['clo']}"
-            r = review.setdefault(key, {"chapter": key, "clos": set(), "max_gap": 0.0, "exams": set()})
-            r["clos"].add(it["clo"]); r["max_gap"] = max(r["max_gap"], it["gap"]); r["exams"].add(ex["exam_title"])
-    review_list = sorted(({**r, "clos": sorted(r["clos"]), "exams": sorted(r["exams"])} for r in review.values()),
+            key = it["chapter"] or "Chưa gắn chương"
+            r = review.setdefault(key, {"chapter": key, "max_gap": 0.0, "exams": set()})
+            r["max_gap"] = max(r["max_gap"], it["gap"]); r["exams"].add(ex["exam_title"])
+    review_list = sorted(({**r, "exams": sorted(r["exams"])} for r in review.values()),
                          key=lambda r: -r["max_gap"])
     return {"student": dict(st), "prev_id": roster[i - 1] if i > 0 else None,
             "next_id": roster[i + 1] if i + 1 < len(roster) else None, "position": i + 1, "n_students": len(roster),
-            "exams": exams, "overall_clos": overall, "review": review_list}
+            "exams": exams, "review": review_list}
+
+
+def _code_key(label: str) -> list:
+    """Sắp "Chương 2" < "Chương 10" theo số."""
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", label)]
 
 
 def _raw_max(db, exam_id):
@@ -161,17 +153,27 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
                         "avg_gap": round(sum(c["gaps"]) / len(c["gaps"]), 2), "clos": sorted(c["clos"])}
                        for c in chap.values()), key=lambda c: (-c["n_students"], c["chapter"]))
 
-    # phân bố số CLO đạt / SV
-    hist = [0] * (len(codes) + 1)
+    # kết quả của từng SV theo CHƯƠNG (tỷ lệ điểm các câu thuộc chương) – không đánh giá CLO riêng cho từng SV
+    chap_pct: dict[int, dict[str, list[float]]] = {}
+    for r in db.execute(text("""
+            SELECT a.student_id, o.chapter_number, o.chapter_name, SUM(r.score_earned) AS got, SUM(eq.points) AS mx
+            FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+            JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
+            JOIN question_bank q ON q.id=r.question_id LEFT JOIN course_outlines o ON o.id=q.outline_id
+            WHERE a.exam_id=:e AND a.status='finished' AND q.is_cancelled=0
+            GROUP BY a.student_id, o.chapter_number, o.chapter_name"""), {"e": ex["id"]}).mappings():
+        lab = f"Chương {r['chapter_number']}" if r["chapter_number"] else "Chưa gắn chương"
+        chap_pct.setdefault(r["student_id"], {})[lab] = [float(r["got"] or 0), float(r["mx"] or 0)]
+    chapter_labels = sorted({k for v in chap_pct.values() for k in v}, key=_code_key)
     heat = []
     for r in done:
-        k = sum(1 for c in r["data"]["clos"] if c["achieved"])
-        hist[k] += 1
+        mine = {k: round(100 * g / m, 1) for k, (g, m) in chap_pct.get(sid.get(r["student_code"]), {}).items() if m}
+        weak = [k for k, v in mine.items() if v < 50]
         heat.append({"student_id": sid.get(r["student_code"]), "student_code": r["student_code"], "full_name": r["full_name"],
-                     "score": r["score"], "n_achieved": k, "n_review": len({i["chapter"] for i in r["data"].get("items", [])}),
-                     "clos": {c["code"]: {"pct": c["pct"], "ok": c["achieved"]} for c in r["data"]["clos"]}})
-    at_risk = sorted([h for h in heat if h["score"] < maxs / 2 or h["n_achieved"] * 2 < len(codes)],
-                     key=lambda h: (h["n_achieved"], h["score"]))
+                     "score": r["score"], "n_review": len({i["chapter"] for i in r["data"].get("items", [])}),
+                     "weak_chapters": sorted(weak, key=_code_key), "chapters": mine})
+    at_risk = sorted([h for h in heat if h["score"] < maxs / 2 or len(h["weak_chapters"]) >= 2],
+                     key=lambda h: (h["score"], -len(h["weak_chapters"])))
 
     # kết quả theo mức Bloom (tỷ lệ trả lời đúng)
     bloom = rows(db, """
@@ -193,9 +195,8 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
         "kpi": {"n_students": len(res), "n_finished": len(done), "n_absent": len(res) - len(done),
                 "mean": round(sum(scores) / len(scores), 2) if scores else None,
                 "pass_rate": round(100 * sum(1 for s in scores if s >= maxs / 2) / len(scores), 2) if scores else None,
-                "n_all_clo": hist[-1] if codes else 0, "n_at_risk": len(at_risk), "n_clos": len(codes)},
-        "clos": clos, "chapters": chapters,
-        "clo_count_hist": [{"k": k, "n": n} for k, n in enumerate(hist)],
+                "n_at_risk": len(at_risk), "n_clos": len(codes)},
+        "clos": clos, "chapters": chapters, "chapter_labels": chapter_labels,
         "bloom": bloom,
         "score_hist": [{"range": f"{i * maxs / 10:g}–{(i + 1) * maxs / 10:g}", "count": c} for i, c in enumerate(bins)],
         "heatmap": heat, "at_risk": at_risk,

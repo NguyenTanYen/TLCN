@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
 import { ActionButton, Card, Field, Loading, Modal } from '../components/ui'
@@ -8,7 +9,8 @@ export default function Sections() {
   const { data, error, loading, reload } = useApi('/api/class-sections')
   return (
     <>
-      <div className="page-h"><div><h1>Lớp học phần</h1><p className="muted">Các lớp học phần bạn phụ trách – chọn lớp để quản lý bài kiểm tra và xem kết quả đo lường CĐR.</p></div></div>
+      <div className="page-h"><div><h1>Lớp học phần</h1><p className="muted">Các lớp học phần bạn phụ trách. Chọn lớp để tạo bài kiểm tra và xem kết quả chuẩn đầu ra.</p></div></div>
+      <PageHelp id="sections"><p>Mỗi thẻ là một lớp học phần (một môn trong một học kỳ). Bấm <b>Mở lớp</b> để tạo bài kiểm tra, xem điểm và kết quả chuẩn đầu ra của lớp.</p></PageHelp>
       <Loading error={error} loading={loading} />
       <MoodleCourses onImported={reload} />
       <div className="grid3">
@@ -17,12 +19,12 @@ export default function Sections() {
             <div className="big">{cs.course_name}</div>
             <div className="muted">{cs.course_code} · {cs.semester} · GV {cs.lecturer}</div>
             <div className="row gap mt">
-              <span className="pill">{cs.n_students} SV</span><span className="pill">{cs.n_exams} bài KT</span>
+              <span className="pill">{cs.n_students} SV</span><span className="pill">{cs.n_exams} bài kiểm tra</span>
               {cs.moodle_course_id && <span className="pill blue">Moodle course #{cs.moodle_course_id}</span>}
             </div>
             <div className="row gap mt">
               <Link className="btn primary" to={`/sections/${cs.id}`}>Bài kiểm tra</Link>
-              <Link className="btn" to={`/sections/${cs.id}/clo`}>Kết quả CĐR (BM6)</Link>
+              <Link className="btn" to={`/sections/${cs.id}/clo`}>Kết quả chuẩn đầu ra của lớp (BM6)</Link>
             </div>
           </Card>
         ))}

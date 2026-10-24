@@ -1,15 +1,17 @@
-// Sinh đề theo ma trận đề thi (UC-02): GV nhập số câu (hệ thống tự lập ma trận chương × mức Bloom, phủ đủ CLO)
+// Sinh đề theo ma trận đề thi (UC-02): GV nhập số câu (hệ thống tự lập ma trận chương × mức độ nhận thức, phủ đủ CLO)
 // hoặc nhập ma trận chi tiết; hệ thống báo ô/CLO/mức thiếu câu. Kết quả đổ vào danh sách chọn để GV chỉnh tay.
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { ActionButton } from './ui'
 import { useApi } from '../hooks'
 
+// góp ý 21/10: chọn độ khó bằng 3 mức dễ hiểu; tỷ lệ riêng và ma trận chi tiết nằm trong "Tùy chỉnh nâng cao"
+const LEVELS = [['basic', 'Cơ bản', 'nhiều câu Nhớ – Hiểu'], ['balanced', 'Cân bằng', 'đủ các mức'], ['advanced', 'Nâng cao', 'nhiều câu Vận dụng – Phân tích']]
 const PRESET_VI = { balanced: 'Cân bằng (20/30/30/15/5)', basic: 'Cơ bản (35/40/20/5)', advanced: 'Nâng cao (10/20/35/25/10)', custom: 'Tùy chỉnh' }
 const BLOOM_SHORT = ['', 'Nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo']
 
 export function MatrixTable({ chapters, cells, blooms, value, render }) {
-  // bảng chương × mức Bloom; render(o, b) trả nội dung ô
+  // bảng chương × mức độ nhận thức; render(o, b) trả nội dung ô
   const usedBlooms = blooms.filter(b => cells.some(c => c.bloom_level_id === b) || (value && Object.keys(value).some(k => k.endsWith(`:${b}`))))
   return <div className="scroll"><table className="tbl compact matrix">
     <thead><tr><th>Chương / Mức Bloom</th>{usedBlooms.map(b => <th key={b} className="num-c">{BLOOM_SHORT[b]}</th>)}<th className="num-c">Cộng</th></tr></thead>
@@ -31,6 +33,7 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
   const [keepPicked, setKeepPicked] = useState(false)
   const [res, setRes] = useState(null)
   const [seed, setSeed] = useState(1)
+  const [adv, setAdv] = useState(false)             // mở khung tùy chỉnh nâng cao
   const pool = useApi(`${base}/exam-blueprint/pool${scope.length ? `?outline_ids=${scope.join(',')}` : ''}`)
   const allCh = useApi(`${base}/exam-blueprint/pool`).data?.chapters || []
   const p = pool.data
@@ -49,7 +52,7 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
     return r
   }
   const toMatrix = () => {   // chép ma trận vừa sinh để GV chỉnh từng ô
-    setMat(Object.fromEntries((res?.matrix || []).filter(m => m.target).map(m => [`${m.outline_id}:${m.bloom_level_id}`, m.target]))); setUseMatrix(true)
+    setMat(Object.fromEntries((res?.matrix || []).filter(m => m.target).map(m => [`${m.outline_id}:${m.bloom_level_id}`, m.target]))); setUseMatrix(true); setAdv(true)
   }
   const chapters = (p?.chapters || [])
   const blooms = [1, 2, 3, 4, 5, 6]
@@ -57,38 +60,41 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
 
   return (
     <div className="blueprint">
-      <div className="row gap wrap">
+      <div className="row gap wrap" style={{ alignItems: 'flex-end' }}>
         <label className="field"><span>Số câu</span>
           <input className="num" type="number" min="1" max="200" value={n} disabled={useMatrix} onChange={e => setN(e.target.value)} /></label>
-        <label className="field"><span>Phân bố mức độ (Bloom)</span>
-          <select value={preset} disabled={useMatrix} onChange={e => setPreset(e.target.value)}>
-            {Object.entries(PRESET_VI).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-        {preset === 'custom' && !useMatrix && <div className="row gap wrap">{blooms.map(b => <label key={b} className="field"><span>{BLOOM_SHORT[b]} %</span>
-          <input className="num" type="number" min="0" max="100" value={mix[b]} onChange={e => setMix({ ...mix, [b]: Number(e.target.value) })} /></label>)}</div>}
+        <div className="field"><span>Độ khó của đề</span>
+          <div className="seg" role="group" aria-label="Độ khó của đề">{LEVELS.map(([k, l, d]) =>
+            <button type="button" key={k} className={preset === k ? 'on' : ''} disabled={useMatrix} title={PRESET_VI[k]} onClick={() => setPreset(k)}>{l}<small>{d}</small></button>)}</div></div>
       </div>
-      <div className="row gap wrap mt"><b>Phạm vi:</b>
+      <div className="row gap wrap mt"><b>Chương:</b>
         <button type="button" className={`chip ${!scope.length ? 'on' : ''}`} onClick={() => { setScope([]); setMat({}) }}>Tất cả chương</button>
         {allCh.map(c => <button type="button" key={c.outline_id} title={c.chapter_name}
           className={`chip ${scope.includes(c.outline_id) ? 'on' : ''}`}
           onClick={() => { setMat({}); setScope(s => s.includes(c.outline_id) ? s.filter(x => x !== c.outline_id) : [...s, c.outline_id]) }}>
           Chương {c.chapter_number} <small>({c.available})</small></button>)}
-        {scope.length > 0 && <span className="pill blue">Kiểm tra chương</span>}
+        <span className="muted small">Ngân hàng: <b>{p?.pool_size ?? '…'}</b> câu dùng được{p?.untagged ? ` · ${p.untagged} câu chưa gán CLO/Bloom` : ''}</span>
       </div>
-      <div className="row gap wrap mt">
-        <label className="row gap check"><input type="checkbox" checked={useMatrix} onChange={e => setUseMatrix(e.target.checked)} /> Nhập ma trận chi tiết</label>
-        <label className="row gap check"><input type="checkbox" checked={keepPicked} onChange={e => setKeepPicked(e.target.checked)} /> Giữ các câu đã chọn tay</label>
-        <span className="muted small">Ngân hàng trong phạm vi: <b>{p?.pool_size ?? '…'}</b> câu dùng được{p?.untagged ? ` · ${p.untagged} câu chưa gán CLO/Bloom` : ''}</span>
-      </div>
-      {useMatrix && p && <>
-        <p className="muted small mt">Nhập số câu mỗi ô (chương × mức Bloom); số nhỏ là số câu ngân hàng đang có. Tổng: <b>{matTotal}</b> câu.</p>
-        <MatrixTable chapters={chapters} cells={p.cells} blooms={blooms} value={mat} render={(o, b) => {
-          if (b === 'sum') return Object.entries(mat).filter(([k]) => k.startsWith(`${o}:`)).reduce((a, [, v]) => a + (Number(v) || 0), 0) || ''
-          const k = `${o}:${b}`; const a = avail[k] || 0
-          return <span className="row gap" style={{ justifyContent: 'center' }}>
-            <input className={`num tiny ${Number(mat[k] || 0) > a ? 'bad' : ''}`} type="number" min="0" value={mat[k] ?? ''} placeholder="0"
-              onChange={e => setMat({ ...mat, [k]: e.target.value })} /><small className="muted">/{a}</small></span>
-        }} />
-      </>}
+      <details className="adv" open={adv} onToggle={e => setAdv(e.currentTarget.open)}>
+        <summary>Tùy chỉnh nâng cao (tỷ lệ từng mức độ nhận thức, ma trận chi tiết)</summary>
+        <div className="row gap wrap mt">
+          <label className="row gap check"><input type="checkbox" checked={preset === 'custom'} disabled={useMatrix} onChange={e => setPreset(e.target.checked ? 'custom' : 'balanced')} /> Tự đặt tỷ lệ từng mức độ nhận thức</label>
+          <label className="row gap check"><input type="checkbox" checked={useMatrix} onChange={e => setUseMatrix(e.target.checked)} /> Nhập ma trận chi tiết</label>
+          <label className="row gap check"><input type="checkbox" checked={keepPicked} onChange={e => setKeepPicked(e.target.checked)} /> Giữ các câu đã chọn tay</label>
+        </div>
+        {preset === 'custom' && !useMatrix && <div className="row gap wrap mt">{blooms.map(b => <label key={b} className="field"><span>{BLOOM_SHORT[b]} %</span>
+          <input className="num" type="number" min="0" max="100" value={mix[b]} onChange={e => setMix({ ...mix, [b]: Number(e.target.value) })} /></label>)}</div>}
+        {useMatrix && p && <>
+          <p className="muted small mt">Nhập số câu mỗi ô (chương × mức độ nhận thức); số nhỏ là số câu ngân hàng đang có. Tổng: <b>{matTotal}</b> câu.</p>
+          <MatrixTable chapters={chapters} cells={p.cells} blooms={blooms} value={mat} render={(o, b) => {
+            if (b === 'sum') return Object.entries(mat).filter(([k]) => k.startsWith(`${o}:`)).reduce((a, [, v]) => a + (Number(v) || 0), 0) || ''
+            const k = `${o}:${b}`; const a = avail[k] || 0
+            return <span className="row gap" style={{ justifyContent: 'center' }}>
+              <input className={`num tiny ${Number(mat[k] || 0) > a ? 'bad' : ''}`} type="number" min="0" value={mat[k] ?? ''} placeholder="0"
+                onChange={e => setMat({ ...mat, [k]: e.target.value })} /><small className="muted">/{a}</small></span>
+          }} />
+        </>}
+      </details>
       <div className="row gap mt wrap">
         <ActionButton className="btn primary" disabled={useMatrix ? !matTotal : !(Number(n) > 0)} onRun={() => run(seed)}>⚙ Sinh đề theo ma trận</ActionButton>
         {res && <ActionButton className="btn" onRun={() => { const s = seed + 1; setSeed(s); return run(s) }}>↻ Sinh đề khác</ActionButton>}
@@ -98,7 +104,10 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
         {res.errors.map((e, i) => <div key={'e' + i} className="alert red">✗ {e}</div>)}
         {res.warnings.map((e, i) => <div key={'w' + i} className="alert amber">⚠ {e}</div>)}
         {res.info.map((e, i) => <div key={'i' + i} className="alert">ℹ {e}</div>)}
-        {res.ok && <div className="alert green">✓ Đã chọn {res.n_questions} câu, tổng {res.total_points} điểm – các câu được đánh dấu trong danh sách bên dưới, có thể bỏ/thêm/đổi điểm thủ công.</div>}
+        {res.ok && <div className="alert green">✓ Đã chọn {res.n_questions} câu, tổng {res.total_points} điểm. Bấm “Tiếp: kiểm tra đề” để xem lại, đổi điểm hoặc bỏ câu.</div>}
+        <div className="row gap wrap"><b className="small">Độ phủ CLO:</b>
+          {res.clos.filter(c => c.in_scope).map(c => <span key={c.clo_id} className={`pill ${c.selected ? 'blue' : 'red'}`}>{c.clo_code}: {c.selected} câu · {c.points} đ</span>)}</div>
+        <details className="adv"><summary>Xem ma trận đề và độ phủ CLO chi tiết</summary>
         <div className="grid2 mt">
           <div><h4>Ma trận đề (đã chọn / mục tiêu)</h4>
             <MatrixTable chapters={res.chapters} cells={res.matrix} blooms={blooms} render={(o, b) => {
@@ -112,7 +121,7 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
                 <td><b>{c.clo_code}</b>{!c.in_scope && <small className="muted"> – không đo trong bài</small>}</td>
                 <td className={`num-c ${c.in_scope && !c.selected ? 'bad-t' : ''}`}>{c.selected}</td><td className="num-c">{c.points}</td><td className="num-c">{c.available}</td></tr>)}</tbody></table>
           </div>
-        </div>
+        </div></details>
       </div>}
     </div>
   )

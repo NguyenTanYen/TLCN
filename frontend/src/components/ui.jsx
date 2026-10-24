@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+// Nhãn PLO: CTĐT cũ lưu mã '1.3', CTĐT 2026 lưu 'PLO6' → không lặp chữ PLO
+export const ploLabel = c => (/^PLO/i.test(String(c || '')) ? c : `PLO ${c}`)
+
 export function Card({ title, actions, children, className = '' }) {
   return (
     <section className={`card ${className}`}>
@@ -105,6 +108,17 @@ export function ProgramPicker({ programs, pid, setPid }) {
 export function Crumbs({ items }) {
   return <nav className="crumb" aria-label="Đường dẫn">{items.filter(Boolean).map(([to, label], i) => <span key={i}>{i > 0 && <span className="sep"> › </span>}
     {to ? <Link to={to}>{label}</Link> : <span>{label}</span>}</span>)}</nav>
+}
+
+// Luồng công việc chính (góp ý 21/10: nhìn vào là biết làm gì trước, gì sau). Mỗi bước: { label, sub, done, on, to | onClick, tab }
+// tab=true: bước là một thẻ của trang (role="tab", tên = label để kiểm thử/đọc màn hình); số thứ tự aria-hidden.
+export function Flow({ steps, extra }) {
+  return <div className="flow-wrap"><ol className="flow" role={steps.some(s => s?.tab) ? 'tablist' : undefined}>{steps.filter(Boolean).map((s, i) => {
+    const body = <><span className="flow-n" aria-hidden="true">{s.done && !s.on ? '✓' : i + 1}</span><span className="flow-t"><b>{s.label}</b>{s.sub && <small>{s.sub}</small>}</span></>
+    return <li key={i} className={`${s.done ? 'done' : ''} ${s.on ? 'on' : ''}`}>
+      {s.to ? <Link className="flow-b" to={s.to}>{body}</Link>
+        : <button type="button" className="flow-b" role={s.tab ? 'tab' : undefined} aria-selected={s.tab ? !!s.on : undefined} onClick={s.onClick}>{body}</button>}</li>
+  })}</ol>{extra && <div className="flow-x">{extra}</div>}</div>
 }
 
 // Thẻ chọn nhanh (tab) đồng bộ với ?tab= trên địa chỉ trang

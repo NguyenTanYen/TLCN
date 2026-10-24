@@ -9,7 +9,7 @@ BM6a–6d (CĐR môn học, cả BM6c riêng từng bài kiểm tra) và BM2a–
 Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và xem kết quả phân tích trên **Moodle**. Hai hệ thống nối với nhau qua plugin Moodle `local_clo` (nút *Phân tích CĐR* đăng nhập một lần, Web Service tạo Quiz / Offline Quiz và nhận kết quả) và cầu nối CSDL chỉ đọc để kéo bài làm – xem `HUONG_DAN_CAI_DAT.md`.
 
 > **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp `.bat` 0–8). Sau khi cập nhật bản 15/10 cần chạy lại **1_CAI_DAT_PYTHON.bat**
-> (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.3.1 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu), sau đó vào Moodle → Quản trị trang để nâng cấp.
+> (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.4.0 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu; giới hạn Quiz phụ đạo cho SV được giao), sau đó vào Moodle → Quản trị trang để nâng cấp.
 > Bài trực tuyến đã đồng bộ trước bản thời gian làm bài: bấm **Đồng bộ lại** để lấy thời điểm trả lời từng câu.
 
 ### Bổ sung theo góp ý 15/10
@@ -35,7 +35,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `moodle/local/clo` | Plugin Moodle: nút SSO, Web Service tạo Quiz / Offline Quiz, nhận kết quả, trang kết quả cho SV |
 | `moodle/mod/offlinequiz_v4.5.4.zip` | Plugin Offline Quiz (GPL v3, mã gốc): in đề + phiếu, nhận diện phiếu quét, chấm bài thi giấy |
 | `moodle/theme/ute` | Giao diện UTE LMS cho Moodle |
-| `database/01_schema.sql` | CSDL `assessment_db` – 39 bảng, 4 view (MySQL 8) |
+| `database/01_schema.sql` | CSDL `assessment_db` – 46 bảng, 4 view (MySQL 8) |
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
@@ -68,7 +68,7 @@ docker compose up -d --build
 # 1) CSDL (MySQL 8.0+) – tạo user có quyền trên assessment_db và SELECT trên moodle
 cd backend && pip install -r requirements.txt
 echo 'DATABASE_URL=mysql+pymysql://USER:PASS@127.0.0.1:3306/assessment_db?charset=utf8mb4' > .env
-python -m app.cli init-db          # 39 bảng + dữ liệu tham chiếu
+python -m app.cli init-db          # 46 bảng + dữ liệu tham chiếu
 python -m app.cli seed-demo        # tài khoản, môn DBMS330284, 4 CLO, 30 câu hỏi, lớp HP 40 SV, 2 bài KT
 python -m app.cli install-bridge   # khi đã có CSDL Moodle trên cùng server
 
@@ -114,3 +114,10 @@ Danh sách PLO/PI, kế hoạch đo và phân công lấy từ biểu mẫu BM2 
 Hai CTĐT 2026 (CNTT, KTDL) được đọc từ văn bản chương trình đào tạo chính thức (PDF). Lớp `DBMS330284_02` (cùng GV) có bài tự luận nhập điểm để minh họa gộp bài và nhập điểm.
 Nội dung CLO, câu hỏi, danh sách sinh viên và bài làm của môn DBMS330284 là **dữ liệu giả lập** để minh họa
 (năng lực SV sinh theo mô hình IRT 1 tham số; câu 24 được cố ý làm "câu bẫy" để thấy DI âm).
+
+## Bản gộp nhánh QuocThi + đơn giản hóa giao diện
+- CLO được đánh giá **theo lớp** (BM6b). Với từng sinh viên, hệ thống chỉ cho biết **yếu ở chương nào, câu nào** để ôn tập.
+- Mục **Ôn tập** gom nhóm SV yếu theo chương → tạo bài kiểm tra lại cho đúng nhóm đó (không tính vào CLO).
+- Trang **Hướng dẫn sử dụng** (menu) và khung "Hướng dẫn cho trang này" (thu gọn sẵn) dành cho người mới dùng.
+- Nút/màu thống nhất: một nút chính màu xanh cho mỗi khu vực; biểu đồ chi tiết nằm trong mục "Xem thêm".
+- Nút **In đề cương (xem trước)** (hoặc Ctrl+P) ở trang đề cương mở hộp xem trước PDF A4 theo mẫu đề cương chi tiết của Trường ĐH Công nghệ Kỹ thuật TP.HCM (mục đánh số, bảng CLO, nội dung theo chương, đánh giá, ô ký); từ đó chọn **In** hoặc **Tải PDF**.

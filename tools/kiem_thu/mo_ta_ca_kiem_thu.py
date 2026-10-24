@@ -79,6 +79,11 @@ M = {
     "test_manual_exam_grid_excel_and_analysis": (7, "Bài nhập điểm: bảng điểm, Excel, phân tích", "Tạo bài 2 câu/ý gắn CLO, nhập điểm, tải mẫu Excel, nhập lại, phân tích", "Kiểm tra giới hạn điểm; p, DI, alpha, CLO đúng"),
     "test_create_exam_from_any_excel": (7, "Tạo bài từ tệp Excel bất kỳ", "Tệp Excel tự soạn có cột MSSV và cột điểm", "Tạo bài, ghi điểm; SV lạ được ghi danh khi chọn"),
     "test_combine_exams_and_evidence_flag": (7, "Gộp 2–3 bài đánh giá CLO/PLO", "Gộp bài 2 lớp theo 2 cách; bật/tắt minh chứng BM6", "Số liệu khớp; PLO theo từng CTĐT; BM6b đổi tương ứng"),
+    "test_overview_theo_chuong_va_loc_chuong": (7, "Ôn tập theo nhóm sinh viên yếu từng chương", "Xem danh sách chương có SV yếu, chọn chương rồi tạo bài kiểm tra lại cho nhóm đó", "Có danh sách chương + SV; không còn CLO riêng từng SV; bài ôn chỉ gồm câu của chương đã chọn"),
+    "test_progress_before_attempt": (7, "Theo dõi tiến bộ – trước khi làm bài ôn", "Xem bài ôn vừa giao cho 1 SV", "1 SV được giao, chưa làm; có điểm trước, chưa có điểm sau"),
+    "test_progress_after_attempt": (7, "Theo dõi tiến bộ – sau khi làm bài ôn", "SV làm bài ôn, hệ thống tính mức cải thiện", "Có điểm sau và mức tăng"),
+    "test_restrict_requires_moodle_accounts": (7, "Giới hạn bài ôn cho đúng SV trên Moodle", "Danh sách SV được giao chuyển thành tài khoản Moodle", "Thiếu tài khoản Moodle thì báo lỗi rõ ràng"),
+    "test_syllabus_pdf_mau_in": (1, "In đề cương chi tiết dạng PDF theo mẫu ký", "GET /courses/{id}/syllabus.pdf", "PDF có quốc hiệu, tiêu đề, các mục đánh số, ô ký Trưởng khoa/Trưởng bộ môn/Giảng viên; không có token thì 401"),
     "test_remedial_flow": (7, "Phụ đạo theo câu sai", "Đếm câu sai từng SV, xem câu sai, tạo bài phụ đạo", "Số câu sai đúng; bài phụ đạo có câu sai + câu tương tự, không gộp minh chứng"),
     # ---------------------------------------------------------------- test_hardening
     "test_course_level_access": (0, "Phân quyền theo môn học", "GV không dạy môn truy cập ngân hàng câu hỏi, tệp mẫu", "403; 404 môn không tồn tại"),

@@ -1,4 +1,4 @@
-"""Ánh xạ ORM cho 39 bảng của assessment_db (xem database/01_schema.sql).
+"""Ánh xạ ORM cho 45 bảng của assessment_db (xem database/01_schema.sql).
 
 Ràng buộc CHECK/UNIQUE được khai báo trong DDL; ORM chỉ khai báo cột, khóa và quan hệ cần dùng.
 """
@@ -8,8 +8,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import (BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger,
-                        String, Text, func)
+from sqlalchemy import (BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger,
+                        String, Table, Text, func)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -148,6 +148,8 @@ class Course(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     clos: Mapped[list["CLO"]] = relationship(back_populates="course", order_by="CLO.clo_code")
     outlines: Mapped[list["CourseOutline"]] = relationship(order_by="CourseOutline.chapter_number")
+    syllabi: Mapped[list["CourseSyllabus"]] = relationship(back_populates="course", order_by="CourseSyllabus.version_no",
+                                                           cascade="all, delete-orphan")
 
 
 class CourseOutline(Base):
@@ -156,6 +158,11 @@ class CourseOutline(Base):
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
     chapter_number: Mapped[int] = mapped_column(SmallInteger)
     chapter_name: Mapped[str] = mapped_column(String(255))
+    content: Mapped[Optional[str]] = mapped_column(Text)
+    theory_hours: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    practice_hours: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    teaching_activities: Mapped[Optional[str]] = mapped_column(Text)
+    clos: Mapped[list["CLO"]] = relationship(secondary="outline_clos", order_by="CLO.clo_code")
 
 
 class BloomLevel(Base):
@@ -173,13 +180,79 @@ class CLO(Base):
     description: Mapped[str] = mapped_column(Text)
     bloom_level_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bloom_levels.id"))
     course: Mapped[Course] = relationship(back_populates="clos")
+    pi_links: Mapped[list["CLOPIMapping"]] = relationship(back_populates="clo", cascade="all, delete-orphan")
 
 
 class CLOPLOMapping(Base):
+    """Ma trận CLO – PLO: suy ra từ clo_pi_mapping (mức cao nhất trong các PI cùng PLO) để các báo cáo cũ không đổi."""
     __tablename__ = "clo_plo_mapping"
     clo_id: Mapped[int] = mapped_column(ForeignKey("clos.id"), primary_key=True)
     plo_id: Mapped[int] = mapped_column(ForeignKey("plos.id"), primary_key=True)
     level: Mapped[str] = mapped_column(String(1))
+
+
+class CLOPIMapping(Base):
+    """CLO đóng góp cho PI nào của CĐR CTĐT (góp ý F2a: quản lý thêm một mức trên CLO)."""
+    __tablename__ = "clo_pi_mapping"
+    clo_id: Mapped[int] = mapped_column(ForeignKey("clos.id"), primary_key=True)
+    pi_id: Mapped[int] = mapped_column(ForeignKey("performance_indicators.id"), primary_key=True)
+    level: Mapped[str] = mapped_column(String(1), default="R")
+    clo: Mapped[CLO] = relationship(back_populates="pi_links")
+    pi: Mapped["PerformanceIndicator"] = relationship()
+
+
+# ---- Đề cương chi tiết có phiên bản (góp ý F1)
+outline_clos = Table("outline_clos", Base.metadata,
+                     Column("outline_id", ForeignKey("course_outlines.id"), primary_key=True),
+                     Column("clo_id", ForeignKey("clos.id"), primary_key=True))
+syllabus_assessment_clos = Table("syllabus_assessment_clos", Base.metadata,
+                                 Column("assessment_id", ForeignKey("syllabus_assessments.id"), primary_key=True),
+                                 Column("clo_id", ForeignKey("clos.id"), primary_key=True))
+
+
+class CourseSyllabus(Base):
+    __tablename__ = "course_syllabi"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
+    version_no: Mapped[int] = mapped_column(SmallInteger, default=1)
+    english_name: Mapped[Optional[str]] = mapped_column(String(255))
+    self_study_hours: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    objectives: Mapped[Optional[str]] = mapped_column(Text)
+    teaching_methods: Mapped[Optional[str]] = mapped_column(Text)
+    course_policy: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(10), default="draft")
+    effective_semester_id: Mapped[Optional[int]] = mapped_column(ForeignKey("semesters.id"))
+    approved_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    updated_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    course: Mapped[Course] = relationship(back_populates="syllabi")
+    references: Mapped[list["SyllabusReference"]] = relationship(
+        cascade="all, delete-orphan", order_by=lambda: [SyllabusReference.ref_type, SyllabusReference.sort_order])
+    assessments: Mapped[list["SyllabusAssessment"]] = relationship(cascade="all, delete-orphan",
+                                                                   order_by="SyllabusAssessment.sort_order")
+
+
+class SyllabusReference(Base):
+    __tablename__ = "syllabus_references"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    syllabus_id: Mapped[int] = mapped_column(ForeignKey("course_syllabi.id"))
+    ref_type: Mapped[str] = mapped_column(String(10), default="main")
+    citation: Mapped[str] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(SmallInteger, default=1)
+
+
+class SyllabusAssessment(Base):
+    __tablename__ = "syllabus_assessments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    syllabus_id: Mapped[int] = mapped_column(ForeignKey("course_syllabi.id"))
+    component_code: Mapped[str] = mapped_column(String(10))
+    name: Mapped[str] = mapped_column(String(255))
+    method: Mapped[Optional[str]] = mapped_column(String(150))
+    timing: Mapped[Optional[str]] = mapped_column(String(100))
+    weight_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    sort_order: Mapped[int] = mapped_column(SmallInteger, default=1)
+    clos: Mapped[list["CLO"]] = relationship(secondary="syllabus_assessment_clos", order_by="CLO.clo_code")
 
 # ---------------------------------------------------------------- D. Kế hoạch đo lường
 

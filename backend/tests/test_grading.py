@@ -51,10 +51,11 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
     assert r.json()["saved"] == 19 and r.json()["absent"] == 1 and r.json()["analysis"]["n_students"] == 19
     e = client.get(f"/api/exams/{eid}", headers=gv).json()
     assert e["status"] == "Analyzed" and e["exam_type"] == "manual"
-    # CLO từng SV: SV thứ 2 (i=1) có câu 1 = 1/4 = 25% -> CLO1 chưa đạt
+    # CLO tính theo lớp (không theo từng SV): danh sách SV không còn trả CLO riêng
     st = {s["student_code"]: s for s in client.get(f"/api/exams/{eid}/students", headers=gv).json()}
-    s1 = st[studs[1]["student_code"]]
-    assert s1["clos"]["CLO1"]["pct"] == 25.0 and not s1["clos"]["CLO1"]["ok"]
+    assert "clos" not in st[studs[1]["student_code"]]
+    cs = client.get(f"/api/exams/{eid}/clo-summary", headers=gv).json()
+    assert cs and all({"clo_code", "n_evaluated", "n_achieved"} <= set(x) for x in cs)
     ov = client.get(f"/api/exams/{eid}/overview", headers=gv).json()
     assert ov["reliability"] == "Cronbach alpha" and ov["n_students"] == 19 and ov["n_absent"] == 1
     items_st = client.get(f"/api/exams/{eid}/item-stats", headers=gv).json()

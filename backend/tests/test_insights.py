@@ -14,8 +14,8 @@ def test_section_stats(client, gv):
     d = client.get(f"/api/class-sections/{cs}/stats", headers=gv).json()
     k = d["kpi"]
     assert d["exam"] and k["n_finished"] + k["n_absent"] == k["n_students"]
-    assert sum(h["n"] for h in d["clo_count_hist"]) == k["n_finished"] == len(d["heatmap"])
-    assert d["clo_count_hist"][-1]["n"] == k["n_all_clo"]
+    assert k["n_finished"] == len(d["heatmap"]) and "clo_count_hist" not in d
+    assert d["chapter_labels"] and all("chapters" in h and "clos" not in h for h in d["heatmap"])    # theo chương, không theo CLO của từng SV
     for c in d["clos"]:
         assert 0 <= c["achieved_pct"] <= 100 and c["n_achieved"] <= c["n"]
     assert all(0 < ch["n_students"] <= k["n_finished"] for ch in d["chapters"])
@@ -36,11 +36,9 @@ def test_student_profile(client, gv):
     ex = next(e for e in p["exams"] if e["id"] == stats["exam"]["id"])
     assert ex["score"] == weak["score"] and ex["answers"]
     assert {a["result"] for a in ex["answers"]} <= {"correct", "wrong", "blank"}
-    assert sum(1 for c in ex["clos"] if c["achieved"]) == weak["n_achieved"]
-    # SV yếu phải có chương cần học lại, và mọi CLO chưa đạt đều có trong lộ trình
-    assert p["review"] and ex["items"]
-    assert {c["code"] for c in ex["clos"] if not c["achieved"]} <= {i["clo"] for i in ex["items"]}
-    assert p["overall_clos"]
+    # SV yếu phải có chương cần học lại; hồ sơ SV không có kết quả CLO riêng của SV
+    assert p["review"] and ex["items"] and "clos" not in ex and all("clos" not in r for r in p["review"])
+    assert "overall_clos" not in p    # không đánh giá từng SV theo CLO
 
 
 def test_profile_access(client, gv, gv_other):

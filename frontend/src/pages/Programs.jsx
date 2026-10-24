@@ -1,5 +1,6 @@
 // Chương trình đào tạo: danh sách CTĐT → CĐR (PLO) và chỉ số PI, học phần theo học kỳ, ma trận học phần – PI.
 import { useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
 import { ActionButton, Badge, Card, Crumbs, Field, Loading, Modal, Tabs } from '../components/ui'
@@ -13,8 +14,9 @@ export function ProgramList() {
   const [form, setForm] = useState(null)
   return <>
     <div className="page-h"><div><h1>Chương trình đào tạo</h1>
-      <p className="muted">Mỗi CTĐT gồm các chuẩn đầu ra (PLO) với chỉ số đo (PI), danh sách học phần theo học kỳ và ma trận học phần – PI. Học phần và CLO được quản lý theo CTĐT.</p></div>
+      <p className="muted">Mỗi chương trình đào tạo gồm các chuẩn đầu ra chương trình (PLO), chỉ báo đo (PI), danh sách học phần theo học kỳ và bảng học phần – PI cho biết môn nào góp phần đo PI nào.</p></div>
       {isAdmin && <button className="btn primary" onClick={() => setForm({})}>+ CTĐT mới</button>}</div>
+    <PageHelp id="programs"><p>Chương trình đào tạo (CTĐT) là chương trình học của một ngành. Bấm vào một chương trình để xem chuẩn đầu ra chương trình (PLO), chỉ báo (PI) và các học phần.</p></PageHelp>
     <Loading {...list} />
     <div className="grid3">{list.data?.map(p => <Card key={p.id} title={<Link to={`/programs/${p.id}`}>{p.code}</Link>}>
       <div className="big">{p.name}</div>
