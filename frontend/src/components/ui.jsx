@@ -1,4 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+
+// Nhãn PLO: CTĐT cũ lưu mã '1.3', CTĐT 2026 lưu 'PLO6' → không lặp chữ PLO
+export const ploLabel = c => (/^PLO/i.test(String(c || '')) ? c : `PLO ${c}`)
 
 export function Card({ title, actions, children, className = '' }) {
   return (
@@ -24,7 +28,8 @@ export function Loading({ error, loading }) {
   return null
 }
 
-export function Modal({ title, onClose, children, wide }) {
+// size: 'sm' (hộp xác nhận) | mặc định (biểu mẫu ngắn) | 'md' (lựa chọn, danh sách) | 'wide' (bảng, soạn đề)
+export function Modal({ title, onClose, children, wide, size }) {
   const hid = useId()
   useEffect(() => {  // Esc để đóng
     const onKey = e => { if (e.key === 'Escape') onClose() }
@@ -33,7 +38,7 @@ export function Modal({ title, onClose, children, wide }) {
   }, [onClose])
   return (
     <div className="modal-bg" onMouseDown={onClose}>
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={hid} onMouseDown={e => e.stopPropagation()}>
+      <div className={`modal ${wide ? 'wide' : size || ''}`} role="dialog" aria-modal="true" aria-labelledby={hid} onMouseDown={e => e.stopPropagation()}>
         <header className="card-h"><h3 id={hid}>{title}</h3><button className="btn ghost" aria-label="Đóng" autoFocus onClick={onClose}>✕</button></header>
         <div className="card-b">{children}</div>
       </div>
@@ -91,4 +96,33 @@ export function pClass(p) {
 export function diClass(di) {
   if (di === null || di === undefined) return ''
   di = Number(di); return di < 0 ? 'bad' : di < 0.2 ? 'warn' : di < 0.3 ? 'mid' : 'ok'
+}
+
+// Chọn CTĐT đang làm việc (dùng với useProgram())
+export function ProgramPicker({ programs, pid, setPid }) {
+  return <Field label="Chương trình đào tạo"><select value={pid || ''} onChange={e => setPid(e.target.value)}>
+    {programs?.map(p => <option key={p.id} value={p.id}>{p.code} – {p.name}{p.cohort_year ? ` (khóa ${p.cohort_year})` : ''}</option>)}</select></Field>
+}
+
+// Đường dẫn phân cấp trên đầu trang: [['/', 'Môn học'], [null, 'DBMS330284_01']]
+export function Crumbs({ items }) {
+  return <nav className="crumb" aria-label="Đường dẫn">{items.filter(Boolean).map(([to, label], i) => <span key={i}>{i > 0 && <span className="sep"> › </span>}
+    {to ? <Link to={to}>{label}</Link> : <span>{label}</span>}</span>)}</nav>
+}
+
+// Luồng công việc chính (góp ý 21/10: nhìn vào là biết làm gì trước, gì sau). Mỗi bước: { label, sub, done, on, to | onClick, tab }
+// tab=true: bước là một thẻ của trang (role="tab", tên = label để kiểm thử/đọc màn hình); số thứ tự aria-hidden.
+export function Flow({ steps, extra }) {
+  return <div className="flow-wrap"><ol className="flow" role={steps.some(s => s?.tab) ? 'tablist' : undefined}>{steps.filter(Boolean).map((s, i) => {
+    const body = <><span className="flow-n" aria-hidden="true">{s.done && !s.on ? '✓' : i + 1}</span><span className="flow-t"><b>{s.label}</b>{s.sub && <small>{s.sub}</small>}</span></>
+    return <li key={i} className={`${s.done ? 'done' : ''} ${s.on ? 'on' : ''}`}>
+      {s.to ? <Link className="flow-b" to={s.to}>{body}</Link>
+        : <button type="button" className="flow-b" role={s.tab ? 'tab' : undefined} aria-selected={s.tab ? !!s.on : undefined} onClick={s.onClick}>{body}</button>}</li>
+  })}</ol>{extra && <div className="flow-x">{extra}</div>}</div>
+}
+
+// Thẻ chọn nhanh (tab) đồng bộ với ?tab= trên địa chỉ trang
+export function Tabs({ tabs, value, onChange }) {
+  return <div className="tabs" role="tablist">{tabs.filter(Boolean).map(([k, l, dis]) =>
+    <button key={k} role="tab" aria-selected={value === k} className={value === k ? 'on' : ''} disabled={dis} onClick={() => onChange(k)}>{l}</button>)}</div>
 }

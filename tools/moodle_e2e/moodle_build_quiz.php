@@ -60,7 +60,8 @@ if (!$ok) { fwrite(STDERR, $log); exit(1); }
 // 3. Quiz: xáo trộn phương án, phản hồi trì hoãn, không giới hạn số lượt
 $quizgen = $gen->get_plugin_generator('mod_quiz');
 $quiz = $quizgen->create_instance(['course' => $course->id, 'name' => $spec['quiz']['name'], 'grade' => $spec['quiz']['grade'],
-    'sumgrades' => 0, 'shuffleanswers' => 1, 'preferredbehaviour' => 'deferredfeedback', 'attempts' => 0, 'questionsperpage' => 0]);
+    'sumgrades' => 0, 'shuffleanswers' => 1, 'preferredbehaviour' => 'deferredfeedback', 'attempts' => 0, 'questionsperpage' => 1,
+    'timelimit' => (int)($spec['quiz']['timelimit'] ?? 0), 'overduehandling' => 'autosubmit']);
 foreach ($qformat->questionids as $qid) {
     $maxmark = $DB->get_field('question', 'defaultmark', ['id' => $qid]);
     quiz_add_quiz_question($qid, $quiz, 0, $maxmark);
@@ -71,15 +72,22 @@ $quizobj = quiz_settings::create($quiz->id);
 // 4. làm bài: responses = [{ "QB-5": vị trí phương án gốc (0-based) | null }]
 $t0 = time();
 $made = 0;
-function take_attempt($quizid, $user, $answers, $time) {
+// $timing (tùy chọn) = ['offsets' => {"QB-n": giây kể từ lúc bắt đầu}, 'finish' => giây]: SV chọn đáp án từng câu đúng các
+// thời điểm đó (mỗi lần là một lần Moodle lưu đáp án – như SV chuyển trang) rồi nộp; lúc bắt đầu được lùi về quá khứ.
+function take_attempt($quizid, $user, $answers, $time, $timing = null) {
     global $DB;
     \core\session\manager::set_user($user);
     $quizobj = quiz_settings::create($quizid, $user->id);
     $prev = quiz_get_user_attempts($quizid, $user->id, 'all', true);
     $last = $prev ? end($prev) : null;
     $attempt = quiz_prepare_and_start_new_attempt($quizobj, $last ? $last->attempt + 1 : 1, $last);
+    $tstart = $time;
+    if ($timing) {
+        $tstart = time() - (int)$timing['finish'] - 120;
+        $DB->set_field('quiz_attempts', 'timestart', $tstart, ['id' => $attempt->id]);
+    }
     $ao = quiz_attempt::create($attempt->id);
-    $post = [];
+    $post = []; $each = [];
     foreach ($ao->get_slots() as $slot) {
         $qa = $ao->get_question_attempt($slot);
         $q = $qa->get_question();
@@ -87,15 +95,26 @@ function take_attempt($quizid, $user, $answers, $time) {
         if ($pos === null) { continue; }               // bỏ trống
         $ids = array_keys($q->answers); sort($ids);      // thứ tự gốc = thứ tự id (theo XML)
         $field = array_search($ids[$pos], $q->get_order($qa)); // vị trí sau khi xáo trộn
-        $post[$qa->get_control_field_name('sequencecheck')] = (string)$qa->get_sequence_check_count();
-        $post[$qa->get_qt_field_name('answer')] = (string)$field;
+        $one = [$qa->get_control_field_name('sequencecheck') => (string)$qa->get_sequence_check_count(),
+                $qa->get_qt_field_name('answer') => (string)$field];
+        $post += $one;
+        $each[] = [(int)($timing['offsets'][$q->idnumber] ?? 0), $slot, $one];
     }
-    $ao->process_submitted_actions($time, false, $post);
-    $ao->process_finish(max($time, time()), false);
+    if (!$timing) {
+        $ao->process_submitted_actions($time, false, $post);
+        $ao->process_finish(max($time, time()), false);
+        return $attempt->id;
+    }
+    usort($each, fn($a, $b) => $a[0] <=> $b[0]);
+    foreach ($each as [$off, $slot, $one]) {
+        $ao->process_submitted_actions($tstart + $off, false, $one + ['slots' => (string)$slot]);
+        $ao = quiz_attempt::create($attempt->id);
+    }
+    $ao->process_finish($tstart + (int)$timing['finish'], false);
     return $attempt->id;
 }
 foreach ($spec['attempts'] as $i => $a) {
-    take_attempt($quiz->id, $users[$a["username"]], $a["answers"], time());
+    take_attempt($quiz->id, $users[$a["username"]], $a["answers"], time(), $a["timing"] ?? null);
     $made++;
 }
 // một lượt "xem trước" của giảng viên – phải bị hệ thống loại

@@ -13,15 +13,18 @@
 --   * BM6c/6d : Bảng minh chứng đo lường từ kết quả kiểm tra (1 hoặc nhiều bài KT)
 --   * Phân công đánh giá PIs theo học kỳ
 --
---  39 bảng, 7 nhóm:
+--  46 bảng, 7 nhóm:
 --   A. Người dùng & tổ chức      (4)  users, lecturers, students, semesters
 --   B. Chương trình & CĐR CTĐT   (6)  programs, plos, plo_measurement_plans,
 --                                     performance_indicators, program_courses, pi_courses
---   C. Học phần & CĐR môn học    (5)  courses, course_outlines, bloom_levels, clos, clo_plo_mapping
+--   C. Học phần & CĐR môn học    (11) courses, course_outlines, bloom_levels, clos, clo_plo_mapping,
+--                                     clo_pi_mapping, course_syllabi, syllabus_references,
+--                                     syllabus_assessments, syllabus_assessment_clos, outline_clos
 --   D. Kế hoạch đo lường         (4)  clo_assessment_plans, pi_assessment_plans,
 --                                     pi_plan_clos, assessment_assignments
---   E. Lớp học phần & ngân hàng  (5)  class_sections, enrollments,
---                                     question_bank, question_options, question_clo_mapping
+--   E. Lớp học phần & ngân hàng  (6)  class_sections, enrollments,
+--                                     question_bank, question_options, question_clo_mapping,
+--                                     question_moodle_links
 --   F. Đề thi                    (5)  exams, exam_questions, exam_versions,
 --                                     exam_version_questions, exam_version_options
 --   G. Kết quả & báo cáo         (10) exam_attempts, item_level_results, item_statistics,
@@ -39,9 +42,10 @@ DROP TABLE IF EXISTS sync_runs, learning_path_items, personalized_learning_paths
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
-  question_clo_mapping, question_options, question_bank, enrollments, class_sections,
+  question_moodle_links, question_clo_mapping, question_options, question_bank, enrollments, class_sections,
   assessment_assignments, pi_plan_clos, pi_assessment_plans, clo_assessment_plans,
-  clo_plo_mapping, clos, bloom_levels, course_outlines, courses,
+  outline_clos, syllabus_assessment_clos, syllabus_assessments, syllabus_references, course_syllabi,
+  clo_pi_mapping, clo_plo_mapping, clos, bloom_levels, course_outlines, courses,
   pi_courses, program_courses, performance_indicators, plo_measurement_plans, plos, programs,
   semesters, students, lecturers, users;
 SET FOREIGN_KEY_CHECKS = 1;
@@ -51,12 +55,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- =====================================================================
 CREATE TABLE users (
   id             INT AUTO_INCREMENT PRIMARY KEY,
-  username       VARCHAR(50)  NOT NULL,
-  password_hash  VARCHAR(255) NOT NULL,
+  username       VARCHAR(50)  NOT NULL COMMENT 'Tên đăng nhập (trùng tài khoản Moodle để SSO)',
+  password_hash  VARCHAR(255) NOT NULL COMMENT 'Mật khẩu băm PBKDF2-SHA256',
   full_name      VARCHAR(100) NOT NULL,
-  email          VARCHAR(150) NULL,
+  email          VARCHAR(150) NULL COMMENT 'Thư điện tử',
   role           VARCHAR(20)  NOT NULL COMMENT 'admin = Bộ môn/Trưởng BM; lecturer; student',
-  is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+  is_active      BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '1 = tài khoản đang hoạt động',
   created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_users_username UNIQUE (username),
   CONSTRAINT uq_users_email    UNIQUE (email),
@@ -66,7 +70,7 @@ CREATE TABLE users (
 CREATE TABLE lecturers (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   user_id        INT          NULL,
-  lecturer_code  VARCHAR(20)  NOT NULL,
+  lecturer_code  VARCHAR(20)  NOT NULL COMMENT 'Mã giảng viên',
   full_name      VARCHAR(100) NOT NULL,
   department     VARCHAR(150) NULL COMMENT 'Bộ môn',
   CONSTRAINT fk_lecturer_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -77,7 +81,7 @@ CREATE TABLE lecturers (
 CREATE TABLE students (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   user_id         INT          NULL,
-  student_code    VARCHAR(100) NOT NULL,
+  student_code    VARCHAR(100) NOT NULL COMMENT 'Mã số sinh viên (MSSV)',
   full_name       VARCHAR(100) NOT NULL,
   class_name      VARCHAR(50)  NULL COMMENT 'Lớp sinh hoạt',
   moodle_user_id  BIGINT       NULL COMMENT 'mdl_user.id',
@@ -92,8 +96,8 @@ CREATE TABLE semesters (
   academic_year  VARCHAR(9)   NOT NULL COMMENT 'VD 2023-2024',
   term           TINYINT      NOT NULL COMMENT '1 = HKI, 2 = HKII, 3 = HK hè',
   name           VARCHAR(50)  NOT NULL COMMENT 'VD HKI 23-24',
-  start_date     DATE         NOT NULL,
-  end_date       DATE         NOT NULL,
+  start_date     DATE         NOT NULL COMMENT 'Ngày bắt đầu học kỳ',
+  end_date       DATE         NOT NULL COMMENT 'Ngày kết thúc học kỳ',
   CONSTRAINT uq_semester UNIQUE (academic_year, term),
   CONSTRAINT ck_semester_term  CHECK (term IN (1,2,3)),
   CONSTRAINT ck_semester_year  CHECK (academic_year REGEXP '^[0-9]{4}-[0-9]{4}$'),
@@ -105,11 +109,18 @@ CREATE TABLE semesters (
 -- =====================================================================
 CREATE TABLE programs (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
-  code               VARCHAR(20)  NOT NULL,
+  code               VARCHAR(20)  NOT NULL COMMENT 'Mã CTĐT',
   name               VARCHAR(255) NOT NULL,
-  level              VARCHAR(20)  NOT NULL DEFAULT 'Đại học',
+  level              VARCHAR(20)  NOT NULL DEFAULT 'Đại học' COMMENT 'Trình độ đào tạo',
   department         VARCHAR(150) NULL COMMENT 'Bộ môn quản lý CTĐT',
   target_pct         DECIMAL(5,2) NOT NULL DEFAULT 75.00 COMMENT 'Chỉ tiêu đạt CĐR CTĐT (%)',
+  name_en            VARCHAR(255) NULL COMMENT 'Tên CTĐT tiếng Anh',
+  faculty            VARCHAR(150) NULL COMMENT 'Khoa quản lý',
+  major_code         VARCHAR(20)  NULL COMMENT 'Mã ngành, VD 7480201',
+  cohort_year        SMALLINT     NULL COMMENT 'Áp dụng từ khóa tuyển sinh, VD 2026',
+  total_credits      SMALLINT     NULL COMMENT 'Khối lượng học tập (tín chỉ)',
+  decision_no        VARCHAR(100) NULL COMMENT 'Số quyết định ban hành CTĐT',
+  objective          TEXT         NULL COMMENT 'Mục tiêu chung của CTĐT',
   CONSTRAINT uq_program_code UNIQUE (code),
   CONSTRAINT ck_program_target CHECK (target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Chương trình đào tạo';
@@ -117,10 +128,12 @@ CREATE TABLE programs (
 CREATE TABLE plos (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   program_id   INT          NOT NULL,
-  group_no     TINYINT      NOT NULL COMMENT 'Nhóm CĐR 1..4 (Kiến thức, Kỹ năng, ...)',
+  group_no     TINYINT      NOT NULL COMMENT 'Nhóm CĐR: 1 Kiến thức, 2 Kỹ năng, 3 Mức tự chủ và trách nhiệm, 4 ...',
   plo_code     VARCHAR(10)  NOT NULL COMMENT 'VD 1.2',
   description  TEXT         NOT NULL,
   target_pct   DECIMAL(5,2) NOT NULL DEFAULT 75.00 COMMENT 'Chỉ tiêu đạt CĐR (%)',
+  competency_level TINYINT  NULL COMMENT 'Trình độ năng lực của PLO (thang 1–6)',
+  plo_type     VARCHAR(30)  NULL COMMENT 'CĐR chung hoặc CĐR chuyên biệt',
   CONSTRAINT fk_plo_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
   CONSTRAINT uq_plo_code UNIQUE (program_id, plo_code),
   CONSTRAINT ck_plo_target CHECK (target_pct BETWEEN 0 AND 100)
@@ -130,7 +143,7 @@ CREATE TABLE plo_measurement_plans (
   plo_id         INT          NOT NULL,
   round_no       TINYINT      NOT NULL COMMENT 'Lần đo 1, 2, ...',
   academic_year  VARCHAR(9)   NOT NULL COMMENT 'Năm học đo lường',
-  target_pct     DECIMAL(5,2) NOT NULL,
+  target_pct     DECIMAL(5,2) NOT NULL COMMENT 'Chỉ tiêu % của lần đo',
   PRIMARY KEY (plo_id, round_no),
   CONSTRAINT fk_pmp_plo FOREIGN KEY (plo_id) REFERENCES plos(id) ON DELETE CASCADE,
   CONSTRAINT uq_pmp_year UNIQUE (plo_id, academic_year),
@@ -140,8 +153,9 @@ CREATE TABLE plo_measurement_plans (
 CREATE TABLE performance_indicators (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   plo_id       INT          NOT NULL,
-  pi_code      VARCHAR(10)  NOT NULL COMMENT 'VD PI 1',
+  pi_code      VARCHAR(10)  NOT NULL COMMENT 'VD PI 1, PI1.2',
   description  TEXT         NOT NULL,
+  competency_level TINYINT  NULL COMMENT 'Trình độ năng lực của PI (thang 1–6)',
   CONSTRAINT fk_pi_plo FOREIGN KEY (plo_id) REFERENCES plos(id) ON DELETE CASCADE,
   CONSTRAINT uq_pi_code UNIQUE (plo_id, pi_code)
 ) ENGINE=InnoDB COMMENT='Chỉ số đánh giá (PI) của CĐR CTĐT';
@@ -152,9 +166,14 @@ CREATE TABLE performance_indicators (
 CREATE TABLE courses (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   course_code    VARCHAR(20)  NOT NULL COMMENT 'Mã môn học, VD DBMS330284',
-  course_name    VARCHAR(255) NOT NULL,
-  credits        TINYINT      NOT NULL,
+  course_name    VARCHAR(255) NOT NULL COMMENT 'Tên môn học',
+  credits        TINYINT      NOT NULL COMMENT 'Số tín chỉ',
   clo_target_pct DECIMAL(5,2) NOT NULL DEFAULT 75.00 COMMENT 'Chỉ tiêu đạt CĐR môn học (BM6a)',
+  credits_theory   TINYINT    NULL COMMENT 'Số tín chỉ lý thuyết',
+  credits_practice TINYINT    NULL COMMENT 'Số tín chỉ thí nghiệm/thực hành/thực tập',
+  course_structure VARCHAR(30) NULL COMMENT 'Cấu trúc học phần, VD 3(2:1:6)',
+  prerequisites  VARCHAR(255) NULL COMMENT 'Mã học phần trước, tiên quyết',
+  description    TEXT         NULL COMMENT 'Mô tả vắn tắt học phần (đề cương)',
   created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_course_code UNIQUE (course_code),
   CONSTRAINT ck_course_credits CHECK (credits > 0),
@@ -162,26 +181,34 @@ CREATE TABLE courses (
 ) ENGINE=InnoDB COMMENT='Học phần / môn học';
 
 CREATE TABLE program_courses (
-  program_id  INT NOT NULL,
-  course_id   INT NOT NULL,
+  program_id       INT          NOT NULL,
+  course_id        INT          NOT NULL,
+  semester_no      TINYINT      NULL COMMENT 'Học kỳ trong kế hoạch giảng dạy (1–8)',
+  knowledge_block  VARCHAR(150) NULL COMMENT 'Khối kiến thức, VD Kiến thức cơ sở ngành',
+  is_elective      BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = học phần tự chọn',
   PRIMARY KEY (program_id, course_id),
   CONSTRAINT fk_pc_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
   CONSTRAINT fk_pc_course  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE
-) ENGINE=InnoDB COMMENT='Môn học thuộc CTĐT';
+) ENGINE=InnoDB COMMENT='Học phần thuộc CTĐT (học kỳ, khối kiến thức)';
 
 CREATE TABLE pi_courses (
-  pi_id      INT NOT NULL,
-  course_id  INT NOT NULL,
+  pi_id      INT        NOT NULL,
+  course_id  INT        NOT NULL,
+  level      VARCHAR(2) NULL COMMENT 'Mức đáp ứng của học phần với PI: I, R, M hoặc trình độ 1–6 (Phụ lục II)',
   PRIMARY KEY (pi_id, course_id),
   CONSTRAINT fk_pic_pi     FOREIGN KEY (pi_id)     REFERENCES performance_indicators(id) ON DELETE CASCADE,
   CONSTRAINT fk_pic_course FOREIGN KEY (course_id) REFERENCES courses(id)                ON DELETE CASCADE
-) ENGINE=InnoDB COMMENT='Các môn học có PI xuất hiện (BM3b)';
+) ENGINE=InnoDB COMMENT='Ma trận học phần – PI (Phụ lục II CTĐT, BM3b)';
 
 CREATE TABLE course_outlines (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   course_id       INT          NOT NULL,
-  chapter_number  TINYINT      NOT NULL,
-  chapter_name    VARCHAR(255) NOT NULL,
+  chapter_number  TINYINT      NOT NULL COMMENT 'Số thứ tự chương',
+  chapter_name    VARCHAR(255) NOT NULL COMMENT 'Tên chương',
+  content             TEXT     NULL COMMENT 'Nội dung chi tiết của chương',
+  theory_hours        SMALLINT NULL COMMENT 'Số tiết lý thuyết',
+  practice_hours      SMALLINT NULL COMMENT 'Số tiết thực hành',
+  teaching_activities TEXT     NULL COMMENT 'Hoạt động dạy và học',
   CONSTRAINT fk_outline_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT uq_outline_chapter UNIQUE (course_id, chapter_number),
   CONSTRAINT ck_outline_chapter CHECK (chapter_number > 0)
@@ -189,8 +216,8 @@ CREATE TABLE course_outlines (
 
 CREATE TABLE bloom_levels (
   id       TINYINT      PRIMARY KEY,
-  code     VARCHAR(20)  NOT NULL,
-  name_vi  VARCHAR(50)  NOT NULL,
+  code     VARCHAR(20)  NOT NULL COMMENT 'Mã mức Bloom (1–6)',
+  name_vi  VARCHAR(50)  NOT NULL COMMENT 'Tên mức Bloom tiếng Việt',
   CONSTRAINT uq_bloom_code UNIQUE (code),
   CONSTRAINT ck_bloom_id CHECK (id BETWEEN 1 AND 6)
 ) ENGINE=InnoDB COMMENT='Thang Bloom (Anderson & Krathwohl, 2001)';
@@ -216,6 +243,85 @@ CREATE TABLE clo_plo_mapping (
   CONSTRAINT ck_cpm_level CHECK (level IN ('I','R','M'))
 ) ENGINE=InnoDB COMMENT='Ma trận đóng góp CLO – PLO';
 
+CREATE TABLE clo_pi_mapping (
+  clo_id  INT     NOT NULL,
+  pi_id   INT     NOT NULL,
+  level   CHAR(1) NOT NULL DEFAULT 'R' COMMENT 'I = Giới thiệu, R = Củng cố, M = Thành thạo',
+  PRIMARY KEY (clo_id, pi_id),
+  CONSTRAINT fk_cpi_clo FOREIGN KEY (clo_id) REFERENCES clos(id)                   ON DELETE CASCADE,
+  CONSTRAINT fk_cpi_pi  FOREIGN KEY (pi_id)  REFERENCES performance_indicators(id) ON DELETE RESTRICT,
+  CONSTRAINT ck_cpi_level CHECK (level IN ('I','R','M'))
+) ENGINE=InnoDB COMMENT='CLO đóng góp cho chỉ số PI nào của CĐR CTĐT (góp ý F2a); clo_plo_mapping được suy ra từ bảng này';
+CREATE INDEX ix_cpi_pi ON clo_pi_mapping (pi_id);
+
+-- Đề cương chi tiết học phần có phiên bản, Bộ môn soạn và duyệt; GV chỉ xem (góp ý F1).
+-- Tên, mã, số tín chỉ, cấu trúc, học phần tiên quyết và mô tả vắn tắt vẫn nằm ở bảng courses.
+CREATE TABLE course_syllabi (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  course_id             INT          NOT NULL,
+  version_no            SMALLINT     NOT NULL DEFAULT 1 COMMENT 'Phiên bản đề cương của môn',
+  english_name          VARCHAR(255) NULL     COMMENT 'Tên học phần tiếng Anh',
+  self_study_hours      SMALLINT     NULL     COMMENT 'Số giờ tự học',
+  objectives            TEXT         NULL     COMMENT 'Mục tiêu học phần',
+  teaching_methods      TEXT         NULL     COMMENT 'Phương pháp giảng dạy',
+  course_policy         TEXT         NULL     COMMENT 'Quy định của học phần',
+  status                VARCHAR(10)  NOT NULL DEFAULT 'draft' COMMENT 'draft = bản nháp, approved = đang áp dụng, archived = đã thay thế',
+  effective_semester_id INT          NULL     COMMENT 'Áp dụng từ học kỳ',
+  approved_by           INT          NULL,
+  approved_at           DATETIME     NULL,
+  updated_by            INT          NULL,
+  updated_at            TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_syl_course   FOREIGN KEY (course_id)             REFERENCES courses(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_syl_semester FOREIGN KEY (effective_semester_id) REFERENCES semesters(id) ON DELETE SET NULL,
+  CONSTRAINT fk_syl_approver FOREIGN KEY (approved_by)           REFERENCES users(id)     ON DELETE SET NULL,
+  CONSTRAINT fk_syl_updater  FOREIGN KEY (updated_by)            REFERENCES users(id)     ON DELETE SET NULL,
+  CONSTRAINT uq_syl_version  UNIQUE (course_id, version_no),
+  CONSTRAINT ck_syl_status   CHECK (status IN ('draft','approved','archived')),
+  CONSTRAINT ck_syl_approved CHECK (status = 'draft' OR approved_at IS NOT NULL),
+  CONSTRAINT ck_syl_hours    CHECK (self_study_hours IS NULL OR self_study_hours >= 0)
+) ENGINE=InnoDB COMMENT='Đề cương chi tiết học phần – phiên bản, mục tiêu, phương pháp, quy định (góp ý F1)';
+
+CREATE TABLE syllabus_references (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  syllabus_id  INT         NOT NULL,
+  ref_type     VARCHAR(10) NOT NULL DEFAULT 'main' COMMENT 'main = giáo trình chính, extra = tài liệu tham khảo',
+  citation     TEXT        NOT NULL,
+  sort_order   SMALLINT    NOT NULL DEFAULT 1,
+  CONSTRAINT fk_ref_syllabus FOREIGN KEY (syllabus_id) REFERENCES course_syllabi(id) ON DELETE CASCADE,
+  CONSTRAINT ck_ref_type CHECK (ref_type IN ('main','extra'))
+) ENGINE=InnoDB COMMENT='Tài liệu học tập của đề cương';
+
+CREATE TABLE syllabus_assessments (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  syllabus_id     INT          NOT NULL,
+  component_code  VARCHAR(10)  NOT NULL COMMENT 'VD A1, A2, A3',
+  name            VARCHAR(255) NOT NULL COMMENT 'VD Kiểm tra giữa kỳ',
+  method          VARCHAR(150) NULL     COMMENT 'Hình thức: trắc nghiệm, tự luận, báo cáo ...',
+  timing          VARCHAR(100) NULL     COMMENT 'Thời điểm: tuần 8, cuối kỳ ...',
+  weight_pct      DECIMAL(5,2) NOT NULL COMMENT 'Tỷ lệ % trong điểm học phần',
+  sort_order      SMALLINT     NOT NULL DEFAULT 1,
+  CONSTRAINT fk_sas_syllabus FOREIGN KEY (syllabus_id) REFERENCES course_syllabi(id) ON DELETE CASCADE,
+  CONSTRAINT uq_sas_code   UNIQUE (syllabus_id, component_code),
+  CONSTRAINT ck_sas_weight CHECK (weight_pct > 0 AND weight_pct <= 100)
+) ENGINE=InnoDB COMMENT='Đánh giá học phần trong đề cương: thành phần, hình thức, tỷ trọng';
+
+CREATE TABLE syllabus_assessment_clos (
+  assessment_id  INT NOT NULL,
+  clo_id         INT NOT NULL,
+  PRIMARY KEY (assessment_id, clo_id),
+  CONSTRAINT fk_sac_assessment FOREIGN KEY (assessment_id) REFERENCES syllabus_assessments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sac_clo        FOREIGN KEY (clo_id)        REFERENCES clos(id)                 ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='CLO được đánh giá ở từng thành phần';
+
+CREATE TABLE outline_clos (
+  outline_id  INT NOT NULL,
+  clo_id      INT NOT NULL,
+  PRIMARY KEY (outline_id, clo_id),
+  CONSTRAINT fk_oc_outline FOREIGN KEY (outline_id) REFERENCES course_outlines(id) ON DELETE CASCADE,
+  CONSTRAINT fk_oc_clo     FOREIGN KEY (clo_id)     REFERENCES clos(id)            ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='CLO mà chương góp phần đạt được';
+
+
 -- =====================================================================
 -- D. KẾ HOẠCH ĐO LƯỜNG
 -- =====================================================================
@@ -226,7 +332,7 @@ CREATE TABLE clo_assessment_plans (
   assessments_text    VARCHAR(255) NULL     COMMENT 'Các bài KT có CĐR xuất hiện, VD Quiz 1, 2',
   evidence_type       VARCHAR(10)  NOT NULL DEFAULT 'final' COMMENT 'Bài KT lấy minh chứng: process | final | any',
   method              VARCHAR(100) NOT NULL DEFAULT 'Bài KT trắc nghiệm' COMMENT 'Phương pháp KT-ĐG',
-  cycle               VARCHAR(30)  NOT NULL DEFAULT '1 lần/HK',
+  cycle               VARCHAR(30)  NOT NULL DEFAULT '1 lần/HK' COMMENT 'Chu kỳ lấy minh chứng (VD 1 lần/HK)',
   pass_threshold_pct  DECIMAL(5,2) NOT NULL DEFAULT 60.00 COMMENT 'SV đạt khi ≥ x% điểm tối đa các câu của CLO (BM6c)',
   target_pct          DECIMAL(5,2) NOT NULL DEFAULT 70.00 COMMENT 'Chỉ tiêu mong muốn: % SV đạt',
   CONSTRAINT fk_cap_clo      FOREIGN KEY (clo_id)      REFERENCES clos(id)      ON DELETE CASCADE,
@@ -243,7 +349,7 @@ CREATE TABLE pi_assessment_plans (
   course_id    INT          NOT NULL COMMENT 'Môn học sẽ lấy minh chứng',
   semester_id  INT          NOT NULL COMMENT 'Thời gian lấy minh chứng',
   method       VARCHAR(150) NOT NULL COMMENT 'Phương pháp kiểm tra, đánh giá',
-  cycle        VARCHAR(30)  NOT NULL DEFAULT '2 năm/lần',
+  cycle        VARCHAR(30)  NOT NULL DEFAULT '2 năm/lần' COMMENT 'Chu kỳ lấy minh chứng',
   target_pct   DECIMAL(5,2) NOT NULL DEFAULT 75.00 COMMENT 'Chỉ tiêu mong muốn',
   lecturer_id  INT          NULL COMMENT 'GV phụ trách',
   CONSTRAINT fk_pap_pi       FOREIGN KEY (pi_id)       REFERENCES performance_indicators(id) ON DELETE CASCADE,
@@ -297,8 +403,8 @@ CREATE TABLE class_sections (
 CREATE TABLE enrollments (
   class_section_id  INT         NOT NULL,
   student_id        INT         NOT NULL,
-  status            VARCHAR(10) NOT NULL DEFAULT 'active',
-  enrolled_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status            VARCHAR(10) NOT NULL DEFAULT 'active' COMMENT 'active = đang học, dropped = đã rút',
+  enrolled_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Thời điểm ghi danh',
   PRIMARY KEY (class_section_id, student_id),
   CONSTRAINT fk_enr_cs      FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
   CONSTRAINT fk_enr_student FOREIGN KEY (student_id)       REFERENCES students(id)       ON DELETE CASCADE,
@@ -311,19 +417,19 @@ CREATE TABLE question_bank (
   course_id           INT          NOT NULL,
   outline_id          INT          NULL COMMENT 'Chương chứa kiến thức',
   bloom_level_id      TINYINT      NULL COMMENT 'NULL = chưa gán (câu nhập hàng loạt)',
-  question_type       VARCHAR(30)  NOT NULL DEFAULT 'multichoice',
-  content             TEXT         NOT NULL,
+  question_type       VARCHAR(30)  NOT NULL DEFAULT 'multichoice' COMMENT 'multichoice = trắc nghiệm một đáp án; manual = câu/ý chấm tay, nhập điểm',
+  content             TEXT         NOT NULL COMMENT 'Nội dung câu hỏi',
   moodle_question_id  BIGINT       NULL COMMENT 'mdl_question.id (phiên bản mới nhất)',
-  is_cancelled        BOOLEAN      NOT NULL DEFAULT FALSE,
-  cancel_reason       VARCHAR(255) NULL,
-  created_by          INT          NULL,
+  is_cancelled        BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = câu đã Hủy, không tính điểm',
+  cancel_reason       VARCHAR(255) NULL COMMENT 'Lý do hủy câu',
+  created_by          INT          NULL COMMENT 'Người tạo câu hỏi',
   created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_qb_course  FOREIGN KEY (course_id)      REFERENCES courses(id)         ON DELETE RESTRICT,
   CONSTRAINT fk_qb_outline FOREIGN KEY (outline_id)     REFERENCES course_outlines(id) ON DELETE SET NULL,
   CONSTRAINT fk_qb_bloom   FOREIGN KEY (bloom_level_id) REFERENCES bloom_levels(id)    ON DELETE RESTRICT,
   CONSTRAINT fk_qb_creator FOREIGN KEY (created_by)     REFERENCES users(id)           ON DELETE SET NULL,
-  CONSTRAINT ck_qb_type CHECK (question_type IN ('multichoice'))
+  CONSTRAINT ck_qb_type CHECK (question_type IN ('multichoice','manual'))
 ) ENGINE=InnoDB COMMENT='Ngân hàng câu hỏi (idnumber Moodle = QB-{id})';
 CREATE INDEX ix_qb_course_active ON question_bank (course_id, is_cancelled);
 CREATE INDEX ix_qb_moodle ON question_bank (moodle_question_id);
@@ -333,10 +439,10 @@ CREATE TABLE question_options (
   question_id       INT      NOT NULL,
   position          TINYINT  NOT NULL COMMENT 'Thứ tự gốc 1..n (= thứ tự <answer> trong XML)',
   opt_label         CHAR(1)  NOT NULL COMMENT 'A, B, C, D ...',
-  content           TEXT     NOT NULL,
-  is_correct        BOOLEAN  NOT NULL DEFAULT FALSE,
+  content           TEXT     NOT NULL COMMENT 'Nội dung phương án',
+  is_correct        BOOLEAN  NOT NULL DEFAULT FALSE COMMENT '1 = đáp án đúng',
   moodle_answer_id  BIGINT   NULL COMMENT 'mdl_question_answers.id',
-  correct_key       INT GENERATED ALWAYS AS (CASE WHEN is_correct THEN question_id END) VIRTUAL,
+  correct_key       INT GENERATED ALWAYS AS (CASE WHEN is_correct THEN question_id END) VIRTUAL COMMENT 'Cột sinh: chỉ bằng question_id khi là đáp án đúng (bảo đảm một đáp án)',
   CONSTRAINT fk_opt_question FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE CASCADE,
   CONSTRAINT uq_opt_position    UNIQUE (question_id, position),
   CONSTRAINT uq_opt_label       UNIQUE (question_id, opt_label),
@@ -355,31 +461,52 @@ CREATE TABLE question_clo_mapping (
   CONSTRAINT ck_qcm_weight CHECK (weight > 0 AND weight <= 1)
 ) ENGINE=InnoDB COMMENT='Câu hỏi đo CLO nào (ma trận đề thi)';
 
+-- Đồng bộ câu hỏi hai chiều (góp ý F3): mỗi câu có thể nằm trong ngân hàng câu hỏi của nhiều khóa học Moodle (nhiều lớp HP).
+-- sync_hash = dấu vân tay nội dung + phương án lúc hai bên giống nhau lần cuối → biết bên nào đã sửa (hoặc cả hai = xung đột).
+CREATE TABLE question_moodle_links (
+  question_id         INT       NOT NULL,
+  moodle_course_id    BIGINT    NOT NULL COMMENT 'mdl_course.id',
+  moodle_question_id  BIGINT    NOT NULL COMMENT 'mdl_question.id của phiên bản đã đồng bộ',
+  sync_hash           CHAR(64)  NOT NULL COMMENT 'SHA-256 nội dung + phương án lúc hai bên giống nhau lần cuối',
+  synced_at           DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (question_id, moodle_course_id),
+  CONSTRAINT fk_qml_question FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Trạng thái đồng bộ của câu hỏi với ngân hàng câu hỏi của từng khóa học Moodle';
+
 -- =====================================================================
 -- F. ĐỀ THI
 -- =====================================================================
 CREATE TABLE exams (
   id                INT AUTO_INCREMENT PRIMARY KEY,
-  class_section_id  INT          NOT NULL,
-  exam_title        VARCHAR(255) NOT NULL,
+  class_section_id  INT          NULL COMMENT 'Lớp HP của bài KT; NULL = đề của môn chưa giao lớp (course_id)',
+  course_id         INT          NULL COMMENT 'Đề của môn (tạo ở trang môn học): môn học; giao cho lớp HP khi xuất',
+  exam_title        VARCHAR(255) NOT NULL COMMENT 'Tên bài kiểm tra',
   assessment_type   VARCHAR(10)  NOT NULL DEFAULT 'final' COMMENT 'process = Quá trình | final = Cuối kỳ',
-  exam_type         VARCHAR(10)  NOT NULL DEFAULT 'online' COMMENT 'online (Moodle) | paper (giấy)',
-  exam_date         DATE         NULL,
-  duration_minutes  SMALLINT     NULL,
+  exam_type         VARCHAR(10)  NOT NULL DEFAULT 'online' COMMENT 'online (Moodle) | paper (giấy, trắc nghiệm) | manual (nhập điểm từng câu/ý)',
+  exam_date         DATE         NULL COMMENT 'Ngày kiểm tra',
+  duration_minutes  SMALLINT     NULL COMMENT 'Thời gian làm bài (phút)',
   max_score         DECIMAL(5,2) NOT NULL DEFAULT 10.00 COMMENT 'Thang điểm bài thi',
   moodle_quiz_id    BIGINT       NULL COMMENT 'mdl_quiz.id',
   moodle_offlinequiz_id BIGINT   NULL COMMENT 'mdl_offlinequiz.id (bài thi giấy chấm trên Moodle)',
-  status            VARCHAR(20)  NOT NULL DEFAULT 'Draft',
-  publish_flag      BOOLEAN      NOT NULL DEFAULT FALSE,
-  last_synced_at    DATETIME     NULL,
-  created_by        INT          NULL,
+  status            VARCHAR(20)  NOT NULL DEFAULT 'Draft' COMMENT 'Draft → Published → Synced → Analyzed',
+  publish_flag      BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = SV đã xem được kết quả trên Moodle',
+  last_synced_at    DATETIME     NULL COMMENT 'Lần đồng bộ Moodle gần nhất',
+  counts_for_clo    BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)',
+  parent_exam_id    INT          NULL COMMENT 'Bài phụ đạo: bài KT gốc',
+  target_students   TEXT         NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)',
+  paper_settings    TEXT         NULL COMMENT 'Bài giấy chấm trên hệ thống: JSON tùy chọn in đề và bố cục phiếu (phiếu quét được đọc theo đúng bố cục đã in)',
+  source_exam_id    INT          NULL COMMENT 'Bài được giao/sao từ đề này (đề của môn hoặc bài của lớp khác)',
+  created_by        INT          NULL COMMENT 'Người tạo bài KT',
   created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_exam_cs      FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE RESTRICT,
   CONSTRAINT fk_exam_creator FOREIGN KEY (created_by)       REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT fk_exam_parent  FOREIGN KEY (parent_exam_id)   REFERENCES exams(id)          ON DELETE SET NULL,
+  CONSTRAINT fk_exam_course  FOREIGN KEY (course_id)        REFERENCES courses(id)        ON DELETE RESTRICT,
+  CONSTRAINT fk_exam_source  FOREIGN KEY (source_exam_id)   REFERENCES exams(id)          ON DELETE SET NULL,
   CONSTRAINT uq_exam_moodle_quiz UNIQUE (moodle_quiz_id),
   CONSTRAINT uq_exam_moodle_oq UNIQUE (moodle_offlinequiz_id),
   CONSTRAINT ck_exam_assess   CHECK (assessment_type IN ('process','final')),
-  CONSTRAINT ck_exam_type     CHECK (exam_type IN ('online','paper')),
+  CONSTRAINT ck_exam_type     CHECK (exam_type IN ('online','paper','manual')),
   CONSTRAINT ck_exam_status   CHECK (status IN ('Draft','Published','Synced','Analyzed')),
   CONSTRAINT ck_exam_duration CHECK (duration_minutes IS NULL OR duration_minutes > 0),
   CONSTRAINT ck_exam_online   CHECK (exam_type = 'online' OR moodle_quiz_id IS NULL),
@@ -389,8 +516,8 @@ CREATE TABLE exams (
 CREATE TABLE exam_questions (
   exam_id      INT          NOT NULL,
   question_id  INT          NOT NULL,
-  order_index  SMALLINT     NOT NULL,
-  points       DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+  order_index  SMALLINT     NOT NULL COMMENT 'Thứ tự câu trong đề gốc',
+  points       DECIMAL(5,2) NOT NULL DEFAULT 1.00 COMMENT 'Điểm của câu',
   PRIMARY KEY (exam_id, question_id),
   CONSTRAINT fk_eq_exam     FOREIGN KEY (exam_id)     REFERENCES exams(id)         ON DELETE CASCADE,
   CONSTRAINT fk_eq_question FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE RESTRICT,
@@ -437,17 +564,20 @@ CREATE TABLE exam_attempts (
   student_id         INT          NOT NULL,
   version_id         INT          NULL COMMENT 'Mã đề = nhóm đề Offline Quiz (bài giấy)',
   moodle_attempt_id  BIGINT       NULL COMMENT 'mdl_quiz_attempts.id (online) / mdl_offlinequiz_results.id (giấy)',
-  source             VARCHAR(10)  NOT NULL DEFAULT 'moodle',
-  started_at         DATETIME     NULL,
-  finished_at        DATETIME     NULL,
-  status             VARCHAR(20)  NOT NULL,
+  source             VARCHAR(10)  NOT NULL DEFAULT 'moodle' COMMENT 'moodle (Quiz) | paper (Offline Quiz) | scan (hệ thống chấm phiếu quét) | manual (nhập điểm)',
+  started_at         DATETIME     NULL COMMENT 'Bắt đầu làm bài',
+  finished_at        DATETIME     NULL COMMENT 'Nộp bài',
+  status             VARCHAR(20)  NOT NULL COMMENT 'finished = có làm bài, absent = vắng',
   total_score        DECIMAL(6,2) NOT NULL DEFAULT 0.00 COMMENT 'Tổng điểm thô (Σ points)',
+  time_limit_sec     INT          NULL COMMENT 'Giới hạn thời gian của Quiz khi làm bài (giây; NULL = không giới hạn)',
+  last_answer_at     DATETIME     NULL COMMENT 'Lần cuối SV chọn/đổi một đáp án (từ các bước question engine của Moodle)',
+  finished_by_timeout BOOLEAN     NULL COMMENT '1 = bài được nộp khi hết giờ (Moodle tự nộp), không do SV bấm nộp',
   CONSTRAINT fk_att_exam    FOREIGN KEY (exam_id)    REFERENCES exams(id)         ON DELETE CASCADE,
   CONSTRAINT fk_att_student FOREIGN KEY (student_id) REFERENCES students(id)      ON DELETE RESTRICT,
   CONSTRAINT fk_att_version FOREIGN KEY (version_id) REFERENCES exam_versions(id) ON DELETE RESTRICT,
   CONSTRAINT uq_att_exam_student UNIQUE (exam_id, student_id),
   CONSTRAINT uq_att_moodle UNIQUE (exam_id, moodle_attempt_id),
-  CONSTRAINT ck_att_source CHECK (source IN ('moodle','paper')),
+  CONSTRAINT ck_att_source CHECK (source IN ('moodle','paper','scan','manual')),
   CONSTRAINT ck_att_status CHECK (status IN ('finished','absent')),
   CONSTRAINT ck_att_score  CHECK (total_score >= 0),
   CONSTRAINT ck_att_absent CHECK (status <> 'absent' OR (started_at IS NULL AND total_score = 0))
@@ -458,17 +588,22 @@ CREATE TABLE item_level_results (
   attempt_id          INT          NOT NULL,
   question_id         INT          NOT NULL,
   selected_option_id  INT          NULL COMMENT 'Phương án GỐC sau Reverse Shuffle',
-  response_status     VARCHAR(20)  NOT NULL COMMENT 'answered | blank | absent',
-  is_correct          BOOLEAN      NOT NULL DEFAULT FALSE,
-  score_earned        DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  response_status     VARCHAR(20)  NOT NULL COMMENT 'answered | blank | absent | graded (điểm nhập tay)',
+  is_correct          BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = trả lời đúng',
+  score_earned        DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT 'Điểm đạt của câu',
+  first_answer_at     DATETIME     NULL COMMENT 'Lần đầu SV chọn đáp án câu này (bài trên Moodle Quiz)',
+  last_answer_at      DATETIME     NULL COMMENT 'Lần cuối SV chọn/đổi đáp án câu này',
+  n_answer_saves      SMALLINT     NULL COMMENT 'Số lần lưu đáp án của câu (> 1 = có đổi đáp án)',
+  response_time_sec   DECIMAL(8,1) NULL COMMENT 'Thời gian trả lời câu (giây) = khoảng cách tới lần chọn đáp án liền trước trong lượt làm',
   CONSTRAINT fk_ilr_attempt  FOREIGN KEY (attempt_id)         REFERENCES exam_attempts(id)    ON DELETE CASCADE,
   CONSTRAINT fk_ilr_question FOREIGN KEY (question_id)        REFERENCES question_bank(id)    ON DELETE RESTRICT,
   CONSTRAINT fk_ilr_option   FOREIGN KEY (selected_option_id) REFERENCES question_options(id) ON DELETE RESTRICT,
   CONSTRAINT uq_ilr UNIQUE (attempt_id, question_id),
-  CONSTRAINT ck_ilr_status CHECK (response_status IN ('answered','blank','absent')),
+  CONSTRAINT ck_ilr_status CHECK (response_status IN ('answered','blank','absent','graded')),
   CONSTRAINT ck_ilr_consistency CHECK (
         (response_status =  'answered' AND selected_option_id IS NOT NULL)
-     OR (response_status <> 'answered' AND selected_option_id IS NULL
+     OR (response_status =  'graded'   AND selected_option_id IS NULL AND score_earned >= 0)
+     OR (response_status IN ('blank','absent') AND selected_option_id IS NULL
          AND is_correct = FALSE AND score_earned = 0))
 ) ENGINE=InnoDB COMMENT='Kết quả từng câu';
 CREATE INDEX ix_ilr_question ON item_level_results (question_id);
@@ -492,7 +627,7 @@ CREATE TABLE attempt_clo_results (
   clo_id        INT          NOT NULL,
   score_earned  DECIMAL(6,2) NOT NULL COMMENT 'Điểm các câu thuộc CLO',
   score_max     DECIMAL(6,2) NOT NULL COMMENT 'Điểm tối đa các câu thuộc CLO',
-  score_pct     DECIMAL(5,2) NOT NULL,
+  score_pct     DECIMAL(5,2) NOT NULL COMMENT 'Tỷ lệ % = score_earned / score_max',
   is_achieved   BOOLEAN      NOT NULL COMMENT 'score_pct ≥ pass_threshold_pct',
   PRIMARY KEY (attempt_id, clo_id),
   CONSTRAINT fk_acr_attempt FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE CASCADE,
@@ -506,9 +641,9 @@ CREATE TABLE clo_results (
   clo_id            INT          NOT NULL,
   n_evaluated       INT          NOT NULL COMMENT 'Tổng số SV đánh giá (cộng dồn các bài KT)',
   n_achieved        INT          NOT NULL COMMENT 'Tổng số SV đạt yêu cầu',
-  achieved_pct      DECIMAL(5,2) NOT NULL,
-  target_pct        DECIMAL(5,2) NOT NULL,
-  is_achieved       BOOLEAN      NOT NULL,
+  achieved_pct      DECIMAL(5,2) NOT NULL COMMENT 'Tỷ lệ % SV đạt = n_achieved / n_evaluated',
+  target_pct        DECIMAL(5,2) NOT NULL COMMENT 'Chỉ tiêu % SV đạt của CLO',
+  is_achieved       BOOLEAN      NOT NULL COMMENT '1 = CLO đạt (achieved_pct ≥ target_pct)',
   analysis          TEXT         NULL COMMENT 'Đánh giá kết quả số liệu tổng hợp',
   improvement       TEXT         NULL COMMENT 'Những hành động cải tiến',
   computed_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -520,11 +655,11 @@ CREATE TABLE clo_results (
 
 CREATE TABLE pi_results (
   plan_id       INT          NOT NULL,
-  n_evaluated   INT          NOT NULL,
-  n_achieved    INT          NOT NULL,
-  achieved_pct  DECIMAL(5,2) NOT NULL,
-  target_pct    DECIMAL(5,2) NOT NULL,
-  is_achieved   BOOLEAN      NOT NULL,
+  n_evaluated   INT          NOT NULL COMMENT 'Số lượt SV được đánh giá',
+  n_achieved    INT          NOT NULL COMMENT 'Số lượt SV đạt',
+  achieved_pct  DECIMAL(5,2) NOT NULL COMMENT 'Tỷ lệ % đạt',
+  target_pct    DECIMAL(5,2) NOT NULL COMMENT 'Chỉ tiêu % của PI',
+  is_achieved   BOOLEAN      NOT NULL COMMENT '1 = PI đạt',
   computed_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (plan_id),
   CONSTRAINT fk_pr_plan FOREIGN KEY (plan_id) REFERENCES pi_assessment_plans(id) ON DELETE CASCADE,
@@ -533,12 +668,12 @@ CREATE TABLE pi_results (
 
 CREATE TABLE plo_results (
   plo_id                INT          NOT NULL,
-  academic_year         VARCHAR(9)   NOT NULL,
-  n_evaluated           INT          NOT NULL,
-  n_achieved            INT          NOT NULL,
-  achieved_pct          DECIMAL(5,2) NOT NULL,
-  target_pct            DECIMAL(5,2) NOT NULL,
-  is_achieved           BOOLEAN      NOT NULL,
+  academic_year         VARCHAR(9)   NOT NULL COMMENT 'Năm học đo (VD 2024-2025)',
+  n_evaluated           INT          NOT NULL COMMENT 'Số lượt SV được đánh giá (Σ các PI)',
+  n_achieved            INT          NOT NULL COMMENT 'Số lượt SV đạt (Σ các PI)',
+  achieved_pct          DECIMAL(5,2) NOT NULL COMMENT 'Tỷ lệ % đạt',
+  target_pct            DECIMAL(5,2) NOT NULL COMMENT 'Chỉ tiêu % của PLO',
+  is_achieved           BOOLEAN      NOT NULL COMMENT '1 = PLO đạt',
   data_summary          TEXT         NULL COMMENT 'Tổng hợp dữ liệu đã đánh giá',
   analysis              TEXT         NULL COMMENT 'Đánh giá kết quả số liệu tổng hợp',
   improvement_actions   TEXT         NULL COMMENT 'Những hành động cải tiến',
@@ -553,9 +688,9 @@ CREATE TABLE plo_results (
 CREATE TABLE personalized_learning_paths (
   id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
   attempt_id              INT      NOT NULL,
-  generated_date          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  diagnostic_summary      TEXT     NULL,
-  recommended_study_plan  TEXT     NULL,
+  generated_date          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Thời điểm sinh lộ trình',
+  diagnostic_summary      TEXT     NULL COMMENT 'Nhận định mức đạt CLO của SV',
+  recommended_study_plan  TEXT     NULL COMMENT 'Kế hoạch ôn tập đề xuất',
   CONSTRAINT fk_plp_attempt FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE CASCADE,
   CONSTRAINT uq_plp_attempt UNIQUE (attempt_id)
 ) ENGINE=InnoDB COMMENT='Lộ trình học tập cá nhân';
@@ -577,29 +712,29 @@ CREATE TABLE learning_path_items (
 CREATE TABLE sync_runs (
   id           BIGINT AUTO_INCREMENT PRIMARY KEY,
   exam_id      INT         NOT NULL,
-  kind         VARCHAR(10) NOT NULL DEFAULT 'moodle' COMMENT 'moodle | paper | analyze',
-  started_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  finished_at  DATETIME    NULL,
-  status       VARCHAR(20) NOT NULL DEFAULT 'running',
-  n_attempts   INT         NULL,
-  n_absent     INT         NULL,
-  message      TEXT        NULL,
+  kind         VARCHAR(10) NOT NULL DEFAULT 'moodle' COMMENT 'moodle | paper | scan | manual | analyze',
+  started_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Bắt đầu đồng bộ/phân tích',
+  finished_at  DATETIME    NULL COMMENT 'Kết thúc',
+  status       VARCHAR(20) NOT NULL DEFAULT 'running' COMMENT 'running, success hoặc failed',
+  n_attempts   INT         NULL COMMENT 'Số bài làm đọc được',
+  n_absent     INT         NULL COMMENT 'Số SV vắng',
+  message      TEXT        NULL COMMENT 'Thông báo lỗi/cảnh báo',
   CONSTRAINT fk_sync_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
-  CONSTRAINT ck_sync_kind   CHECK (kind IN ('moodle','paper','analyze')),
+  CONSTRAINT ck_sync_kind   CHECK (kind IN ('moodle','paper','scan','manual','analyze')),
   CONSTRAINT ck_sync_status CHECK (status IN ('running','success','failed'))
 ) ENGINE=InnoDB COMMENT='Nhật ký đồng bộ / nhập kết quả / phân tích';
 
 -- =====================================================================
 -- VIEW
 -- =====================================================================
--- Câu hỏi vi phạm ràng buộc nhiều dòng (tổng trọng số CLO ≠ 1; không đúng 1 đáp án đúng; < 2 phương án)
+-- Câu hỏi vi phạm ràng buộc nhiều dòng (tổng trọng số CLO ≠ 1; câu trắc nghiệm không đúng 1 đáp án đúng hoặc < 2 phương án)
 CREATE OR REPLACE VIEW v_question_integrity AS
-SELECT q.id AS question_id,
+SELECT q.id AS question_id, q.question_type,
        (SELECT COALESCE(SUM(weight),0) FROM question_clo_mapping m WHERE m.question_id = q.id) AS total_weight,
        (SELECT COUNT(*) FROM question_options o WHERE o.question_id = q.id)                   AS n_options,
        (SELECT COUNT(*) FROM question_options o WHERE o.question_id = q.id AND o.is_correct)   AS n_correct
 FROM question_bank q
-HAVING total_weight <> 1.00 OR n_options < 2 OR n_correct <> 1;
+HAVING total_weight <> 1.00 OR (question_type = 'multichoice' AND (n_options < 2 OR n_correct <> 1));
 
 -- Ma trận CLO – PLO của một môn
 CREATE OR REPLACE VIEW v_clo_plo_matrix AS

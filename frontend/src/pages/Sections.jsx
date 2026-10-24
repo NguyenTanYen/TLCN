@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
 import { ActionButton, Card, Field, Loading, Modal } from '../components/ui'
@@ -8,7 +9,8 @@ export default function Sections() {
   const { data, error, loading, reload } = useApi('/api/class-sections')
   return (
     <>
-      <div className="page-h"><div><h1>Lớp học phần</h1><p className="muted">Các lớp học phần bạn phụ trách – chọn lớp để quản lý bài kiểm tra và xem kết quả đo lường CĐR.</p></div></div>
+      <div className="page-h"><div><h1>Lớp học phần</h1><p className="muted">Các lớp học phần bạn phụ trách. Chọn lớp để tạo bài kiểm tra và xem kết quả chuẩn đầu ra.</p></div></div>
+      <PageHelp id="sections"><p>Mỗi thẻ là một lớp học phần (một môn trong một học kỳ). Bấm <b>Mở lớp</b> để tạo bài kiểm tra, xem điểm và kết quả chuẩn đầu ra của lớp.</p></PageHelp>
       <Loading error={error} loading={loading} />
       <MoodleCourses onImported={reload} />
       <div className="grid3">
@@ -17,12 +19,12 @@ export default function Sections() {
             <div className="big">{cs.course_name}</div>
             <div className="muted">{cs.course_code} · {cs.semester} · GV {cs.lecturer}</div>
             <div className="row gap mt">
-              <span className="pill">{cs.n_students} SV</span><span className="pill">{cs.n_exams} bài KT</span>
+              <span className="pill">{cs.n_students} SV</span><span className="pill">{cs.n_exams} bài kiểm tra</span>
               {cs.moodle_course_id && <span className="pill blue">Moodle course #{cs.moodle_course_id}</span>}
             </div>
             <div className="row gap mt">
               <Link className="btn primary" to={`/sections/${cs.id}`}>Bài kiểm tra</Link>
-              <Link className="btn" to={`/sections/${cs.id}/clo`}>Kết quả CĐR (BM6)</Link>
+              <Link className="btn" to={`/sections/${cs.id}/clo`}>Kết quả chuẩn đầu ra của lớp (BM6)</Link>
             </div>
           </Card>
         ))}
@@ -33,7 +35,7 @@ export default function Sections() {
 }
 
 // Khóa học trên Moodle (GV là giảng viên của khóa) chưa có lớp HP trong hệ thống → đưa vào bằng một thao tác.
-function MoodleCourses({ onImported }) {
+export function MoodleCourses({ onImported }) {
   const isAdmin = auth.user()?.role === 'admin'
   const mc = useApi('/api/moodle/my-courses')
   const [sp, setSp] = useSearchParams()
@@ -73,13 +75,13 @@ function ImportForm({ c, isAdmin, onClose, onDone }) {
     const sem = f.semester_id === 'new' ? { semester_id: null, new_semester: { academic_year: s.new_semester.academic_year, term: s.new_semester.term } } : { semester_id: Number(f.semester_id) }
     const r = await api.post(`/api/moodle/courses/${c.moodle_course_id}/import`, { course_id, ...sem,
       section_code: f.section_code, lecturer_id: isAdmin ? Number(f.lecturer_id) : null })
-    onDone(); nav(`/courses?course=${course_id}`)
+    onDone(); nav(`/courses/${course_id}`)
     return r
   }
   const noCourse = !s.course_id && !f.course_id
   return <Modal title={`Đưa khóa học Moodle "${c.shortname}" vào hệ thống`} onClose={onClose}>
     <p className="muted small">{c.fullname} · {c.n_students} SV đang ghi danh sẽ được đưa vào danh sách lớp.</p>
-    {!nw && <Field label="Môn học" hint={noCourse ? 'Không tìm thấy môn có mã trùng tên khóa học – chọn môn, hoặc ' + (isAdmin ? 'tạo môn mới.' : 'nhờ Bộ môn thêm môn học (Học phần & CLO → + Môn học mới).') : undefined}>
+    {!nw && <Field label="Môn học" hint={noCourse ? 'Không tìm thấy môn có mã trùng tên khóa học – chọn môn, hoặc ' + (isAdmin ? 'tạo môn mới.' : 'nhờ Bộ môn thêm môn học (menu Học phần → + Học phần mới).') : undefined}>
       <select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value })}><option value="">— chọn môn học —</option>
         {courses.data?.map(x => <option key={x.id} value={x.id}>{x.course_code} – {x.course_name}</option>)}</select></Field>}
     {isAdmin && !nw && <button type="button" className="btn sm ghost" onClick={() => setNw({ course_code: (c.shortname || '').split(/[_\s-]/)[0], course_name: (c.fullname || '').split(' – ')[0], credits: 3 })}>+ Môn học mới</button>}

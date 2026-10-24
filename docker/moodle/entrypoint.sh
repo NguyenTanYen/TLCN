@@ -12,4 +12,8 @@ if [ ! -f config.php ]; then
     --fullname='HCMUTE Moodle (demo)' --shortname=ute --adminuser=admin --adminpass='$MOODLE_ADMIN_PASS' \
     --adminemail=admin@example.com" || { echo "Cài Moodle thất bại"; exit 1; }
 fi
+# Sau reverse proxy HTTPS (Nginx): Moodle cần biết để không chuyển hướng lặp
+if [ -f config.php ] && echo "$MOODLE_URL" | grep -q '^https' && ! grep -q sslproxy config.php; then
+  sed -i "s#require_once(__DIR__ . '/lib/setup.php');#\$CFG->sslproxy = true;\nrequire_once(__DIR__ . '/lib/setup.php');#" config.php
+fi
 exec "$@"

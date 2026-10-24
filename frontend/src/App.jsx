@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { auth } from './api'
 import Login from './pages/Login'
 import Sections from './pages/Sections'
@@ -7,20 +7,25 @@ import SectionDetail from './pages/SectionDetail'
 import QuestionBank from './pages/QuestionBank'
 import ExamDetail from './pages/ExamDetail'
 import CloResults from './pages/CloResults'
-import Program from './pages/Program'
 import PiPlans from './pages/PiPlans'
 import PloSummary from './pages/PloSummary'
 import SystemPage from './pages/SystemPage'
 import ClassStats from './pages/ClassStats'
 import StudentProfile from './pages/StudentProfile'
-import Courses from './pages/Courses'
+import MyCourses from './pages/MyCourses'
+import CourseHome from './pages/CourseHome'
+import CourseList from './pages/CourseList'
+import { ProgramDetail, ProgramList } from './pages/Programs'
+import Remedial from './pages/Remedial'
+import Guide from './components/Help'
 
+// Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
 const MENUS = {
-  lecturer: [['/', 'Lớp học phần'], ['/courses', 'Học phần & CLO'], ['/questions', 'Ngân hàng câu hỏi']],
-  admin: [['/', 'Lớp học phần'], ['/courses', 'Học phần & CLO'], ['/questions', 'Ngân hàng câu hỏi'], ['/program', 'CTĐT – PLO/PI'], ['/pi-plans', 'Kế hoạch đo PI (BM3b)'],
-    ['/plo-summary', 'Tổng hợp PLO (BM2/BM3c)'], ['/system', 'Kết nối Moodle']],
+  lecturer: [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi'], ['/programs', 'Chương trình đào tạo'], ['/huong-dan', 'Hướng dẫn sử dụng']],
+  admin: [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần'], ['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi'],
+    ['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)'], ['/system', 'Kết nối Moodle'], ['/huong-dan', 'Hướng dẫn sử dụng']],
 }
-const ROLE_VI = { admin: 'Quản trị / Bộ môn', lecturer: 'Giảng viên' }
+const ROLE_VI = { admin: 'Bộ môn / Quản trị', lecturer: 'Giảng viên' }
 
 function useMoodleUrl() {
   const [url, setUrl] = useState('')
@@ -28,20 +33,49 @@ function useMoodleUrl() {
   return url
 }
 
+function UserMenu({ user, moodle }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+  const initials = (user.full_name || user.username).split(' ').filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase()
+  return <div className="usermenu" ref={ref}>
+    <button className="userchip" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+      <span className="avatar">{initials}</span>
+      <span className="uname"><b>{user.full_name}</b><small>{ROLE_VI[user.role]}</small></span>
+      <span aria-hidden="true">▾</span>
+    </button>
+    {open && <div className="menu-pop" role="menu">
+      <div className="menu-h"><b>{user.full_name}</b><small>{user.username} · {ROLE_VI[user.role]}</small></div>
+      {moodle && <a role="menuitem" href={moodle}>↗ Mở Moodle</a>}
+      <button role="menuitem" onClick={() => { auth.clear(); window.location.assign('/login') }}>Đăng xuất</button>
+    </div>}
+  </div>
+}
+
 function Shell({ user, children }) {
   const moodle = useMoodleUrl()
+  const loc = useLocation()
+  const active = ([to, , also]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
   return (
-    <div className="shell">
-      <aside className="side"><div className="side-in">
-        <div className="brand"><div className="logo">UTE</div><div><b>Khảo thí &amp; CĐR</b><small>Đo lường theo OBE</small></div></div>
-        <nav>{MENUS[user.role].map(([to, label]) => <NavLink key={to} to={to} end={to === '/'}>{label}</NavLink>)}</nav>
-        <div className="side-foot">
-          {moodle && <a className="btn ghost light block" href={moodle}>← Về Moodle</a>}
-          <div className="who"><b>{user.full_name}</b><small>{ROLE_VI[user.role]}</small></div>
-          <button className="btn ghost light" onClick={() => { auth.clear(); window.location.assign('/login') }}>Đăng xuất</button>
+    <div className="app">
+
+      <header className="topbar">
+        <div className="topbar-in">
+          <NavLink to="/" className="brand"><span className="logo">UTE</span><span><b>Đánh giá chuẩn đầu ra</b><small>Hỗ trợ giảng viên và Bộ môn</small></span></NavLink>
+          <nav className="mainnav" aria-label="Chức năng">
+            {MENUS[user.role].map(m => <NavLink key={m[0]} to={m[0]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}
+          </nav>
+          <div className="topbar-r">
+            <UserMenu user={user} moodle={moodle} />
+          </div>
         </div>
-      </div></aside>
+      </header>
       <main className="main">{children}</main>
+      <footer className="sitefoot"><div className="sitefoot-in"><span>Hệ thống đánh giá chuẩn đầu ra học phần · Khoa Công nghệ Thông tin, Trường Đại học Công nghệ Kỹ thuật TP.HCM</span><NavLink to="/huong-dan">Hướng dẫn sử dụng</NavLink></div></footer>
     </div>
   )
 }
@@ -53,17 +87,23 @@ export default function App() {
     auth.clear()
     return <Routes><Route path="*" element={<Login />} /></Routes>
   }
+  const admin = user.role === 'admin'
   return <Shell user={user}><Routes>
-    <Route path="/" element={<Sections />} />
+    <Route path="/" element={admin ? <Navigate to="/programs" replace /> : <MyCourses />} />
+    <Route path="/courses" element={admin ? <CourseList /> : <MyCourses />} />
+    <Route path="/courses/:id" element={<CourseHome />} />
+    <Route path="/programs" element={<ProgramList />} />
+    <Route path="/programs/:id" element={<ProgramDetail />} />
+    <Route path="/sections" element={<Sections />} />
     <Route path="/sections/:id" element={<SectionDetail />} />
     <Route path="/sections/:id/clo" element={<CloResults />} />
     <Route path="/sections/:id/stats" element={<ClassStats />} />
+    <Route path="/sections/:id/remedial" element={<Remedial />} />
     <Route path="/sections/:cs/students/:sid" element={<StudentProfile />} />
-    <Route path="/courses" element={<Courses />} />
     <Route path="/questions" element={<QuestionBank />} />
+    <Route path="/huong-dan" element={<Guide />} />
     <Route path="/exams/:id" element={<ExamDetail />} />
-    {user.role === 'admin' && <>
-      <Route path="/program" element={<Program />} />
+    {admin && <>
       <Route path="/pi-plans" element={<PiPlans />} />
       <Route path="/plo-summary" element={<PloSummary />} />
       <Route path="/system" element={<SystemPage />} />

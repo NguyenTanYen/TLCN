@@ -187,7 +187,7 @@ def _analyzed_exams(db: Session, cs_id: int, exam_id: int | None = None):
     return db.execute(text("""SELECT id, exam_title, assessment_type, max_score,
                                      (SELECT SUM(points) FROM exam_questions WHERE exam_id = e.id) AS raw_max
                               FROM exams e WHERE class_section_id = :cs AND status = 'Analyzed'"""
-                           + (" AND id = :e" if exam_id else "") + " ORDER BY id"), {"cs": cs_id, "e": exam_id}).mappings().all()
+                           + (" AND id = :e" if exam_id else " AND counts_for_clo = 1") + " ORDER BY id"), {"cs": cs_id, "e": exam_id}).mappings().all()
 
 
 def exam_label(e) -> str:

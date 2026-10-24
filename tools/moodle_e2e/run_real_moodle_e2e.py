@@ -38,10 +38,11 @@ def main():
     studs = db.execute(text("""SELECT s.student_code, s.full_name FROM enrollments e JOIN students s ON s.id=e.student_id
                                WHERE e.class_section_id=:cs ORDER BY s.student_code"""), {"cs": exam.class_section_id}).fetchall()
     theta, rng = cli._abilities(len(studs)), random.Random(99)
+    trng = random.Random(4242)
     meta = {c: (b, corr) for ch, bl, clo, c, opts, corr, b in D.Q}
     trap = D.Q[D.TRAP_QUESTION_INDEX][3]
     spec = {"course": {"shortname": "DBMS330284_01", "fullname": "Hệ quản trị cơ sở dữ liệu – DBMS330284_01"},
-            "quiz": {"name": exam.exam_title, "grade": float(exam.max_score)},
+            "quiz": {"name": exam.exam_title, "grade": float(exam.max_score), "timelimit": cli.QUIZ_TIME_LIMIT},
             "teacher": {"username": "gv.son", "firstname": "Sơn", "lastname": "Nguyễn Thành", "role": "editingteacher", "password": "Gv@123456"},
             "students": [], "attempts": []}
     for i, (code, name) in enumerate(studs):
@@ -56,7 +57,10 @@ def main():
                 q = eq.question
                 b, corr = meta[q.content]
                 ans[f"QB-{q.id}"] = cli._answer(rng, theta[i] - (0.4 if k < n_att else 0), b, len(q.options), corr, q.content == trap)
-            spec["attempts"].append({"username": code, "answers": ans})
+            # thời điểm chọn từng câu và nộp bài (2 SV chọn đại rồi nộp, 2 SV chọn xong để hết giờ – xem cli.timing_plan)
+            done = [qk for qk, v in ans.items() if v is not None]
+            offs, finish, _ = cli.timing_plan(trng, i, len(done), last_attempt=k == n_att)
+            spec["attempts"].append({"username": code, "answers": ans, "timing": {"offsets": dict(zip(done, offs)), "finish": finish}})
     (WORK / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=1), encoding="utf-8")
     php = os.getenv("PHP_BIN") or shutil.which("php8.3") or shutil.which("php") or r"D:\xampp\php\php.exe"
     out = subprocess.run([php,
@@ -199,7 +203,7 @@ def push_to_moodle(db, exam):
     MDL = f"{settings.moodle_db_name}.{settings.moodle_prefix}"
     with engine.connect() as c:
         row = c.execute(text(f"""SELECT e.published, COUNT(r.id), SUM(r.status='absent') FROM {MDL}local_clo_exam e
-                                 LEFT JOIN {MDL}local_clo_result r ON r.cloexamid=e.id WHERE e.examref=:x GROUP BY e.id"""),
+                                 LEFT JOIN {MDL}local_clo_result r ON r.cloexamid=e.id WHERE e.examref=:x GROUP BY e.id, e.published"""),
                         {"x": exam.id}).fetchone()
     report = {"da_gui": res["sent"], "moodle_da_luu": int(row[1]), "sv_vang": int(row[2] or 0), "cong_bo": bool(row[0]),
               "khong_tim_thay": res["notfound"], "thong_bao_da_gui": res["notified"]}

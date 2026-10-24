@@ -22,6 +22,7 @@ from ..http_utils import attachment
 from ..deps import check_moodle_course, check_section_access, get_exam_for, require
 from ..models import User
 from ..services import lms
+from . import remedial
 
 router = APIRouter(prefix="/api", tags=["Tích hợp Moodle (Web Service)"])
 
@@ -74,6 +75,7 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(require("adm
     if not course_id:
         raise HTTPException(422, "Hãy nhập mã khóa học Moodle (id) của lớp học phần")
     check_moodle_course(db, u, cs, course_id)
+    targets = remedial.target_moodle_users(db, e) if e.target_students else None   # bài phụ đạo: kiểm tra trước khi tạo Quiz
     try:
         res = lms.create_quiz(db, e, course_id)
     except lms.MoodleWSError as ex:
@@ -86,7 +88,27 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(require("adm
     if e.status == "Draft":
         e.status = "Published"
     db.commit()
+    if targets is not None:      # góp ý F5: chỉ các SV được giao thấy và làm được Quiz phụ đạo
+        try:
+            res["restricted"] = lms.restrict_users(course_id, res["quizid"], e.exam_title, targets, cmid=res["cmid"])
+        except lms.MoodleWSError as ex:
+            res["restrict_error"] = f"Đã tạo Quiz nhưng chưa giới hạn được SV: {ex} – bấm 'Giới hạn SV trên Moodle' để thử lại"
     return {**res, "quiz_url": f"{settings.moodle_url.rstrip('/')}/mod/quiz/view.php?id={res['cmid']}"}
+
+
+@router.post("/exams/{exam_id}/moodle/restrict")
+def restrict_quiz(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Bài phụ đạo đã có Quiz: (đồng bộ lại) nhóm Moodle gồm đúng các SV được giao và điều kiện truy cập của Quiz."""
+    e = get_exam_for(db, u, exam_id)
+    if not e.target_students:
+        raise HTTPException(422, "Chỉ bài ôn tập (có danh sách SV được giao) mới giới hạn SV")
+    if not e.moodle_quiz_id:
+        raise HTTPException(409, "Bài ôn tập chưa có Quiz trên Moodle")
+    targets = remedial.target_moodle_users(db, e)
+    try:
+        return lms.restrict_users(int(e.class_section.moodle_course_id), int(e.moodle_quiz_id), e.exam_title, targets)
+    except lms.MoodleWSError as ex:
+        raise HTTPException(502, str(ex))
 
 
 # ------------------------------------------------------------------ bài thi giấy (Offline Quiz)
@@ -109,6 +131,8 @@ def create_offlinequiz(exam_id: int, body: CreateOfflineQuizIn, u: User = Depend
     e = get_exam_for(db, u, exam_id)
     if e.exam_type != "paper":
         raise HTTPException(422, "Chỉ bài thi giấy mới tạo Offline Quiz")
+    if e.versions and not e.moodle_offlinequiz_id:
+        raise HTTPException(409, "Bài đã sinh mã đề để in và chấm trên hệ thống – xóa các mã đề đó trước nếu muốn dùng Moodle Offline Quiz")
     if not e.questions:
         raise HTTPException(422, "Vui lòng chọn ít nhất 1 câu hỏi")
     if e.moodle_offlinequiz_id:
@@ -203,7 +227,7 @@ def offlinequiz_zip(exam_id: int, u: User = Depends(require("admin", "lecturer")
 @router.get("/exams/{exam_id}/moodle/results-preview")
 def results_preview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
     get_exam_for(db, u, exam_id)
-    return lms.student_results(db, exam_id)
+    return [{**r, "data": lms.public_data(r["data"])} for r in lms.student_results(db, exam_id)]
 
 
 @router.post("/exams/{exam_id}/moodle/push-results")

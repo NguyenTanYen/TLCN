@@ -35,7 +35,7 @@ export function ImportQuestions({ course, onClose, onDone }) {
       {done ? <>
         <div className="alert green">Đã thêm <b>{done.created_ids.length}</b> câu hỏi vào ngân hàng (ID {done.created_ids[0]}–{done.created_ids[done.created_ids.length - 1]}).
           {done.summary.untagged > 0 && <> Trong đó <b>{done.summary.untagged}</b> câu chưa gán CLO/Bloom.</>}</div>
-        {done.summary.untagged > 0 && <p>Bước tiếp theo: tải file gán CLO cho các câu vừa nhập, điền cột <b>Chương, Bloom, CLO</b> rồi tải lên ở mục <b>Gán CLO/Bloom từ file</b>.</p>}
+        {done.summary.untagged > 0 && <p>Bước tiếp theo: tải file gán CLO cho các câu vừa nhập, điền cột <b>Chương, Bloom, CLO</b> rồi tải lên ở mục <b>Gán CLO, mức độ nhận thức từ file</b>.</p>}
         <div className="row gap wrap">
           {done.summary.untagged > 0 && <ActionButton className="btn primary" onRun={() => api.download(`/api/questions/tagging-template?course_id=${course.id}&ids=${done.created_ids.join(',')}`, 'gan_clo.xlsx')}>⬇ Tải file gán CLO cho {done.created_ids.length} câu vừa nhập</ActionButton>}
           <span className="grow" /><button className="btn" onClick={onClose}>Đóng</button>
@@ -113,14 +113,14 @@ export function TagFromFile({ course, untagged, onClose, onDone }) {
   const rows = (prev?.rows || []).filter(r => show === 'all' || r.status === show)
 
   return (
-    <Modal title="Gán CLO / mức Bloom / chương cho nhiều câu từ file Excel" onClose={onClose} wide>
+    <Modal title="Gán CLO / mức độ nhận thức / chương cho nhiều câu từ file Excel" onClose={onClose} wide>
       {done ? <>
         <div className="alert green">Đã cập nhật <b>{done.summary.update}</b> câu hỏi.
           {done.summary.untagged_left > 0 ? <> Còn <b>{done.summary.untagged_left}</b> câu chưa gán đủ CLO + Bloom.</> : <> Mọi câu hỏi của môn đã được gán đủ.</>}</div>
         <div className="row gap"><span className="grow" /><button className="btn primary" onClick={onClose}>Xong</button></div>
       </> : <>
         <ol className="steps">
-          <li>Tải file gán CLO (mỗi dòng 1 câu, có sẵn ID, nội dung, đáp án và giá trị hiện tại; sheet <i>HuongDan</i> liệt kê chương, mức Bloom, CLO của môn).
+          <li>Tải file gán CLO (mỗi dòng 1 câu, có sẵn ID, nội dung, đáp án và giá trị hiện tại; sheet <i>HuongDan</i> liệt kê chương, mức độ nhận thức, CLO của môn).
             <div className="row gap wrap mt">
               <ActionButton className="btn" disabled={!untagged} onRun={() => api.download(`/api/questions/tagging-template?course_id=${course.id}&only_untagged=true`, 'gan_clo.xlsx')}>⬇ Các câu chưa gán ({untagged})</ActionButton>
               <ActionButton className="btn" onRun={() => api.download(`/api/questions/tagging-template?course_id=${course.id}`, 'gan_clo.xlsx')}>⬇ Toàn bộ ngân hàng câu hỏi</ActionButton>

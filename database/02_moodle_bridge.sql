@@ -43,10 +43,11 @@ CREATE OR REPLACE VIEW v_mdl_attempts AS
 SELECT e.id AS exam_id, t.id AS moodle_attempt_id, t.userid AS mdl_user_id, t.uniqueid AS usage_id,
        FROM_UNIXTIME(t.timestart) AS started_at,
        FROM_UNIXTIME(NULLIF(t.timefinish, 0)) AS finished_at, t.grademethod,
-       CAST(NULL AS CHAR(2) CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS group_code
+       CAST(NULL AS CHAR(2) CHARACTER SET utf8mb4) COLLATE utf8mb4_unicode_ci AS group_code,
+       NULLIF(t.timelimit, 0) AS time_limit_sec
 FROM exams e
 JOIN (
-  SELECT qa.*, qz.grademethod,
+  SELECT qa.*, qz.grademethod, qz.timelimit,
          ROW_NUMBER() OVER (PARTITION BY qa.quiz, qa.userid ORDER BY
            CASE WHEN qz.grademethod = 1 THEN COALESCE(qa.sumgrades, 0) END DESC,   -- điểm cao nhất (hòa: lượt sớm hơn)
            CASE WHEN qz.grademethod IN (1, 3) THEN qa.attempt END ASC,            -- lượt đầu
@@ -61,11 +62,11 @@ UNION ALL
 -- Bài giấy: phiếu đã được Offline Quiz nhận diện và chấm xong (status = complete); SV quét lại nhiều lần -> lấy lần cuối.
 -- group_code = mã đề (nhóm A, B, C… của Offline Quiz).
 SELECT e.id, t.id, t.userid, t.usageid,
-       FROM_UNIXTIME(NULLIF(t.timestart, 0)), FROM_UNIXTIME(NULLIF(t.timefinish, 0)), NULL, t.group_code
+       FROM_UNIXTIME(NULLIF(t.timestart, 0)), FROM_UNIXTIME(NULLIF(t.timefinish, 0)), NULL, t.group_code, NULL
 FROM exams e
 JOIN (
   SELECT r.id, r.offlinequizid, r.userid, r.usageid, r.timestart, r.timefinish,
-         CHAR(64 + g.groupnumber USING utf8mb4) COLLATE utf8mb4_unicode_ci AS group_code,
+         SUBSTRING(_utf8mb4'ABCDEFGHIJKLMNOPQRSTUVWXYZ' COLLATE utf8mb4_unicode_ci, g.groupnumber, 1) AS group_code,
          ROW_NUMBER() OVER (PARTITION BY r.offlinequizid, r.userid ORDER BY r.timemodified DESC, r.id DESC) AS rn
   FROM moodle.mdl_offlinequiz_results r
   JOIN moodle.mdl_offlinequiz_groups g ON g.id = r.offlinegroupid
@@ -78,6 +79,8 @@ WHERE e.exam_type = 'paper'
 -- 3) Câu trả lời thô: _order (bước 0) + answer (bước cuối có answer; -1 = xóa lựa chọn)
 --    Viết bằng truy vấn con tương quan theo questionattemptid để dùng chỉ mục của Moodle
 --    (chỉ đọc các bước của những câu thuộc bài đang đồng bộ, không quét toàn bộ bảng step_data).
+--    Thời điểm trả lời: mỗi lần SV lưu đáp án (chuyển trang, tự lưu định kỳ, nộp bài) Moodle ghi một bước có dữ liệu 'answer'
+--    kèm timecreated – lần đầu / lần cuối / số lần lưu dùng để phát hiện làm bài quá nhanh hoặc để treo máy chờ hết giờ.
 CREATE OR REPLACE VIEW v_mdl_responses AS
 SELECT a.exam_id, a.moodle_attempt_id, a.mdl_user_id,
        qat.slot, qat.questionid AS mdl_question_id,
@@ -91,7 +94,19 @@ SELECT a.exam_id, a.moodle_attempt_id, a.mdl_user_id,
           JOIN moodle.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = 'answer'
          WHERE s.questionattemptid = qat.id
          ORDER BY s.sequencenumber DESC
-         LIMIT 1) AS answer_index
+         LIMIT 1) AS answer_index,
+       (SELECT FROM_UNIXTIME(MIN(s.timecreated))
+          FROM moodle.mdl_question_attempt_steps s
+          JOIN moodle.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = 'answer'
+         WHERE s.questionattemptid = qat.id AND s.timecreated > 0) AS first_answer_at,
+       (SELECT FROM_UNIXTIME(MAX(s.timecreated))
+          FROM moodle.mdl_question_attempt_steps s
+          JOIN moodle.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = 'answer'
+         WHERE s.questionattemptid = qat.id AND s.timecreated > 0) AS last_answer_at,
+       (SELECT COUNT(DISTINCT s.id)
+          FROM moodle.mdl_question_attempt_steps s
+          JOIN moodle.mdl_question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = 'answer'
+         WHERE s.questionattemptid = qat.id) AS n_answer_saves
 FROM v_mdl_attempts a
 JOIN moodle.mdl_question_attempts qat ON qat.questionusageid = a.usage_id
 -- bỏ khối "Mô tả" (description) – không phải câu hỏi, không có câu trả lời
@@ -102,7 +117,8 @@ CREATE OR REPLACE VIEW v_mdl_item_results AS
 SELECT r1.exam_id, r1.moodle_attempt_id, r1.mdl_user_id, r1.question_id,
        r1.selected_mdl_answer_id, o.id AS selected_option_id,
        CASE WHEN o.id IS NULL THEN 'blank' ELSE 'answered' END AS response_status,
-       COALESCE(o.is_correct, FALSE) AS is_correct
+       COALESCE(o.is_correct, FALSE) AS is_correct,
+       r1.first_answer_at, r1.last_answer_at, r1.n_answer_saves
 FROM (
   -- (b) id đáp án Moodle -> vị trí gốc = số đáp án có id nhỏ hơn + 1 (NULL nếu bỏ trống)
   SELECT r2.*,
@@ -244,8 +260,8 @@ BEGIN
   SELECT DISTINCT p_exam_id, a.group_code FROM v_mdl_attempts a WHERE a.exam_id = p_exam_id AND a.group_code IS NOT NULL;
 
   -- f. Lượt bài được tính điểm
-  INSERT INTO exam_attempts (exam_id, student_id, version_id, moodle_attempt_id, source, started_at, finished_at, status)
-  SELECT a.exam_id, s.id, v.id, a.moodle_attempt_id, 'moodle', a.started_at, a.finished_at, 'finished'
+  INSERT INTO exam_attempts (exam_id, student_id, version_id, moodle_attempt_id, source, started_at, finished_at, status, time_limit_sec)
+  SELECT a.exam_id, s.id, v.id, a.moodle_attempt_id, 'moodle', a.started_at, a.finished_at, 'finished', a.time_limit_sec
   FROM v_mdl_attempts a JOIN students s ON s.moodle_user_id = a.mdl_user_id
   LEFT JOIN exam_versions v ON v.exam_id = a.exam_id AND v.version_code = a.group_code
   WHERE a.exam_id = p_exam_id
@@ -255,6 +271,7 @@ BEGIN
      exam_attempts.source            = 'moodle',
      exam_attempts.started_at        = VALUES(started_at),
      exam_attempts.finished_at       = VALUES(finished_at),
+     exam_attempts.time_limit_sec    = VALUES(time_limit_sec),
      exam_attempts.status            = 'finished';
 
   -- g. Vắng thi: có trong danh sách lớp HP (active) nhưng không có bài được chấm trên Moodle
@@ -266,15 +283,20 @@ BEGIN
     AND NOT EXISTS (SELECT 1 FROM v_mdl_attempts a WHERE a.exam_id = p_exam_id AND a.mdl_user_id = s.moodle_user_id)
   ON DUPLICATE KEY UPDATE
      exam_attempts.version_id = NULL, exam_attempts.moodle_attempt_id = NULL, exam_attempts.source = 'moodle',
-     exam_attempts.started_at = NULL, exam_attempts.finished_at = NULL,
+     exam_attempts.started_at = NULL, exam_attempts.finished_at = NULL, exam_attempts.time_limit_sec = NULL,
+     exam_attempts.last_answer_at = NULL, exam_attempts.finished_by_timeout = NULL,
      exam_attempts.status = 'absent', exam_attempts.total_score = 0;
 
   -- h. Làm mới kết quả từng câu
   DELETE r FROM item_level_results r JOIN exam_attempts a ON a.id = r.attempt_id
   WHERE a.exam_id = p_exam_id;
 
-  INSERT INTO item_level_results (attempt_id, question_id, selected_option_id, response_status, is_correct, score_earned)
-  SELECT a.id, v.question_id, v.selected_option_id, v.response_status, v.is_correct, IF(v.is_correct, eq.points, 0)
+  -- thời điểm trả lời chỉ có nghĩa với bài làm trực tuyến (bài giấy: thời điểm Moodle nhận diện phiếu quét)
+  INSERT INTO item_level_results (attempt_id, question_id, selected_option_id, response_status, is_correct, score_earned,
+                                  first_answer_at, last_answer_at, n_answer_saves)
+  SELECT a.id, v.question_id, v.selected_option_id, v.response_status, v.is_correct, IF(v.is_correct, eq.points, 0),
+         IF(v_type = 'online', v.first_answer_at, NULL), IF(v_type = 'online', v.last_answer_at, NULL),
+         IF(v_type = 'online', v.n_answer_saves, NULL)
   FROM v_mdl_item_results v
   JOIN exam_attempts  a  ON a.exam_id = p_exam_id AND a.moodle_attempt_id = v.moodle_attempt_id
   JOIN exam_questions eq ON eq.exam_id = p_exam_id AND eq.question_id = v.question_id
@@ -292,6 +314,17 @@ BEGIN
               GROUP BY r.attempt_id) t ON t.attempt_id = a.id
   SET a.total_score = COALESCE(t.sc, 0)
   WHERE a.exam_id = p_exam_id;
+
+  -- i2. Lần chọn đáp án cuối cùng của lượt và bài có bị nộp do hết giờ không (Moodle tự nộp khi hết thời gian:
+  --     thời điểm nộp ≥ bắt đầu + giới hạn – 15 giây)
+  UPDATE exam_attempts a
+  LEFT JOIN (SELECT r.attempt_id, MAX(r.last_answer_at) la FROM item_level_results r
+               JOIN exam_attempts x ON x.id = r.attempt_id AND x.exam_id = p_exam_id
+              GROUP BY r.attempt_id) t ON t.attempt_id = a.id
+  SET a.last_answer_at = t.la,
+      a.finished_by_timeout = CASE WHEN a.time_limit_sec IS NULL OR a.started_at IS NULL OR a.finished_at IS NULL THEN NULL
+                                   ELSE TIMESTAMPDIFF(SECOND, a.started_at, a.finished_at) >= a.time_limit_sec - 15 END
+  WHERE a.exam_id = p_exam_id AND a.status = 'finished';
 
   -- dữ liệu vừa làm mới: kết quả phân tích cũ không còn hiệu lực cho tới khi phân tích lại
   UPDATE exams SET status = 'Synced', last_synced_at = NOW() WHERE id = p_exam_id;

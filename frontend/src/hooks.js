@@ -34,3 +34,14 @@ export function useDefaultYear() {
   }, [sems, secs, years, year])
   return { sems, years, year, setYear, latestSemesterId: secs?.[0]?.semester_id || sems?.[0]?.id }
 }
+
+// CTĐT đang làm việc (Bộ môn chọn một lần, các trang PI/PLO/BM2 dùng chung) – nhớ trong trình duyệt
+export function useProgram() {
+  const progs = useApi('/api/programs').data
+  const [pid, setPidState] = useState(() => Number(localStorage.getItem('tlcn_program')) || null)
+  useEffect(() => {
+    if (progs?.length && !progs.some(p => p.id === pid)) setPidState(progs[0].id)
+  }, [progs, pid])
+  const setPid = v => { localStorage.setItem('tlcn_program', String(v)); setPidState(Number(v)) }
+  return { programs: progs, pid, setPid, program: progs?.find(p => p.id === pid) }
+}

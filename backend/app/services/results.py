@@ -91,14 +91,14 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
             for att, g in clo.groupby("attempt_id"):
                 lost = lost_all[lost_all.attempt_id == att].groupby(["clo_id", "outline_id"], dropna=False, as_index=False).lost_points.sum()
                 recs = analysis.learning_path(g, lost, thr, settings.default_pass_threshold)
-                strong = [clo_names[c] for c in g[g.is_achieved].clo_id]
-                weak = [clo_names[c] for c in g[~g.is_achieved].clo_id]
-                summary = (f"Đạt {len(strong)}/{len(g)} CĐR môn học"
-                           + (f"; chưa đạt: {', '.join(weak)}." if weak else "; đạt toàn bộ CĐR."))
+                # SV được đánh giá bằng điểm; gợi ý ôn tập nói theo CHƯƠNG, không nêu kết quả CLO riêng của từng SV
+                chapters = list(dict.fromkeys(ch_names.get(rec["outline_id"], "nội dung chưa gắn chương") for rec in recs))
+                summary = (f"Còn yếu ở {len(chapters)} chương/nội dung (điểm dưới mức yêu cầu) – nên ôn lại theo thứ tự gợi ý bên dưới."
+                           if recs else "Điểm các nội dung của bài đều đạt mức yêu cầu.")
                 plan_lines = []
                 for rec in recs:
                     ch = ch_names.get(rec["outline_id"], "các nội dung liên quan")
-                    plan_lines.append(f"{rec['priority']}. {clo_names[rec['clo_id']]} (thiếu {rec['gap_pct']:.1f}% so với ngưỡng): ôn lại {ch}.")
+                    plan_lines.append(f"{rec['priority']}. Ôn lại {ch} (điểm còn thiếu {rec['gap_pct']:.1f}% so với mức yêu cầu).")
                 pid = db.execute(text("""INSERT INTO personalized_learning_paths (attempt_id, diagnostic_summary, recommended_study_plan)
                                          VALUES (:a, :s, :p)"""),
                                  {"a": int(att), "s": summary, "p": "\n".join(plan_lines) or "Tiếp tục duy trì kết quả."}).lastrowid
@@ -130,14 +130,15 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
 
 
 def recompute_class_section(db: Session, cs_id: int) -> None:
-    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d)."""
+    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d).
+    Chỉ gộp các bài GV chọn làm minh chứng (counts_for_clo = 1; bài phụ đạo mặc định không gộp)."""
     thr, tgt, ev = clo_thresholds(db, cs_id)
     rows = _df(db, """
         SELECT r.clo_id, e.assessment_type, COUNT(*) AS n_eval, SUM(r.is_achieved) AS n_ok
         FROM attempt_clo_results r
         JOIN exam_attempts a ON a.id = r.attempt_id
         JOIN exams e ON e.id = a.exam_id
-        WHERE e.class_section_id = :cs AND e.status = 'Analyzed' AND a.status = 'finished'
+        WHERE e.class_section_id = :cs AND e.status = 'Analyzed' AND e.counts_for_clo = 1 AND a.status = 'finished'
         GROUP BY r.clo_id, e.assessment_type""", cs=cs_id)
     old = {r.clo_id: (r.analysis, r.improvement) for r in db.execute(
         text("SELECT clo_id, analysis, improvement FROM clo_results WHERE class_section_id = :cs"), {"cs": cs_id})}
@@ -169,7 +170,11 @@ def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: i
     years = set()
     for p in plans.itertuples():
         clo_ids = [r[0] for r in db.execute(text("SELECT clo_id FROM pi_plan_clos WHERE plan_id=:p"), {"p": p.id})]
-        if not clo_ids:  # mặc định: các CLO của môn có đóng góp cho PLO của PI
+        if not clo_ids:  # mặc định: các CLO của môn gắn với chính PI này (CLO → PI, góp ý F2a)
+            clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_pi_mapping m ON m.clo_id = c.id
+                                                        WHERE c.course_id = :c AND m.pi_id = :pi"""),
+                                                {"c": p.course_id, "pi": p.pi_id})]
+        if not clo_ids:  # chưa có CLO → PI: các CLO của môn có đóng góp cho PLO của PI
             clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_plo_mapping m ON m.clo_id = c.id
                                                         WHERE c.course_id = :c AND m.plo_id = :plo"""),
                                                 {"c": p.course_id, "plo": p.plo_id})]

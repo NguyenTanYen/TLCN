@@ -9,7 +9,10 @@ from ..database import get_db
 from ..deps import check_section_access, get_exam_for, require
 from ..models import CLOResult, User
 from ..schemas import NarrativeIn
-from ..services import analysis
+from ..services import analysis, timing
+from ..http_utils import attachment
+from fastapi.responses import Response
+from typing import Optional
 
 router = APIRouter(prefix="/api", tags=["UC-04 Thống kê lớp học"])
 
@@ -45,13 +48,15 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
     for s in conv:
         bins[min(9, int(s / float(e.max_score) * 10))] += 1
     n_abs = db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='absent'"), {"e": exam_id}).scalar()
-    corr = pd.DataFrame(db.execute(text("""SELECT r.attempt_id, r.question_id, r.is_correct FROM item_level_results r
+    corr = pd.DataFrame(db.execute(text("""SELECT r.attempt_id, r.question_id, r.is_correct, r.score_earned FROM item_level_results r
         JOIN exam_attempts a ON a.id = r.attempt_id JOIN question_bank q ON q.id = r.question_id
         WHERE a.exam_id = :e AND a.status = 'finished' AND q.is_cancelled = 0"""), {"e": exam_id}).fetchall(),
-        columns=["attempt_id", "question_id", "is_correct"])
+        columns=["attempt_id", "question_id", "is_correct", "score_earned"])
     if not corr.empty:
         corr["is_correct"] = corr.is_correct.astype(int)
-    return {"n_students": len(conv), "n_absent": n_abs, "max_score": float(e.max_score), "kr20": analysis.kr20(corr),
+    rel = analysis.cronbach_alpha(corr) if e.exam_type == "manual" else analysis.kr20(corr)
+    return {"n_students": len(conv), "n_absent": n_abs, "max_score": float(e.max_score), "kr20": rel,
+            "reliability": "Cronbach alpha" if e.exam_type == "manual" else "KR-20", "exam_type": e.exam_type,
             "mean": round(sum(conv) / len(conv), 2) if conv else None,
             "min": min(conv) if conv else None, "max": max(conv) if conv else None,
             "pass_rate": round(100 * sum(1 for s in conv if s >= float(e.max_score) / 2) / len(conv), 2) if conv else None,
@@ -81,7 +86,13 @@ def item_stats(exam_id: int, u: User = Depends(require("admin", "lecturer")), db
         SELECT r.question_id, '(bỏ trống)', 0, COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
         WHERE a.exam_id=:e AND a.status='finished' AND r.response_status='blank' GROUP BY r.question_id
         ORDER BY label""", e=exam_id)
+    import statistics
+    rt = {}
+    for r in db.execute(text("""SELECT r.question_id, r.response_time_sec FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                                 WHERE a.exam_id=:e AND r.response_status='answered' AND r.response_time_sec IS NOT NULL"""), {"e": exam_id}):
+        rt.setdefault(r[0], []).append(float(r[1]))
     for d in data:
+        d["median_time_sec"] = round(statistics.median(rt[d["question_id"]]), 1) if d["question_id"] in rt else None
         d["classification"] = classify(d["p_value"], d["di_value"])
         d["distribution"] = [{"label": x["label"], "n": x["n"], "is_correct": bool(x["is_correct"])} for x in dist if x["question_id"] == d["question_id"]]
     return data
@@ -93,11 +104,16 @@ def exam_students(exam_id: int, u: User = Depends(require("admin", "lecturer")),
     data = rows(db, """SELECT a.id AS attempt_id, s.id AS student_id, s.student_code, s.full_name, a.status, a.source, a.total_score,
                               (SELECT version_code FROM exam_versions v WHERE v.id=a.version_id) AS version_code
                        FROM exam_attempts a JOIN students s ON s.id=a.student_id WHERE a.exam_id=:e ORDER BY s.student_code""", e=exam_id)
-    clo = rows(db, """SELECT r.attempt_id, c.clo_code, r.score_pct, r.is_achieved FROM attempt_clo_results r
-                      JOIN clos c ON c.id=r.clo_id JOIN exam_attempts a ON a.id=r.attempt_id WHERE a.exam_id=:e""", e=exam_id)
-    for d in data:
-        d["clos"] = {x["clo_code"]: {"pct": float(x["score_pct"]), "ok": bool(x["is_achieved"])} for x in clo if x["attempt_id"] == d["attempt_id"]}
     return data
+
+
+@router.get("/exams/{exam_id}/clo-summary")
+def exam_clo_summary(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Tổng hợp CẢ LỚP theo từng CLO của bài KT: số SV đạt / số SV được đánh giá (không trả kết quả riêng của từng SV)."""
+    get_exam_for(db, u, exam_id)
+    return rows(db, """SELECT c.clo_code, COUNT(*) AS n_evaluated, SUM(r.is_achieved) AS n_achieved
+                       FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id JOIN clos c ON c.id=r.clo_id
+                       WHERE a.exam_id=:e AND a.status='finished' GROUP BY c.clo_code ORDER BY c.clo_code""", e=exam_id)
 
 
 @router.get("/class-sections/{cs_id}/clo-results")
@@ -153,3 +169,45 @@ def clo_narrative(cs_id: int, clo_id: int, body: NarrativeIn, u: User = Depends(
     r.analysis, r.improvement = body.analysis, body.improvement
     db.commit()
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ thời gian làm bài, cảnh báo lượt làm bất thường (Moodle Quiz)
+def _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share):
+    return {"min_sec_per_q": min_sec_per_q, "rapid_sec": rapid_sec, "rapid_share": rapid_share, "idle_min": idle_min, "idle_share": idle_share}
+
+
+@router.get("/exams/{exam_id}/timing")
+def exam_timing(exam_id: int, min_sec_per_q: Optional[float] = None, rapid_sec: Optional[float] = None, rapid_share: Optional[float] = None,
+                idle_min: Optional[float] = None, idle_share: Optional[float] = None,
+                u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Thời gian làm bài của từng SV và các dấu hiệu bất thường (làm quá nhanh/chọn đại, bỏ dở, treo máy chờ hết giờ…)."""
+    get_exam_for(db, u, exam_id)
+    for v, lo, hi, name in ((min_sec_per_q, 0, 600, "giây/câu"), (rapid_sec, 0, 60, "ngưỡng chớp nhoáng"), (rapid_share, 0, 1, "tỷ lệ câu chớp nhoáng"),
+                            (idle_min, 0, 600, "số phút không thao tác"), (idle_share, 0, 1, "tỷ lệ thời gian không thao tác")):
+        if v is not None and not lo <= v <= hi:
+            raise HTTPException(422, f"Ngưỡng {name} phải trong khoảng {lo}–{hi}")
+    return timing.report(db, exam_id, _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share))
+
+
+@router.get("/exams/{exam_id}/timing/students/{student_id}")
+def exam_timing_student(exam_id: int, student_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Diễn biến làm bài của một SV: thời điểm chọn, thời gian trả lời, số lần đổi đáp án từng câu."""
+    get_exam_for(db, u, exam_id)
+    d = timing.student_timeline(db, exam_id, student_id)
+    if not d:
+        raise HTTPException(404, "SV không có lượt làm bài trong bài KT này")
+    return d
+
+
+@router.get("/exams/{exam_id}/timing.xlsx")
+def exam_timing_xlsx(exam_id: int, min_sec_per_q: Optional[float] = None, rapid_sec: Optional[float] = None, rapid_share: Optional[float] = None,
+                     idle_min: Optional[float] = None, idle_share: Optional[float] = None,
+                     u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Xuất Excel danh sách cảnh báo và thời gian trả lời từng câu."""
+    e = get_exam_for(db, u, exam_id)
+    rep = timing.report(db, exam_id, _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share))
+    if not rep.get("available"):
+        raise HTTPException(409, rep["reason"])
+    data = timing.report_xlsx(rep, f"Thời gian làm bài – {e.exam_title} – lớp {e.class_section.section_code}")
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers=attachment(f"ThoiGianLamBai_{e.class_section.section_code}_bai{e.id}.xlsx"))

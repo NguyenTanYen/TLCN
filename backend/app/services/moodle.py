@@ -86,7 +86,9 @@ def sync_exam(db: Session, exam_id: int) -> dict:
     db.expire_all()
     r = db.execute(text("SELECT status, n_attempts, n_absent FROM sync_runs WHERE exam_id=:e AND kind='moodle' ORDER BY id DESC LIMIT 1"),
                    {"e": exam_id}).one()
-    return {"status": r.status, "n_attempts": r.n_attempts, "n_absent": r.n_absent}
+    from .timing import compute_response_times          # thời gian trả lời từng câu (bài Moodle Quiz)
+    n_timed = compute_response_times(db, exam_id) if r.status == "success" else 0
+    return {"status": r.status, "n_attempts": r.n_attempts, "n_absent": r.n_absent, "n_timed_answers": n_timed}
 
 
 # ------------------------------------------------------------------ kiểm tra quyền trên khóa học / hoạt động Moodle (chỉ đọc)
@@ -170,3 +172,9 @@ def course_roster(db: Session, course_id: int) -> list[dict]:
         JOIN {_t('role_assignments')} ra ON ra.contextid = cx.id AND ra.userid = u.id
         JOIN {_t('role')} r ON r.id = ra.roleid AND r.shortname = 'student'
         WHERE en.courseid = :c AND en.status = 0"""), {"c": course_id}).mappings()]
+
+
+def find_course_by_code(db: Session, code: str) -> list[int]:
+    """Khóa học Moodle có tên rút gọn (shortname) hoặc mã khóa học (idnumber) trùng mã lớp học phần."""
+    return [int(r[0]) for r in db.execute(text(f"""SELECT id FROM {_t('course')} WHERE id<>1 AND (shortname=:c OR idnumber=:c)
+                                                    ORDER BY id"""), {"c": code.strip()})]

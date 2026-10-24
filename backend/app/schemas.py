@@ -53,7 +53,8 @@ class ExamItemIn(BaseModel):
 
 
 class ExamIn(BaseModel):
-    class_section_id: int
+    class_section_id: Optional[int] = None     # bài của một lớp HP
+    course_id: Optional[int] = None            # hoặc đề của môn (tạo ở trang môn học, giao cho lớp khi xuất)
     exam_title: str = Field(min_length=3, max_length=255)
     assessment_type: Literal["process", "final"] = "final"
     exam_type: Literal["online", "paper"] = "online"
@@ -70,6 +71,12 @@ class ExamIn(BaseModel):
         if len({i.question_id for i in v}) != len(v):
             raise ValueError("Câu hỏi bị trùng trong đề")
         return v
+
+    @model_validator(mode="after")
+    def _owner(self):
+        if (self.class_section_id is None) == (self.course_id is None):
+            raise ValueError("Chọn đúng một trong hai: lớp học phần (class_section_id) hoặc môn học (course_id)")
+        return self
 
 
 class LinkQuizIn(BaseModel):
@@ -97,6 +104,7 @@ class CLOIn(BaseModel):
     description: str = Field(min_length=3)
     bloom_level_id: Optional[int] = Field(default=None, ge=1, le=6)
     plos: list[dict] = []  # [{plo_id, level}]
+    pis: list[dict] = []   # [{pi_id, level}] – góp ý F2a: CLO → PI (có PI thì CLO – PLO được suy ra)
 
 
 class AssignmentIn(BaseModel):

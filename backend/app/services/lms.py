@@ -4,6 +4,7 @@
 - Bài thi giấy: tạo Offline Quiz (Moodle sinh đề in, phiếu trả lời, nhận diện phiếu quét và chấm):
   local_clo_create_offlinequiz / local_clo_get_offlinequiz / local_clo_process_scans; tải tệp đề/phiếu qua webservice/pluginfile.
 - Đẩy kết quả phân tích từng SV + trạng thái công bố về Moodle để SV xem (UC-05): local_clo_push_results.
+- Bài phụ đạo (góp ý F5): chỉ các SV được giao thấy và làm được Quiz – nhóm + điều kiện truy cập: local_clo_restrict_users.
 Chiều ĐỌC (bài làm của SV) vẫn dùng cầu nối CSDL chỉ đọc + sp_sync_exam như thiết kế (mục V báo cáo).
 """
 from __future__ import annotations
@@ -80,6 +81,12 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
         "grade": float(exam.max_score), "timelimit": int(exam.duration_minutes or 0) * 60,
     }, timeout=180)
     return res
+
+
+def restrict_users(moodle_course_id: int, quizid: int, groupname: str, userids: list[int], cmid: int = 0) -> dict:
+    """Giới hạn Quiz cho đúng các tài khoản Moodle này (gọi lại thì đồng bộ lại thành viên nhóm)."""
+    return call("local_clo_restrict_users", {"courseid": moodle_course_id, "cmid": cmid, "quizid": quizid,
+                                             "groupname": groupname[:250], "userids": userids})
 
 
 # ------------------------------------------------------------------ bài thi giấy: Offline Quiz
@@ -171,6 +178,14 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
     return out
 
 
+def public_data(data: dict) -> dict:
+    """Dữ liệu gửi cho SV: điểm, chẩn đoán và gợi ý ôn tập theo chương – KHÔNG kèm mức CLO riêng của từng SV."""
+    d = {k: v for k, v in data.items() if k != "clos"}
+    if "items" in d:
+        d["items"] = [{k: v for k, v in i.items() if k not in ("clo", "clo_description")} for i in d["items"]]
+    return d
+
+
 def push_results(db: Session, exam: Exam) -> dict:
     cs = exam.class_section
     if not cs.moodle_course_id:
@@ -178,7 +193,7 @@ def push_results(db: Session, exam: Exam) -> dict:
     rows = student_results(db, exam.id)
     payload = [{"userid": r["moodle_user_id"] or 0, "username": r["student_code"], "status": r["status"],
                 "score": r["score"], "maxscore": r["max_score"],
-                "data": json.dumps(r["data"], ensure_ascii=False)} for r in rows]
+                "data": json.dumps(public_data(r["data"]), ensure_ascii=False)} for r in rows]
     res = call("local_clo_push_results", {"examref": exam.id, "courseid": cs.moodle_course_id,
                                           "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
                                           "published": bool(exam.publish_flag), "results": payload}, timeout=120)

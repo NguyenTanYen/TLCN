@@ -88,11 +88,13 @@ def test_exam_rejects_foreign_question(client, gv):
         assert r.status_code == 422
 
 
-def test_paper_exam_has_no_system_side_grading(client, gv):
-    # Bài giấy: đề in/phiếu/đáp án do Moodle (Offline Quiz) sinh, Moodle nhận diện & chấm – hệ thống không còn nhập phiếu
+def test_paper_exam_two_modes(client, gv):
+    # Bài giấy: hoặc Moodle (Offline Quiz) sinh đề & chấm, hoặc hệ thống tự sinh mã đề, in và chấm phiếu – không trộn hai chế độ
     paths = client.get("/openapi.json").json()["paths"]
-    assert not any("paper-import" in p or "/versions" in p or "answer-key" in p for p in paths)
     assert "/api/exams/{exam_id}/moodle/create-offlinequiz" in paths
+    assert {"/api/exams/{exam_id}/paper/versions", "/api/exams/{exam_id}/scan", "/api/exams/{exam_id}/paper/answer-key.pdf"} <= set(paths)
+    assert client.post("/api/exams/1/paper/versions", json={"n_versions": 2}, headers=gv).status_code == 409   # bài 1 dùng Moodle
+    assert client.get("/api/exams/1/paper", headers=gv).json()["mode"] == "moodle"
     r = client.post("/api/exams/1/moodle/create-offlinequiz", json={"numgroups": 2}, headers=gv)
     assert r.status_code == 409  # đã gắn Offline Quiz 910
     assert client.patch("/api/exams/1/link-quiz", json={"moodle_quiz_id": 12345}, headers=gv).status_code == 422
@@ -240,9 +242,9 @@ def test_results_for_moodle(client, gv):
     absent = [r for r in rows if r["status"] == "absent"]
     assert done and absent and all(r["data"] == {} and r["score"] is None for r in absent)  # E2 – chưa đủ bằng chứng
     d = done[0]["data"]
-    assert len(d["clos"]) == 4 and all({"code", "pct", "threshold", "class_avg", "achieved"} <= set(c) for c in d["clos"])
+    assert "clos" not in d                        # không gửi mức CLO riêng của từng SV sang Moodle
     weak = next(r for r in done if r["data"]["items"])
-    assert all(i["gap"] > 0 and i["clo"] for i in weak["data"]["items"])
+    assert all(i["gap"] > 0 and "clo" not in i for i in weak["data"]["items"])
     assert 0 <= done[0]["score"] <= done[0]["max_score"]
 
 
@@ -275,10 +277,14 @@ def test_plo_summary_is_sum_of_pi(client, admin):
     assert pr["n_evaluated"] == sum(p["n_evaluated"] for p in measured)
     pis = q("""SELECT pi.plo_id, SUM(r.n_evaluated), SUM(r.n_achieved) FROM pi_results r JOIN pi_assessment_plans pl ON pl.id=r.plan_id
                JOIN performance_indicators pi ON pi.id=pl.pi_id JOIN semesters se ON se.id=pl.semester_id
-               WHERE se.academic_year='2024-2025' GROUP BY pi.plo_id""")
+               JOIN plos pp ON pp.id=pi.plo_id WHERE se.academic_year='2024-2025' AND pp.program_id=1 GROUP BY pi.plo_id""")
     by_plo = {p["plo_id"]: p for p in measured}
     for plo_id, n, ok in pis:
         assert by_plo[plo_id]["n_evaluated"] == n and by_plo[plo_id]["n_achieved"] == ok
+    # CTĐT KTDL 2026 cũng có kết quả PLO (PI6.2, PI7.1 đo tại môn DBMS330284)
+    k = next(p for p in client.get("/api/programs", headers=admin).json() if p["code"] == "KTDL-2026")
+    s2 = client.get(f"/api/reports/programs/{k['id']}/plo-summary?academic_year=2024-2025", headers=admin).json()
+    assert {p["plo_code"] for p in s2["plos"] if p["n_evaluated"]} == {"PLO6", "PLO7"}
 
 
 def test_bm6_workbook(client, gv):
