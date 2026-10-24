@@ -122,6 +122,54 @@ export function Flow({ steps, extra }) {
 }
 
 // Thẻ chọn nhanh (tab) đồng bộ với ?tab= trên địa chỉ trang
+// Bỏ dấu tiếng Việt để tìm "co so du lieu" vẫn ra "Cơ sở dữ liệu"
+export const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
+
+// Ô chọn học phần có tìm kiếm (góp ý 23/10: CTĐT có hàng trăm học phần, ô select thường khó chọn).
+// Gõ mã hoặc tên (có/không dấu) để lọc; ↑ ↓ Enter để chọn, Esc để đóng. value/onChange dùng id dạng chuỗi như <select>.
+export function CourseSelect({ courses, value, onChange, placeholder = '— chọn môn học —', allowEmpty = false, disabled }) {
+  const label = c => `${c.course_code} – ${c.course_name}`
+  const cur = (courses || []).find(c => String(c.id) === String(value))
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const [hi, setHi] = useState(0)
+  const box = useRef(null)
+  const [pos, setPos] = useState(null)
+  useEffect(() => {
+    if (!open) return
+    // danh sách dùng position: fixed theo vị trí ô nhập – không bị khung thẻ / hộp thoại (overflow: auto) cắt mất
+    const place = () => { const r = box.current?.getBoundingClientRect(); if (r) { const w = Math.min(Math.max(r.width, 440), window.innerWidth - 16); setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)), top: r.bottom + 2, width: w }) } }
+    const off = e => { if (box.current && !box.current.contains(e.target)) setOpen(false) }
+    place()
+    document.addEventListener('mousedown', off)
+    window.addEventListener('scroll', place, true); window.addEventListener('resize', place)
+    return () => { document.removeEventListener('mousedown', off); window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place) }
+  }, [open])
+  const words = fold(q).split(/\s+/).filter(Boolean)
+  const list = (courses || []).filter(c => { const t = fold(label(c)); return words.every(w => t.includes(w)) }).slice(0, 200)
+  const items = allowEmpty ? [null, ...list] : list
+  const pick = c => { onChange(c ? String(c.id) : ''); setOpen(false); setQ('') }
+  const key = e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHi(h => Math.min(h + 1, items.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(h - 1, 0)) }
+    else if (e.key === 'Enter') { if (open && items.length) { e.preventDefault(); pick(items[hi]) } }
+    else if (e.key === 'Escape') { if (open) { e.stopPropagation(); setOpen(false); setQ('') } }
+  }
+  return <div className="combo" ref={box}>
+    <input role="combobox" aria-expanded={open} aria-autocomplete="list" disabled={disabled}
+      value={open ? q : cur ? label(cur) : ''} placeholder={cur ? label(cur) : placeholder}
+      onFocus={() => { setOpen(true); setQ(''); setHi(0) }} onClick={() => setOpen(true)}
+      onChange={e => { setQ(e.target.value); setOpen(true); setHi(0) }} onKeyDown={key} />
+    {open && pos && <ul className="combo-list" role="listbox" style={pos}>
+      {items.map((c, i) => <li key={c ? c.id : '_'} role="option" aria-selected={c ? String(c.id) === String(value) : !value}
+        className={`${i === hi ? 'hi' : ''} ${c && String(c.id) === String(value) ? 'sel' : ''}`}
+        onMouseEnter={() => setHi(i)} onMouseDown={e => { e.preventDefault(); pick(c) }}>
+        {c ? <><b>{c.course_code}</b> – {c.course_name}</> : <span className="muted">{placeholder}</span>}</li>)}
+      {!list.length && <li className="muted empty">Không có học phần khớp "{q}"</li>}
+    </ul>}
+  </div>
+}
+
 export function Tabs({ tabs, value, onChange }) {
   return <div className="tabs" role="tablist">{tabs.filter(Boolean).map(([k, l, dis]) =>
     <button key={k} role="tab" aria-selected={value === k} className={value === k ? 'on' : ''} disabled={dis} onClick={() => onChange(k)}>{l}</button>)}</div>

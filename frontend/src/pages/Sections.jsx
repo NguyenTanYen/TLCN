@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
-import { ActionButton, Card, Field, Loading, Modal } from '../components/ui'
+import { ActionButton, Card, CourseSelect, Field, Loading, Modal } from '../components/ui'
 import { useApi } from '../hooks'
 
 export default function Sections() {
@@ -80,8 +80,7 @@ function ImportForm({ c, isAdmin, onClose, onDone }) {
   return <Modal title={`Đưa khóa học Moodle "${c.shortname}" vào hệ thống`} onClose={onClose}>
     <p className="muted small">{c.fullname} · {c.n_students} SV đang ghi danh sẽ được đưa vào danh sách lớp.</p>
     {!nw && <Field label="Môn học" hint={noCourse ? 'Không tìm thấy môn có mã trùng tên khóa học – chọn môn, hoặc ' + (isAdmin ? 'tạo môn mới.' : 'nhờ Bộ môn thêm môn học (menu Học phần → + Học phần mới).') : undefined}>
-      <select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value })}><option value="">— chọn môn học —</option>
-        {courses.data?.map(x => <option key={x.id} value={x.id}>{x.course_code} – {x.course_name}</option>)}</select></Field>}
+      <CourseSelect courses={courses.data} value={f.course_id} onChange={v => setF({ ...f, course_id: v })} /></Field>}
     {isAdmin && !nw && <button type="button" className="btn sm ghost" onClick={() => setNw({ course_code: (c.shortname || '').split(/[_\s-]/)[0], course_name: (c.fullname || '').split(' – ')[0], credits: 3 })}>+ Môn học mới</button>}
     {nw && <div className="row gap wrap">
       <Field label="Mã môn mới"><input value={nw.course_code} onChange={e => setNw({ ...nw, course_code: e.target.value })} /></Field>

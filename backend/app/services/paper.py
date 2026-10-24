@@ -3,8 +3,8 @@
 * Sinh nhiều mã đề: xáo trộn thứ tự câu và thứ tự phương án (mỗi câu 2–6 phương án tùy câu) → exam_versions,
   exam_version_questions, exam_version_options (Reverse Shuffle khi chấm).
 * Xuất đề in (PDF, Word) một cột hoặc chia 2 cột trên một mặt giấy để tiết kiệm giấy; xuất đáp án từng mã đề.
-* Phiếu trả lời có 4 ô định vị ở 4 góc, lưới tô MSSV và mã đề, mỗi câu đúng số ô bằng số phương án của câu;
-  cùng một bộ tọa độ (sheet_layout) dùng để VẼ phiếu và để ĐỌC phiếu (services/omr.py).
+* Phiếu trả lời theo mẫu phiếu dùng chung nhiều mã đề của trường, thêm 4 ô định vị ở 4 góc, khung tô MSSV và ô tô mã đề
+  để chấm bằng ảnh; cùng một bộ tọa độ (sheet_layout) dùng để VẼ phiếu và để ĐỌC phiếu (services/omr.py).
 """
 from __future__ import annotations
 
@@ -51,10 +51,13 @@ def fonts() -> dict:
             for k, p in files.items():
                 pdfmetrics.registerFont(TTFont(name + k, str(p)))
             addMapping(name, 0, 0, name); addMapping(name, 1, 0, name + "B"); addMapping(name, 0, 1, name + "I"); addMapping(name, 1, 1, name + "BI")
-            sans = "DJSANS"
-            pdfmetrics.registerFont(TTFont(sans, str(FONT_DIR / "DejaVuSans.ttf")))
-            pdfmetrics.registerFont(TTFont(sans + "B", str(FONT_DIR / "DejaVuSans-Bold.ttf")))
-            _FONTS = {"serif": name, "serifB": name + "B", "serifI": name + "I", "sans": sans, "sansB": sans + "B"}
+            # chữ không chân: Arial như mẫu phiếu của trường nếu máy có, nếu không DejaVu Sans
+            sans, sfiles = ("ARIAL", (win / "arial.ttf", win / "arialbd.ttf")) if (win / "arial.ttf").exists() and (win / "arialbd.ttf").exists() \
+                else ("DJSANS", (FONT_DIR / "DejaVuSans.ttf", FONT_DIR / "DejaVuSans-Bold.ttf"))
+            pdfmetrics.registerFont(TTFont(sans, str(sfiles[0])))
+            pdfmetrics.registerFont(TTFont(sans + "B", str(sfiles[1])))
+            pdfmetrics.registerFont(TTFont("DJSYM", str(FONT_DIR / "DejaVuSans.ttf")))     # ký hiệu ✓ ✗ (Arial không có)
+            _FONTS = {"serif": name, "serifB": name + "B", "serifI": name + "I", "sans": sans, "sansB": sans + "B", "sym": "DJSYM"}
             return _FONTS
     raise PaperError("Không tìm thấy phông chữ tiếng Việt để xuất PDF")
 
@@ -134,24 +137,34 @@ def versions_data(db: Session, exam: Exam) -> list[dict]:
 
 
 # ------------------------------------------------------------------ bố cục phiếu trả lời (đơn vị mm, gốc tọa độ góc trên-trái)
+# Theo mẫu phiếu trả lời dùng chung nhiều mã đề của trường (góp ý 24/10): tiêu đề – môn – họ tên, lớp, ngày thi – mã đề –
+# I. TRẮC NGHIỆM LỰA CHỌN (bảng "Câu | PHƯƠNG ÁN TRẢ LỜI", hàng sọc, mọi hàng cùng số phương án) – II. CÂU ĐIỀN / TỰ LUẬN –
+# điểm, chữ ký. Phần thêm để máy đọc: 4 ô định vị ở góc, khung tô MSSV, mã đề dạng ô tô, vạch nhận chiều ở mép trên.
 @dataclass
 class SheetOptions:
-    title: str = "PHIẾU TRẢ LỜI TRẮC NGHIỆM"
+    title: str = "PHIẾU TRẢ LỜI"
     school: str = "TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH"
-    subtitle: str = ""                      # VD: tên môn + mã môn
+    subtitle: str = ""                      # VD: LẬP TRÌNH PYTHON (IPPA233277)
     exam_title: str = ""
+    footer: str = ""                        # chân trang, VD: IPPA233277 – Lớp IPPA233277_01
     n_questions: int = 40
-    options_per_question: list[int] = field(default_factory=list)   # số ô của từng câu (2–6); rỗng = 4
+    options_per_question: list[int] = field(default_factory=list)   # số phương án của từng câu (2–7); rỗng = 4
     student_digits: int = 8
     version_digits: int = 2
     version_codes: list[str] = field(default_factory=list)
-    essay_lines: int = 0                    # số dòng phần tự luận / ghi chú cuối phiếu
-    note: str = "Dùng bút chì hoặc bút mực đen tô kín một ô cho mỗi câu. Muốn đổi đáp án: tẩy sạch (bút chì) hoặc gạch chéo ô cũ và tô ô mới."
+    essay_lines: int = 0                    # số hàng ở phần II (câu điền / tự luận)
+    note: str = ("Tô kín ô chữ cái của phương án chọn (bút chì 2B hoặc bút mực đen); chỉ chọn trong các phương án có ở đề. "
+                 "Muốn đổi đáp án: tẩy sạch hoặc gạch chéo ô cũ rồi tô ô mới.")
 
 
 FID = 7.0                                  # cạnh ô định vị (mm)
 FID_POS = [(10.0, 10.0), (PAGE_W - 10.0 - FID, 10.0), (PAGE_W - 10.0 - FID, PAGE_H - 10.0 - FID), (10.0, PAGE_H - 10.0 - FID)]   # TL, TR, BR, BL
+ORIENT_BAR = (PAGE_W / 2 - 12, 10.5, 24.0, 3.0)   # vạch đen giữa mép trên (x, y, rộng, cao) – nhận ra phiếu chụp lộn ngược
 R_BUBBLE = 2.15
+X0, X1 = 14.0, PAGE_W - 14.0               # lề trái/phải của nội dung
+ID_X0 = 146.0                              # khung MSSV ở góc phải phần đầu phiếu
+ROW_H, II_ROW_H = 6.2, 8.0
+CONTENT_END = PAGE_H - 26.0                # nội dung kết thúc trên dòng "Điểm" và 2 ô định vị dưới
 
 
 def fid_centers() -> list[tuple[float, float]]:
@@ -164,48 +177,45 @@ def sheet_layout(o: SheetOptions) -> dict:
         raise PaperError("Phiếu trả lời hỗ trợ 1–120 câu")
     opts = (o.options_per_question or [4] * n)[:n] + [4] * max(0, n - len(o.options_per_question or []))
     max_opt = max(opts)
-    # khối định danh: MSSV + mã đề
-    top = 58.0
-    dx_digit, dy_digit = 5.2, 4.6
-    sx = 16.0
-    student = []
-    for c in range(o.student_digits):
-        for v in range(10):
-            student.append({"col": c, "value": v, "x": sx + 3 + c * dx_digit, "y": top + 9.5 + v * dy_digit})
-    vx = sx + 3 + o.student_digits * dx_digit + 10
-    version = []
-    for c in range(o.version_digits):
-        for v in range(10):
-            version.append({"col": c, "value": v, "x": vx + c * dx_digit, "y": top + 9.5 + v * dy_digit})
-    id_bottom = top + 9.5 + 9 * dy_digit + 6
-    # vùng trả lời
-    ncols = 4 if max_opt <= 4 else 3
-    if n <= 10:
-        ncols = 1
-    elif n <= 20:
-        ncols = 2
-    elif n <= 45 and max_opt > 4:
-        ncols = 3
+    if max_opt > 7:
+        raise PaperError("Phiếu trả lời hỗ trợ tối đa 7 phương án mỗi câu")
+    # khung MSSV: hàng ô viết số + lưới tô 0–9 mỗi cột
+    dx_digit, dy_digit = min(5.2, (X1 - ID_X0 - 4) / max(o.student_digits, 1)), 4.4
+    sx = ID_X0 + 2 + dx_digit / 2
+    top = 40.0
+    student = [{"col": c, "value": v, "x": sx + c * dx_digit, "y": top + 12.5 + v * dy_digit}
+               for c in range(o.student_digits) for v in range(10)]
+    id_bottom = top + 12.5 + 9 * dy_digit + 3.5
+    # mã đề: một hàng ô tô, mỗi ô là một mã đề (thay cho "Mã đề (khoanh)" của mẫu)
+    codes = o.version_codes or []
+    vstep = min(9.0, 40.0 / max(len(codes) - 1, 1))
+    version = [{"col": 0, "value": k, "code": code, "x": X0 + 30.0 + k * vstep, "y": 58.6} for k, code in enumerate(codes)]
+    # I. Trắc nghiệm lựa chọn: 1–3 bảng cột, mọi hàng cùng số ô (= số phương án nhiều nhất)
+    ncols = 1 if n <= 10 else 2 if n <= 24 else 3
+    gap = 5.0
+    col_w = (X1 - X0 - gap * (ncols - 1)) / ncols
     rows_per_col = math.ceil(n / ncols)
-    a_top = id_bottom + 8
-    bottom_limit = PAGE_H - 20 - (o.essay_lines * 7 + 10 if o.essay_lines else 0)
-    groups = math.ceil(rows_per_col / 5) - 1
-    dy = min(6.8, (bottom_limit - a_top - 6 - groups * 1.6) / max(rows_per_col, 1))
+    a_top = id_bottom + 9                       # đầu bảng (dưới tiêu đề "I. ...")
+    ii_h = (6 + 9 + 7 + o.essay_lines * II_ROW_H) if o.essay_lines else 0      # khoảng cách + tiêu đề + đầu bảng + các hàng
+    bottom_limit = CONTENT_END - ii_h
+    dy = min(ROW_H, (bottom_limit - a_top - 5) / max(rows_per_col, 1))
+    first_row = a_top + 5 + dy / 2              # tâm hàng đầu (ngay dưới dòng tiêu đề bảng)
     if dy < 4.6:
-        raise PaperError("Quá nhiều câu cho một phiếu A4 – giảm số câu, số phương án hoặc bỏ phần tự luận")
-    col_w = (PAGE_W - 30) / ncols
-    dx_opt = min(6.4, (col_w - 10) / max_opt)
+        raise PaperError("Quá nhiều câu cho một phiếu A4 – giảm số câu, số phương án hoặc số câu ở phần II")
+    dx_opt = min(9.5, (col_w - 16) / max_opt)
+    off = 13 + ((col_w - 13) - dx_opt * max_opt) / 2      # các ô nằm giữa phần "PHƯƠNG ÁN TRẢ LỜI" như mẫu
     answers = []
     for i in range(n):
         c, r = divmod(i, rows_per_col)
-        y = a_top + 6 + r * dy + (r // 5) * 1.6
-        x0 = 15 + c * col_w
-        for j in range(opts[i]):
-            answers.append({"q": i + 1, "label": LABELS[j], "x": x0 + 10 + j * dx_opt, "y": y})
-    a_bottom = max(b["y"] for b in answers) + 5
-    return {"options": opts, "student": student, "version": version, "answers": answers, "ncols": ncols, "rows_per_col": rows_per_col,
-            "col_w": col_w, "dy": dy, "dx_opt": dx_opt, "top": top, "id_bottom": id_bottom, "a_top": a_top, "a_bottom": a_bottom,
-            "sx": sx, "vx": vx, "dx_digit": dx_digit, "dy_digit": dy_digit, "r": R_BUBBLE, "fids": fid_centers()}
+        x0 = X0 + c * (col_w + gap)
+        y = first_row + r * dy
+        for j in range(max_opt):
+            answers.append({"q": i + 1, "label": LABELS[j], "x": x0 + off + dx_opt / 2 + j * dx_opt, "y": y})
+    a_bottom = first_row + (rows_per_col - 1) * dy + dy / 2
+    return {"options": opts, "max_opt": max_opt, "student": student, "version": version, "answers": answers, "ncols": ncols,
+            "rows_per_col": rows_per_col, "col_w": col_w, "gap": gap, "dy": dy, "dx_opt": dx_opt, "top": top, "id_bottom": id_bottom,
+            "a_top": a_top, "a_bottom": a_bottom, "ii_top": a_bottom + 6, "sx": sx, "dx_digit": dx_digit, "dy_digit": dy_digit,
+            "r": R_BUBBLE, "fids": fid_centers()}
 
 
 def sheet_options_for(db: Session, exam: Exam, **kw) -> SheetOptions:
@@ -216,7 +226,8 @@ def sheet_options_for(db: Session, exam: Exam, **kw) -> SheetOptions:
     for pos in range(1, n + 1):
         cnt = [len(v["questions"][pos - 1]["options"]) for v in vs if len(v["questions"]) >= pos]
         per.append(max(cnt) if cnt else len(sorted(exam.questions, key=lambda q: q.order_index)[pos - 1].question.options))
-    o = SheetOptions(subtitle=f"{cs.course.course_name} ({cs.course.course_code}) – Lớp {cs.section_code}", exam_title=exam.exam_title,
+    o = SheetOptions(subtitle=f"{cs.course.course_name.upper()} ({cs.course.course_code})", exam_title=exam.exam_title,
+                     footer=f"{cs.course.course_code} – Lớp {cs.section_code}",
                      n_questions=n, options_per_question=per, version_codes=[v["version_code"] for v in vs])
     for k, v in kw.items():
         if v is not None and hasattr(o, k):
@@ -231,111 +242,151 @@ def _y(v: float) -> float:            # mm từ trên xuống -> pt từ dưới
     return (PAGE_H - v) * MM
 
 
+def _dots(c, font, size, x0: float, x1: float, y: float) -> None:
+    """Dòng chấm để điền tay từ x0 tới x1 (mm)."""
+    w = c.stringWidth(".", font, size) / MM
+    c.setFont(font, size); c.drawString(x0 * MM, _y(y), "." * max(1, int((x1 - x0) / w)))
+
+
 def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None:
     """Vẽ một phiếu lên canvas ReportLab. prefill (chỉ dùng cho dữ liệu thử): {'student': '2213...', 'version': '01', 'answers': {1:'A'}}."""
     from reportlab.lib.colors import Color, black
     F = fonts()
-    grey = Color(0.45, 0.45, 0.45)
+    S, SB = F["sans"], F["sansB"]
+    ink = Color(0.25, 0.25, 0.25)              # chữ trong ô tô (đậm như mẫu nhưng vẫn nhạt hơn vết tô)
+    rule = Color(0.55, 0.55, 0.55)
+    zebra = Color(0.945, 0.945, 0.945)
+    r = L["r"]
     c.setFillColor(black)
     for x, y in FID_POS:
         c.rect(x * MM, _y(y + FID), FID * MM, FID * MM, stroke=0, fill=1)
-    c.setFont(F["serifB"], 9); c.drawCentredString(PAGE_W / 2 * MM, _y(14), o.school)
-    c.setFont(F["serifB"], 15); c.drawCentredString(PAGE_W / 2 * MM, _y(21.5), o.title)
-    c.setFont(F["serifB"], 10.5)
-    if o.subtitle:
-        c.drawCentredString(PAGE_W / 2 * MM, _y(27), o.subtitle[:95])
-    c.setFont(F["serif"], 9.5)
-    vtxt = f"Mã đề: {', '.join(o.version_codes)}" if o.version_codes else ""
-    line = " • ".join(x for x in (o.exam_title, f"{o.n_questions} câu", vtxt) if x)
-    c.drawCentredString(PAGE_W / 2 * MM, _y(32), line[:120])
-    c.setFont(F["serif"], 10)
-    c.drawString(16 * MM, _y(41), "Họ và tên: " + "." * 70)
-    c.drawString(130 * MM, _y(41), "Ngày thi: ....../....../.........")
-    c.drawString(16 * MM, _y(48), "Lớp: " + "." * 40)
-    c.drawString(90 * MM, _y(48), "Phòng thi: " + "." * 18)
-    c.drawString(140 * MM, _y(48), "Chữ ký SV: " + "." * 16)
-    # khối MSSV và mã đề
-    top, dxd, dyd, r = L["top"], L["dx_digit"], L["dy_digit"], L["r"]
+    bx, by, bw_, bh = ORIENT_BAR
+    c.rect(bx * MM, _y(by + bh), bw_ * MM, bh * MM, stroke=0, fill=1)
 
-    def grid(title, cells, x0, ncol):
-        w = ncol * dxd + 2
-        c.setLineWidth(0.6); c.setStrokeColor(black)
-        c.rect((x0 - 1) * MM, _y(L["id_bottom"] - 1.5), w * MM, (L["id_bottom"] - 1.5 - (top - 1.2)) * MM, stroke=1, fill=0)
-        c.setFont(F["sansB"], 7.6); c.drawCentredString((x0 - 1 + w / 2) * MM, _y(top - 2.2), title)
-        for k in range(ncol):     # ô viết số
-            c.rect((x0 + k * dxd) * MM, _y(top + 7.3), (dxd - 0.6) * MM, 4.4 * MM, stroke=1, fill=0)
-        for b in cells:
-            c.setStrokeColor(grey); c.setLineWidth(0.5)
-            c.circle(b["x"] * MM, _y(b["y"]), (r - 0.25) * MM, stroke=1, fill=0)
-            c.setFillColor(grey); c.setFont(F["sans"], 6.2)
-            c.drawCentredString(b["x"] * MM, _y(b["y"] + 0.95), str(b["value"]))
-            c.setFillColor(black)
-    grid("MÃ SỐ SINH VIÊN", L["student"], L["sx"] + 3 - dxd / 2 + 0.3, o.student_digits)
-    grid("MÃ ĐỀ", L["version"], L["vx"] - dxd / 2 + 0.3, o.version_digits)
-    # hướng dẫn tô
-    hx = L["vx"] + o.version_digits * dxd + 6
-    c.setFont(F["sansB"], 8.5); c.drawString(hx * MM, _y(top + 3), "HƯỚNG DẪN")
+    def bubble(x, y, label, size=7.6):
+        c.setStrokeColor(ink); c.setLineWidth(0.55)
+        c.circle(x * MM, _y(y), (r - 0.2) * MM, stroke=1, fill=0)
+        c.setFillColor(ink); c.setFont(S, size); c.drawCentredString(x * MM, _y(y + size * 0.13), label)
+        c.setFillColor(black)
+
+    # ---- đầu phiếu
+    c.setFont(SB, 16); c.drawCentredString(PAGE_W / 2 * MM, _y(23), o.title)
+    if o.subtitle:
+        c.setFont(SB, 11); c.drawCentredString(PAGE_W / 2 * MM, _y(29.5), o.subtitle[:80])
+    vtxt = ("Dùng chung cho " + ", ".join(f"Đề {v}" for v in o.version_codes[:-1]) + f" và Đề {o.version_codes[-1]}"
+            if len(o.version_codes) > 1 else f"Đề {o.version_codes[0]}" if o.version_codes else "")
+    line = " • ".join(x for x in (o.exam_title, vtxt, f"{o.n_questions} câu") if x)
+    c.setFont(S, 9.5); c.drawCentredString(PAGE_W / 2 * MM, _y(35), line[:120])
+    c.setFont(S, 10)
+    c.drawString(X0 * MM, _y(44), "Họ và tên:"); _dots(c, S, 10, X0 + 19, ID_X0 - 6, 44)
+    c.drawString(X0 * MM, _y(51.5), "Lớp:"); _dots(c, S, 10, X0 + 9, X0 + 52, 51.5)
+    c.drawString((X0 + 56) * MM, _y(51.5), "Ngày thi: ......... / ......... / ...........")
+    c.setFont(SB, 10); c.drawString(X0 * MM, _y(59.6), "Mã đề (tô):")
+    for b in L["version"]:
+        bubble(b["x"], b["y"], b["code"], 7.2)
+    if not L["version"]:
+        _dots(c, S, 10, X0 + 22, X0 + 60, 59.6)
+    # khung MSSV (viết số vào hàng ô rồi tô từng cột)
+    top, dxd, dyd = L["top"], L["dx_digit"], L["dy_digit"]
+    c.setStrokeColor(black); c.setLineWidth(0.6)
+    c.rect(ID_X0 * MM, _y(L["id_bottom"]), (X1 - ID_X0) * MM, (L["id_bottom"] - top) * MM, stroke=1, fill=0)
+    c.setFont(SB, 9); c.drawString((ID_X0 + 2) * MM, _y(top + 4), "MSSV:")
+    c.setFont(S, 7); c.drawRightString((X1 - 2) * MM, _y(top + 4), "viết số rồi tô từng cột")
+    for k in range(o.student_digits):
+        c.setLineWidth(0.5); c.rect((L["sx"] - dxd / 2 + k * dxd + 0.3) * MM, _y(top + 10.2), (dxd - 0.6) * MM, 4.6 * MM, stroke=1, fill=0)
+    for b in L["student"]:
+        bubble(b["x"], b["y"], str(b["value"]), 6.6)
+    # hướng dẫn (như dòng chữ nhỏ của mẫu)
     from reportlab.platypus import Paragraph
     from reportlab.lib.styles import ParagraphStyle
-    st = ParagraphStyle("n", fontName=F["serif"], fontSize=8.6, leading=10.6)
-    items = ["1. Ghi MSSV, mã đề vào các ô trống rồi tô ô số tương ứng ở mỗi cột.",
-             "2. " + o.note,
-             "3. Không gấp, làm nhòe hoặc viết vào 4 ô vuông đen ở góc phiếu.",
-             "4. Phiếu được chấm bằng máy quét hoặc ảnh chụp điện thoại."]
-    yy = top + 5
+    st = ParagraphStyle("n", fontName=S, fontSize=8.6, leading=10.4)
+    items = [o.note, "Ghi MSSV vào khung bên phải rồi tô chữ số tương ứng ở mỗi cột; tô ô mã đề của đề đang làm.",
+             "Không gấp phiếu, không viết vào 4 ô vuông đen ở góc và vạch đen ở mép trên."]
+    if o.essay_lines:
+        items.append("Các câu điền / tự luận: viết đáp án ở phần II.")
+    yy = 65.0
     for t in items:
         p = Paragraph(html.escape(t), st)
-        w, h = p.wrap((PAGE_W - 16 - hx) * MM, 100 * MM)
-        p.drawOn(c, hx * MM, _y(yy) - h)
-        yy += h / MM + 1.2
-    ex_y = yy + 4
-    c.setFont(F["serif"], 8.6); c.drawString(hx * MM, _y(ex_y + 1), "Tô đúng:")
-    c.setFillColor(black); c.circle((hx + 17) * MM, _y(ex_y), r * MM, stroke=0, fill=1)
-    c.drawString((hx + 24) * MM, _y(ex_y + 1), "Tô sai:")
-    for k, mark in enumerate(("✓", "✗", "•")):
-        cx = hx + 38 + k * 7
-        c.setStrokeColor(grey); c.circle(cx * MM, _y(ex_y), (r - 0.25) * MM, stroke=1, fill=0)
-        c.setFillColor(black); c.setFont(F["sans"], 7.5); c.drawCentredString(cx * MM, _y(ex_y + 1), mark)
-    # vùng trả lời
-    c.setStrokeColor(black); c.setLineWidth(0.6)
-    c.setFont(F["sansB"], 9); c.drawString(16 * MM, _y(L["a_top"] + 1.2), "PHẦN TRẢ LỜI TRẮC NGHIỆM")
-    c.rect(14 * MM, _y(L["a_bottom"]), (PAGE_W - 28) * MM, (L["a_bottom"] - L["a_top"] - 2.5) * MM, stroke=1, fill=0)
-    for k in range(1, L["ncols"]):
-        x = 15 + k * L["col_w"] - 1.5
-        c.setLineWidth(0.3); c.line(x * MM, _y(L["a_top"] + 2.5), x * MM, _y(L["a_bottom"]))
+        _w, h = p.wrap((ID_X0 - 6 - X0) * MM, 60 * MM)
+        p.drawOn(c, X0 * MM, _y(yy) - h)
+        yy += h / MM + 0.8
+    c.setFont(S, 8.6); c.drawString(X0 * MM, _y(yy + 4), "Tô đúng:")
+    c.circle((X0 + 17) * MM, _y(yy + 3), (r - 0.2) * MM, stroke=0, fill=1)
+    c.drawString((X0 + 24) * MM, _y(yy + 4), "Tô sai:")
+    for k, mark in enumerate(("✓", "✗", "•", "")):          # ô cuối: khoanh vòng ngoài chữ cái – máy không đọc được
+        cx = X0 + 38 + k * 7
+        c.setStrokeColor(ink); c.setLineWidth(0.55); c.circle(cx * MM, _y(yy + 3), (r - 0.2) * MM, stroke=1, fill=0)
+        c.setFont(F["sym"], 7.5); c.drawCentredString(cx * MM, _y(yy + 4), mark)
+    c.setLineWidth(0.9); c.circle((X0 + 59) * MM, _y(yy + 3), (r + 0.9) * MM, stroke=1, fill=0)
+    # ---- I. Trắc nghiệm lựa chọn
+    a_top, dy, col_w, gap = L["a_top"], L["dy"], L["col_w"], L["gap"]
+    c.setFont(SB, 10.5); c.drawString(X0 * MM, _y(a_top - 2), "I. TRẮC NGHIỆM LỰA CHỌN")
     by_q = {}
     for b in L["answers"]:
         by_q.setdefault(b["q"], []).append(b)
-    for q, bs in by_q.items():
-        c.setFillColor(black); c.setFont(F["sansB"], 8.2)
-        c.drawRightString((bs[0]["x"] - 3.6) * MM, _y(bs[0]["y"] + 1.05), f"{q:02d}")
-        for b in bs:
-            c.setStrokeColor(grey); c.setLineWidth(0.5)
-            c.circle(b["x"] * MM, _y(b["y"]), (r - 0.25) * MM, stroke=1, fill=0)
-            c.setFillColor(grey); c.setFont(F["sans"], 6.2); c.drawCentredString(b["x"] * MM, _y(b["y"] + 0.95), b["label"])
-        if q % 5 == 0 and q % L["rows_per_col"]:
-            y = bs[0]["y"] + L["dy"] / 2 + 0.8
-            c.setStrokeColor(Color(0.75, 0.75, 0.75)); c.setLineWidth(0.25); c.setDash(1, 1.5)
-            c.line((bs[0]["x"] - 9) * MM, _y(y), (bs[-1]["x"] + 3) * MM, _y(y)); c.setDash()
+    for col in range(L["ncols"]):
+        x0 = X0 + col * (col_w + gap)
+        qs = [q for q in by_q if (q - 1) // L["rows_per_col"] == col]
+        if not qs:
+            continue
+        y_end = by_q[qs[-1]][0]["y"] + dy / 2
+        c.setFillColor(zebra); c.rect(x0 * MM, _y(a_top + 5), col_w * MM, 5 * MM, stroke=0, fill=1)
+        for k, q in enumerate(qs):                 # hàng sọc như mẫu
+            if k % 2:
+                yq = by_q[q][0]["y"]
+                c.rect(x0 * MM, _y(yq + dy / 2), col_w * MM, dy * MM, stroke=0, fill=1)
+        c.setFillColor(black); c.setStrokeColor(rule); c.setLineWidth(0.6)
+        c.line(x0 * MM, _y(a_top), (x0 + col_w) * MM, _y(a_top))
+        c.line(x0 * MM, _y(a_top + 5), (x0 + col_w) * MM, _y(a_top + 5))
+        c.line(x0 * MM, _y(y_end), (x0 + col_w) * MM, _y(y_end))
+        c.setFont(SB, 8); c.drawString((x0 + 1.5) * MM, _y(a_top + 3.6), "Câu")
+        c.drawCentredString((x0 + 13 + (col_w - 13) / 2) * MM, _y(a_top + 3.6), "PHƯƠNG ÁN TRẢ LỜI")
+        for q in qs:
+            bs = by_q[q]
+            c.setFillColor(black); c.setFont(SB, 9); c.drawString((x0 + 2.5) * MM, _y(bs[0]["y"] + 1.1), f"{q:02d}")
+            for b in bs:
+                bubble(b["x"], b["y"], b["label"])
+    # ---- II. Câu điền / tự luận
     if o.essay_lines:
-        y0 = L["a_bottom"] + 6
-        c.setFillColor(black); c.setFont(F["sansB"], 9); c.drawString(16 * MM, _y(y0), "PHẦN TỰ LUẬN / GHI CHÚ")
-        c.setStrokeColor(Color(0.6, 0.6, 0.6)); c.setLineWidth(0.3); c.setDash(0.6, 1.4)
+        y0 = L["ii_top"]
+        c.setFillColor(black); c.setFont(SB, 10.5); c.drawString(X0 * MM, _y(y0 + 2), "II. CÂU ĐIỀN / TỰ LUẬN")
+        c.setFont(S, 8.6); c.drawString(X0 * MM, _y(y0 + 6.5), "Ghi số câu ở cột đúng mã đề đã tô; ghi đầy đủ nội dung trả lời vào cùng hàng.")
+        codes = o.version_codes or ["…"]
+        wc = 20.0
+        t0, th = y0 + 9, 7.0
+        xs = [X0 + k * wc for k in range(len(codes) + 1)]
+        c.setStrokeColor(rule); c.setLineWidth(0.6)
+        c.setFillColor(zebra); c.rect(X0 * MM, _y(t0 + th), (X1 - X0) * MM, th * MM, stroke=0, fill=1); c.setFillColor(black)
+        bottom = t0 + th + o.essay_lines * II_ROW_H
+        c.rect(X0 * MM, _y(bottom), (X1 - X0) * MM, (bottom - t0) * MM, stroke=1, fill=0)
+        for x in xs[1:]:
+            c.line(x * MM, _y(t0), x * MM, _y(bottom))
+        c.setFont(SB, 8.2)
+        for k, code in enumerate(codes):
+            c.drawCentredString((xs[k] + wc / 2) * MM, _y(t0 + 4.6), f"Câu - Đề {code}")
+        c.drawCentredString(((xs[-1] + X1) / 2) * MM, _y(t0 + 4.6), "NỘI DUNG TRẢ LỜI")
         for k in range(o.essay_lines):
-            y = y0 + 6 + k * 7
-            c.line(16 * MM, _y(y), (PAGE_W - 16) * MM, _y(y))
-        c.setDash()
-    c.setFillColor(grey); c.setFont(F["serifI"], 7.5)
-    c.drawRightString((PAGE_W - 19) * MM, _y(PAGE_H - 12), f"{o.subtitle[:70]} • {o.exam_title[:40]}")
+            yr = t0 + th + k * II_ROW_H
+            c.line(X0 * MM, _y(yr), X1 * MM, _y(yr))
+            c.setFillColor(rule)
+            _dots(c, S, 8, xs[-1] + 2, X1 - 3, yr + 3.4); _dots(c, S, 8, xs[-1] + 2, X1 - 3, yr + 7.2)
+            c.setFillColor(black)
+    yb = CONTENT_END + 5.5                  # dòng điểm/chữ ký cố định, phía trên 2 ô định vị dưới
+    c.setFont(S, 9.5)
+    c.drawString(X0 * MM, _y(yb), "Điểm (giảng viên ghi): ....................")
+    c.drawString((X0 + 66) * MM, _y(yb), "Sinh viên ký: " + "." * 50)
+    c.setFillColor(Color(0.3, 0.3, 0.3)); c.setFont(S, 7.8)
+    foot = " • ".join(x for x in (o.footer or o.subtitle, "Phiếu trả lời dùng chung " + "/".join(o.version_codes) if o.version_codes else "Phiếu trả lời") if x)
+    c.drawRightString((PAGE_W - 21) * MM, _y(PAGE_H - 13), foot[:110])
+    c.setFillColor(black)
     if prefill:
         c.setFillColor(Color(0.1, 0.1, 0.1))
+        s = prefill.get("student", "")
         for b in L["student"]:
-            s = prefill.get("student", "")
             if b["col"] < len(s) and s[b["col"]] == str(b["value"]):
                 c.circle(b["x"] * MM, _y(b["y"]), (r - 0.2) * MM, stroke=0, fill=1)
         for b in L["version"]:
-            s = prefill.get("version", "")
-            if b["col"] < len(s) and s[b["col"]] == str(b["value"]):
+            if b["code"] == prefill.get("version"):
                 c.circle(b["x"] * MM, _y(b["y"]), (r - 0.2) * MM, stroke=0, fill=1)
         for b in L["answers"]:
             if b["label"] in (prefill.get("answers", {}).get(b["q"]) or ""):

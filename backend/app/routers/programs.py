@@ -6,14 +6,16 @@ học phần tiên quyết, CLO (Bloom, đóng góp PLO), PI mà học phần đ
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import current_user, require
+from ..http_utils import attachment
 from ..models import Course, Program, User
+from ..services.syllabus_word import render_syllabus_docx
 from . import syllabi
 
 router = APIRouter(prefix="/api", tags=["Chương trình đào tạo & đề cương học phần"])
@@ -231,3 +233,16 @@ def syllabus(cid: int, version: Optional[int] = None, db: Session = Depends(get_
     return {**info, "programs": programs, "clos": clos, "sections": sections, "clo_summary": summary, "n_questions": n_q,
             "outlines": syllabi.outlines(db, cid), "can_edit": u.role == "admin",
             **syllabi.doc(db, c, syllabi.pick_version(c, version, u.role == "admin"))}
+
+
+@router.get("/courses/{cid}/syllabus.docx")
+def syllabus_docx(cid: int, version: Optional[int] = None, db: Session = Depends(get_db), u: User = Depends(current_user)):
+    """In đề cương theo mẫu văn bản (Word) – cùng phiên bản và nội dung với trang Đề cương chi tiết."""
+    s = syllabus(cid, version, db, u)
+    faculty = next((r[0] for r in db.execute(text(
+        """SELECT p.faculty FROM program_courses pc JOIN programs p ON p.id=pc.program_id
+           WHERE pc.course_id=:c AND p.faculty IS NOT NULL ORDER BY p.cohort_year DESC LIMIT 1"""), {"c": cid})), None)
+    ver = f"_v{s['doc']['version_no']}" if s.get("doc") else ""
+    return Response(render_syllabus_docx(s, faculty),
+                    media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers=attachment(f"De_cuong_{s['course_code']}{ver}.docx"))

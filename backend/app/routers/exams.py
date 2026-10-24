@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..http_utils import attachment
-from ..deps import check_course_access, check_moodle_course, check_section_access, get_exam_for, require
+from ..deps import check_course_access, check_moodle_course, check_section_access, get_exam_for, require, lecturer_only
 from ..models import ClassSection, Exam, ExamQuestion, Question, User
 from ..schemas import BlueprintIn, ExamIn, LinkQuizIn, PublishIn
 from ..services import blueprint as bp, lms, moodle, xml_export
@@ -145,14 +145,14 @@ def _blueprint_pool(db: Session, course_id: int, outline_ids: str):
 
 
 @router.post("/class-sections/{cs_id}/exam-blueprint")
-def blueprint_generate(cs_id: int, body: BlueprintIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def blueprint_generate(cs_id: int, body: BlueprintIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Sinh đề theo ma trận: trả về danh sách câu + điểm, ma trận mục tiêu/đạt được, độ phủ CLO, lỗi thiếu câu và cảnh báo.
     Không ghi CSDL – GV xem, chỉnh tay rồi mới lưu bài kiểm tra (POST /api/exams)."""
     return _blueprint_generate(db, check_section_access(db, u, cs_id).course_id, body)
 
 
 @router.post("/courses/{course_id}/exam-blueprint")
-def course_blueprint_generate(course_id: int, body: BlueprintIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def course_blueprint_generate(course_id: int, body: BlueprintIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Như trên, cho đề của môn (tạo ở trang môn học)."""
     check_course_access(db, u, course_id)
     return _blueprint_generate(db, course_id, body)
@@ -212,7 +212,7 @@ def _blueprint_generate(db: Session, course_id: int, body: BlueprintIn):
 
 
 @router.post("/exams", status_code=201)
-def create_exam(body: ExamIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def create_exam(body: ExamIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Bài KT của một lớp HP, hoặc đề của môn (course_id) – giao cho các lớp HP khi xuất (POST /exams/{id}/copy)."""
     if body.class_section_id is not None:
         cs = check_section_access(db, u, body.class_section_id); course_id = cs.course_id
@@ -241,7 +241,7 @@ def get_exam(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
 
 
 @router.delete("/exams/{exam_id}")
-def delete_exam(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def delete_exam(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Xóa bài KT chưa có kết quả. Xóa đề của môn không ảnh hưởng các bài đã giao cho lớp."""
     e = get_exam_for(db, u, exam_id, allow_template=True)
     if db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e"), {"e": exam_id}).scalar():
@@ -263,7 +263,7 @@ def moodle_xml(exam_id: int, u: User = Depends(require("admin", "lecturer")), db
 
 
 @router.patch("/exams/{exam_id}/link-quiz")
-def link_quiz(exam_id: int, body: LinkQuizIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def link_quiz(exam_id: int, body: LinkQuizIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = get_exam_for(db, u, exam_id)
     if e.exam_type != "online":
         raise HTTPException(422, "Chỉ bài KT trực tuyến mới liên kết Moodle Quiz (bài giấy dùng Offline Quiz)")
@@ -309,7 +309,7 @@ class CopyIn(BaseModel):
 
 
 @router.post("/exams/{exam_id}/copy")
-def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Giao đề cho lớp HP: đề của môn (tạo ở trang môn học) được giao khi xuất cho các lớp GV chọn; bài của một lớp được
     dùng lại cho các lớp khác cùng môn. Mỗi lớp nhận một bài KT riêng (câu hỏi, điểm, cấu hình, câu/ý nhập điểm) và –
     với bài trực tuyến – Quiz trên khóa học Moodle đã gắn của lớp."""

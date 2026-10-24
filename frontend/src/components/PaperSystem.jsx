@@ -143,8 +143,7 @@ function Sheet({ e, st, reload }) {
       <Field label="Tiêu đề phiếu"><input value={s.title} onChange={x => setS({ ...s, title: x.target.value })} /></Field>
       <div className="row gap wrap">
         <Field label="Số chữ số MSSV"><input className="num" type="number" min="4" max="12" value={s.student_digits} onChange={x => setS({ ...s, student_digits: Number(x.target.value) })} /></Field>
-        <Field label="Số chữ số mã đề"><input className="num" type="number" min="1" max="3" value={s.version_digits} onChange={x => setS({ ...s, version_digits: Number(x.target.value) })} /></Field>
-        <Field label="Dòng phần tự luận"><input className="num" type="number" min="0" max="15" value={s.essay_lines} onChange={x => setS({ ...s, essay_lines: Number(x.target.value) })} /></Field>
+        <Field label="Số câu phần II (điền / tự luận)"><input className="num" type="number" min="0" max="15" value={s.essay_lines} onChange={x => setS({ ...s, essay_lines: Number(x.target.value) })} /></Field>
       </div>
       <Field label="Hướng dẫn tô"><textarea rows={2} value={s.note} onChange={x => setS({ ...s, note: x.target.value })} /></Field>
       {st.sheet_printed && dirty && <div className="alert amber small">Phiếu đã được tải về để in. Nếu đổi số chữ số MSSV/mã đề hoặc số dòng tự luận, phiếu đã in theo bố cục cũ sẽ không chấm được.</div>}
@@ -154,9 +153,9 @@ function Sheet({ e, st, reload }) {
         <ActionButton className="btn" disabled={dirty} onRun={async () => { await api.download(`/api/exams/${e.id}/paper/answer-sheet.pdf?copies=${e.n_enrolled || 40}`, 'PhieuTraLoi_ca_lop.pdf'); reload() }}>⬇ In cho cả lớp</ActionButton>
       </div>
       <ul className="small muted mt">
-        <li>4 ô vuông đen ở 4 góc giúp nhận diện phiếu kể cả chụp nghiêng bằng điện thoại.</li>
-        <li>Mỗi câu có đúng số ô bằng số phương án (theo mã đề nhiều phương án nhất ở vị trí câu đó).</li>
-        <li>SV tô MSSV và mã đề ở hai lưới số bên trái; một phiếu dùng chung cho mọi mã đề.</li>
+        <li>Bố cục theo mẫu phiếu trả lời dùng chung nhiều mã đề của trường: I. Trắc nghiệm lựa chọn, II. Câu điền / tự luận, điểm và chữ ký.</li>
+        <li>Mọi hàng có cùng số ô (= số phương án nhiều nhất của đề); SV chỉ tô trong các phương án có ở đề.</li>
+        <li>Thêm để chấm bằng máy: 4 ô vuông đen ở 4 góc và vạch đen ở mép trên (nắn ảnh chụp nghiêng, lộn ngược), khung tô MSSV ở góc phải, ô tô mã đề.</li>
       </ul>
     </div>
     <div>{busy && <div className="muted small">Đang dựng bản xem trước…</div>}{img && <img className="sheet-img" src={img} alt="Xem trước phiếu trả lời" />}</div>

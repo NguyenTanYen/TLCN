@@ -91,7 +91,8 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
     {isAdmin && d && d.status !== 'draft' && !s.versions.some(v => v.status === 'draft') &&
       <ActionButton className="btn sm" okMsg="Đã tạo bản nháp mới" onRun={() => run(`/api/courses/${s.id}/syllabus/versions`)}>Tạo phiên bản mới</ActionButton>}
     {!isAdmin && <span className="muted small">Bộ môn quản lý – giảng viên chỉ xem</span>}
-    <button className="btn sm" onClick={() => window.print()}>🖶 In</button></div>}>
+    <ActionButton className="btn sm" title="Tệp Word theo mẫu đề cương chi tiết học phần – mở bằng Word để in"
+      onRun={() => api.download(`/api/courses/${s.id}/syllabus.docx${d ? `?version=${d.version_no}` : ''}`, `De_cuong_${s.course_code}.docx`)}>⬇ Tải đề cương (Word) để in</ActionButton></div>}>
     {isAdmin && d && d.status !== 'draft' && <div className="alert blue no-print">Đề cương đã duyệt không sửa trực tiếp – bấm "Tạo phiên bản mới" để soạn bản nháp (chép nội dung bản này).</div>}
     <h4>1. Thông tin chung {edit('general')}</h4>
     <dl className="kv">

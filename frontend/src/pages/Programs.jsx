@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
-import { ActionButton, Badge, Card, Crumbs, Field, Loading, Modal, Tabs } from '../components/ui'
+import { ActionButton, Badge, Card, Crumbs, Field, Loading, Modal, Tabs, fold } from '../components/ui'
 import { useApi } from '../hooks'
 
 const GROUP_VI = { 1: 'Kiến thức', 2: 'Kỹ năng', 3: 'Mức tự chủ và trách nhiệm', 4: 'Nhóm 4' }
@@ -82,8 +82,12 @@ function MatrixTab({ p, isAdmin, reload }) {
   const lv = {}
   p.pi_matrix.forEach(m => { lv[`${m.course_id}:${m.pi_id}`] = m.level || '•' })
   const [cell, setCell] = useState(null)
+  const [q, setQ] = useState('')
+  const words = fold(q).split(/\s+/).filter(Boolean)
   const courses = p.courses.filter(c => pis.some(pi => lv[`${c.id}:${pi.id}`]) || isAdmin)
+    .filter(c => words.every(w => fold(`${c.course_code} ${c.course_name}`).includes(w)))
   return <Card title="Ma trận học phần đáp ứng PI (Phụ lục II)" actions={<span className="muted small">I/R/M: Giới thiệu/Củng cố/Thành thạo · 1–6: trình độ năng lực{isAdmin ? ' · bấm ô để sửa' : ''}</span>}>
+    <input className="mb" style={{ width: 320 }} value={q} onChange={e => setQ(e.target.value)} placeholder="Lọc học phần theo mã hoặc tên…" />
     <div className="scroll tall"><table className="tbl compact mx"><thead><tr><th className="sticky-col">Học phần</th>
       {p.plos.map(x => <th key={x.id} colSpan={x.pis.length || 1} style={{ textAlign: 'center' }}>{x.plo_code}</th>)}</tr>
       <tr><th className="sticky-col" />{p.plos.map(x => x.pis.length ? x.pis.map(pi => <th key={pi.id} className="rot" title={pi.description}>{pi.pi_code}</th>) : <th key={x.id} />)}</tr></thead>

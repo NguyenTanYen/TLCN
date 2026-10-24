@@ -6,7 +6,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import check_course_access, require
+from ..deps import check_course_access, require, lecturer_only
 from ..models import CLO, CLOPIMapping, PerformanceIndicator, Question, QuestionCLO, QuestionOption, User
 from ..schemas import CancelIn, QuestionIn
 
@@ -155,7 +155,7 @@ def get_question(qid: int, db: Session = Depends(get_db), u: User = Depends(requ
 
 
 @router.post("", status_code=201)
-def create_question(body: QuestionIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def create_question(body: QuestionIn, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     check_course_access(db, u, body.course_id)
     _validate(db, body)
     q = Question(course_id=body.course_id, outline_id=body.outline_id, bloom_level_id=body.bloom_level_id,
@@ -169,7 +169,7 @@ def create_question(body: QuestionIn, db: Session = Depends(get_db), u: User = D
 
 
 @router.put("/{qid}")
-def update_question(qid: int, body: QuestionIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def update_question(qid: int, body: QuestionIn, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     q = _get_q(db, u, qid)
     if body.course_id != q.course_id:
         raise HTTPException(422, "Không được chuyển câu hỏi sang môn học khác")
@@ -195,7 +195,7 @@ def update_question(qid: int, body: QuestionIn, db: Session = Depends(get_db), u
 
 
 @router.patch("/{qid}/cancel")
-def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     q = _get_q(db, u, qid)
     q.is_cancelled, q.cancel_reason = True, body.reason
     db.commit()
@@ -203,7 +203,7 @@ def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: 
 
 
 @router.delete("/{qid}")
-def delete_question(qid: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+def delete_question(qid: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     q = _get_q(db, u, qid)
     if _usage(db, qid)["n_exams"]:
         raise HTTPException(409, "Câu hỏi đã được dùng trong đề – chỉ được Hủy, không được xóa")
