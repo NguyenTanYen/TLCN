@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
-import { ActionButton, Badge, Card, Field, Loading, Modal, ploLabel } from '../components/ui'
+import { ActionButton, Badge, Card, CourseSelect, Field, Loading, Modal, ploLabel } from '../components/ui'
 import { useApi } from '../hooks'
 import { OutlineForm } from '../components/SyllabusForms'
 
@@ -34,8 +34,7 @@ export default function Courses() {
         <div><h1>Học phần &amp; CLO</h1>
           <p className="muted">UC-12 · Khai báo một học phần để ra đề và đo CĐR: lớp học phần → chương → CLO và ánh xạ PLO → kế hoạch đánh giá CLO → câu hỏi.</p></div>
         <div className="row gap wrap">
-          <Field label="Môn học"><select value={cid || ''} onChange={e => setCid(Number(e.target.value))}>
-            {myCourses.map(x => <option key={x.id} value={x.id}>{x.course_code} – {x.course_name}</option>)}</select></Field>
+          <Field label="Môn học"><CourseSelect courses={myCourses} value={cid || ''} onChange={v => setCid(Number(v))} /></Field>
           {isAdmin && <button className="btn primary" onClick={() => setDlg({ kind: 'course' })}>+ Môn học mới</button>}
         </div>
       </div>
@@ -210,8 +209,7 @@ export function SectionForm({ s, onClose, onSaved }) {
   }, [lecs])  // eslint-disable-line
   const body = () => ({ ...f, course_id: Number(f.course_id), semester_id: Number(f.semester_id), lecturer_id: Number(f.lecturer_id) })
   return <Modal title={s.id ? `Sửa lớp ${s.section_code}` : 'Thêm lớp học phần'} onClose={onClose}>
-    <Field label="Môn học"><select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value })}>
-      {courses?.map(c => <option key={c.id} value={c.id}>{c.course_code} – {c.course_name}</option>)}</select></Field>
+    <Field label="Môn học"><CourseSelect courses={courses} value={f.course_id} onChange={v => setF({ ...f, course_id: v })} /></Field>
     <div className="row gap">
       <Field label="Học kỳ"><select value={f.semester_id} onChange={e => setF({ ...f, semester_id: e.target.value })}>{sems?.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
       <Field label="Mã lớp học phần"><input value={f.section_code} onChange={e => setF({ ...f, section_code: e.target.value })} placeholder="VD BDES333877_01" /></Field>

@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..http_utils import attachment
-from ..deps import check_moodle_course, check_section_access, get_exam_for, require
+from ..deps import check_moodle_course, check_section_access, get_exam_for, require, lecturer_only
 from ..models import User
 from ..services import lms
 from . import remedial
@@ -61,7 +61,7 @@ def set_moodle_course(cs_id: int, body: MoodleCourseIn, u: User = Depends(requir
 
 
 @router.post("/exams/{exam_id}/moodle/create-quiz")
-def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(require("admin", "lecturer")),
+def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_only),
                 db: Session = Depends(get_db)):
     e = get_exam_for(db, u, exam_id)
     if e.exam_type != "online":
@@ -97,7 +97,7 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(require("adm
 
 
 @router.post("/exams/{exam_id}/moodle/restrict")
-def restrict_quiz(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def restrict_quiz(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Bài phụ đạo đã có Quiz: (đồng bộ lại) nhóm Moodle gồm đúng các SV được giao và điều kiện truy cập của Quiz."""
     e = get_exam_for(db, u, exam_id)
     if not e.target_students:
@@ -126,7 +126,7 @@ def _oq_view(exam_id: int, oq: dict) -> dict:
 
 
 @router.post("/exams/{exam_id}/moodle/create-offlinequiz")
-def create_offlinequiz(exam_id: int, body: CreateOfflineQuizIn, u: User = Depends(require("admin", "lecturer")),
+def create_offlinequiz(exam_id: int, body: CreateOfflineQuizIn, u: User = Depends(lecturer_only),
                        db: Session = Depends(get_db)):
     e = get_exam_for(db, u, exam_id)
     if e.exam_type != "paper":

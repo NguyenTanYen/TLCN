@@ -11,9 +11,10 @@ const ROOT = path.resolve(__dirname, '..', '..')                 // thư mục d
 const ADMIN = ['admin', 'Admin@123']
 const GV = ['gv.son', 'Gv@123456']
 const GV_KHAC = ['gv.binh', 'Gv@123456']
-const MOODLE_ADMIN = ['admin', 'Moodle@123456']
+// Máy khác: đặt UI_MOODLE_ADMIN_PASS (mật khẩu admin Moodle) và UI_MOODLE_COURSE (id khóa học DBMS330284_01 trên Moodle)
+const MOODLE_ADMIN = [process.env.UI_MOODLE_ADMIN_USER || 'admin', process.env.UI_MOODLE_ADMIN_PASS || 'Moodle@123456']
 const SV_PASS = 'Sv@123456'
-const DEMO = { code: 'DBMS330284', section: 'DBMS330284_01', moodleCourse: 7, finalExam: 'Thi cuối kỳ (Moodle)' }
+const DEMO = { code: 'DBMS330284', section: 'DBMS330284_01', moodleCourse: Number(process.env.UI_MOODLE_COURSE || 7), finalExam: 'Thi cuối kỳ (Moodle)' }
 
 // ---------------------------------------------------------------- dữ liệu dùng chung giữa các tệp (mã môn, id lớp…)
 const STATE_FILE = path.join(__dirname, '..', '.state.json')

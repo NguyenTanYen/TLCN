@@ -31,6 +31,18 @@ def require(*roles: str):
     return dep
 
 
+LECTURER_ONLY_MSG = ("Soạn câu hỏi, ra đề và chấm bài là việc của giảng viên phụ trách – "
+                     "tài khoản Bộ môn chỉ xem và giám sát kết quả")
+
+
+def lecturer_only(user: User = Depends(current_user)) -> User:
+    """Thao tác nghiệp vụ của giảng viên (ngân hàng câu hỏi, ra đề, nhập điểm, chấm phiếu, bài ôn tập):
+    Bộ môn quản lý học phần/CLO/đề cương và xem kết quả, không tự soạn câu hỏi hay ra đề (góp ý 23/10)."""
+    if user.role != "lecturer":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, LECTURER_ONLY_MSG)
+    return user
+
+
 def check_section_access(db: Session, user: User, cs_id: int) -> ClassSection:
     cs = db.get(ClassSection, cs_id)
     if not cs:

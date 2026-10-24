@@ -309,11 +309,9 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
     await pick(page.getByLabel('Xem phiên bản'), 'Phiên bản 1')
     await see(page, 'Phiên bản 1: Đang áp dụng')
   })
-  await test.step('Bước 10: giả lập chế độ in → mọi phần "no-print" (nút bấm, khung kiểm tra) bị ẩn', async () => {
-    await page.emulateMedia({ media: 'print' })
-    const shown = await page.locator('.no-print').evaluateAll(els => els.filter(e => getComputedStyle(e).display !== 'none').length)
-    await page.emulateMedia({ media: 'screen' })
-    expect(shown).toBe(0)
+  await test.step('Bước 10: "⬇ Tải đề cương (Word) để in" → tệp .docx theo mẫu đề cương của phiên bản đang xem', async () => {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Tải đề cương \(Word\)/ }).click()])
+    expect(dl.suggestedFilename()).toMatch(/^De_cuong_.+_v1\.docx$/)
   })
 })
 

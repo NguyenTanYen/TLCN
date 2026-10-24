@@ -5,7 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import check_course_access, require
+from ..deps import check_course_access, require, lecturer_only
 from ..models import User
 from ..services import lms, moodle, qsync
 
@@ -49,7 +49,7 @@ def compare(course_id: int, moodle_course_id: int, u: User = Depends(require("ad
 
 
 @router.post("/courses/{course_id}/moodle-sync")
-def apply(course_id: int, body: SyncIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def apply(course_id: int, body: SyncIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     _check(db, u, course_id, body.moodle_course_id)
     if not lms.configured():
         raise HTTPException(502, "Chưa cấu hình Web Service Moodle (MOODLE_URL, MOODLE_WS_TOKEN)")

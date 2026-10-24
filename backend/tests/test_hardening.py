@@ -34,6 +34,31 @@ def test_course_level_access(client, gv, gv_other, admin):
     assert client.get("/api/questions?course_id=99999", headers=admin).status_code == 404
 
 
+def test_admin_cannot_author_questions_or_exams(client, admin):
+    """Bộ môn chỉ xem: soạn câu hỏi, ra đề, nhập điểm, chấm phiếu, bài ôn tập là việc của giảng viên (403)."""
+    qid = q("SELECT id FROM question_bank WHERE course_id=:c LIMIT 1", c=COURSE)[0][0]
+    calls = [
+        ("post", "/api/questions", {"course_id": COURSE}),
+        ("patch", f"/api/questions/{qid}/cancel", {"reason": "thử"}),
+        ("delete", f"/api/questions/{qid}", None),
+        ("post", "/api/exams", {"class_section_id": 1, "title": "x"}),
+        ("post", "/api/class-sections/1/exam-blueprint", {"n_questions": 5}),
+        ("post", "/api/class-sections/1/manual-exams", {"title": "x"}),
+        ("post", "/api/class-sections/1/remedial-exams", {"student_ids": []}),
+        ("post", "/api/exams/1/paper/versions", {"n_versions": 2}),
+        ("post", "/api/exams/2/moodle/create-quiz", {}),
+        ("post", f"/api/courses/{COURSE}/moodle-sync", {"moodle_course_id": 1, "items": []}),
+    ]
+    for method, url, body in calls:
+        r = getattr(client, method)(url, headers=admin, **({"json": body} if body is not None else {}))
+        assert r.status_code == 403, (url, r.status_code, r.text)
+        assert "giảng viên" in r.json()["detail"]
+    # vẫn xem và giám sát được
+    assert client.get(f"/api/questions/{qid}", headers=admin).status_code == 200
+    assert client.get("/api/exams/2", headers=admin).status_code == 200
+    assert client.get("/api/class-sections/1/exams", headers=admin).status_code == 200
+
+
 def test_clo_plan_change_reanalyzes(client, gv):
     clo = q("SELECT id FROM clos WHERE course_id=:c AND clo_code='CLO2'", c=COURSE)[0][0]
     plan = dict(q("""SELECT clo_id, semester_id, assessments_text, evidence_type, method, cycle, pass_threshold_pct, target_pct
