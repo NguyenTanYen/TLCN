@@ -1,6 +1,7 @@
 # Moodle 4.5 LTS trên image PHP-Apache chính thức của Moodle HQ
 # (image bitnami/moodle đã ngừng cập nhật từ 28/08/2025)
 FROM moodlehq/moodle-php-apache:8.3
+ENV APACHE_DOCUMENT_ROOT=/var/www/html
 ARG MOODLE_BRANCH=MOODLE_405_STABLE
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
  && git clone --depth 1 -b ${MOODLE_BRANCH} https://github.com/moodle/moodle.git /var/www/html \

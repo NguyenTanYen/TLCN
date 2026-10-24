@@ -22,6 +22,7 @@ services:
     build: ../docker/moodle
     restart: unless-stopped
     environment:
+      APACHE_DOCUMENT_ROOT: /var/www/html      # image moodlehq cần biến này; ENTRYPOINT riêng của ta không tự đặt
       MOODLE_URL: https://lms.${IP_CONG_KHAI}.sslip.io
       MOODLE_DB_HOST: db
       MOODLE_DB_USER: moodle
