@@ -56,6 +56,29 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
     }
+    // Gợi ý đọc: câu làm sai → trang/slide cụ thể trong học liệu của khóa học (do hệ thống phân tích tìm theo nội dung câu hỏi)
+    if (!empty($d->readings)) {
+        $o .= html_writer::tag('h4', get_string('readings', 'local_clo'), ['class' => 'h6 mt-3']);
+        $o .= html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']);
+        $li = '';
+        foreach ($d->readings as $r) {
+            $name = s($r->material);
+            if (!empty($r->moodle_cmid)) {      // tệp đã nằm trong khóa học → bấm để mở ngay
+                $name = html_writer::link(new moodle_url('/mod/resource/view.php', ['id' => (int)$r->moodle_cmid]), $name,
+                    ['target' => '_blank', 'rel' => 'noopener']);
+            }
+            $where = html_writer::tag('strong', $name) . ' ' .
+                html_writer::span(s($r->unit) . ' ' . (int)$r->page, 'badge bg-info text-dark');
+            if (!empty($r->heading)) {
+                $where .= ' – ' . s($r->heading);
+            }
+            if (!empty($r->chapter)) {
+                $where .= html_writer::span(' (' . s($r->chapter) . ')', 'text-muted small');
+            }
+            $li .= html_writer::tag('li', $where . html_writer::div(s($r->snippet), 'small text-muted'));
+        }
+        $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
+    }
     return $o . html_writer::end_div();
 }
 

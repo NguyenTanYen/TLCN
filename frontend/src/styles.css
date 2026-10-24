@@ -333,3 +333,7 @@ details.more[open] > summary { margin-bottom: 8px; }
 .course-card .row.gap.wrap { justify-content: flex-start; }
 .course-card .btn.sm:not(.primary) { background: #fff; }
 th { color: #475467; font-weight: 600; }
+
+/* danh sách gạch đầu dòng gọn (gợi ý đọc trong bảng) */
+ul.plain{list-style:none;margin:0;padding:0}
+ul.plain li{margin:2px 0}

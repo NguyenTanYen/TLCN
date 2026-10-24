@@ -56,3 +56,5 @@ $string['retry'] = 'Try again';
 $string['nooffline'] = 'The Offline Quiz plugin (mod_offlinequiz) is not installed. Run 3_CAI_GIAO_DIEN_MOODLE.bat to install it.';
 $string['nooq'] = 'This exam has no linked Offline Quiz yet.';
 $string['chapterunknown'] = 'Content not linked to a chapter';
+$string['readings'] = 'Where to read again (from the questions you got wrong)';
+$string['readings_help'] = 'Pages/slides in the course materials related to the questions you got wrong – start by re-reading these.';

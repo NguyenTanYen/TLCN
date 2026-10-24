@@ -26,6 +26,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | Phụ đạo | Mỗi SV sai bao nhiêu câu, bấm SV xem danh sách câu sai (đã chọn – đáp án đúng – CLO – chương), **tạo bài phụ đạo** (câu đã sai + câu tương tự cùng CLO). |
 | Đề & phiếu giấy, chấm phiếu | **Hệ thống tự sinh mã đề**, xem trước đề (1 cột hoặc **chia 2 cột**) và **phiếu trả lời** ngay trên màn hình, sửa câu tại chỗ, xuất PDF/Word/đáp án; mỗi câu 2–6 phương án, phiếu in đúng số ô. **Chấm phiếu bằng ảnh quét hoặc ảnh chụp điện thoại** (OpenCV: 4 ô định vị, nắn phối cảnh), soát/sửa rồi lưu. Vẫn giữ lựa chọn Moodle Offline Quiz. |
 | Tạo bài KT ở môn học, chọn lớp khi xuất | Nút **+ Tạo bài KT** ngay trên thẻ môn; đề lưu ở môn (*đề của môn*), khi xuất bấm **Giao cho lớp HP / Xuất** chọn các lớp – mỗi lớp nhận bài riêng (kèm Quiz Moodle). Hộp chọn hình thức dạng thẻ, hộp thoại chuẩn hóa cỡ, không tràn ngang trên màn hình hẹp. |
+| Học liệu và gợi ý đọc (RAG) | GV tải **giáo trình, slide** (PDF, PPTX, DOCX, TXT, MD) của môn lên hệ thống hoặc **lấy từ khóa học Moodle** về; có thể **đưa lên Moodle** thành hoạt động Tệp. Mỗi trang/slide là một đơn vị tìm kiếm (BM25 cấp trang, không cần GPU); mô hình thị giác (VLM, tùy chọn qua `VLM_URL`) mô tả trang hình/sơ đồ. Khi phân tích bài KT, SV làm sai câu nào thì được gợi ý **đọc đúng trang/slide nào** — chỉ lấy từ học liệu của đúng môn. Hiện ở hồ sơ SV (GV) và trang kết quả trên Moodle. |
 | Thời gian trả lời từng câu, cảnh báo GV | Lấy thời điểm SV chọn đáp án từng câu từ Moodle (`question_attempt_steps`, chỉ đọc) → thời gian từng câu, thẻ **Thời gian làm bài**: cảnh báo SV **chọn đại rồi nộp** (vd. 50 câu/5 phút), **chọn xong không nộp chờ hết giờ**, bỏ dở; ngưỡng chỉnh được, diễn biến từng SV, xuất Excel; số cảnh báo hiện ở danh sách bài KT. Nên đặt Quiz 1 câu/trang. |
 
 ## Cấu trúc thư mục
@@ -35,7 +36,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `moodle/local/clo` | Plugin Moodle: nút SSO, Web Service tạo Quiz / Offline Quiz, nhận kết quả, trang kết quả cho SV |
 | `moodle/mod/offlinequiz_v4.5.4.zip` | Plugin Offline Quiz (GPL v3, mã gốc): in đề + phiếu, nhận diện phiếu quét, chấm bài thi giấy |
 | `moodle/theme/ute` | Giao diện UTE LMS cho Moodle |
-| `database/01_schema.sql` | CSDL `assessment_db` – 46 bảng, 4 view (MySQL 8) |
+| `database/01_schema.sql` | CSDL `assessment_db` – 49 bảng, 4 view (MySQL 8) |
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
@@ -68,7 +69,7 @@ docker compose up -d --build
 # 1) CSDL (MySQL 8.0+) – tạo user có quyền trên assessment_db và SELECT trên moodle
 cd backend && pip install -r requirements.txt
 echo 'DATABASE_URL=mysql+pymysql://USER:PASS@127.0.0.1:3306/assessment_db?charset=utf8mb4' > .env
-python -m app.cli init-db          # 46 bảng + dữ liệu tham chiếu
+python -m app.cli init-db          # 49 bảng + dữ liệu tham chiếu
 python -m app.cli seed-demo        # tài khoản, môn DBMS330284, 4 CLO, 30 câu hỏi, lớp HP 40 SV, 2 bài KT
 python -m app.cli install-bridge   # khi đã có CSDL Moodle trên cùng server
 

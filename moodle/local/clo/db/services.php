@@ -44,13 +44,19 @@ $functions = [
         'type'        => 'write',
         'capabilities' => 'local/clo:manage',
     ],
+    'local_clo_add_resource' => [
+        'classname'   => 'local_clo\external\add_resource',
+        'description' => 'Đẩy học liệu (PDF, PPTX, DOCX…) từ hệ thống phân tích lên khóa học thành hoạt động Tệp (mod_resource).',
+        'type'        => 'write',
+        'capabilities' => 'local/clo:manage, moodle/course:manageactivities',
+    ],
 ];
 
 $services = [
     'Hệ thống phân tích CĐR' => [
         'functions' => ['local_clo_create_quiz', 'local_clo_create_offlinequiz', 'local_clo_get_offlinequiz', 'local_clo_process_scans',
-                        'local_clo_sync_questions', 'local_clo_restrict_users', 'local_clo_push_results',
-                        'core_webservice_get_site_info'],
+                        'local_clo_sync_questions', 'local_clo_restrict_users', 'local_clo_push_results', 'local_clo_add_resource',
+                        'core_webservice_get_site_info', 'core_course_get_contents'],
         'shortname' => 'local_clo',
         'restrictedusers' => 0,
         'enabled' => 1,

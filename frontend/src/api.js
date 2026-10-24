@@ -30,7 +30,7 @@ export const api = {
   put: (p, b) => request('PUT', p, b),
   patch: (p, b) => request('PATCH', p, b),
   del: p => request('DELETE', p),
-  upload: (p, file) => { const f = new FormData(); f.append('file', file); return request('POST', p, f, true) },
+  upload: (p, file, fields = {}) => { const f = new FormData(); f.append('file', file); Object.entries(fields).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') f.append(k, v) }); return request('POST', p, f, true) },
   async blob(p, fallbackName) {
     const res = await request('GET', p)
     const blob = await res.blob()

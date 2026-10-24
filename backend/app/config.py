@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     moodle_url: str = ""                # ví dụ http://localhost/moodle
     moodle_ws_token: str = ""           # token dịch vụ "local_clo" (tạo bởi local/clo/cli/setup.php)
     moodle_sso_secret: str = ""         # khóa dùng chung để kiểm tra vé đăng nhập một lần từ nút "Phân tích CĐR"
+    # Học liệu và gợi ý đọc (RAG)
+    materials_dir: str = ""             # nơi lưu tệp học liệu tải lên (trống = backend/du_lieu_hoc_lieu)
+    vlm_url: str = ""                   # điểm cuối tương thích OpenAI /v1/chat/completions của mô hình thị giác (trống = tắt VLM)
+    vlm_model: str = ""                 # tên mô hình VLM, ví dụ qwen2-vl-7b-instruct hoặc gpt-4o-mini
+    vlm_api_key: str = ""               # khóa API (nếu dịch vụ yêu cầu)
     demo_mode: bool = False             # True: trang đăng nhập hiện nút điền nhanh tài khoản minh họa (bước 4 tự bật)
 
     @property

@@ -38,7 +38,7 @@ USE assessment_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
-DROP TABLE IF EXISTS sync_runs, learning_path_items, personalized_learning_paths,
+DROP TABLE IF EXISTS sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
@@ -708,6 +708,54 @@ CREATE TABLE learning_path_items (
   CONSTRAINT uq_lpi UNIQUE (path_id, clo_id, outline_id),
   CONSTRAINT ck_lpi_gap CHECK (gap_pct > 0)
 ) ENGINE=InnoDB COMMENT='Mục khuyến nghị ôn tập (CLO chưa đạt)';
+
+CREATE TABLE course_materials (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  course_id     INT          NOT NULL COMMENT 'Học liệu thuộc học phần nào – RAG chỉ tìm trong học liệu của đúng học phần',
+  title         VARCHAR(255) NOT NULL COMMENT 'Tên hiển thị (giáo trình, slide chương 3…)',
+  material_type VARCHAR(20)  NOT NULL DEFAULT 'slide' COMMENT 'slide | textbook | reference | other',
+  outline_id    INT          NULL COMMENT 'Chương mà tài liệu phục vụ (có thể trống)',
+  file_name     VARCHAR(255) NOT NULL,
+  file_ext      VARCHAR(10)  NOT NULL,
+  file_path     VARCHAR(500) NOT NULL COMMENT 'Đường dẫn tệp gốc trên máy chủ',
+  n_pages       INT          NOT NULL DEFAULT 0 COMMENT 'Số trang/slide đã lập chỉ mục',
+  moodle_course_id BIGINT    NULL COMMENT 'Khóa học Moodle chứa tệp này',
+  moodle_cmid   BIGINT       NULL COMMENT 'course module id của Tài nguyên trên Moodle',
+  moodle_file_url VARCHAR(500) NULL COMMENT 'Địa chỉ tệp trên Moodle (khi lấy từ Moodle về)',
+  moodle_modified BIGINT     NULL COMMENT 'Thời điểm sửa tệp trên Moodle (unix) – để biết tệp đã đổi và cần lấy lại',
+  source        VARCHAR(10)  NOT NULL DEFAULT 'upload' COMMENT 'upload (GV tải lên hệ thống) | moodle (lấy từ khóa học Moodle)',
+  uploaded_by   INT          NULL,
+  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cm_course  FOREIGN KEY (course_id)  REFERENCES courses(id)         ON DELETE CASCADE,
+  CONSTRAINT fk_cm_outline FOREIGN KEY (outline_id) REFERENCES course_outlines(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cm_user    FOREIGN KEY (uploaded_by) REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT ck_cm_source  CHECK (source IN ('upload','moodle'))
+) ENGINE=InnoDB COMMENT='Học liệu của học phần (giáo trình, slide, tài liệu tham khảo) – nguồn của gợi ý ôn tập';
+CREATE INDEX ix_cm_course ON course_materials (course_id);
+
+CREATE TABLE material_chunks (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  material_id INT          NOT NULL,
+  page_no     INT          NOT NULL COMMENT 'Số trang (PDF) hoặc số slide (PPTX); DOCX/TXT: số thứ tự đoạn gộp',
+  heading     VARCHAR(255) NULL COMMENT 'Tiêu đề/mục gần nhất của đoạn',
+  content     MEDIUMTEXT   NOT NULL COMMENT 'Văn bản của trang (hoặc mô tả của VLM với trang hình/sơ đồ)',
+  from_vlm    BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = nội dung do mô hình thị giác (VLM) mô tả',
+  CONSTRAINT fk_mc_material FOREIGN KEY (material_id) REFERENCES course_materials(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Đoạn (trang/slide) đã trích xuất của học liệu – đơn vị truy xuất của RAG';
+CREATE INDEX ix_mc_material ON material_chunks (material_id, page_no);
+
+CREATE TABLE learning_reading_items (
+  id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+  path_id     BIGINT       NOT NULL,
+  question_id INT          NOT NULL COMMENT 'Câu SV làm sai',
+  chunk_id    BIGINT       NOT NULL COMMENT 'Đoạn tài liệu được gợi ý',
+  rank_no     TINYINT      NOT NULL COMMENT '1 = phù hợp nhất',
+  score       DECIMAL(8,4) NOT NULL COMMENT 'Điểm tương đồng (BM25 chuẩn hóa 0–1)',
+  CONSTRAINT fk_lri_path     FOREIGN KEY (path_id)     REFERENCES personalized_learning_paths(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lri_question FOREIGN KEY (question_id) REFERENCES question_bank(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_lri_chunk    FOREIGN KEY (chunk_id)    REFERENCES material_chunks(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Gợi ý đọc: câu sai → trang/slide cụ thể trong học liệu của học phần';
+CREATE INDEX ix_lri_path ON learning_reading_items (path_id, rank_no);
 
 CREATE TABLE sync_runs (
   id           BIGINT AUTO_INCREMENT PRIMARY KEY,

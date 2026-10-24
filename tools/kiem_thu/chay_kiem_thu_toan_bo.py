@@ -69,6 +69,11 @@ GIAO_DIEN = [
     ("Bộ môn", "Kế hoạch đo PI (BM3b), Tổng hợp PLO", "Kế hoạch đo PI → thêm/sửa; Tổng hợp PLO → xuất Excel/Word", "BM2, BM3 đúng biểu mẫu"),
     ("Bộ môn", "Kết nối Moodle", "Kết nối Moodle", "CSDL Moodle đọc được, cầu nối đã cài, Web Service OK (7 hàm)"),
     ("GV", "Tạo bài KT ở trang môn học, giao lớp khi xuất", "Môn học của tôi → '+ Tạo bài kiểm tra' ở môn DBMS330284 → chọn hình thức (3 thẻ) → soạn đề → Lưu đề của môn → 'Giao cho lớp HP / Xuất' → chọn lớp 02", "Hộp chọn hình thức hiển thị đủ chữ, không cuộn ngang; đề nằm ở thẻ Đề kiểm tra của môn; lớp 02 có bài mới 'giao từ đề #…'; giao lại lớp đã có bị bỏ qua"),
+    ("GV", "Học liệu của môn", "Trang môn học > tab Học liệu: tải lên slide/giáo trình; bấm Lập lại chỉ mục; gõ một câu hỏi vào ô tìm thử", "Danh sách có số trang đã lập chỉ mục; kết quả tìm là trang/slide đúng kèm độ khớp và đoạn trích"),
+    ("GV", "Gợi ý đọc trong hồ sơ sinh viên", "Lớp học phần > Thống kê > chọn một sinh viên", "Mục Cần đọc lại ở đâu: tên tài liệu, trang/slide, các câu làm sai dẫn tới đó"),
+    ("GV", "Gợi ý đọc ở trang Ôn tập", "Lớp học phần > Ôn tập > tab Theo chương", "Cột Nên đọc lại cho từng chương; tích chọn chương rồi tạo bài kiểm tra cho nhóm vẫn dùng được"),
+    ("GV", "Đồng bộ học liệu với Moodle", "Tab Học liệu: Đưa lên Moodle một tệp; Lấy từ Moodle", "Tệp xuất hiện trong khóa học Moodle; tệp mới trên Moodle được lấy về, không trùng"),
+    ("SV", "Gợi ý đọc trên Moodle", "Đăng nhập Moodle bằng tài khoản sinh viên > khóa học > Kết quả phân tích CĐR", "Mục Nên đọc lại ở đâu liệt kê trang/slide; bấm tên tài liệu mở được tài nguyên trong khóa học"),
     ("GV", "Thời gian làm bài & cảnh báo", "Bài Thi cuối kỳ (Moodle) > thẻ 'Thời gian làm bài'; bấm 'Diễn biến' của SV 22130017; đổi ngưỡng giây/câu rồi Áp dụng; Xuất Excel", "4 SV bị cảnh báo (2 làm quá nhanh, 2 để hết giờ tự nộp); biểu đồ từng câu; danh sách đổi theo ngưỡng; tải được Excel"),
 ]
 
@@ -84,10 +89,10 @@ def run_pytest(out_json: Path, junit: Path) -> int:
 def all_routes() -> list[dict]:
     from app.main import app  # noqa: F401
     from app.routers import (analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync,
-                             question_io, questions, remedial, reports, sync)
+                             question_io, questions, remedial, reports, sync, materials)
     out = []
     for mod in (auth, programs, catalog, courses, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms,
-                analytics, insights, reports):
+                analytics, insights, reports, materials):
         for r in mod.router.routes:
             doc = (r.endpoint.__doc__ or "").strip().split("\n")[0]
             for m in sorted(r.methods - {"HEAD"}):

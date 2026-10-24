@@ -8,6 +8,7 @@ import { DeployDialog, NewExamFlow, TYPE_VI } from '../components/NewExam'
 import { useApi } from '../hooks'
 import { useMoodleBase } from '../moodle'
 import Combine from '../components/Combine'
+import Materials from '../components/Materials'
 import { Clos, CloForm, CourseInfo, Outlines, SectionForm } from './Courses'
 import { AssessmentsForm, GeneralForm, OutlineForm, ReferencesForm, SYL_TEXT, TextForm } from '../components/SyllabusForms'
 
@@ -51,6 +52,8 @@ export default function CourseHome() {
     ]).map(([k, label, sub, done]) => ({ tab: true, label, sub, done, on: tab === k, onClick: () => setSp({ tab: k }) }))}
       extra={<>{!isAdmin && (cex.data?.exams.length > 0 || tab === 'exams') &&
         <button role="tab" aria-selected={tab === 'exams'} className={`btn sm ${tab === 'exams' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'exams' })}>Đề dùng chung ({cex.data?.exams.length ?? 0})</button>}
+        <button role="tab" aria-selected={tab === 'materials'} className={`btn sm ${tab === 'materials' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'materials' })}
+          title="Giáo trình, slide của môn – nguồn gợi ý sinh viên cần đọc trang nào">Học liệu & gợi ý đọc</button>
         <button role="tab" aria-selected={tab === 'combine'} className={`btn sm ${tab === 'combine' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'combine' })}
           title="Chọn bài kiểm tra nào được tính khi đo CLO của môn">Chọn bài tính vào kết quả</button></>} />}
     <Loading {...syl} />
@@ -59,6 +62,7 @@ export default function CourseHome() {
     {s && tab === 'exams' && !isAdmin && <ExamsTab data={cex} onNew={() => setCreating(true)} />}
     {s && tab === 'results' && <ResultsTab s={s} isAdmin={isAdmin} />}
     {creating && s && cex.data && <NewExamFlow course={{ id: Number(id), code: s.course_code }} sections={s.sections.map(x => cex.data.sections.find(y => y.id === x.id)).filter(Boolean)} onClose={closeNew} />}
+    {s && tab === 'materials' && <Materials courseId={Number(id)} outlines={s.outlines} />}
     {s && tab === 'combine' && <Combine courseId={Number(id)} />}
     {s && tab === 'setup' && isAdmin && <Setup courseId={Number(id)} s={s} reload={syl.reload} />}
   </>

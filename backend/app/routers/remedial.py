@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import check_section_access, require
 from ..models import Exam, ExamQuestion, User
+from ..services import readings
 
 router = APIRouter(prefix="/api", tags=["Ôn tập theo câu trả lời sai (phụ đạo)"])
 
@@ -44,6 +45,12 @@ def _exam_ids(db: Session, cs_id: int, ids: list[int]) -> list[int]:
             raise HTTPException(422, f"Bài KT {sorted(bad)} không thuộc lớp hoặc chưa phân tích")
         return ids
     return all_ids
+
+
+def _short_readings(db: Session, course_id: int, qids: list[int], qtexts: dict, cache: dict, limit: int) -> list[dict]:
+    """Chỗ cần đọc trong học liệu của môn (trang/slide) cho một nhóm câu sai – hiện ở trang Ôn tập của giảng viên."""
+    return [{k: r[k] for k in ("material", "unit", "page", "heading", "snippet", "score")} | {"n_questions": len(r["questions"])}
+            for r in readings.readings_for_questions(db, course_id, qids, qtexts, cache, limit)]
 
 
 def _chapter_label(r: dict) -> str:
@@ -97,22 +104,28 @@ def remedial_overview(cs_id: int, exam_ids: str = "", u: User = Depends(require(
                 WHERE a.exam_id IN :ids AND a.status='finished'
                 GROUP BY s.id, s.student_code, s.full_name ORDER BY n_wrong DESC, s.student_code""").bindparams(bindparam("ids", expanding=True))
     studs = [dict(r) for r in db.execute(q, {"ids": ids}).mappings()]
+    course_id = db.execute(text("SELECT course_id FROM class_sections WHERE id=:c"), {"c": cs_id}).scalar()
+    cache: dict = {}
     # nội dung (chương) mỗi SV còn yếu: gom từ các câu làm sai/bỏ trống
     wrong_all = _wrong_rows(db, ids)
     by_stu: dict[int, dict] = {}
+    by_stu_q: dict[int, set] = {}
     by_chap: dict[str, dict] = {}
     for r in wrong_all:
         lab = _chapter_label(r)
         by_stu.setdefault(r["student_id"], {}).setdefault(lab, 0)
         by_stu[r["student_id"]][lab] += 1
-        c = by_chap.setdefault(lab, {"label": lab, "outline_id": r["outline_id"], "student_ids": set(), "n_wrong": 0})
-        c["student_ids"].add(r["student_id"]); c["n_wrong"] += 1
+        c = by_chap.setdefault(lab, {"label": lab, "outline_id": r["outline_id"], "student_ids": set(), "n_wrong": 0, "qids": set()})
+        c["student_ids"].add(r["student_id"]); c["n_wrong"] += 1; c["qids"].add(r["question_id"])
+        by_stu_q.setdefault(r["student_id"], set()).add(r["question_id"])
+    qtexts = readings.question_texts(db, [r["question_id"] for r in wrong_all])
     for s in studs:
         for k in ("n_items", "n_wrong", "n_blank"):
             s[k] = int(s[k] or 0)
         s["wrong_pct"] = round(100 * s["n_wrong"] / s["n_items"], 1) if s["n_items"] else 0
         mine = by_stu.get(s["student_id"], {})
         s["weak_chapters"] = [k for k, _ in sorted(mine.items(), key=lambda kv: -kv[1])]
+        s["readings"] = _short_readings(db, course_id, sorted(by_stu_q.get(s["student_id"], [])), qtexts, cache, 3)
     q = text("""SELECT eq.exam_id, eq.order_index, q.id AS question_id, LEFT(q.content, 200) AS content, q.question_type,
                        COUNT(r.id) AS n_students, SUM(r.score_earned + 0.0001 < eq.points) AS n_wrong,
                        (SELECT GROUP_CONCAT(c.clo_code ORDER BY c.clo_code) FROM question_clo_mapping m JOIN clos c ON c.id=m.clo_id
@@ -130,7 +143,9 @@ def remedial_overview(cs_id: int, exam_ids: str = "", u: User = Depends(require(
     n_done = len(studs) or 1
     chapters = sorted(({"label": c["label"], "outline_id": c["outline_id"], "n_students": len(c["student_ids"]),
                         "pct_students": round(100 * len(c["student_ids"]) / n_done, 1), "n_wrong": c["n_wrong"],
-                        "student_ids": sorted(c["student_ids"])} for c in by_chap.values()), key=lambda c: -c["n_students"])
+                        "student_ids": sorted(c["student_ids"]),
+                        "readings": _short_readings(db, course_id, sorted(c["qids"]), qtexts, cache, 3)} for c in by_chap.values()),
+                      key=lambda c: -c["n_students"])
     return {"exams": exams, "selected": ids, "students": studs, "questions": qs, "chapters": chapters}
 
 
