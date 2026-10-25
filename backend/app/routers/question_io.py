@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..http_utils import attachment
-from ..deps import check_course_access, require
+from ..deps import check_course_access, require, lecturer_only
 from ..models import Course, Question, QuestionCLO, QuestionOption, User
 from ..services import question_import as qi
 
@@ -126,7 +126,7 @@ def import_template(course_id: int, db: Session = Depends(get_db), u: User = Dep
 # ------------------------------------------------------------------ 2. nhập hàng loạt câu hỏi
 @router.post("/import")
 async def import_questions(course_id: int, dry_run: bool = True, skip_duplicates: bool = True, file: UploadFile = File(...),
-                           db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+                           db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     check_course_access(db, u, course_id)
     _course, chapters, _cn, clos, _cr, levels = _course_refs(db, course_id)
     data = await _read(file)
@@ -251,7 +251,7 @@ def tagging_template(course_id: int, only_untagged: bool = False, ids: str | Non
 # ------------------------------------------------------------------ 4. đọc file gán CLO và cập nhật
 @router.post("/tagging-import")
 async def tagging_import(course_id: int, dry_run: bool = True, file: UploadFile = File(...),
-                         db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+                         db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     check_course_access(db, u, course_id)
     _course, chapters, _cn, clos, clo_rows, levels = _course_refs(db, course_id)
     data = await _read(file)

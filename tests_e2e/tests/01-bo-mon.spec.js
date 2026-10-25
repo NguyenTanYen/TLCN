@@ -315,6 +315,10 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
     await page.emulateMedia({ media: 'screen' })
     expect(shown).toBe(0)
   })
+  await test.step('Bước 10: "⬇ Tải đề cương (Word) để in" → tệp .docx theo mẫu đề cương của phiên bản đang xem', async () => {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Tải đề cương \(Word\)/ }).click()])
+    expect(dl.suggestedFilename()).toMatch(/^De_cuong_.+_v1\.docx$/)
+  })
 })
 
 // ================================================================== AD7 – Kế hoạch đo PI, phân công

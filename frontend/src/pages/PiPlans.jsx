@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { api, fmtPct } from '../api'
-import { Achieved, ActionButton, Card, Field, Loading, Modal } from '../components/ui'
+import { Achieved, ActionButton, Card, CourseSelect, Field, Loading, Modal } from '../components/ui'
 import { useApi, useDefaultYear, useProgram } from '../hooks'
 import { ProgramPicker } from '../components/ui'
 
@@ -50,8 +50,7 @@ function AssignForm({ sems, defSem, onClose, onSaved }) {
   return <Modal title="Phân công đánh giá PI" onClose={onClose}>
     <div className="row gap">
       <Field label="Học kỳ"><select value={f.semester_id} onChange={e => setF({ ...f, semester_id: e.target.value })}>{sems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-      <Field label="Môn học"><select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value })}><option value="">— chọn —</option>
-        {courses?.map(c => <option key={c.id} value={c.id}>{c.course_code} – {c.course_name}</option>)}</select></Field>
+      <Field label="Môn học"><CourseSelect courses={courses} value={f.course_id} onChange={v => setF({ ...f, course_id: v })} /></Field>
     </div>
     <label className="row gap check"><input type="checkbox" checked={f.all_supervisors} onChange={e => setF({ ...f, all_supervisors: e.target.checked, lecturer_id: '' })} /> Tất cả thầy/cô có hướng dẫn (TLCN, KLTN…)</label>
     {!f.all_supervisors && <Field label="Giảng viên"><select value={f.lecturer_id} onChange={e => setF({ ...f, lecturer_id: e.target.value })}><option value="">— chọn —</option>
@@ -88,8 +87,7 @@ function PlanForm({ plan, sems, defSem, pid, onClose, onSaved }) {
     <Field label="PI"><select value={f.pi_id} onChange={set('pi_id')}><option value="">— chọn —</option>
       {pis.map(pi => <option key={pi.id} value={pi.id}>{pi.plo_code} · {pi.pi_code}: {pi.description.slice(0, 70)}</option>)}</select></Field>
     <div className="grid2">
-      <Field label="Môn học lấy minh chứng"><select value={f.course_id} onChange={e => setF({ ...f, course_id: e.target.value, clo_ids: [] })}><option value="">— chọn —</option>
-        {courses?.map(c => <option key={c.id} value={c.id}>{c.course_code} – {c.course_name}</option>)}</select></Field>
+      <Field label="Môn học lấy minh chứng"><CourseSelect courses={courses} value={f.course_id} onChange={v => setF({ ...f, course_id: v, clo_ids: [] })} /></Field>
       <Field label="Học kỳ"><select value={f.semester_id} onChange={set('semester_id')}>{sems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
       <Field label="Phương pháp"><input value={f.method} onChange={set('method')} /></Field>
       <Field label="Chu kỳ"><input value={f.cycle} onChange={set('cycle')} /></Field>

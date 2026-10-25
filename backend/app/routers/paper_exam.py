@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import get_exam_for, require
+from ..deps import get_exam_for, require, lecturer_only
 from ..http_utils import attachment
 from ..models import Exam, User
 from ..services import omr, paper, results
@@ -108,7 +108,7 @@ def paper_state(exam_id: int, u: User = Depends(require("admin", "lecturer")), d
 
 
 @router.post("/exams/{exam_id}/paper/versions")
-def make_versions(exam_id: int, body: VersionsIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def make_versions(exam_id: int, body: VersionsIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _paper(db, u, exam_id)
     try:
         v = paper.generate_versions(db, e, body.n_versions, body.shuffle_questions, body.shuffle_options, body.seed)
@@ -121,7 +121,7 @@ def make_versions(exam_id: int, body: VersionsIn, u: User = Depends(require("adm
 
 
 @router.delete("/exams/{exam_id}/paper/versions")
-def delete_versions(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def delete_versions(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Bỏ các mã đề hệ thống đã sinh (khi chưa chấm phiếu) – để sinh lại hoặc chuyển sang Moodle Offline Quiz."""
     e = _paper(db, u, exam_id)
     if e.moodle_offlinequiz_id:
@@ -136,7 +136,7 @@ def delete_versions(exam_id: int, u: User = Depends(require("admin", "lecturer")
 
 
 @router.put("/exams/{exam_id}/paper/settings")
-def save_settings(exam_id: int, body: SettingsIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def save_settings(exam_id: int, body: SettingsIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _paper(db, u, exam_id)
     st = _settings(e)
     new_sheet = {k: v for k, v in body.sheet.items() if k in SHEET_KEYS}
@@ -235,7 +235,7 @@ def package(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: S
 
 # ------------------------------------------------------------------ chấm phiếu
 @router.post("/exams/{exam_id}/scan")
-async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(require("admin", "lecturer")),
+async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only),
                db: Session = Depends(get_db)):
     """Nhận diện phiếu từ ảnh quét / ảnh chụp (JPG, PNG) hoặc PDF nhiều trang. Chưa ghi CSDL – GV soát rồi lưu (scan/commit)."""
     e = _paper(db, u, exam_id)
@@ -281,7 +281,7 @@ async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depe
 
 
 @router.post("/exams/{exam_id}/scan/commit")
-def scan_commit(exam_id: int, body: CommitIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def scan_commit(exam_id: int, body: CommitIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Lưu kết quả phiếu đã soát: Reverse Shuffle nhãn in trên mã đề -> phương án gốc, chấm và phân tích."""
     e = _paper(db, u, exam_id)
     vs = {v["version_code"]: v for v in paper.versions_data(db, e)}

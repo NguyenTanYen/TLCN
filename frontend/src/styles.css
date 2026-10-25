@@ -65,6 +65,11 @@ code { background: #f2f4f7; padding: 1px 5px; border-radius: 4px; font-size: 12.
 input, select, textarea { font: inherit; border: 1px solid #d0d5dd; border-radius: 8px; padding: 7px 10px; background: #fff; min-width: 0; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand-soft); border-color: var(--brand2); }
 input.num { width: 90px; } textarea { width: 100%; resize: vertical; }
+.combo { position: relative; min-width: 260px; } .combo > input { width: 100%; }
+.combo-list { position: fixed; z-index: 60; max-height: 300px; overflow: auto; margin: 0; padding: 4px 0;
+  list-style: none; background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; box-shadow: 0 8px 24px rgba(16,24,40,.12); }
+.combo-list li { padding: 6px 10px; cursor: pointer; font-size: 13.5px; } .combo-list li.hi { background: var(--brand-soft); }
+.combo-list li.sel { font-weight: 600; } .combo-list li.empty { cursor: default; }
 .field { display: grid; gap: 4px; margin-bottom: 10px; } .field > span, .field > legend { font-size: 12.5px; color: #344054; font-weight: 600; }
 fieldset.field { border: 0; padding: 0; margin-inline: 0; min-width: 0; } fieldset.field > legend { padding: 0; margin-bottom: 4px; }
 .check { font-size: 13px; }

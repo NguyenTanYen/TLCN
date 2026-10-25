@@ -14,7 +14,7 @@ import base64
 
 import numpy as np
 
-from .paper import FID, FID_POS, PAGE_H, PAGE_W, SheetOptions, sheet_layout
+from .paper import FID, FID_POS, ORIENT_BAR, PAGE_H, PAGE_W, SheetOptions, sheet_layout
 
 PX = 6.0                       # độ phân giải ảnh chuẩn hóa: 6 px/mm (~152 dpi)
 FILL_MIN = 0.30                # độ đậm trung bình tối thiểu của ô được tô (0 = trắng, 1 = đen kín)
@@ -117,11 +117,13 @@ def warp(g: np.ndarray) -> np.ndarray:
         cell = out[int((y + 1.5) * PX):int((y + FID - 1.5) * PX), int((x + 1.5) * PX):int((x + FID - 1.5) * PX)]
         if cell.size == 0 or cell.mean() > 110:
             raise OMRError("Nắn phiếu không khớp ô định vị – chụp lại phiếu thẳng hơn, đủ 4 góc")
-    # ảnh chụp lật ngược (xoay 180°): góc dưới-phải có chân trang chữ nghiêng – kiểm tra bằng mật độ mực vùng tiêu đề
-    top = out[int(12 * PX):int(36 * PX), int(40 * PX):int(170 * PX)]
-    bot = out[int(PAGE_H - 36) * int(PX):int(PAGE_H - 12) * int(PX), int(40 * PX):int(170 * PX)]
-    if (255 - bot).mean() > 1.8 * (255 - top).mean():
-        out = cv2.rotate(out, cv2.ROTATE_180)
+    # ảnh chụp lật ngược (xoay 180°): vạch đen nhận chiều chỉ có ở giữa mép TRÊN phiếu
+    bx, by, bw_, bh = ORIENT_BAR
+    def bar(img):
+        return img[int((by + 0.6) * PX):int((by + bh - 0.6) * PX), int((bx + 2) * PX):int((bx + bw_ - 2) * PX)].mean()
+    flipped = cv2.rotate(out, cv2.ROTATE_180)
+    if bar(flipped) < bar(out):
+        out = flipped
     return out
 
 
@@ -146,7 +148,7 @@ def _cover(bw: np.ndarray, x: float, y: float, r: float) -> float:
     return float((patch[mask] > 0.3 * 255).mean()) if mask.any() else 0.0
 
 
-SOLID = 0.55                   # ô có độ phủ mực dưới ngưỡng này là ô gạch bỏ / tô không kín
+SOLID = 0.45                   # độ phủ mực (trừ phần chữ in sẵn của ô trống cùng hàng) dưới ngưỡng này là ô gạch bỏ / tô không kín
 
 
 def _pick(fills: dict) -> tuple[list, float]:
@@ -192,7 +194,17 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
             issues.append(f"{what} chưa tô đủ: {out}")
         return out.strip("?") if set(out) == {"?"} else out
     student = digits(L["student"], o.student_digits, "MSSV")
-    version = digits(L["version"], o.version_digits, "Mã đề")
+    # mã đề: một hàng ô tô, mỗi ô là một mã đề (phiếu theo mẫu trường)
+    version = ""
+    if L["version"]:
+        m, _conf = _pick({b["code"]: _fill(bw, b["x"], b["y"], r) for b in L["version"]})
+        for b in L["version"]:
+            if b["code"] in m:
+                marks.append((b["x"], b["y"], "ok" if len(m) == 1 else "multi"))
+        if len(m) == 1:
+            version = m[0]
+        elif len(m) > 1:
+            issues.append(f"Mã đề: tô nhiều ô ({', '.join(m)})")
     answers, conf_min = {}, 1.0
     by_q = {}
     for b in L["answers"]:
@@ -202,7 +214,10 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
         m, conf = _pick(fills)
         weak = []
         if m:
-            cover = {b["label"]: _cover(bw, b["x"], b["y"], r) for b in bs if b["label"] in m}
+            # độ phủ so với ô trống nhạt nhất cùng hàng: bỏ phần mực của chữ cái in sẵn trong ô (phiếu theo mẫu in chữ đậm)
+            cover_all = {b["label"]: _cover(bw, b["x"], b["y"], r) for b in bs}
+            base = min(v for k, v in cover_all.items() if k not in m) if len(m) < len(bs) else 0.0
+            cover = {k: cover_all[k] - base for k in m}
             solid = [k for k in m if cover[k] >= SOLID]
             weak = [k for k in m if cover[k] < SOLID]
             if solid and weak:                    # đổi đáp án bằng cách gạch chéo ô cũ: lấy ô tô kín, bỏ ô bị gạch

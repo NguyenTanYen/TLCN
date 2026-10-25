@@ -2,7 +2,7 @@ import { Fragment, useRef, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Bar } from 'react-chartjs-2'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, fmtNum, fmtPct } from '../api'
+import { api, auth, fmtNum, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading, Stat, diClass, pClass } from '../components/ui'
 import { ManualGrades } from '../components/ManualExam'
@@ -17,6 +17,9 @@ const CLS_TONE = { 'Tốt': 'green', 'Chấp nhận được': 'blue', 'Quá d�
 
 // góp ý 21/10: trang bài kiểm tra theo các bước Đề thi → Phát hành (Moodle / in giấy) → Lấy bài làm & phân tích → Kết quả;
 // khối Công bố luôn ở đầu trang. Bước mở sẵn = việc cần làm tiếp theo trạng thái bài.
+// Góp ý 23/10: Bộ môn chỉ giám sát – không sao chép/xóa đề, không phát hành Quiz, in đề, chấm phiếu hay nhập điểm.
+const isAdmin = () => auth.user()?.role === 'admin'
+
 export default function ExamDetail() {
   const { id } = useParams()
   const exam = useApi(`/api/exams/${id}`)
@@ -60,7 +63,7 @@ export default function ExamDetail() {
             {e.target_students ? ` · dành cho ${e.target_students.split(',').length} SV` : ''}</p></div>
         <div className="row gap wrap">
           {publish}
-          <button className="btn" onClick={() => setCopy(true)}>⧉ Dùng đề cho lớp khác</button>
+          {!isAdmin() && <button className="btn" onClick={() => setCopy(true)}>⧉ Dùng đề cho lớp khác</button>}
           <button className={`btn ${cur === 'log' ? 'on' : 'ghost'}`} onClick={() => go('log')}>Nhật ký</button></div>
       </div>
       <PageHelp id="exam"><p>Đây là trang của một bài kiểm tra. Đi lần lượt các bước ở trên: <b>Đề thi</b> → <b>đưa bài cho sinh viên</b> (Moodle hoặc in giấy) → <b>lấy bài làm và phân tích</b> → <b>Kết quả</b>.</p>
@@ -69,9 +72,11 @@ export default function ExamDetail() {
         <span>⚠ <b>{e.timing_alerts.n_warning} SV</b> có dấu hiệu làm bài bất thường (làm quá nhanh – nghi chọn đại, chọn xong không nộp để hết giờ…).</span>
         <span className="grow" /><button className="btn sm" onClick={() => go('results', 'timing')}>Xem thời gian làm bài</button></div>}
       <Flow steps={steps.filter(Boolean).map(s => ({ tab: true, label: s.label, sub: s.sub, done: s.done, on: cur === s.k, onClick: () => go(s.k) }))} />
-      {cur === 'exam' && (manual ? <><ManualGrades e={e} reload={exam.reload} /><MoreActions e={e} reload={exam.reload} /></>
+      {cur === 'exam' && (manual ? (isAdmin() ? <AdminNote e={e} />
+        : <><ManualGrades e={e} reload={exam.reload} /><MoreActions e={e} reload={exam.reload} /></>)
         : <ExamStep e={e} reload={exam.reload} />)}
-      {cur === 'release' && (paper ? <PaperFlow e={e} reload={exam.reload} /> : <Release e={e} reload={exam.reload} onNext={() => go('collect')} />)}
+      {cur === 'release' && (isAdmin() ? <AdminNote e={e} />
+        : paper ? <PaperFlow e={e} reload={exam.reload} /> : <Release e={e} reload={exam.reload} onNext={() => go('collect')} />)}
       {cur === 'collect' && <Collect e={e} reload={exam.reload} onDone={() => go('results')} />}
       {cur === 'results' && <Results e={e} view={view} setView={v => go('results', v)} reload={exam.reload} />}
       {cur === 'log' && <Log id={id} />}
@@ -80,14 +85,25 @@ export default function ExamDetail() {
   )
 }
 
+// Bộ môn xem trạng thái phát hành / nhập điểm của bài, không thao tác thay giảng viên
+function AdminNote({ e }) {
+  const st = e.exam_type === 'manual' ? `${e.questions.length} câu/ý · ${e.n_attempts} SV đã có điểm`
+    : e.exam_type === 'paper' ? (e.moodle_offlinequiz_id ? `Offline Quiz #${e.moodle_offlinequiz_id} trên Moodle` : `Trạng thái: ${e.status}`) + ` · ${e.n_attempts} bài đã chấm`
+    : e.moodle_quiz_id ? `Quiz #${e.moodle_quiz_id} trên Moodle · ${e.n_attempts} bài làm` : 'Chưa phát hành lên Moodle'
+  return <Card title={e.exam_type === 'manual' ? 'Câu/ý & nhập điểm' : 'Phát hành và chấm bài'}>
+    <p>{st}</p>
+    <p className="muted small">Phát hành Quiz, in đề, chấm phiếu và nhập điểm do giảng viên phụ trách lớp thực hiện. Bộ môn xem kết quả ở bước Kết quả và trang Kết quả CĐR (BM6).</p>
+  </Card>
+}
+
 // Phân tích lại / xóa bài – thao tác phụ, để cuối bước
 function MoreActions({ e, reload }) {
   const nav = useNavigate()
-  const canDel = e.exam_type === 'manual' ? !e.n_attempts : e.status === 'Draft'
+  const canDel = !isAdmin() && (e.exam_type === 'manual' ? !e.n_attempts : e.status === 'Draft')
   return <div className="row gap wrap mt">
     <ActionButton className="btn sm" disabled={!e.n_attempts} okMsg="Đã phân tích lại" onRun={async () => { await api.post(`/api/exams/${e.id}/analyze`); reload() }}>Phân tích lại</ActionButton>
     {canDel && <ActionButton className="btn sm danger" confirm={`Xóa bài kiểm tra "${e.exam_title}"? Thao tác không hoàn tác được.`}
-      onRun={async () => { await api.del(`/api/exams/${e.id}`); nav(`/sections/${e.class_section_id}`) }}>Xóa bài kiểm tra</ActionButton>}
+      onRun={async () => { await api.del(`/api/exams/${e.id}`); nav(`/sections/${e.class_section_id}`) }}>Xóa bài KT</ActionButton>}
   </div>
 }
 
