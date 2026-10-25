@@ -135,6 +135,12 @@ M = {
     "test_course_exam_create_and_blocked_actions": (3, "Tạo bài kiểm tra ở trang môn học (đề của môn)", "Sinh đề theo ma trận cấp môn rồi lưu đề chưa gắn lớp; gọi tạo Quiz, đồng bộ, thống kê; GV khác; gửi cả lớp và môn", "Đề lưu ở môn; thao tác cần lớp 409 kèm hướng dẫn chọn lớp; Moodle XML được; GV khác 403; 422"),
     "test_course_exam_deploy_to_sections": (3, "Giao đề của môn cho lớp HP khi xuất", "Giao đề giấy cho 2 lớp, sinh mã đề ở bài của lớp, giao lại lớp đã có, xóa đề của môn", "Mỗi lớp một bài cùng câu hỏi; không tạo trùng; xóa đề gốc không mất bài của lớp"),
     "test_course_manual_exam_deploy_and_grade": (7, "Đề nhập điểm của môn giao cho lớp", "Khai báo câu/ý gắn CLO ở cấp môn, giao cho lớp 02 rồi nhập điểm", "Bảng điểm đủ 35 SV của lớp; nhập điểm ở đề chưa giao bị chặn (409)"),
+    # ---------------------------------------------------------------- test_tao_khoa_hoc_moodle
+    "test_tao_lop_tu_tao_khoa_hoc_moodle": (9, "Tạo lớp HP tự tạo khóa học Moodle", "Bộ môn tạo lớp mới khi đã cấu hình Moodle", "Gọi local_clo_provision_course với mã lớp, GV; lưu moodle_course_id"),
+    "test_tao_lop_khi_chua_cau_hinh_moodle_van_thanh_cong": (9, "Tạo lớp khi chưa nối Moodle", "Tạo lớp HP khi chưa có token Web Service", "Lớp vẫn được tạo, trạng thái 'skipped'"),
+    "test_loi_moodle_khong_lam_hong_viec_tao_lop": (9, "Lỗi Moodle không làm hỏng việc tạo lớp", "Web Service báo lỗi khi tạo lớp; bấm tạo khóa học lại", "Lớp vẫn có, trạng thái 'error'; nút tạo lại trả 502"),
+    "test_nut_tao_khoa_hoc_ghi_danh_sv_va_luu_mdl_user_id": (9, "Ghi danh SV và lưu mã người dùng Moodle", "Lớp có 3 SV, bấm Tạo khóa học trên Moodle, gọi lại lần hai", "Gửi đủ 3 SV (họ, tên tách đúng); lưu moodle_user_id; gọi lại vẫn thành công"),
+    "test_gv_khac_khong_tao_duoc_khoa_hoc_cua_lop_nguoi_khac": (9, "Phân quyền khi tạo khóa học Moodle", "GV không phụ trách bấm tạo khóa học cho lớp", "403"),
     # ---------------------------------------------------------------- test_hoc_lieu_rag
     "test_seed_co_hoc_lieu": (13, "Học liệu mẫu có sẵn", "Danh sách học liệu của môn DBMS330284", "7 học liệu (6 slide + 1 giáo trình), số trang khớp nội dung đã sinh"),
     "test_tim_dung_slide": (13, "Tìm đúng slide cho câu hỏi", "5 câu hỏi mẫu của 5 chương", "Kết quả đầu bảng là đúng slide mong đợi, kèm đoạn trích"),
