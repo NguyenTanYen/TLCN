@@ -62,6 +62,12 @@ function field(scope, label) {
 
 /** Chọn option có chứa chuỗi con (nhãn option thường kèm mã, VD "Nguyễn Thành Sơn (GV001)"); chờ danh sách tải xong. */
 async function pick(select, text) {
+  const isCombo = (await select.getAttribute('role').catch(() => null)) === 'combobox'
+  if (isCombo) {                                  // ô chọn học phần có tìm kiếm (CourseSelect)
+    await select.click(); await select.fill(text)
+    await select.page().locator('[role=option]').filter({ hasText: text }).first().click()
+    return
+  }
   for (let i = 0; i < 40; i++) {
     const opts = await select.locator('option').evaluateAll(os => os.map(o => [o.value, o.textContent]))
     const hit = opts.find(([, t]) => t.includes(text))
