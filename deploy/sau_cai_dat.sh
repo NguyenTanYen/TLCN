@@ -11,6 +11,10 @@ C="docker compose -f docker-compose.prod.yml -f docker-compose.override.yml --en
 echo "== Dựng lại Moodle + app theo mã nguồn mới"; $C up -d --build moodle app
 echo "== Chờ Moodle sẵn sàng"; for i in $(seq 1 40); do $C exec -T moodle php -r 'echo 1;' >/dev/null 2>&1 && break; sleep 5; done
 sleep 20
+echo "== Chép plugin local_clo + theme ute vào Moodle (mã Moodle nằm trong volume nên phải chép lại sau mỗi lần cập nhật)"
+tar -C ../moodle/local -cf - clo | $C exec -T moodle tar -C /var/www/html/local -xf -
+tar -C ../moodle/theme -cf - ute | $C exec -T moodle tar -C /var/www/html/theme -xf -
+$C exec -T moodle chown -R www-data:www-data /var/www/html/local/clo /var/www/html/theme/ute
 echo "== Nâng cấp plugin / theme"; $C exec -T moodle php admin/cli/upgrade.php --non-interactive
 echo "== Cấu hình plugin, lấy token Web Service + khóa SSO"
 $C exec -T -u www-data moodle php local/clo/cli/setup.php --appurl="https://app.${IP_CONG_KHAI}.sslip.io" --envfile=/tmp/clo.env
