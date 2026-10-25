@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Kết nối hai chiều với Moodle (ghi bằng Web Service chính thức; đọc bài làm vẫn qua cầu nối CSDL chỉ đọc)
     moodle_url: str = ""                # ví dụ http://localhost/moodle
     moodle_ws_token: str = ""           # token dịch vụ "local_clo" (tạo bởi local/clo/cli/setup.php)
+    moodle_new_user_password: str = "Sv@123456"   # mật khẩu ban đầu cho tài khoản Moodle do hệ thống tự tạo (GV/SV đổi sau; ĐỔI khi triển khai thật)
     moodle_sso_secret: str = ""         # khóa dùng chung để kiểm tra vé đăng nhập một lần từ nút "Phân tích CĐR"
     # Học liệu và gợi ý đọc (RAG)
     materials_dir: str = ""             # nơi lưu tệp học liệu tải lên (trống = backend/du_lieu_hoc_lieu)

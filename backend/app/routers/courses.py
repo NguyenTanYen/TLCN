@@ -247,6 +247,37 @@ def delete_clo(clo_id: int, db: Session = Depends(get_db), _=Depends(require("ad
 
 
 # ------------------------------------------------------------------ lớp học phần
+def _auto_provision(db: Session, cs: ClassSection) -> dict:
+    """Tạo khóa học Moodle + ghi danh GV/SV ngay khi Bộ môn tạo/phân công lớp. Lỗi Moodle KHÔNG làm hỏng việc tạo lớp:
+    trả trạng thái để giao diện báo và cho bấm "Tạo khóa học trên Moodle" làm lại sau."""
+    from ..services import lms
+    if not lms.configured():
+        return {"status": "skipped", "message": "Chưa cấu hình kết nối Moodle – lớp chỉ có trên hệ thống"}
+    try:
+        r = lms.provision_section(db, cs)
+        db.commit()
+        return {"status": "ok", **r}
+    except lms.MoodleWSError as ex:
+        db.rollback()
+        return {"status": "error", "message": str(ex)}
+
+
+@router.post("/class-sections/{cs_id}/moodle-provision")
+def provision_moodle_course(cs_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+    """Tạo khóa học Moodle cho lớp (nếu chưa có) và ghi danh GV phụ trách + SV đang học; gọi lại để bổ sung người còn thiếu."""
+    from ..services import lms
+    cs = check_section_access(db, u, cs_id)
+    if not lms.configured():
+        raise HTTPException(503, "Chưa cấu hình kết nối Moodle (MOODLE_URL, MOODLE_WS_TOKEN)")
+    try:
+        r = lms.provision_section(db, cs)
+    except lms.MoodleWSError as ex:
+        db.rollback()
+        raise HTTPException(502, str(ex))
+    db.commit()
+    return r
+
+
 @router.post("/class-sections", status_code=201)
 def create_section(body: SectionIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     _course(db, body.course_id)
@@ -258,7 +289,7 @@ def create_section(body: SectionIn, db: Session = Depends(get_db), _=Depends(req
     cs = ClassSection(course_id=body.course_id, semester_id=body.semester_id, lecturer_id=body.lecturer_id,
                       section_code=body.section_code.strip())
     db.add(cs); db.commit()
-    return {"id": cs.id}
+    return {"id": cs.id, "moodle": _auto_provision(db, cs)}
 
 
 @router.put("/class-sections/{cs_id}")
@@ -270,9 +301,10 @@ def update_section(cs_id: int, body: SectionIn, db: Session = Depends(get_db), u
     if db.query(ClassSection).filter(ClassSection.semester_id == body.semester_id, ClassSection.section_code == body.section_code.strip(),
                                      ClassSection.id != cs_id).first():
         raise HTTPException(409, f"Học kỳ này đã có lớp {body.section_code}")
+    old_lec = cs.lecturer_id
     cs.course_id, cs.semester_id, cs.lecturer_id, cs.section_code = body.course_id, body.semester_id, body.lecturer_id, body.section_code.strip()
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "moodle": _auto_provision(db, cs) if (old_lec != cs.lecturer_id or not cs.moodle_course_id) else None}
 
 
 @router.delete("/class-sections/{cs_id}")

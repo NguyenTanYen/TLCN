@@ -59,6 +59,10 @@ class FakeMoodle:
                     "uploadurl": f"{base}/mod/offlinequiz/upload.php", "correcturl": f"{base}/mod/offlinequiz/correct.php"}
         if fn == "local_clo_push_results":
             return {"examid": 1, "saved": len(params["results"]), "notfound": 0, "notified": 0}
+        if fn == "local_clo_provision_course":
+            people = params.get("teachers", []) + params.get("students", [])
+            return {"courseid": 7700 + len(params["shortname"]), "created": True, "usersmade": len(people),
+                    "enrolled": len(people), "users": [{"username": x["username"], "userid": 5000 + i} for i, x in enumerate(people)]}
         if fn == "local_clo_sync_questions":
             out = []
             for item in params["questions"]:

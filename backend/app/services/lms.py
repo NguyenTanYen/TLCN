@@ -231,3 +231,48 @@ def push_results(db: Session, exam: Exam) -> dict:
                                           "published": bool(exam.publish_flag), "results": payload}, timeout=120)
     res["sent"] = len(payload)
     return res
+
+
+# ------------------------------------------------------------------ tạo khóa học + ghi danh (lớp HP → Moodle)
+def _split_name(full: str) -> tuple[str, str]:
+    """Tên người Việt: tên = từ cuối, họ và tên đệm = phần còn lại."""
+    parts = (full or "").split()
+    return (parts[-1], " ".join(parts[:-1])) if len(parts) > 1 else ((parts[0] if parts else "-"), "-")
+
+
+def provision_section(db: Session, cs) -> dict:
+    """Tạo (hoặc bổ sung) khóa học Moodle cho lớp học phần: khóa học mang mã lớp, ghi danh GV phụ trách và SV đang học.
+    Idempotent – gọi lại sau khi thêm SV thì chỉ ghi danh người còn thiếu. Lưu moodle_course_id và mdl_user.id của SV."""
+    lec = cs.lecturer
+    lec_user = db.execute(text("SELECT username, email FROM users WHERE id=:i"), {"i": lec.user_id}).first() if lec.user_id else None
+    if not lec_user:
+        raise MoodleWSError("Giảng viên phụ trách chưa có tài khoản đăng nhập – không tạo được giáo viên trên Moodle")
+    fn, ln = _split_name(lec.full_name)
+    teachers = [{"username": lec_user.username, "firstname": fn, "lastname": ln, "email": lec_user.email or "",
+                 "idnumber": lec.lecturer_code}]
+    rows = db.execute(text("""SELECT s.id, s.student_code, s.full_name, u.username, u.email FROM enrollments e
+                              JOIN students s ON s.id = e.student_id LEFT JOIN users u ON u.id = s.user_id
+                              WHERE e.class_section_id=:c AND e.status='active' ORDER BY s.student_code"""), {"c": cs.id}).all()
+    students, by_name = [], {}
+    for r in rows:
+        uname = (r.username or r.student_code).strip().lower()
+        f, l = _split_name(r.full_name)
+        students.append({"username": uname, "firstname": f, "lastname": l, "email": r.email or "", "idnumber": r.student_code})
+        by_name[uname] = r.id
+    c = cs.course
+    res = call("local_clo_provision_course", {
+        "shortname": cs.section_code, "idnumber": cs.section_code,
+        "fullname": f"{c.course_name} – {cs.section_code}", "newuserpassword": settings.moodle_new_user_password,
+        "teachers": teachers, "students": students}, timeout=300)
+    mid = int(res["courseid"])
+    clash = db.execute(text("SELECT id FROM class_sections WHERE moodle_course_id=:m AND id<>:c"), {"m": mid, "c": cs.id}).scalar()
+    if clash:
+        raise MoodleWSError(f"Khóa học Moodle #{mid} (mã {cs.section_code}) đang gắn với lớp học phần khác (id {clash})")
+    cs.moodle_course_id = mid
+    for u in res.get("users", []):
+        sid = by_name.get(u["username"])
+        if sid and not db.execute(text("SELECT 1 FROM students WHERE moodle_user_id=:m AND id<>:s"), {"m": u["userid"], "s": sid}).scalar():
+            db.execute(text("UPDATE students SET moodle_user_id=:m WHERE id=:s AND moodle_user_id IS NULL"), {"m": u["userid"], "s": sid})
+    db.flush()
+    return {"moodle_course_id": mid, "created": bool(res.get("created")), "users_created": res.get("usersmade", 0),
+            "enrolled": res.get("enrolled", 0), "n_students": len(students)}
