@@ -1,5 +1,5 @@
 // Đề giấy sinh & chấm trên hệ thống: mã đề → xem trước đề (1 hoặc 2 cột) và phiếu trả lời ngay trên màn hình → xuất PDF/Word → chấm ảnh phiếu.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { api } from '../api'
 import { ActionButton, Badge, Card, Field, FileButton, Loading, Modal, Stat, useToast } from './ui'
 import { useApi } from '../hooks'
@@ -163,31 +163,84 @@ function Sheet({ e, st, reload }) {
   </div>
 }
 
+function CameraPane({ onShot, last, autoSave, setAutoSave }) {
+  const vref = useRef(null), sref = useRef(null)
+  const [err, setErr] = useState(''), [busy, setBusy] = useState(false), [ready, setReady] = useState(false)
+  useEffect(() => {
+    let dead = false
+    if (!navigator.mediaDevices?.getUserMedia) { setErr('Trình duyệt không cho dùng camera ở địa chỉ này (cần HTTPS). Dùng nút "Chụp bằng điện thoại" bên cạnh.'); return }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .then(stream => { if (dead) { stream.getTracks().forEach(t => t.stop()); return }
+        sref.current = stream; vref.current.srcObject = stream; vref.current.play().then(() => setReady(true)).catch(() => setReady(true)) })
+      .catch(x => setErr(x.name === 'NotAllowedError' ? 'Bạn chưa cho phép dùng camera – bấm biểu tượng ổ khóa cạnh địa chỉ để cho phép.' : `Không mở được camera: ${x.message}`))
+    return () => { dead = true; sref.current?.getTracks().forEach(t => t.stop()) }
+  }, [])
+  const shoot = () => {
+    const v = vref.current; if (!v || !v.videoWidth) return
+    const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight
+    c.getContext('2d').drawImage(v, 0, 0)
+    c.toBlob(async b => { setBusy(true); try { await onShot(new File([b], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })) } catch (x) { /* thông báo ở onShot */ } finally { setBusy(false) } }, 'image/jpeg', 0.92)
+  }
+  return <div className="cam-pane mt">
+    {err ? <div className="alert red small">{err}</div> : <>
+      <div className="cam-box"><video ref={vref} playsInline muted /><div className="cam-guide" /></div>
+      <div className="row gap wrap mt">
+        <button className="btn primary" disabled={!ready || busy} onClick={shoot}>{busy ? 'Đang chấm…' : '📸 Chụp & chấm'}</button>
+        <label className="small"><input type="checkbox" checked={autoSave} onChange={x => setAutoSave(x.target.checked)} /> Tự lưu khi phiếu đọc chắc chắn (không có cảnh báo)</label>
+      </div>
+      <p className="muted small">Đặt phiếu phẳng, vừa khung, đủ 4 ô định vị ở góc và đủ sáng rồi bấm chụp. Kết quả hiện ngay; phiếu cần xem lại được giữ trong danh sách bên dưới. Quét lại cùng MSSV sẽ thay phiếu cũ.</p>
+    </>}
+    {last && <div className={`alert ${last.bad ? 'amber' : 'green'} small`}>{last.text}</div>}
+  </div>
+}
+
 function Scan({ e, st, reload }) {
   const toast = useToast()
   const [res, setRes] = useState(null)
   const [sheets, setSheets] = useState([])
   const [cur, setCur] = useState(0)
   const keys = useMemo(() => Object.fromEntries(st.versions.map(v => [v.version_code, Object.fromEntries(v.questions.map(q => [String(q.position), q]))])), [st.versions])
-  const upload = async files => {
+  const [cam, setCam] = useState(false)
+  const [autoSave, setAutoSave] = useState(false)
+  const [last, setLast] = useState(null)
+  const upload = async (files, { append = false } = {}) => {
     const fd = new FormData(); [...files].forEach(f => fd.append('files', f))
     const r = await authFetch(`/api/exams/${e.id}/scan`, { method: 'POST', body: fd })
     const d = await r.json()
     if (!r.ok) throw new Error(d.detail || `Lỗi ${r.status}`)
-    setRes(d); setSheets(d.sheets.filter(x => !x.error)); setCur(0)
+    const good = d.sheets.filter(x => !x.error)
+    if (append) {   // chụp liên tục: cộng dồn; quét lại cùng MSSV thì thay phiếu cũ
+      setRes(p => ({ ...d, sheets: [...(p?.sheets || []).filter(x => !x.error), ...d.sheets] }))
+      setSheets(p => { const codes = new Set(good.map(x => x.student_code).filter(c => c && !String(c).includes('?')))
+        const next = [...p.filter(x => !codes.has(x.student_code)), ...good]; setCur(next.length - 1); return next })
+    } else { setRes(d); setSheets(good); setCur(0) }
     return d
   }
   const score = s => { const k = keys[s.version_code]; if (!k) return null; return Object.entries(s.answers).reduce((a, [p, l]) => a + (k[p] && l === k[p].answer ? k[p].points : 0), 0) }
   const upd = (i, patch) => setSheets(x => x.map((y, k) => k === i ? { ...y, ...patch } : y))
   const s = sheets[cur]
   const ok = s => keys[s.version_code] && s.student_code && !String(s.student_code).includes('?')
+  const commitSheets = list => api.post(`/api/exams/${e.id}/scan/commit`, { sheets: list.map(x => ({ student_code: x.student_code, version_code: x.version_code, answers: x.answers, source_name: x.source_name })) })
+  const shot = async f => {   // camera: chụp xong là đọc và chấm ngay
+    const d = await upload([f], { append: true })
+    const x = d.sheets[0]
+    if (!x || x.error) { setLast({ bad: true, text: x?.error || 'Không đọc được phiếu – chụp lại thẳng, đủ 4 góc, đủ sáng' }); return }
+    const sc = score(x), good = ok(x) && !x.issues.length
+    if (autoSave && good) {
+      try { await commitSheets([x]); setSheets(p => p.filter(y => y.source_name !== x.source_name)); reload()
+        setLast({ text: `✔ Đã chấm & lưu: ${x.student_code} – ${x.full_name || ''} · ${sc ?? '—'}/${x.raw_max ?? '—'} điểm` }) }
+      catch (err) { setLast({ bad: true, text: err.message }) }
+    } else setLast({ bad: !good, text: `${good ? '✔ Đã chấm' : '⚠ Cần xem lại'}: ${x.student_code || '?'} – ${x.full_name || 'không có trong lớp'} · ${sc ?? '—'}/${x.raw_max ?? '—'} điểm${x.issues.length ? ' · ' + x.issues.slice(0, 2).join('; ') : ''}` })
+  }
   return <>
     <div className="row gap wrap">
       <FileButton className="btn primary" accept="image/*,.pdf" label="⬆ Tải ảnh phiếu / PDF đã quét" onPick={f => upload([f]).catch(x => toast(x.message, 'red'))} />
       <label className="btn">📷 Chụp bằng điện thoại / chọn nhiều ảnh
         <input type="file" accept="image/*,.pdf" capture="environment" multiple hidden onChange={ev => { const f = [...ev.target.files]; ev.target.value = ''; f.length && upload(f).catch(x => toast(x.message, 'red')) }} /></label>
+      <button className="btn primary" onClick={() => setCam(c => !c)}>{cam ? '✕ Đóng camera' : '🎥 Quét bằng camera & chấm ngay'}</button>
       <span className="muted small">Ảnh JPG/PNG hoặc PDF nhiều trang (máy quét); chụp thẳng, đủ 4 góc phiếu, đủ sáng.</span>
     </div>
+    {cam && <CameraPane onShot={shot} last={last} autoSave={autoSave} setAutoSave={setAutoSave} />}
     {res && <>
       <div className="stats mt"><Stat label="Phiếu đọc được" value={sheets.length} tone="green" />
         <Stat label="Phiếu lỗi" value={res.sheets.filter(x => x.error).length} tone={res.sheets.some(x => x.error) ? 'red' : ''} />
@@ -222,7 +275,7 @@ function Scan({ e, st, reload }) {
         <div className="row gap mt"><span className="grow" />
           <ActionButton className="btn primary" disabled={!sheets.length || sheets.some(x => !ok(x))} title={sheets.some(x => !ok(x)) ? 'Còn phiếu sai MSSV/mã đề' : ''}
             okMsg={r => `Đã lưu ${r.saved} bài${r.absent ? `, ${r.absent} SV vắng` : ''}${r.analysis ? ' – đã phân tích' : ''}`}
-            onRun={async () => { const r = await api.post(`/api/exams/${e.id}/scan/commit`, { sheets: sheets.map(x => ({ student_code: x.student_code, version_code: x.version_code, answers: x.answers, source_name: x.source_name })) }); reload(); setRes(null); setSheets([]); return r }}>
+            onRun={async () => { const r = await commitSheets(sheets); reload(); setRes(null); setSheets([]); setLast(null); return r }}>
             Lưu kết quả {sheets.length} phiếu &amp; phân tích</ActionButton></div>
       </>}
     </>}
