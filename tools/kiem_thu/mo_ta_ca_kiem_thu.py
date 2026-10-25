@@ -14,7 +14,6 @@ NHOM = [
     "11. Thống kê lớp, hồ sơ sinh viên",
     "12. Nâng cấp CSDL, cầu nối",
     "13. Thời gian làm bài & cảnh báo bất thường",
-    "14. Học liệu và gợi ý đọc (RAG theo trang)",
 ]
 
 M = {
@@ -141,17 +140,4 @@ M = {
     "test_loi_moodle_khong_lam_hong_viec_tao_lop": (9, "Lỗi Moodle không làm hỏng việc tạo lớp", "Web Service báo lỗi khi tạo lớp; bấm tạo khóa học lại", "Lớp vẫn có, trạng thái 'error'; nút tạo lại trả 502"),
     "test_nut_tao_khoa_hoc_ghi_danh_sv_va_luu_mdl_user_id": (9, "Ghi danh SV và lưu mã người dùng Moodle", "Lớp có 3 SV, bấm Tạo khóa học trên Moodle, gọi lại lần hai", "Gửi đủ 3 SV (họ, tên tách đúng); lưu moodle_user_id; gọi lại vẫn thành công"),
     "test_gv_khac_khong_tao_duoc_khoa_hoc_cua_lop_nguoi_khac": (9, "Phân quyền khi tạo khóa học Moodle", "GV không phụ trách bấm tạo khóa học cho lớp", "403"),
-    # ---------------------------------------------------------------- test_hoc_lieu_rag
-    "test_seed_co_hoc_lieu": (13, "Học liệu mẫu có sẵn", "Danh sách học liệu của môn DBMS330284", "7 học liệu (6 slide + 1 giáo trình), số trang khớp nội dung đã sinh"),
-    "test_tim_dung_slide": (13, "Tìm đúng slide cho câu hỏi", "5 câu hỏi mẫu của 5 chương", "Kết quả đầu bảng là đúng slide mong đợi, kèm đoạn trích"),
-    "test_cau_ngoai_pham_vi_khong_goi_y": (13, "Câu ngoài phạm vi học liệu", "Tìm một câu hỏi không liên quan môn", "Kết quả rỗng, không gợi ý bừa"),
-    "test_chi_tim_trong_hoc_lieu_cua_dung_khoa": (13, "Chỉ tìm trong học liệu của đúng môn", "Tải tài liệu vào môn khác rồi tìm ở cả hai môn", "Mỗi môn chỉ thấy tài liệu của mình"),
-    "test_tai_len_docx_txt_va_loi": (13, "Tải học liệu DOCX/TXT và các lỗi", "Tải DOCX, TXT; tệp .exe, tệp rỗng, loại học liệu sai", "201 và có chỉ mục; 422 cho các trường hợp lỗi"),
-    "test_goi_y_doc_cho_sv_lam_sai": (13, "Gợi ý đọc cho sinh viên làm sai", "Dữ liệu kết quả gửi Moodle của bài đã phân tích", "Mỗi SV có danh sách trang/slide thuộc học liệu của môn; không lộ mã câu hỏi"),
-    "test_tai_tao_goi_y_sau_khi_them_hoc_lieu": (13, "Tạo lại gợi ý đọc", "Thêm học liệu rồi gọi readings/rebuild; bài không tồn tại", "Hầu hết SV có gợi ý; 404"),
-    "test_lay_hoc_lieu_tu_moodle_ve": (13, "Lấy học liệu từ khóa học Moodle", "Moodle giả lập trả danh sách tệp; lấy lần 2; đẩy ngược tệp lấy từ Moodle", "Thêm tệp mới, không trùng; 409 khi đẩy ngược"),
-    "test_day_hoc_lieu_len_moodle": (13, "Đưa học liệu lên Moodle", "Gọi local_clo_add_resource (giả lập)", "Nhận course module id; lưu lại để SV mở được"),
-    "test_moodle_loi_tra_502": (13, "Moodle báo lỗi khi đồng bộ học liệu", "Web Service giả lập trả lỗi", "502 kèm thông báo"),
-    "test_xem_tep_goc_trang_va_lap_lai_chi_muc": (13, "Xem lại trang, tải tệp gốc, lập lại chỉ mục", "Mở trang 2 của slide chương 4; trang không có; tải tệp; lập lại chỉ mục", "Trang đúng nội dung; 404; tệp PPTX; số trang không đổi"),
-    "test_on_tap_co_goi_y_doc": (13, "Gợi ý đọc ở trang Ôn tập", "Tổng quan Ôn tập của lớp", "Mỗi SV yếu và mỗi chương có danh sách trang nên đọc"),
 }

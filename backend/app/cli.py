@@ -1,7 +1,7 @@
 """Công cụ dòng lệnh: khởi tạo CSDL, tạo dữ liệu minh họa, mô phỏng bài làm.
 
     python -m app.cli bootstrap        # (container) chờ MySQL, tạo CSDL + dữ liệu minh họa nếu chưa có, cài cầu nối
-    python -m app.cli init-db          # tạo 49 bảng + dữ liệu tham chiếu (BM2, phân công PIs)
+    python -m app.cli init-db          # tạo 46 bảng + dữ liệu tham chiếu (BM2, phân công PIs)
     python -m app.cli seed-demo        # tài khoản, môn DBMS330284, CLO, câu hỏi, lớp HP, 2 bài KT
     python -m app.cli simulate-moodle  # (môi trường thử) dựng dữ liệu Moodle mô phỏng, đồng bộ & phân tích
     python -m app.cli install-bridge   # cài view/thủ tục cầu nối vào CSDL (khi đã có CSDL Moodle)
@@ -57,7 +57,7 @@ def init_db() -> None:
     run_sql_file(DB_DIR / "01_schema.sql", name)
     run_sql_file(DB_DIR / "03_seed_reference.sql", name)
     run_sql_file(DB_DIR / "04_ctdt_2026.sql", name)
-    print(f"Đã tạo CSDL {name} (49 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT 2026, KTDL 2026.")
+    print(f"Đã tạo CSDL {name} (46 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT 2026, KTDL 2026.")
 
 
 def seed_demo() -> None:
@@ -164,17 +164,8 @@ def seed_demo() -> None:
         e2.questions.append(ExamQuestion(question_id=qids[qi], order_index=i, points=0.5))
     db.add_all([e1, e2]); db.commit()
     cs2 = _seed_second_section(db, course, sem, son, clo_ids, u_son.id)
-    _seed_materials(db, course.id, outlines, u_son.id)
     print(f"Đã tạo dữ liệu minh họa: lớp HP {cs.section_code}, 40 SV, {len(qids)} câu hỏi, bài KT #{e1.id} (giấy) và #{e2.id} (Moodle); "
           f"lớp {cs2} (cùng GV, cùng môn) có bài nhập điểm.")
-
-
-def _seed_materials(db, course_id: int, outlines: dict, user_id: int) -> None:
-    """Học liệu minh họa của học phần (slide 6 chương + giáo trình trích): nguồn cho gợi ý đọc đúng trang khi phân tích bài KT."""
-    from .services import hoc_lieu_mau, materials
-    for m in hoc_lieu_mau.samples(outlines):
-        materials.add_material(db, course_id=course_id, title=m["title"], filename=m["filename"], data=m["data"],
-                               material_type=m["material_type"], outline_id=m["outline_id"], user_id=user_id)
 
 
 def _seed_second_section(db, course, sem, lecturer, clo_ids, user_id) -> str:

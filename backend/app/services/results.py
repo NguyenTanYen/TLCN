@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from . import analysis, readings
+from . import analysis
 
 
 def _df(db: Session, sql: str, **params) -> pd.DataFrame:
@@ -86,8 +86,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
         clo_names = dict(db.execute(text("SELECT id, clo_code FROM clos")).fetchall())
         ch_names = dict(db.execute(text("SELECT id, CONCAT('Chương ', chapter_number, ': ', chapter_name) FROM course_outlines")).fetchall())
         if not clo.empty:
-            course_id = db.execute(text("SELECT course_id FROM class_sections WHERE id=:c"), {"c": cs_id}).scalar()
-            qtexts = readings.question_texts(db, valid[valid.is_correct == 0].question_id.unique().tolist()) if course_id else {}
             lost_all = valid.merge(mapping, on="question_id")
             lost_all["lost_points"] = (lost_all.points - lost_all.score_earned) * lost_all.weight
             for att, g in clo.groupby("attempt_id"):
@@ -104,7 +102,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
                 pid = db.execute(text("""INSERT INTO personalized_learning_paths (attempt_id, diagnostic_summary, recommended_study_plan)
                                          VALUES (:a, :s, :p)"""),
                                  {"a": int(att), "s": summary, "p": "\n".join(plan_lines) or "Tiếp tục duy trì kết quả."}).lastrowid
-                _store_readings(db, cs_id, pid, valid[(valid.attempt_id == att) & (valid.is_correct == 0)].question_id.tolist(), qtexts)
                 seen = set()
                 for rec in recs:
                     key = (rec["clo_id"], rec["outline_id"])
@@ -130,16 +127,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
                    {"m": str(exc)[:1000], "r": run_id})
         db.commit()
         raise
-
-
-def _store_readings(db, cs_id: int, path_id: int, wrong_qids: list, qtexts: dict) -> None:
-    """Gợi ý đọc đúng trang/slide trong học liệu của học phần cho các câu SV làm sai (bỏ qua nếu học phần chưa có học liệu)."""
-    if not wrong_qids:
-        return
-    course_id = db.execute(text("SELECT course_id FROM class_sections WHERE id=:c"), {"c": cs_id}).scalar()
-    found = readings.readings_for_questions(db, course_id, [int(q) for q in wrong_qids], qtexts)
-    if found:
-        readings.store(db, path_id, found)
 
 
 def recompute_class_section(db: Session, cs_id: int) -> None:

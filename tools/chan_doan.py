@@ -1,4 +1,4 @@
-"""Chẩn đoán nhanh: kết nối CSDL, số bảng, dữ liệu demo, học liệu, cổng 8000. In ra stdout (bat ghi vào logs\\chan_doan.log)."""
+"""Chẩn đoán nhanh: kết nối CSDL, số bảng, dữ liệu demo, cổng 8000. In ra stdout (bat ghi vào logs\\chan_doan.log)."""
 import os, sys, socket, urllib.request
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +17,7 @@ try:
         print("CSDL:", c.execute(text("SELECT DATABASE()")).scalar(), flush=True)
         n = c.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_type='BASE TABLE'")).scalar()
         print("so bang:", n, flush=True)
-        for t in ("users", "courses", "exams", "course_materials", "material_chunks", "learning_reading_items"):
+        for t in ("users", "courses", "exams"):
             try:
                 print(f"  {t}:", c.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar(), flush=True)
             except Exception as e:
@@ -25,7 +25,6 @@ try:
         for r in c.execute(text("SELECT e.id,e.exam_title,e.status,e.class_section_id,cs.section_code,cs.moodle_course_id,e.moodle_quiz_id,e.exam_type FROM exams e JOIN class_sections cs ON cs.id=e.class_section_id")):
             print("  exam", tuple(r), flush=True)
         print("  attempts:", c.execute(text("SELECT exam_id,COUNT(*) FROM exam_attempts GROUP BY exam_id")).all(), flush=True)
-        print("  readings/exam:", c.execute(text("SELECT a.exam_id, COUNT(*) FROM learning_reading_items r JOIN personalized_learning_paths p ON p.id=r.path_id JOIN exam_attempts a ON a.id=p.attempt_id GROUP BY a.exam_id")).all(), flush=True)
 except Exception as e:
     print("LOI CSDL:", str(e)[:400], flush=True)
 try:

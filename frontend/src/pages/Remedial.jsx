@@ -44,11 +44,10 @@ export default function Remedial() {
       {view === 'chapters' && <Card title="Chương nào nhiều sinh viên còn yếu?">
         <p className="muted small">Tích chọn một hoặc nhiều chương, hệ thống gom các sinh viên còn sai ở những chương đó và tạo bài kiểm tra lại gồm chính các câu đã sai cùng một số câu tương tự.</p>
         {d.chapters.length === 0 ? <div className="alert green">Chưa có chương nào có sinh viên làm sai.</div> :
-          <table className="tbl"><thead><tr><th style={{ width: 34 }} /><th>Chương</th><th className="num-c">SV còn yếu</th><th className="num-c">Tỷ lệ SV</th><th className="num-c">Lượt sai</th><th>Nên đọc lại (tài liệu của môn)</th></tr></thead>
+          <table className="tbl"><thead><tr><th style={{ width: 34 }} /><th>Chương</th><th className="num-c">SV còn yếu</th><th className="num-c">Tỷ lệ SV</th><th className="num-c">Lượt sai</th></tr></thead>
             <tbody>{d.chapters.map(c => <tr key={c.label} className={chapPick.includes(c.label) ? 'sel' : ''}>
               <td><input type="checkbox" aria-label={`Chọn ${c.label}`} checked={chapPick.includes(c.label)} onChange={e => setChapPick(p => e.target.checked ? [...p, c.label] : p.filter(x => x !== c.label))} /></td>
-              <td><b>{c.label}</b></td><td className="num-c">{c.n_students}</td><td className="num-c">{c.pct_students}%</td><td className="num-c">{c.n_wrong}</td>
-              <td className="small"><ReadList items={c.readings} /></td></tr>)}</tbody></table>}
+              <td><b>{c.label}</b></td><td className="num-c">{c.n_students}</td><td className="num-c">{c.pct_students}%</td><td className="num-c">{c.n_wrong}</td></tr>)}</tbody></table>}
         <div className="row mt"><span className="grow" /><button className="btn primary" disabled={!chapPick.length}
           onClick={() => { const cs = d.chapters.filter(c => chapPick.includes(c.label)); setPick([...new Set(cs.flatMap(c => c.student_ids))]); setOutlines(cs.map(c => c.outline_id).filter(Boolean)); setMk(true) }}>
           {chapPick.length ? `Tạo bài kiểm tra lại cho nhóm SV yếu ${chapPick.length} chương đã chọn` : 'Chọn chương để tạo bài cho nhóm'}</button></div>
@@ -99,19 +98,12 @@ function Progress({ list }) {
   </Card>
 }
 
-// Chỗ cần đọc trong học liệu của môn (đã gợi ý từ các câu sai): tên tài liệu + trang/slide
-function ReadList({ items }) {
-  if (!items?.length) return <span className="muted">— (môn chưa có học liệu phù hợp)</span>
-  return <ul className="plain">{items.map((r, i) => <li key={i} title={r.snippet}><b>{r.material}</b> · {r.unit} {r.page}{r.heading ? ` – ${r.heading}` : ''}</li>)}</ul>
-}
-
 function WrongList({ cs, s, exams, onClose, onMake }) {
   const r = useApi(`/api/class-sections/${cs}/remedial/students/${s.student_id}?exam_ids=${exams.join(',')}`)
   return <Modal wide title={`Câu trả lời sai – ${s.full_name} (${s.student_code})`} onClose={onClose}>
     <Loading {...r} />
     {r.data && <>
       <p className="muted small">{r.data.wrong.length} câu sai / bỏ trống / chưa đủ điểm. Chương còn yếu: {s.weak_chapters.join('; ') || 'không'}.</p>
-      {s.readings?.length > 0 && <div className="alert amber"><b>Nên đọc lại:</b> <ReadList items={s.readings} /></div>}
       <div className="scroll tall"><table className="tbl compact"><thead><tr><th>Bài kiểm tra</th><th>Câu</th><th>Nội dung</th><th>SV chọn</th><th>Đáp án đúng</th><th>Chương</th></tr></thead>
         <tbody>{r.data.wrong.map((w, i) => <tr key={i}><td className="small">{w.exam_title}</td><td>{w.version_pos || w.order_index}</td><td className="wrap-cell">{w.content}</td>
           <td className="ans-bad">{w.question_type === 'manual' ? `${w.score_earned}/${w.points} đ` : w.chosen_label ? `${w.chosen_label}. ${w.chosen_content}` : <span className="ans-blank">(bỏ trống)</span>}</td>

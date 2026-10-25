@@ -16,7 +16,6 @@
 - Đề cương chi tiết có phiên bản (góp ý F1): course_syllabi, syllabus_references, syllabus_assessments,
   syllabus_assessment_clos, outline_clos; nội dung, số tiết và hoạt động dạy học của từng chương (course_outlines).
 - question_moodle_links (góp ý F3): trạng thái đồng bộ câu hỏi theo từng khóa học Moodle, phát hiện câu bị sửa ở cả hai bên.
-- Học liệu của học phần (course_materials, material_chunks) và gợi ý đọc theo câu sai (learning_reading_items): RAG.
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
 """
 from sqlalchemy import text
@@ -70,15 +69,13 @@ NEW_COLUMNS = [
     ("exams", "course_id", "INT NULL COMMENT 'Đề của môn (tạo ở trang môn học): môn học; giao cho lớp HP khi xuất' AFTER class_section_id"),
     ("exams", "paper_settings", "TEXT NULL COMMENT 'Bài giấy chấm trên hệ thống: JSON tùy chọn in đề và bố cục phiếu (phiếu quét được đọc theo đúng bố cục đã in)' AFTER target_students"),
     ("exams", "source_exam_id", "INT NULL COMMENT 'Bài được giao/sao từ đề này (đề của môn hoặc bài của lớp khác)' AFTER paper_settings"),
-    ("course_materials", "moodle_modified", "BIGINT NULL COMMENT 'Thời điểm sửa tệp trên Moodle (unix) – để biết tệp đã đổi và cần lấy lại' AFTER moodle_file_url"),
     ("course_outlines", "content", "TEXT NULL COMMENT 'Nội dung chi tiết của chương' AFTER chapter_name"),
     ("course_outlines", "theory_hours", "SMALLINT NULL COMMENT 'Số tiết lý thuyết' AFTER content"),
     ("course_outlines", "practice_hours", "SMALLINT NULL COMMENT 'Số tiết thực hành' AFTER theory_hours"),
     ("course_outlines", "teaching_activities", "TEXT NULL COMMENT 'Hoạt động dạy và học' AFTER practice_hours"),
 ]
 
-NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos",
-              "course_materials", "material_chunks", "learning_reading_items")
+NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos")
 
 # (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
 NEW_CHECKS = [

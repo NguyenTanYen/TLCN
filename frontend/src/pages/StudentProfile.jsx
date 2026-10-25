@@ -92,11 +92,6 @@ function ExamBlock({ e }) {
               <ul>{g.chapters.map(c => <li key={c || 'x'}>Ôn lại <b>{c || 'nội dung chưa gắn chương'}</b></li>)}</ul></li>)}</ol>}
         </Card>
       </div>
-      {(e.readings || []).length > 0 && <Card title="Cần đọc lại ở đâu trong tài liệu của môn (gợi ý từ các câu làm sai)">
-        <ol className="path">{e.readings.map((r, i) => <li key={i}><div className="row gap wrap"><b>{r.material}</b><Badge tone="amber">{r.unit} {r.page}</Badge>
-          {r.heading && <span className="muted">{r.heading}</span>}<span className="muted small">liên quan {r.n_wrong ?? r.question_ids?.length} câu sai</span></div>
-          <div className="muted small">{r.snippet}</div></li>)}</ol>
-      </Card>}
       <details className="more"><summary>Xem chi tiết từng câu trả lời</summary>
       <Card title="Chi tiết từng câu trả lời" actions={[['all', `Tất cả (${e.answers.length})`], ['wrong', `Sai (${cnt('wrong')})`], ['blank', `Bỏ trống (${cnt('blank')})`], ['correct', `Đúng (${cnt('correct')})`]].map(([k, l]) =>
         <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{l}</button>)}>
