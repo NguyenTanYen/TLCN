@@ -242,9 +242,9 @@ def test_results_for_moodle(client, gv):
     absent = [r for r in rows if r["status"] == "absent"]
     assert done and absent and all(r["data"] == {} and r["score"] is None for r in absent)  # E2 – chưa đủ bằng chứng
     d = done[0]["data"]
-    assert len(d["clos"]) == 4 and all({"code", "pct", "threshold", "class_avg", "achieved"} <= set(c) for c in d["clos"])
+    assert "clos" not in d                        # không gửi mức CLO riêng của từng SV sang Moodle
     weak = next(r for r in done if r["data"]["items"])
-    assert all(i["gap"] > 0 and i["clo"] for i in weak["data"]["items"])
+    assert all(i["gap"] > 0 and "clo" not in i for i in weak["data"]["items"])
     assert 0 <= done[0]["score"] <= done[0]["max_score"]
 
 

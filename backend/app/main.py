@@ -10,12 +10,12 @@ from fastapi.staticfiles import StaticFiles
 
 from . import migrate
 from .config import settings
-from .routers import analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync, remedial, question_io, questions, reports, syllabi, sync
+from .routers import analytics, auth, catalog, courses, exams, grading, insights, lms, materials, paper_exam, programs, qsync, remedial, question_io, questions, reports, syllabi, sync
 
 app = FastAPI(title="Hệ thống đánh giá mức độ đạt CĐR (OBE Assessment)", version="2.0",
               description="Tiểu luận chuyên ngành – Nhóm 01. Tài liệu API tự sinh (OpenAPI).")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-for r in (auth, programs, catalog, courses, syllabi, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms, analytics, insights, reports):
+for r in (auth, programs, catalog, courses, syllabi, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms, materials, analytics, insights, reports):
     app.include_router(r.router)
 
 
@@ -63,4 +63,4 @@ if dist.exists():
             raise HTTPException(404, "Không có chức năng API này")
         f = (dist / path).resolve()
         ok = path and f.is_file() and dist in f.parents  # chặn truy cập ra ngoài thư mục dist
-        return FileResponse(f if ok else dist / "index.html")
+        return FileResponse(f if ok else dist / "index.html", headers={"Cache-Control": "no-cache, must-revalidate"})   # luôn lấy giao diện mới sau khi cập nhật

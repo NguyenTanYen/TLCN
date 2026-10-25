@@ -29,7 +29,7 @@ export function ManualExamForm({ cs, courseId, sections, onClose }) {
   const save = async () => {
     const r = await api.post(cs ? `/api/class-sections/${cs.id}/manual-exams` : `/api/courses/${cid}/manual-exams`, { ...f, exam_date: f.exam_date || null, max_score: Number(f.max_score),
       items: items.map(i => ({ title: i.title.trim(), points: Number(i.points), clos: weights(i.clos) })) })
-    nav(cs ? `/exams/${r.id}?tab=grades` : `/exams/${r.id}`)
+    nav(`/exams/${r.id}`)
   }
   return <Modal size="wide" title={`Bài kiểm tra nhập điểm${cs ? ` – lớp ${cs.section_code}` : ' – đề của môn'}`} onClose={onClose}>
     <div className="tabs">{[['form', 'Khai báo câu/ý chấm điểm'], ['excel', 'Tạo từ file Excel có sẵn']].map(([k, l]) =>

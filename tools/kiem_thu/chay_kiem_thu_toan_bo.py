@@ -47,7 +47,7 @@ GIAO_DIEN = [
     ("GV", "Nhập câu hỏi từ tệp, gán CLO từ tệp", "Nhập câu hỏi từ tệp (Excel/Aiken/XML) → Gán CLO/Bloom từ file", "Xem trước, phát hiện trùng/lỗi; câu được gán"),
     ("GV", "Đồng bộ câu hỏi với Moodle", "Ngân hàng câu hỏi → ⇅ Đồng bộ với Moodle → chọn khóa #41 → Đồng bộ", "Câu mới được đẩy lên; câu sửa trên Moodle kéo về; Moodle giữ phiên bản cũ"),
     ("GV", "Sinh đề theo ma trận", "Lớp DBMS330284_01 → + Tạo bài kiểm tra → nhập 20 câu → Sinh đề", "Ma trận chương × Bloom, phủ đủ CLO, báo ô thiếu"),
-    ("GV", "Tạo Quiz trên Moodle", "Bài trực tuyến mới → Tạo Quiz trên Moodle", "Quiz xuất hiện trong khóa học Moodle, đúng câu hỏi"),
+    ("GV", "Tạo bài trắc nghiệm trên Moodle", "Bài trực tuyến mới → Tạo bài trắc nghiệm trên Moodle", "Quiz xuất hiện trong khóa học Moodle, đúng câu hỏi"),
     ("GV", "Dùng đề cho lớp khác", "Trong bài KT → 'Dùng đề cho lớp khác' → chọn lớp 02", "Lớp 02 có bài giống hệt; bài trực tuyến tạo Quiz nếu lớp đã gắn Moodle"),
     ("GV", "Đề giấy trên hệ thống: mã đề, xem trước", "Bài giấy mới → In và chấm ngay trên hệ thống → sinh 2 mã đề → Xem trước", "Trang A4 từng mã đề; đổi 1 cột/2 cột; sửa câu ngay trên bản xem trước"),
     ("GV", "Câu 2/3/4 phương án", "Đề có câu Đúng/Sai và câu 3 phương án", "Đề và phiếu chỉ có đúng số ô của từng câu"),
@@ -56,19 +56,24 @@ GIAO_DIEN = [
     ("GV", "Đề giấy qua Moodle Offline Quiz", "Bài giấy → Dùng Moodle Offline Quiz → tạo, tải đề/phiếu; quét phiếu lên Moodle; Đồng bộ", "Moodle chấm; hệ thống kéo kết quả theo nhóm đề"),
     ("GV", "Nhập điểm thủ công", "Lớp 02 → + Tạo bài kiểm tra → Nhập điểm → khai báo câu/ý, CLO → nhập điểm", "Kiểm tra giới hạn điểm; Lưu & phân tích → CLO, p, DI, alpha"),
     ("GV", "Nhập điểm từ Excel", "Tải bảng điểm mẫu → điền → Nhập từ Excel; hoặc 'Tạo từ file Excel có sẵn'", "Xem trước lỗi từng dòng; ghi điểm đúng cột"),
-    ("GV", "Đồng bộ bài làm Moodle", "Bài Thi cuối kỳ → Đồng bộ & phân tích", "38 bài làm, 2 vắng; nhật ký đồng bộ thành công"),
+    ("GV", "Đồng bộ bài làm Moodle", "Bài Thi cuối kỳ → Lấy bài làm & phân tích", "38 bài làm, 2 vắng; nhật ký đồng bộ thành công"),
     ("GV", "Phân tích câu hỏi", "Thẻ Phân tích câu hỏi", "p, DI, phân loại; câu 14 DI âm được đánh dấu"),
-    ("GV", "Gộp bài kiểm tra", "Trang môn → Gộp bài KT đánh giá CĐR → chọn 3 bài → Phân tích gộp", "Mức đạt CLO; đóng góp PLO theo từng CTĐT; xuất Excel"),
+    ("GV", "Gộp bài kiểm tra", "Trang môn → Chọn bài tính vào kết quả → chọn 3 bài → Phân tích gộp", "Mức đạt CLO; đóng góp PLO theo từng CTĐT; xuất Excel"),
     ("GV", "Chọn bài làm minh chứng BM6", "Bấm 'Có gộp/Không gộp' ở một bài", "BM6b của lớp tính lại ngay"),
-    ("GV", "Phụ đạo", "Lớp 01 → Phụ đạo (câu sai) → bấm 'Câu sai' của 1 SV → Tạo bài phụ đạo", "Danh sách câu sai đúng; bài phụ đạo không gộp minh chứng"),
-    ("GV", "Kết quả CĐR (BM6), xuất biểu mẫu", "Lớp 01 → Kết quả CĐR (BM6) → Xuất Excel; BM6c từng bài", "Tệp đúng bố cục biểu mẫu"),
+    ("GV", "Ôn tập theo chương", "Lớp 01 → Ôn tập → chọn các chương có nhiều SV yếu → 'Tạo bài kiểm tra lại cho nhóm SV yếu…'", "Nhóm SV và danh sách câu sai đúng theo chương; bài kiểm tra lại không tính vào kết quả CLO"),
+    ("GV", "Kết quả chuẩn đầu ra của lớp (BM6), xuất biểu mẫu", "Lớp 01 → Kết quả chuẩn đầu ra của lớp (BM6) → Xuất Excel; BM6c từng bài", "Tệp đúng bố cục biểu mẫu"),
     ("GV", "Thống kê lớp, hồ sơ SV", "Thống kê lớp & từng SV → bấm 1 SV", "Chỉ số, bản đồ nhiệt, phần cần học lại"),
-    ("GV", "Công bố kết quả lên Moodle", "Bài Thi cuối kỳ → Công bố kết quả lên Moodle", "SV nhận thông báo; trên Moodle thấy radar CLO, lộ trình"),
+    ("GV", "Công bố kết quả lên Moodle", "Bài Thi cuối kỳ → Công bố kết quả lên Moodle", "SV nhận thông báo; trên Moodle thấy điểm, nhận xét và kế hoạch ôn theo chương (không có CLO riêng từng SV)"),
     ("SV", "Xem kết quả trên Moodle", "Đăng nhập Moodle bằng SV → khóa học → Kết quả phân tích CĐR", "Điểm, CLO đạt/chưa đạt, lộ trình ôn tập; bài chưa công bố không hiện"),
     ("GV", "Liên kết lớp ⇄ Moodle", "Lớp chưa gắn Moodle → 'Tự nối theo mã lớp'; hoặc bấm 'Phân tích CĐR' trong khóa trùng mã", "Lớp được gắn với khóa học có shortname = mã lớp"),
     ("Bộ môn", "Kế hoạch đo PI (BM3b), Tổng hợp PLO", "Kế hoạch đo PI → thêm/sửa; Tổng hợp PLO → xuất Excel/Word", "BM2, BM3 đúng biểu mẫu"),
     ("Bộ môn", "Kết nối Moodle", "Kết nối Moodle", "CSDL Moodle đọc được, cầu nối đã cài, Web Service OK (7 hàm)"),
-    ("GV", "Tạo bài KT ở trang môn học, giao lớp khi xuất", "Môn học của tôi → '+ Tạo bài KT' ở môn DBMS330284 → chọn hình thức (3 thẻ) → soạn đề → Lưu đề của môn → 'Giao cho lớp HP / Xuất' → chọn lớp 02", "Hộp chọn hình thức hiển thị đủ chữ, không cuộn ngang; đề nằm ở thẻ Đề kiểm tra của môn; lớp 02 có bài mới 'giao từ đề #…'; giao lại lớp đã có bị bỏ qua"),
+    ("GV", "Tạo bài KT ở trang môn học, giao lớp khi xuất", "Môn học của tôi → '+ Tạo bài kiểm tra' ở môn DBMS330284 → chọn hình thức (3 thẻ) → soạn đề → Lưu đề của môn → 'Giao cho lớp HP / Xuất' → chọn lớp 02", "Hộp chọn hình thức hiển thị đủ chữ, không cuộn ngang; đề nằm ở thẻ Đề kiểm tra của môn; lớp 02 có bài mới 'giao từ đề #…'; giao lại lớp đã có bị bỏ qua"),
+    ("GV", "Học liệu của môn", "Trang môn học > tab Học liệu: tải lên slide/giáo trình; bấm Lập lại chỉ mục; gõ một câu hỏi vào ô tìm thử", "Danh sách có số trang đã lập chỉ mục; kết quả tìm là trang/slide đúng kèm độ khớp và đoạn trích"),
+    ("GV", "Gợi ý đọc trong hồ sơ sinh viên", "Lớp học phần > Thống kê > chọn một sinh viên", "Mục Cần đọc lại ở đâu: tên tài liệu, trang/slide, các câu làm sai dẫn tới đó"),
+    ("GV", "Gợi ý đọc ở trang Ôn tập", "Lớp học phần > Ôn tập > tab Theo chương", "Cột Nên đọc lại cho từng chương; tích chọn chương rồi tạo bài kiểm tra cho nhóm vẫn dùng được"),
+    ("GV", "Đồng bộ học liệu với Moodle", "Tab Học liệu: Đưa lên Moodle một tệp; Lấy từ Moodle", "Tệp xuất hiện trong khóa học Moodle; tệp mới trên Moodle được lấy về, không trùng"),
+    ("SV", "Gợi ý đọc trên Moodle", "Đăng nhập Moodle bằng tài khoản sinh viên > khóa học > Kết quả phân tích CĐR", "Mục Nên đọc lại ở đâu liệt kê trang/slide; bấm tên tài liệu mở được tài nguyên trong khóa học"),
     ("GV", "Thời gian làm bài & cảnh báo", "Bài Thi cuối kỳ (Moodle) > thẻ 'Thời gian làm bài'; bấm 'Diễn biến' của SV 22130017; đổi ngưỡng giây/câu rồi Áp dụng; Xuất Excel", "4 SV bị cảnh báo (2 làm quá nhanh, 2 để hết giờ tự nộp); biểu đồ từng câu; danh sách đổi theo ngưỡng; tải được Excel"),
 ]
 
@@ -84,10 +89,10 @@ def run_pytest(out_json: Path, junit: Path) -> int:
 def all_routes() -> list[dict]:
     from app.main import app  # noqa: F401
     from app.routers import (analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync,
-                             question_io, questions, remedial, reports, sync)
+                             question_io, questions, remedial, reports, sync, materials)
     out = []
     for mod in (auth, programs, catalog, courses, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms,
-                analytics, insights, reports):
+                analytics, insights, reports, materials):
         for r in mod.router.routes:
             doc = (r.endpoint.__doc__ or "").strip().split("\n")[0]
             for m in sorted(r.methods - {"HEAD"}):

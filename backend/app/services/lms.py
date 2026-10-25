@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Exam
-from . import xml_export
+from . import readings, xml_export
 
 
 class MoodleWSError(RuntimeError):
@@ -126,6 +126,33 @@ def download(url: str) -> tuple[bytes, str]:
     return r.content, ctype
 
 
+# ------------------------------------------------------------------ học liệu hai chiều
+MAX_PUSH_BYTES = 25 * 1024 * 1024      # đẩy lên Moodle qua một yêu cầu POST (base64): giữ dưới post_max_size mặc định của PHP
+
+
+def course_files(moodle_course_id: int) -> list[dict]:
+    """Các tệp trong khóa học Moodle (hoạt động Tệp và Thư mục) – nguồn học liệu để lập chỉ mục."""
+    out = []
+    for sec in call("core_course_get_contents", {"courseid": moodle_course_id}, timeout=120):
+        for mod in sec.get("modules", []):
+            if mod.get("modname") not in ("resource", "folder") or mod.get("visible") == 0:
+                continue
+            for f in mod.get("contents") or []:
+                if f.get("type") == "file" and f.get("fileurl"):
+                    out.append({"cmid": mod["id"], "name": mod.get("name"), "section": sec.get("name"), "filename": f["filename"],
+                                "url": f["fileurl"].split("?")[0], "size": f.get("filesize", 0), "modified": f.get("timemodified", 0)})
+    return out
+
+
+def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:
+    """Đẩy tệp lên khóa học Moodle thành hoạt động Tệp (hàm Web Service local_clo_add_resource)."""
+    import base64
+    if len(data) > MAX_PUSH_BYTES:
+        raise MoodleWSError(f"Tệp lớn hơn {MAX_PUSH_BYTES // 1024 // 1024} MB – hãy tải thẳng lên Moodle")
+    return call("local_clo_add_resource", {"courseid": moodle_course_id, "name": name, "filename": filename,
+                                           "content": base64.b64encode(data).decode(), "section": section}, timeout=300)
+
+
 # ------------------------------------------------------------------ kết quả từng SV (UC-05)
 def student_results(db: Session, exam_id: int) -> list[dict]:
     """Kết quả phân tích của từng SV trong bài KT – dữ liệu SV sẽ xem trên Moodle."""
@@ -163,6 +190,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         items.setdefault(r["attempt_id"], []).append({"priority": r["priority"], "clo": r["clo_code"],
                                                       "clo_description": r["description"], "chapter": chap,
                                                       "gap": float(r["gap_pct"])})
+    reads = readings.for_path(db, [p["id"] for p in paths.values()])
     out = []
     for a in db.execute(text("""SELECT a.id, a.status, a.total_score, s.student_code, s.full_name, s.moodle_user_id
                                 FROM exam_attempts a JOIN students s ON s.id=a.student_id
@@ -170,12 +198,24 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         absent = a["status"] == "absent"
         p = paths.get(a["id"])
         data = {} if absent else {"clos": radar.get(a["id"], []), "summary": p["diagnostic_summary"] if p else None,
-                                  "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], [])}
+                                  "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], []),
+                                  "readings": reads.get(p["id"], []) if p else []}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
                     "score": None if absent else round(float(a["total_score"]) * float(e["max_score"]) / raw_max, 2),
                     "max_score": float(e["max_score"]), "data": data})
     return out
+
+
+def public_data(data: dict) -> dict:
+    """Dữ liệu gửi cho SV: điểm, chẩn đoán và gợi ý ôn tập theo chương – KHÔNG kèm mức CLO riêng của từng SV."""
+    d = {k: v for k, v in data.items() if k != "clos"}
+    if "items" in d:
+        d["items"] = [{k: v for k, v in i.items() if k not in ("clo", "clo_description")} for i in d["items"]]
+    if "readings" in d:
+        d["readings"] = [{**{k: v for k, v in r.items() if k != "question_ids"}, "n_wrong": len(r["question_ids"])}
+                         for r in d["readings"]]
+    return d
 
 
 def push_results(db: Session, exam: Exam) -> dict:
@@ -185,9 +225,54 @@ def push_results(db: Session, exam: Exam) -> dict:
     rows = student_results(db, exam.id)
     payload = [{"userid": r["moodle_user_id"] or 0, "username": r["student_code"], "status": r["status"],
                 "score": r["score"], "maxscore": r["max_score"],
-                "data": json.dumps(r["data"], ensure_ascii=False)} for r in rows]
+                "data": json.dumps(public_data(r["data"]), ensure_ascii=False)} for r in rows]
     res = call("local_clo_push_results", {"examref": exam.id, "courseid": cs.moodle_course_id,
                                           "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
                                           "published": bool(exam.publish_flag), "results": payload}, timeout=120)
     res["sent"] = len(payload)
     return res
+
+
+# ------------------------------------------------------------------ tạo khóa học + ghi danh (lớp HP → Moodle)
+def _split_name(full: str) -> tuple[str, str]:
+    """Tên người Việt: tên = từ cuối, họ và tên đệm = phần còn lại."""
+    parts = (full or "").split()
+    return (parts[-1], " ".join(parts[:-1])) if len(parts) > 1 else ((parts[0] if parts else "-"), "-")
+
+
+def provision_section(db: Session, cs) -> dict:
+    """Tạo (hoặc bổ sung) khóa học Moodle cho lớp học phần: khóa học mang mã lớp, ghi danh GV phụ trách và SV đang học.
+    Idempotent – gọi lại sau khi thêm SV thì chỉ ghi danh người còn thiếu. Lưu moodle_course_id và mdl_user.id của SV."""
+    lec = cs.lecturer
+    lec_user = db.execute(text("SELECT username, email FROM users WHERE id=:i"), {"i": lec.user_id}).first() if lec.user_id else None
+    if not lec_user:
+        raise MoodleWSError("Giảng viên phụ trách chưa có tài khoản đăng nhập – không tạo được giáo viên trên Moodle")
+    fn, ln = _split_name(lec.full_name)
+    teachers = [{"username": lec_user.username, "firstname": fn, "lastname": ln, "email": lec_user.email or "",
+                 "idnumber": lec.lecturer_code}]
+    rows = db.execute(text("""SELECT s.id, s.student_code, s.full_name, u.username, u.email FROM enrollments e
+                              JOIN students s ON s.id = e.student_id LEFT JOIN users u ON u.id = s.user_id
+                              WHERE e.class_section_id=:c AND e.status='active' ORDER BY s.student_code"""), {"c": cs.id}).all()
+    students, by_name = [], {}
+    for r in rows:
+        uname = (r.username or r.student_code).strip().lower()
+        f, l = _split_name(r.full_name)
+        students.append({"username": uname, "firstname": f, "lastname": l, "email": r.email or "", "idnumber": r.student_code})
+        by_name[uname] = r.id
+    c = cs.course
+    res = call("local_clo_provision_course", {
+        "shortname": cs.section_code, "idnumber": cs.section_code,
+        "fullname": f"{c.course_name} – {cs.section_code}", "newuserpassword": settings.moodle_new_user_password,
+        "teachers": teachers, "students": students}, timeout=300)
+    mid = int(res["courseid"])
+    clash = db.execute(text("SELECT id FROM class_sections WHERE moodle_course_id=:m AND id<>:c"), {"m": mid, "c": cs.id}).scalar()
+    if clash:
+        raise MoodleWSError(f"Khóa học Moodle #{mid} (mã {cs.section_code}) đang gắn với lớp học phần khác (id {clash})")
+    cs.moodle_course_id = mid
+    for u in res.get("users", []):
+        sid = by_name.get(u["username"])
+        if sid and not db.execute(text("SELECT 1 FROM students WHERE moodle_user_id=:m AND id<>:s"), {"m": u["userid"], "s": sid}).scalar():
+            db.execute(text("UPDATE students SET moodle_user_id=:m WHERE id=:s AND moodle_user_id IS NULL"), {"m": u["userid"], "s": sid})
+    db.flush()
+    return {"moodle_course_id": mid, "created": bool(res.get("created")), "users_created": res.get("usersmade", 0),
+            "enrolled": res.get("enrolled", 0), "n_students": len(students)}

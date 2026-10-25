@@ -54,3 +54,6 @@ $string['appdown'] = 'Hệ thống phân tích CĐR chưa chạy tại {$a}. Tr�
 $string['retry'] = 'Thử lại';
 $string['nooffline'] = 'Moodle chưa cài plugin Offline Quiz (mod_offlinequiz) để chấm bài thi giấy. Hãy chạy 3_CAI_GIAO_DIEN_MOODLE.bat để cài.';
 $string['nooq'] = 'Bài kiểm tra này chưa được tạo Offline Quiz trên Moodle.';
+$string['reference'] = 'Kết quả của bạn chính là điểm số. Gợi ý ôn tập bên dưới liệt kê các chương bạn mất nhiều điểm nhất – hãy dùng để chuẩn bị cho bài kiểm tra tiếp theo.';
+$string['readings'] = 'Nên đọc lại ở đâu (từ các câu bạn làm sai)';
+$string['readings_help'] = 'Các trang/slide trong tài liệu của môn liên quan đến những câu bạn làm sai – đọc lại đúng chỗ này trước.';

@@ -53,7 +53,7 @@ SYL_ASSESS = [
 ]
 SYL_REFS = [
     ("main", "Abraham Silberschatz, Henry F. Korth, S. Sudarshan – Database System Concepts, 7th ed., McGraw-Hill, 2019."),
-    ("main", "Bài giảng Hệ quản trị cơ sở dữ liệu – Khoa CNTT, Trường ĐH Sư phạm Kỹ thuật TP.HCM."),
+    ("main", "Bài giảng Hệ quản trị cơ sở dữ liệu – Khoa CNTT, Trường Đại học Công nghệ Kỹ thuật TP.HCM."),
     ("extra", "Itzik Ben-Gan – T-SQL Fundamentals, 4th ed., Microsoft Press, 2023."),
 ]
 

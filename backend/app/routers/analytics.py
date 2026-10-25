@@ -104,11 +104,16 @@ def exam_students(exam_id: int, u: User = Depends(require("admin", "lecturer")),
     data = rows(db, """SELECT a.id AS attempt_id, s.id AS student_id, s.student_code, s.full_name, a.status, a.source, a.total_score,
                               (SELECT version_code FROM exam_versions v WHERE v.id=a.version_id) AS version_code
                        FROM exam_attempts a JOIN students s ON s.id=a.student_id WHERE a.exam_id=:e ORDER BY s.student_code""", e=exam_id)
-    clo = rows(db, """SELECT r.attempt_id, c.clo_code, r.score_pct, r.is_achieved FROM attempt_clo_results r
-                      JOIN clos c ON c.id=r.clo_id JOIN exam_attempts a ON a.id=r.attempt_id WHERE a.exam_id=:e""", e=exam_id)
-    for d in data:
-        d["clos"] = {x["clo_code"]: {"pct": float(x["score_pct"]), "ok": bool(x["is_achieved"])} for x in clo if x["attempt_id"] == d["attempt_id"]}
     return data
+
+
+@router.get("/exams/{exam_id}/clo-summary")
+def exam_clo_summary(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Tổng hợp CẢ LỚP theo từng CLO của bài KT: số SV đạt / số SV được đánh giá (không trả kết quả riêng của từng SV)."""
+    get_exam_for(db, u, exam_id)
+    return rows(db, """SELECT c.clo_code, COUNT(*) AS n_evaluated, SUM(r.is_achieved) AS n_achieved
+                       FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id JOIN clos c ON c.id=r.clo_id
+                       WHERE a.exam_id=:e AND a.status='finished' GROUP BY c.clo_code ORDER BY c.clo_code""", e=exam_id)
 
 
 @router.get("/class-sections/{cs_id}/clo-results")

@@ -55,7 +55,7 @@ test('GV1 – Giảng viên đăng nhập: menu chỉ có mục của GV', async
     for (const item of ['Môn học của tôi', 'Ngân hàng câu hỏi', 'Chương trình đào tạo']) await expect(nav(page, item)).toBeVisible()
   })
   await test.step('Bước 2: không có mục quản trị của Bộ môn (Kế hoạch đo PI, Tổng hợp PLO, Kết nối Moodle)', async () => {
-    for (const item of ['Kế hoạch đo PI', 'Tổng hợp PLO', 'Kết nối Moodle']) await expect(nav(page, item)).toHaveCount(0)
+    for (const item of ['Kế hoạch đo chỉ báo (PI)', 'Kết quả chương trình (PLO)', 'Kết nối Moodle']) await expect(nav(page, item)).toHaveCount(0)
   })
 })
 
@@ -85,6 +85,7 @@ test('GV2 – Thấy môn mình phụ trách, chỉ xem đề cương bản đan
     await expect(page.getByRole('tab', { name: 'Thiết lập học phần' })).toHaveCount(0)
   })
   await test.step('Bước 3: đề cương hiện "Phiên bản 1: Đang áp dụng" (không phải bản nháp 2), không có nút Sửa', async () => {
+    await tab(page, 'Đề cương chi tiết').click()                    // trang môn mở sẵn bước "Lớp học phần" – chuyển sang đề cương
     await see(page, 'Phiên bản 1: Đang áp dụng')
     await see(page, 'Bộ môn quản lý – giảng viên chỉ xem')
     await expect(page.locator('.syl h4').getByRole('button', { name: 'Sửa' })).toHaveCount(0)
@@ -119,11 +120,11 @@ test('GV3 – Nhập danh sách 5 SV vào lớp từ tệp CSV', async ({ page }
   })
 })
 
-test('GV3b – Môn demo: "Đồng bộ các lớp với Moodle" cập nhật SV đang ghi danh trên Moodle @moodle', async ({ page }) => {
-  await test.step('Bước 1: trang môn demo → thẻ Lớp học phần → "⟳ Đồng bộ các lớp với Moodle" → kết quả theo từng lớp', async () => {
+test('GV3b – Môn demo: "Cập nhật lớp từ Moodle" cập nhật SV đang ghi danh trên Moodle @moodle', async ({ page }) => {
+  await test.step('Bước 1: trang môn demo → thẻ Lớp học phần → "⟳ Cập nhật lớp từ Moodle" → kết quả theo từng lớp', async () => {
     const { cid } = await demoIds(page)
     await goto(page, `/courses/${cid}?tab=sections`)
-    await page.getByRole('button', { name: /Đồng bộ các lớp với Moodle/ }).click()
+    await page.getByRole('button', { name: /Cập nhật lớp từ Moodle/ }).click()
     await toast(page, new RegExp(H.DEMO.section), 30000)
   })
 })
@@ -185,8 +186,8 @@ test('GV5 – Nhập 2 câu từ tệp Aiken → "chưa gán"; gán Chương/Blo
     await m.getByRole('button', { name: 'Đóng', exact: true }).last().click()
     await see(page, /Có 2 câu hỏi chưa gán/)
   })
-  await test.step('Bước 3: "Gán CLO/Bloom từ file" → tải "Các câu chưa gán (2)" → điền Chương=2, Bloom=3, CLO=CLO2', async () => {
-    await page.getByRole('button', { name: 'Gán CLO/Bloom từ file' }).click()
+  await test.step('Bước 3: "Gán CLO, mức độ nhận thức từ file" → tải "Các câu chưa gán (2)" → điền Chương=2, Bloom=3, CLO=CLO2', async () => {
+    await page.getByRole('button', { name: 'Gán CLO, mức độ nhận thức từ file' }).click()
     const dl = page.waitForEvent('download')
     await modal(page).getByRole('button', { name: /Các câu chưa gán \(2\)/ }).click()
     await (await dl).saveAs(xlsx)
@@ -307,17 +308,17 @@ test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber Q
     await modal(page).getByRole('button', { name: 'Lưu bài kiểm tra' }).click()
     await page.waitForURL(/\/exams\/\d+/)
     S.onlineExam = examIdFromUrl(page)
-    await see(page, 'Nháp')
+    await see(page, 'Đề thi')                                                     // trang bài mở ở bước đưa bài cho sinh viên (bài mới ở trạng thái nháp)
     await tab(page, 'Đề thi').click()                                            // trang bài KT chia bước; bước "Đề thi"
     await expect(card(page, 'Đề thi').locator('tbody tr').first()).toBeVisible()
   })
-  await test.step('Bước 5: bước "Phát hành lên Moodle" → "Cách thủ công…"', async () => {
-    await tab(page, 'Phát hành lên Moodle').click()
+  await test.step('Bước 5: bước "Đưa bài lên Moodle" → "Cách thủ công…"', async () => {
+    await tab(page, 'Đưa bài lên Moodle').click()
   })
-  await test.step('Bước 6: "Cách thủ công…" → "⬇ Tải Moodle XML" → tệp có <quiz> và idnumber QB-n', async () => {
+  await test.step('Bước 6: "Cách thủ công…" → "⬇ Tải file câu hỏi Moodle XML" → tệp có <quiz> và idnumber QB-n', async () => {
     await page.getByText('Cách thủ công: tải XML, tự import và nhập ID Quiz').click()
     const dl = page.waitForEvent('download')
-    await page.getByRole('button', { name: /Tải Moodle XML/ }).click()
+    await page.getByRole('button', { name: /Tải file câu hỏi Moodle XML/ }).click()
     const xml = fs.readFileSync(await (await dl).path(), 'utf8')
     expect(xml).toContain('<quiz>')
     expect(xml).toContain('<idnumber>QB-')
@@ -416,22 +417,23 @@ test('GV9 – Bài nhập điểm: 2 câu gắn CLO, chặn điểm vượt tố
     await page.getByRole('button', { name: /Lưu .*phân tích/ }).click()
     await toast(page, /Đã lưu 4 SV có điểm, 1 vắng/, 30000)
   })
-  await test.step('Bước 6: bước "Kết quả" → "Kết quả sinh viên": SV 26990003 có CLO1 = 25% (chưa đạt), SV 26990001 = 100%', async () => {
+  await test.step('Bước 6: bước "Kết quả" → "Kết quả sinh viên": có điểm từng SV nhưng KHÔNG có kết quả CLO riêng của SV (không cột %)', async () => {
     await tab(page, 'Kết quả').click()
     await page.getByRole('button', { name: 'Kết quả sinh viên' }).click()
-    await see(page.locator('tr').filter({ hasText: STUDENTS[2][0] }), '25')
-    await see(page.locator('tr').filter({ hasText: STUDENTS[0][0] }), '100')
+    await see(page.locator('tr').filter({ hasText: STUDENTS[2][0] }), STUDENTS[2][0])
+    await see(page.locator('tr').filter({ hasText: STUDENTS[0][0] }), STUDENTS[0][0])
+    await expect(page.locator('tr').filter({ hasText: STUDENTS[2][0] }).getByText('%')).toHaveCount(0)
   })
 })
 
-// ================================================================== GV10 – Đồng bộ & phân tích bài Moodle (môn demo)
-test('GV10 – Bài thi cuối kỳ demo: "⟳ Đồng bộ & phân tích" đọc lại bài làm từ CSDL Moodle @moodle', async ({ page }) => {
-  await test.step('Bước 1: mở bài "Thi cuối kỳ (Moodle)" của lớp demo → "⟳ Đồng bộ & phân tích" → đồng bộ N bài làm', async () => {
+// ================================================================== GV10 – Lấy bài làm & phân tích bài Moodle (môn demo)
+test('GV10 – Bài thi cuối kỳ demo: "⟳ Lấy bài làm & phân tích" đọc lại bài làm từ CSDL Moodle @moodle', async ({ page }) => {
+  await test.step('Bước 1: mở bài "Thi cuối kỳ (Moodle)" của lớp demo → "⟳ Lấy bài làm & phân tích" → đồng bộ N bài làm', async () => {
     const { cs } = await demoIds(page)
     const exams = await api(page, `/api/class-sections/${cs}/exams`)
     await goto(page, `/exams/${exams.find(e => e.exam_title === H.DEMO.finalExam).id}`)
-    await tab(page, 'Thu bài & phân tích').click()                              // bài đã phân tích mở sẵn bước "Kết quả"
-    await page.getByRole('button', { name: /Đồng bộ & phân tích/ }).click()
+    await tab(page, 'Lấy bài làm & phân tích').click()                              // bài đã phân tích mở sẵn bước "Kết quả"
+    await page.getByRole('button', { name: /Lấy bài làm & phân tích/ }).click()
     await toast(page, /Đồng bộ \d+ bài làm/, 60000)
   })
 })
@@ -458,9 +460,10 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
     await page.getByRole('button', { name: /Thời gian làm bài/ }).click()
     await see(page, /thời gian/i)
   })
-  await test.step('Bước 5: thống kê lớp → bản đồ điểm theo nội dung; bấm "Hồ sơ" một SV → điểm các bài, chẩn đoán & lộ trình ôn tập (không có nhãn Đạt/Không đạt theo CLO)', async () => {
+  await test.step('Bước 5: thống kê lớp → bản đồ điểm theo chương; bấm "Hồ sơ" một SV → điểm các bài, chẩn đoán & lộ trình ôn tập (không có nhãn Đạt/Không đạt theo CLO)', async () => {
     await goto(page, `/sections/${cs}/stats`)
-    await see(page, 'Bản đồ điểm theo nội dung (CLO) của từng sinh viên')
+    await page.getByText('Xem thêm biểu đồ và bảng chi tiết').click()
+    await see(page, 'Bản đồ điểm theo chương của từng sinh viên')
     await page.getByRole('link', { name: 'Hồ sơ' }).first().click()
     await see(page, 'Điểm các bài kiểm tra')
     await see(page, 'Chẩn đoán & lộ trình ôn tập')
@@ -470,7 +473,7 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
 
 // ================================================================== GV12 – Kết quả CLO, BM6a, xuất BM6
 test('GV12 – Lớp kiểm thử: lập kế hoạch BM6a cho CLO1, xem BM6b, xuất bộ BM6 Excel', async ({ page }) => {
-  await test.step('Bước 1: trang Kết quả CĐR (BM6) của lớp → BM6a → "Sửa" kế hoạch của CLO1', async () => {
+  await test.step('Bước 1: trang Kết quả chuẩn đầu ra của lớp (BM6) của lớp → BM6a → "Sửa" kế hoạch của CLO1', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6a`)
     await page.locator('tr').filter({ hasText: 'CLO1' }).getByRole('button', { name: 'Sửa' }).first().click()
   })
@@ -495,7 +498,7 @@ test('GV12 – Lớp kiểm thử: lập kế hoạch BM6a cho CLO1, xem BM6b, x
 
 // ================================================================== GV13 – Gộp nhiều bài KT (môn demo)
 test('GV13 – Môn demo: gộp 2 bài KT → mức đạt CLO; xuất Excel', async ({ page }) => {
-  await test.step('Bước 1: trang môn demo → thẻ "Gộp bài KT đánh giá CĐR" → tích 2 bài', async () => {
+  await test.step('Bước 1: trang môn demo → thẻ "Chọn bài tính vào kết quả" → tích 2 bài', async () => {
     const { cid } = await demoIds(page)
     await goto(page, `/courses/${cid}?tab=combine`)
     const checks = card(page, '1. Chọn các bài kiểm tra cần gộp').locator('input[type=checkbox]')
@@ -544,8 +547,8 @@ test('GV14 – Phụ đạo: xem câu sai, tạo bài cho 2 SV, tạo Quiz chỉ
     await page.waitForURL(/\/exams\/\d+/)
     S.remedialExam = examIdFromUrl(page)
   })
-  await test.step('Bước 4: "⇪ Tạo Quiz trên Moodle" → "chỉ 2 SV được giao làm được"; có nút "Giới hạn SV trên Moodle"', async () => {
-    await page.getByRole('button', { name: /Tạo Quiz trên Moodle/ }).click()
+  await test.step('Bước 4: "⇪ Tạo bài trắc nghiệm trên Moodle" → "chỉ 2 SV được giao làm được"; có nút "Giới hạn SV trên Moodle"', async () => {
+    await page.getByRole('button', { name: /Tạo bài trắc nghiệm trên Moodle/ }).click()
     await toast(page, /chỉ 2 SV được giao làm được/, 60000)
     await see(page, 'Bài ôn tập: chỉ 2 SV được giao')
     await expect(page.getByRole('button', { name: 'Giới hạn SV trên Moodle' })).toBeVisible()
@@ -581,22 +584,22 @@ test('GV15 – Bài thi cuối kỳ demo: thu hồi công bố rồi công bố 
 })
 
 // ================================================================== Bộ môn kiểm tra lại PI/PLO sau khi GV nhập điểm
-test('AD8b – Sau GV9: kế hoạch đo PI7.1 của môn kiểm thử = 3/4 = 75% → Đạt (chỉ tiêu 70%)', async ({ browser }) => {
+test('AD8b – Sau GV8 + GV9: kế hoạch đo PI7.1 của môn kiểm thử = 4/5 = 80% → Đạt (chỉ tiêu 70%)', async ({ browser }) => {
   const p = await H.newPage(browser)
   await H.login(p, H.ADMIN)
   await test.step('Bước 1: Bộ môn → Tổng hợp PLO → KTDL-2026, năm 2024-2025 → Tính lại', async () => {
-    await nav(p, 'Tổng hợp PLO').click()
+    await nav(p, 'Kết quả chương trình (PLO)').click()
     await pick(p.getByLabel('Chương trình đào tạo').first(), 'KTDL-2026')
     await pick(p.getByLabel('Năm học'), '2024-2025')
     await p.getByRole('button', { name: 'Tính lại' }).click()
     await toast(p, 'Đã tính lại')
   })
-  await test.step('Bước 2: Kế hoạch đo PI → dòng PI7.1 của môn kiểm thử: 3/4 = 75%, Đạt (tự lấy CLO2 gắn PI7.1)', async () => {
-    await nav(p, 'Kế hoạch đo PI').click()
+  await test.step('Bước 2: Kế hoạch đo PI → dòng PI7.1 của môn kiểm thử: 4/5 = 80%, Đạt (gộp bài giấy GV8 và bài nhập điểm GV9; tự lấy CLO2 gắn PI7.1)', async () => {
+    await nav(p, 'Kế hoạch đo chỉ báo (PI)').click()
     await pick(p.getByLabel('Chương trình đào tạo').first(), 'KTDL-2026')
     const row = card(p, 'Kế hoạch năm học').locator('tbody tr').filter({ hasText: S.code }).filter({ hasText: 'PI7.1' })
-    await see(row, '3/4')
-    await see(row, '75')
+    await see(row, '4/5')
+    await see(row, '80')
     await see(row, 'Đạt')
   })
   await p.context().close()

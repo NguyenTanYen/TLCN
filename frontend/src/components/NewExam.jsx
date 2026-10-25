@@ -113,7 +113,7 @@ function CreateExam({ cs, course, type, onClose }) {
         <div className="choice-grid two">
           <button type="button" className={`choice ${how === 'auto' ? 'on' : ''}`} onClick={() => setHow('auto')}>
             <span className="choice-t">⚙ Sinh đề tự động</span><span className="choice-s">Khuyên dùng</span>
-            <span className="choice-d">Nhập số câu và độ khó; hệ thống tự chọn câu theo ma trận chương × mức Bloom, phủ đủ CLO.</span></button>
+            <span className="choice-d">Nhập số câu và độ khó; hệ thống tự chọn câu theo ma trận chương × mức độ nhận thức, phủ đủ CLO.</span></button>
           <button type="button" className={`choice ${how === 'manual' ? 'on' : ''}`} onClick={() => setHow('manual')}>
             <span className="choice-t">☑ Tự chọn câu từ ngân hàng</span><span className="choice-s">Chọn từng câu</span>
             <span className="choice-d">Lọc theo CLO hoặc chương rồi tích các câu muốn đưa vào đề.</span></button>
@@ -195,7 +195,7 @@ export function DeployDialog({ e, onClose, onDone }) {
           </label> })}</div>
         : <p className="muted">Bạn chưa phụ trách lớp học phần nào {e.is_template ? 'của môn này' : 'khác của môn này'}.</p>}
       {e.exam_type === 'online' && <label className="row gap check mt"><input type="checkbox" checked={moodle} onChange={x => setMoodle(x.target.checked)} />
-        Tạo luôn Quiz trên khóa học Moodle của từng lớp (lớp chưa gắn Moodle thì tạo sau ở trang bài KT)</label>}
+        Tạo luôn Quiz trên khóa học Moodle của từng lớp (lớp chưa gắn Moodle thì tạo sau ở trang bài kiểm tra)</label>}
       <div className="row mt"><span className="grow" /><button className="btn ghost" onClick={onClose}>Hủy</button>
         <ActionButton className="btn primary" disabled={!sel.length} onRun={run}>{e.is_template ? `Giao cho ${sel.length || ''} lớp` : `Sao đề sang ${sel.length || ''} lớp`}</ActionButton></div>
     </> : <>

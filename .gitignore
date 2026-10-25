@@ -54,3 +54,6 @@ docs/screenshots/_tmp/
 
 # anh phieu da to sinh boi tools/demo/chuan_bi_video.py (dung khi quay video)
 demo_video/
+
+# Tệp học liệu GV tải lên (được lập chỉ mục vào CSDL; tệp gốc nằm ngoài Git)
+backend/du_lieu_hoc_lieu/

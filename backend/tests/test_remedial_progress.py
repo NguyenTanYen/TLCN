@@ -76,3 +76,16 @@ def test_restrict_requires_moodle_accounts(client, gv, remedial):
         db.close()
         with engine.begin() as c:
             c.execute(text("UPDATE students SET moodle_user_id=:m WHERE id=:s"), {"m": old, "s": remedial["sid"]})
+
+
+def test_overview_theo_chuong_va_loc_chuong(client, gv, remedial):
+    """Nhóm SV yếu gom theo chương (không theo CLO từng SV); tạo bài ôn có thể giới hạn theo chương."""
+    ov = client.get(f"/api/class-sections/{remedial['cs']}/remedial", headers=gv).json()
+    assert ov["chapters"] and all({"label", "n_students", "student_ids", "n_wrong"} <= set(c) for c in ov["chapters"])
+    assert all("weak_chapters" in s and "weak_clos" not in s for s in ov["students"])
+    ch = next((c for c in ov["chapters"] if c.get("outline_id")), None)
+    if ch:
+        r = client.post(f"/api/class-sections/{remedial['cs']}/remedial-exams", headers=gv,
+                        json={"student_ids": ch["student_ids"][:3], "exam_ids": [], "similar_per_question": 0,
+                              "include_wrong": True, "outline_ids": [ch["outline_id"]]})
+        assert r.status_code in (201, 400, 422), r.text

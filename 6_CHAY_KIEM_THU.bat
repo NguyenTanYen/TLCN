@@ -3,7 +3,7 @@ chcp 65001 >nul
 set PYTHONUTF8=1
 cd /d "%~dp0"
 echo ================================================================
-echo  KIEM THU TOAN BO CHUC NANG: 92 ca kiem thu tu dong, do phu 126 API,
+echo  KIEM THU TOAN BO CHUC NANG: 129 ca kiem thu tu dong, do phu 147/148 API,
 echo  do ben bo cham phieu (OMR) va bang ket qua Excel
 echo  (docs\kiem_thu\KET_QUA_KIEM_THU.xlsx - co ca sheet kiem thu giao dien).
 echo  LUU Y: kiem thu DUNG LAI CSDL assessment_db va tao CSDL moodle_sim rieng.

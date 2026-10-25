@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { api, fmtPct } from '../api'
 import { Achieved, ActionButton, Card, CourseSelect, Field, Loading, Modal } from '../components/ui'
 import { useApi, useDefaultYear, useProgram } from '../hooks'
@@ -13,9 +14,10 @@ export default function PiPlans() {
   const [aForm, setAForm] = useState(false)
   return (
     <>
-      <div className="page-h"><div><h1>Kế hoạch đo lường PI (BM3b)</h1><p className="muted">Mỗi PI của CĐR được đo tại một môn học, trong học kỳ xác định, do GV phụ trách, lấy minh chứng từ các CLO của môn.</p></div>
+      <div className="page-h"><div><h1>Kế hoạch đo chỉ báo (PI) của chương trình (BM3b)</h1><p className="muted">Mỗi chỉ báo (PI) của chuẩn đầu ra chương trình được đo ở một môn học, trong một học kỳ, do một giảng viên phụ trách; kết quả lấy từ các CLO của môn đó.</p></div>
         <div className="row gap wrap"><ProgramPicker {...pg} /><Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
           <button className="btn primary" onClick={() => setForm({})}>+ Thêm kế hoạch</button></div></div>
+      <PageHelp id="piplans"><p>Chỉ báo (PI) là tiêu chí nhỏ dùng để đo một chuẩn đầu ra chương trình. Ở đây Bộ môn quyết định mỗi PI được đo ở <b>môn nào</b>, <b>học kỳ nào</b> và <b>giảng viên nào</b> chịu trách nhiệm. Kết quả hiện ở cột cuối sau khi các lớp có kết quả.</p></PageHelp>
       <Card title={`Kế hoạch năm học ${year}`}>
         <Loading {...plans} />
         <table className="tbl"><thead><tr><th>CĐR</th><th>PI</th><th>Môn học lấy minh chứng</th><th>CLO minh chứng</th><th>Phương pháp</th><th>Chu kỳ</th><th>Thời gian</th><th>GV phụ trách</th><th>Chỉ tiêu</th><th>Kết quả</th><th /></tr></thead>

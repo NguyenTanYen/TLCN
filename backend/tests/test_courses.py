@@ -185,3 +185,15 @@ def test_programs_ctdt_2026(client, admin, gv):
     assert {"course_id": dbms["id"], "pi_id": pi, "level": "M"} in d2["pi_matrix"]
     plos = client.get(f"/api/courses/{dbms['id']}/plos", headers=gv).json()
     assert plos[0]["code"] in ("CNTT-2026", "KTDL-2026") and len(plos[0]["plos"]) == 7
+
+
+def test_syllabus_pdf_mau_in(client, gv):
+    """Đề cương chi tiết xuất PDF theo bố cục biểu mẫu (có quốc hiệu, mục đánh số, chỗ ký), không phải in trang web."""
+    cid = client.get("/api/courses", headers=gv).json()[0]["id"] if client.get("/api/courses", headers=gv).status_code == 200 else 5
+    r = client.get(f"/api/courses/{cid}/syllabus.pdf", headers=gv)
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf" and r.content[:4] == b"%PDF"
+    import fitz
+    txt = " ".join("".join(p.get_text() for p in fitz.open(stream=r.content, filetype="pdf")).split())
+    for k in ("CÔNG NGHỆ KỸ THUẬT", "Đề Cương Chi Tiết Học Phần", "1. Tên môn học", "Cấp phê duyệt", "Nhóm biên soạn", "Tiến trình cập nhật ĐCCT"):
+        assert k in txt
+    assert client.get(f"/api/courses/{cid}/syllabus.pdf").status_code == 401

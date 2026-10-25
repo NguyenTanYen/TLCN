@@ -93,9 +93,9 @@ test('SV2 – SV được giao làm Quiz phụ đạo trên Moodle; GV đồng b
     await sv.waitForURL(/review\.php/, { timeout: 30000 })
   })
   await sv.context().close()
-  await test.step('Bước 4: GV mở bài phụ đạo trên hệ thống → "⟳ Đồng bộ & phân tích" → đọc được bài làm', async () => {
+  await test.step('Bước 4: GV mở bài phụ đạo trên hệ thống → "⟳ Lấy bài làm & phân tích" → đọc được bài làm', async () => {
     await goto(page, `/exams/${S.remedialExam}`)
-    await page.getByRole('button', { name: /Đồng bộ & phân tích/ }).click()
+    await page.getByRole('button', { name: /Lấy bài làm & phân tích/ }).click()
     await toast(page, /Đồng bộ \d+ bài làm/, 60000)
   })
   await test.step('Bước 5: thẻ "Thời gian làm bài" có dữ liệu của SV (Quiz 1 câu/trang → thời gian từng câu)', async () => {

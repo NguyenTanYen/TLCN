@@ -588,6 +588,9 @@ def answer_key_pdf(exam: Exam, versions: list[dict]) -> bytes:
     for v in versions:
         story.append(Paragraph(f"Mã đề {v['version_code']}", ParagraphStyle("v", fontName=F["serifB"], fontSize=11.5, leading=15, spaceBefore=6)))
         cells = [f"{q['position']}.{q['answer'] or '?'}" for q in v["questions"]]
+        if not cells:
+            story.append(Paragraph("(Mã đề chưa có câu hỏi)", s))
+            continue
         per = 10
         rows = [cells[i:i + per] + [""] * (per - len(cells[i:i + per])) for i in range(0, len(cells), per)]
         t = Table(rows, colWidths=[18 * MM] * per)

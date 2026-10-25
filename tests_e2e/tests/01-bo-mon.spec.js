@@ -23,7 +23,7 @@ test.afterEach(() => H.saveState(S))
 // ================================================================== AD1 – Đăng nhập
 test('AD1 – Bộ môn đăng nhập; sai mật khẩu bị từ chối', async ({ page, browser }) => {
   await test.step('Bước 1: menu của Bộ môn có đủ các mục quản trị', async () => {
-    for (const item of ['Chương trình đào tạo', 'Học phần', 'Lớp học phần', 'Kế hoạch đo PI', 'Tổng hợp PLO', 'Kết nối Moodle'])
+    for (const item of ['Chương trình đào tạo', 'Học phần', 'Lớp học phần', 'Kế hoạch đo chỉ báo (PI)', 'Kết quả chương trình (PLO)', 'Kết nối Moodle'])
       await expect(nav(page, item)).toBeVisible()
   })
   await test.step('Bước 2: phiên mới đăng nhập sai mật khẩu → báo lỗi, vẫn ở màn hình đăng nhập', async () => {
@@ -48,7 +48,7 @@ test('AD1b – SSO: admin Moodle bấm "Phân tích CĐR" → vào thẳng hệ 
   })
   await test.step('Bước 3: hệ thống nhận vé, tự đăng nhập và hiện menu của Bộ môn', async () => {
     await p.waitForURL(/localhost:8000/, { timeout: 20000 })
-    await expect(nav(p, 'Kế hoạch đo PI')).toBeVisible()
+    await expect(nav(p, 'Kế hoạch đo chỉ báo (PI)')).toBeVisible()
   })
   await p.context().close()
 })
@@ -221,10 +221,10 @@ test('AD5 – Mở lớp HP cho giảng viên Nguyễn Thành Sơn (HKII 24-25)'
   })
 })
 
-test('AD5b – "Đồng bộ các lớp với Moodle": lớp mới chưa có khóa Moodle trùng mã → báo kết quả, không lỗi @moodle', async ({ page }) => {
-  await test.step('Bước 1: thẻ Lớp học phần → "⟳ Đồng bộ các lớp với Moodle" → thông báo kết quả theo từng lớp', async () => {
+test('AD5b – "Cập nhật lớp từ Moodle": lớp mới chưa có khóa Moodle trùng mã → báo kết quả, không lỗi @moodle', async ({ page }) => {
+  await test.step('Bước 1: thẻ Lớp học phần → "⟳ Cập nhật lớp từ Moodle" → thông báo kết quả theo từng lớp', async () => {
     await goto(page, `/courses/${S.cid}?tab=sections`)
-    await page.getByRole('button', { name: /Đồng bộ các lớp với Moodle/ }).click()
+    await page.getByRole('button', { name: /Cập nhật lớp từ Moodle/ }).click()
     await toast(page, new RegExp(`${S.code}_01`), 30000)
   })
 })
@@ -309,6 +309,12 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
     await pick(page.getByLabel('Xem phiên bản'), 'Phiên bản 1')
     await see(page, 'Phiên bản 1: Đang áp dụng')
   })
+  await test.step('Bước 10: giả lập chế độ in → mọi phần "no-print" (nút bấm, khung kiểm tra) bị ẩn', async () => {
+    await page.emulateMedia({ media: 'print' })
+    const shown = await page.locator('.no-print').evaluateAll(els => els.filter(e => getComputedStyle(e).display !== 'none').length)
+    await page.emulateMedia({ media: 'screen' })
+    expect(shown).toBe(0)
+  })
   await test.step('Bước 10: "⬇ Tải đề cương (Word) để in" → tệp .docx theo mẫu đề cương của phiên bản đang xem', async () => {
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Tải đề cương \(Word\)/ }).click()])
     expect(dl.suggestedFilename()).toMatch(/^De_cuong_.+_v1\.docx$/)
@@ -318,7 +324,7 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
 // ================================================================== AD7 – Kế hoạch đo PI, phân công
 test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO gắn đúng PI); phân công đánh giá PI', async ({ page }) => {
   await test.step('Bước 1: menu Kế hoạch đo PI → chọn CTĐT KTDL-2026', async () => {
-    await nav(page, 'Kế hoạch đo PI').click()
+    await nav(page, 'Kế hoạch đo chỉ báo (PI)').click()
     await pick(page.getByLabel('Chương trình đào tạo').first(), 'KTDL-2026')
   })
   await test.step('Bước 2: xóa kế hoạch PI7.1 cũ của các lần kiểm thử trước (môn mã UI…) – mỗi PI chỉ 1 kế hoạch/học kỳ', async () => {
@@ -363,7 +369,7 @@ test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO
 // ================================================================== AD8 – Tổng hợp PLO
 test('AD8 – Tổng hợp PLO: Tính lại, mở nhận xét PLO, xuất BM2/BM3 (.xlsx) và BM2 (.docx)', async ({ page }) => {
   await test.step('Bước 1: menu Tổng hợp PLO → CTĐT KTDL (có kết quả demo) → năm 2024-2025 → Tính lại', async () => {
-    await nav(page, 'Tổng hợp PLO').click()
+    await nav(page, 'Kết quả chương trình (PLO)').click()
     await pick(page.getByLabel('Chương trình đào tạo').first(), 'KTDL –')
     await pick(page.getByLabel('Năm học'), '2024-2025')
     await page.getByRole('button', { name: 'Tính lại' }).click()
