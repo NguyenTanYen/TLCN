@@ -16,7 +16,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import check_section_access, require
+from ..deps import check_section_access, require, lecturer_only
 from ..models import Exam, ExamQuestion, User
 from ..services import readings
 
@@ -230,7 +230,7 @@ def student_wrong(cs_id: int, student_id: int, exam_ids: str = "", u: User = Dep
 
 
 @router.post("/class-sections/{cs_id}/remedial-exams", status_code=201)
-def create_remedial(cs_id: int, body: RemedialIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def create_remedial(cs_id: int, body: RemedialIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Tạo bài KT phụ đạo: câu trắc nghiệm các SV đã chọn làm sai (+ câu tương tự cùng chương chưa gặp)."""
     cs = check_section_access(db, u, cs_id)
     ids = _exam_ids(db, cs_id, body.exam_ids)

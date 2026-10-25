@@ -21,6 +21,23 @@ def test_demo_syllabus_approved(client, gv):
     assert next(x for x in st["steps"] if x["key"] == "syllabus")["ok"]
 
 
+def test_syllabus_word_export(client, gv):
+    """In đề cương = tệp Word theo mẫu (quốc hiệu, tiêu đề, 11 mục, chữ ký), đúng phiên bản đang áp dụng."""
+    import io
+    from docx import Document
+    cid = _demo_course()
+    r = client.get(f"/api/courses/{cid}/syllabus.docx", headers=gv)
+    assert r.status_code == 200 and "De_cuong_DBMS330284_v1.docx" in r.headers["content-disposition"]
+    d = Document(io.BytesIO(r.content))
+    body = "\n".join(p.text for p in d.paragraphs)
+    cells = "\n".join(c.text for t in d.tables for row in t.rows for c in row.cells)
+    assert "ĐỀ CƯƠNG CHI TIẾT HỌC PHẦN" in body and "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" in cells
+    for h in ("1. Thông tin chung", "4. Chuẩn đầu ra học phần (CLO)", "8. Đánh giá học phần", "11. Quy định của học phần"):
+        assert h in body
+    assert "DBMS330284" in cells and "TRƯỞNG BỘ MÔN" in cells
+    assert client.get(f"/api/courses/{cid}/syllabus.docx?version=9", headers=gv).status_code == 404
+
+
 def test_syllabus_version_flow(client, admin, gv):
     cid = _demo_course()
     # bản đã duyệt không sửa trực tiếp; GV không soạn được

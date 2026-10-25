@@ -16,7 +16,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..deps import check_course_access, check_section_access, get_exam_for, require
+from ..deps import check_course_access, check_section_access, get_exam_for, require, lecturer_only
 from ..http_utils import attachment
 from ..models import Exam, Student, User
 from ..services import combine, manual, results
@@ -95,7 +95,7 @@ def _analyze(db: Session, e: Exam) -> dict | None:
 
 # ------------------------------------------------------------------ bài nhập điểm
 @router.post("/class-sections/{cs_id}/manual-exams", status_code=201)
-def create_manual_exam(cs_id: int, body: ManualExamIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def create_manual_exam(cs_id: int, body: ManualExamIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     cs = check_section_access(db, u, cs_id)
     _check_items(db, cs.course_id, body.items)
     e = Exam(class_section_id=cs.id, exam_title=body.exam_title.strip(), assessment_type=body.assessment_type, exam_type="manual",
@@ -110,7 +110,7 @@ def create_manual_exam(cs_id: int, body: ManualExamIn, u: User = Depends(require
 
 
 @router.post("/courses/{course_id}/manual-exams", status_code=201)
-def create_course_manual_exam(course_id: int, body: ManualExamIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def create_course_manual_exam(course_id: int, body: ManualExamIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Đề nhập điểm của môn (tạo ở trang môn học): khai báo câu/ý gắn CLO một lần, giao cho các lớp HP để nhập điểm."""
     check_course_access(db, u, course_id)
     _check_items(db, course_id, body.items)
@@ -127,7 +127,7 @@ def create_course_manual_exam(course_id: int, body: ManualExamIn, u: User = Depe
 
 
 @router.put("/exams/{exam_id}/manual-items")
-def replace_items(exam_id: int, body: ItemsIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def replace_items(exam_id: int, body: ItemsIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _manual_exam(db, u, exam_id)
     if db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e"), {"e": exam_id}).scalar():
         raise HTTPException(409, "Bài đã có điểm – xóa điểm đã nhập trước khi đổi cấu trúc câu/ý")
@@ -152,7 +152,7 @@ def get_grades(exam_id: int, u: User = Depends(require("admin", "lecturer")), db
 
 
 @router.put("/exams/{exam_id}/grades")
-def put_grades(exam_id: int, body: GradesIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+def put_grades(exam_id: int, body: GradesIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _manual_exam(db, u, exam_id)
     allowed = {r[0] for r in db.execute(text("""SELECT student_id FROM enrollments WHERE class_section_id=:cs
                                                  UNION SELECT student_id FROM exam_attempts WHERE exam_id=:e"""),
@@ -212,7 +212,7 @@ def _rows_for(parsed: dict, col_to_q: dict, known: dict) -> list[dict]:
 
 @router.post("/exams/{exam_id}/grades/import")
 async def import_grades(exam_id: int, dry_run: bool = True, enroll_missing: bool = False, file: UploadFile = File(...),
-                        u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+                        u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Nhập điểm từ Excel vào bài đã có: khớp cột theo mã câu (bảng điểm mẫu), theo tên câu/ý, hoặc theo thứ tự cột."""
     e = _manual_exam(db, u, exam_id)
     try:
@@ -256,7 +256,7 @@ async def import_grades(exam_id: int, dry_run: bool = True, enroll_missing: bool
 async def create_from_excel(cs_id: int, dry_run: bool = True, enroll_missing: bool = False, file: UploadFile = File(...),
                             exam_title: str = Form(""), assessment_type: str = Form("process"), max_score: float = Form(10),
                             clo_map: str = Form("{}"), points_map: str = Form("{}"),
-                            u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+                            u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Tạo bài nhập điểm từ một file Excel bất kỳ (bài làm ngoài hệ thống) và nhập luôn điểm.
     Tiêu đề cột: 'Câu 1 (2đ) [CLO1]' hoặc dòng 'Điểm tối đa' / 'CLO' dưới tiêu đề; thiếu thông tin thì xem trước
     trả về các cột cần chọn CLO/điểm tối đa (clo_map, points_map: {chỉ số cột: ...})."""

@@ -1,12 +1,13 @@
 // Ôn tập: xem SV nào yếu ở chương/câu nào → chọn một SV hoặc cả nhóm cùng yếu một chương → tạo bài kiểm tra lại đúng phần đó.
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api } from '../api'
+import { api, auth } from '../api'
 import { ActionButton, Badge, Card, Crumbs, Field, Loading, Modal, Stat } from '../components/ui'
 import { useApi } from '../hooks'
 
 export default function Remedial() {
   const { id } = useParams()
+  const isAdmin = auth.user()?.role === 'admin'      // Bộ môn chỉ xem, không tạo bài ôn tập
   const cs = useApi('/api/class-sections').data?.find(x => String(x.id) === id)
   const [exams, setExams] = useState(null)       // null = mọi bài đã phân tích
   const ov = useApi(`/api/class-sections/${id}/remedial${exams ? `?exam_ids=${exams.join(',')}` : ''}`)
@@ -24,7 +25,7 @@ export default function Remedial() {
     <div className="page-h"><div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], cs && [`/sections/${id}`, cs.section_code], [null, 'Ôn tập']]} />
       <h1>Ôn tập cho sinh viên còn yếu</h1>
       <p className="muted">Xem sinh viên nào còn yếu ở chương nào, rồi tạo bài kiểm tra lại đúng phần kiến thức đó cho một sinh viên hoặc cả nhóm. Hệ thống không đánh giá chuẩn đầu ra (CLO) riêng cho từng sinh viên; chỉ dựa vào các câu làm sai.</p></div>
-      <button className="btn primary" disabled={!pick.length} onClick={() => { setOutlines([]); setMk(true) }}>{pick.length ? `Tạo bài ôn tập cho ${pick.length} SV đã chọn` : 'Chọn SV để tạo bài ôn tập'}</button></div>
+      {!isAdmin && <button className="btn primary" disabled={!pick.length} onClick={() => { setOutlines([]); setMk(true) }}>{pick.length ? `Tạo bài ôn tập cho ${pick.length} SV đã chọn` : 'Chọn SV để tạo bài ôn tập'}</button>}</div>
     <Loading {...ov} />
     {d && <>
       <Card title="Bài kiểm tra dùng để tính">
@@ -72,7 +73,7 @@ export default function Remedial() {
       </Card>}
     </>}
     {prog.data?.length > 0 && <Progress list={prog.data} />}
-    {open && <WrongList cs={id} s={open} exams={sel} onClose={() => setOpen(null)} onMake={() => { setPick([open.student_id]); setOutlines([]); setOpen(null); setMk(true) }} />}
+    {open && <WrongList cs={id} s={open} exams={sel} onClose={() => setOpen(null)} onMake={isAdmin ? null : () => { setPick([open.student_id]); setOutlines([]); setOpen(null); setMk(true) }} />}
     {mk && <MakeRemedial cs={id} ids={pick} outlines={outlines} exams={sel} students={d?.students || []} onClose={() => setMk(false)} />}
   </>
 }
@@ -116,7 +117,7 @@ function WrongList({ cs, s, exams, onClose, onMake }) {
           <td className="ans-bad">{w.question_type === 'manual' ? `${w.score_earned}/${w.points} đ` : w.chosen_label ? `${w.chosen_label}. ${w.chosen_content}` : <span className="ans-blank">(bỏ trống)</span>}</td>
           <td className="ans-ok">{w.correct_label ? `${w.correct_label}. ${w.correct_content}` : '—'}</td>
           <td className="small">{w.chapter_number ? `Ch. ${w.chapter_number}` : '—'}</td></tr>)}</tbody></table></div>
-      <div className="row mt"><span className="grow" /><button className="btn primary" onClick={onMake}>Tạo bài ôn tập cho SV này</button></div>
+      <div className="row mt"><span className="grow" />{onMake && <button className="btn primary" onClick={onMake}>Tạo bài ôn tập cho SV này</button>}</div>
     </>}
   </Modal>
 }
