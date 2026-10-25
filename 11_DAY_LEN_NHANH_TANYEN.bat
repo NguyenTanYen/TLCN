@@ -12,11 +12,11 @@ git add -A || goto :loi
 git commit -m "Ban nop TLCN Nhom 01 (de trien khai len may chu)" 
 git push -u origin Tanyen || goto :loi
 echo.
-echo XONG. Da day len nhanh Tanyen. Bao lai cho Claude.
+echo XONG. Da day len nhanh Tanyen.
 pause
 exit /b 0
 :loi
 echo.
-echo *** CO LOI - chup man hinh nay gui Claude.
+echo *** CO LOI - chup man hinh nay de kiem tra.
 pause
 exit /b 1
