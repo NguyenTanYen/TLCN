@@ -6,7 +6,8 @@ học phần tiên quyết, CLO (Bloom, đóng góp PLO), PI mà học phần đ
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
@@ -235,6 +236,16 @@ def syllabus(cid: int, version: Optional[int] = None, db: Session = Depends(get_
             **syllabi.doc(db, c, syllabi.pick_version(c, version, u.role == "admin"))}
 
 
+@router.get("/courses/{cid}/syllabus.pdf")
+def syllabus_pdf(cid: int, version: Optional[int] = None, db: Session = Depends(get_db), u: User = Depends(current_user)):
+    """Đề cương chi tiết dạng PDF theo bố cục biểu mẫu in để ký (quốc hiệu, các mục đánh số, chỗ ký tên)."""
+    from ..services import syllabus_pdf
+    s = syllabus(cid, version, db, u)
+    s["lecturers"] = [r[0] for r in db.execute(text("""SELECT DISTINCT l.full_name FROM class_sections cs JOIN lecturers l ON l.id=cs.lecturer_id
+                                                 WHERE cs.course_id=:c ORDER BY l.full_name"""), {"c": cid})]
+    data = syllabus_pdf.build(s)
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="DeCuong_{s["course_code"]}.pdf"'})
 @router.get("/courses/{cid}/syllabus.docx")
 def syllabus_docx(cid: int, version: Optional[int] = None, db: Session = Depends(get_db), u: User = Depends(current_user)):
     """In đề cương theo mẫu văn bản (Word) – cùng phiên bản và nội dung với trang Đề cương chi tiết."""

@@ -1,12 +1,10 @@
 import { useState } from 'react'
-import { Radar } from 'react-chartjs-2'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { C } from '../charts'
 import { Badge, Card, Loading, Stat } from '../components/ui'
 import { useApi } from '../hooks'
 
-// Hồ sơ một SV (góp ý 21/10): SV được đánh giá bằng ĐIỂM; mức CLO của SV chỉ để tham khảo khi ôn tập (không gắn nhãn Đạt/Không đạt –
-// kết luận đạt CLO chỉ có ở cấp lớp, BM6b). Phần chính: điểm từng bài, nội dung cần ôn, chi tiết câu trả lời.
+// Hồ sơ một SV: sinh viên được đánh giá bằng ĐIỂM và kết quả theo từng chương. Hệ thống KHÔNG đánh giá CLO riêng cho từng SV
+// (CLO chỉ được kết luận cho cả lớp ở trang Kết quả chuẩn đầu ra, BM6). Phần chính: điểm từng bài, chương cần ôn, chi tiết từng câu.
 const RES = { correct: ['Đúng', 'ans-ok', '✓'], wrong: ['Sai', 'ans-bad', '✗'], blank: ['Bỏ trống', 'ans-blank', '–'] }
 
 export default function StudentProfile() {
@@ -47,16 +45,10 @@ export default function StudentProfile() {
             {d.review.length === 0 ? <div className="alert green">Không có chương nào cần ôn lại – điểm các nội dung đều đạt mức yêu cầu.</div> :
               <div className="review">{d.review.map((r, i) => <div key={r.chapter}>
                 <div className="row gap wrap"><span className="prio">Ưu tiên {i + 1}</span><b>{r.chapter}</b></div>
-                <div className="muted small">Liên quan {r.clos.join(', ')} · điểm còn thiếu tối đa {r.max_gap}% so với mức yêu cầu · từ bài: {r.exams.join('; ')}</div>
+                <div className="muted small">Điểm còn thiếu tối đa {r.max_gap}% so với mức yêu cầu · từ bài: {r.exams.join('; ')}</div>
               </div>)}</div>}
           </Card>
         </div>
-        {d.overall_clos.length > 0 && <details className="adv mb"><summary>Tỷ lệ điểm theo nội dung (CLO), gộp mọi bài – tham khảo</summary>
-          <table className="tbl compact mt"><thead><tr><th>CLO</th><th className="num-c">Tỷ lệ điểm của SV</th></tr></thead>
-            <tbody>{d.overall_clos.map(c => <tr key={c.code}><td><b>{c.code}</b> <span className="muted small">{c.description}</span></td><td className="num-c">{c.pct}%</td></tr>)}</tbody></table>
-          <p className="muted small">Chỉ dùng để gợi ý ôn tập. Kết luận đạt chuẩn đầu ra (CLO) được tính cho cả lớp ở trang Kết quả CĐR (BM6).</p>
-        </details>}
-
         <div className="row gap wrap mb"><b>Chi tiết theo bài kiểm tra:</b>
           {exams.map(x => <button key={x.id} className={`chip ${x.id === cur.id ? 'on' : ''}`} onClick={() => setSp({ exam: x.id })}>{x.exam_title}</button>)}
         </div>
@@ -71,6 +63,9 @@ function ExamBlock({ e }) {
   if (e.status !== 'finished') return <div className="alert amber"><b>{e.exam_title}:</b> SV vắng thi – không có điểm bài này.</div>
   const ans = e.answers.filter(a => filter === 'all' || a.result === filter)
   const cnt = r => e.answers.filter(a => a.result === r).length
+  const chap = {}
+  e.answers.forEach(a => { const k = a.chapter || 'Chưa gắn chương'; const c = (chap[k] ||= { name: k, n: 0, ok: 0 }); c.n += 1; c.ok += a.result === 'correct' ? 1 : 0 })
+  const byChap = Object.values(chap).map(c => ({ ...c, pct: Math.round(100 * c.ok / c.n) })).sort((a, b) => a.pct - b.pct)
   const groups = Object.values((e.items || []).reduce((m, i) => { (m[i.priority] ||= { ...i, chapters: [] }).chapters.push(i.chapter); return m }, {}))
   return (
     <>
@@ -81,34 +76,38 @@ function ExamBlock({ e }) {
         <Stat label="Hiển thị cho SV trên Moodle" value={e.publish_flag ? 'Đã công bố' : 'Đang bảo lưu'} sub={e.source === 'paper' ? 'bài làm trên giấy' : 'bài làm Moodle'} tone={e.publish_flag ? 'green' : ''} />
       </div>
       <div className="grid2">
-        <Card title="Tỷ lệ điểm theo nội dung (CLO) so với trung bình lớp – tham khảo">
-          <div className="chart tall"><Radar data={{ labels: e.clos.map(c => c.code), datasets: [
-            { label: 'Sinh viên (%)', data: e.clos.map(c => c.pct), borderColor: C.blue, backgroundColor: C.blueA, pointBackgroundColor: C.blue, pointRadius: 4, borderWidth: 2 },
-            { label: 'Trung bình lớp (%)', data: e.clos.map(c => c.class_avg), borderColor: C.gray, backgroundColor: 'transparent', borderDash: [4, 4], pointRadius: 3, borderWidth: 2 }] }}
-            options={{ maintainAspectRatio: false, scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, backdropColor: 'transparent' } } },
-              plugins: { tooltip: { callbacks: { label: it => `${it.dataset.label}: ${it.raw}%` } } } }} /></div>
+        <Card title="Kết quả theo từng chương">
+          {byChap.length === 0 ? <p className="muted">Chưa có dữ liệu.</p> :
+            <table className="tbl"><thead><tr><th>Chương</th><th className="num-c">Số câu</th><th className="num-c">Làm đúng</th><th className="num-c">Tỷ lệ đúng</th><th>Nhận xét</th></tr></thead>
+              <tbody>{byChap.map(c => <tr key={c.name}><td><b>{c.name}</b></td><td className="num-c">{c.n}</td><td className="num-c">{c.ok}</td>
+                <td className={`num-c ${c.pct < 50 ? 'bad' : c.pct < 70 ? 'warn' : ''}`}>{c.pct}%</td>
+                <td>{c.pct < 50 ? <Badge tone="red">Cần ôn lại</Badge> : c.pct < 70 ? <Badge tone="amber">Nên ôn thêm</Badge> : <Badge tone="green">Nắm khá tốt</Badge>}</td></tr>)}</tbody></table>}
         </Card>
         <Card title="Chẩn đoán & lộ trình ôn tập">
-          <table className="tbl"><thead><tr><th>Nội dung (CLO)</th><th className="num-c">SV</th><th className="num-c">TB lớp</th></tr></thead>
-            <tbody>{e.clos.map(c => <tr key={c.code}><td><b>{c.code}</b><div className="muted small">{c.description}</div></td>
-              <td className="num-c"><b>{c.pct}%</b></td><td className="num-c">{c.class_avg}%</td></tr>)}</tbody></table>
           {e.summary && <p className="mt"><b>Chẩn đoán:</b> {e.summary}</p>}
           <h4>Lộ trình ôn tập của bài này</h4>
           {groups.length === 0 ? <div className="alert green">Không có nội dung nào cần ôn lại ở bài này.</div> :
             <ol className="path">{groups.map(g => <li key={g.priority}><div className="row gap wrap"><span className="prio">Ưu tiên {g.priority}</span>
-              <span className="muted">liên quan {g.clo} · điểm còn thiếu {g.gap}% so với mức yêu cầu</span></div>
-              <ul>{g.chapters.map(c => <li key={c || 'x'}>Ôn lại <b>{c || `nội dung của ${g.clo} (chưa gắn chương)`}</b></li>)}</ul></li>)}</ol>}
+              <span className="muted">điểm còn thiếu {g.gap}% so với mức yêu cầu</span></div>
+              <ul>{g.chapters.map(c => <li key={c || 'x'}>Ôn lại <b>{c || 'nội dung chưa gắn chương'}</b></li>)}</ul></li>)}</ol>}
         </Card>
       </div>
+      {(e.readings || []).length > 0 && <Card title="Cần đọc lại ở đâu trong tài liệu của môn (gợi ý từ các câu làm sai)">
+        <ol className="path">{e.readings.map((r, i) => <li key={i}><div className="row gap wrap"><b>{r.material}</b><Badge tone="amber">{r.unit} {r.page}</Badge>
+          {r.heading && <span className="muted">{r.heading}</span>}<span className="muted small">liên quan {r.n_wrong ?? r.question_ids?.length} câu sai</span></div>
+          <div className="muted small">{r.snippet}</div></li>)}</ol>
+      </Card>}
+      <details className="more"><summary>Xem chi tiết từng câu trả lời</summary>
       <Card title="Chi tiết từng câu trả lời" actions={[['all', `Tất cả (${e.answers.length})`], ['wrong', `Sai (${cnt('wrong')})`], ['blank', `Bỏ trống (${cnt('blank')})`], ['correct', `Đúng (${cnt('correct')})`]].map(([k, l]) =>
         <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{l}</button>)}>
-        <table className="tbl"><thead><tr><th>#</th><th>Câu hỏi</th><th>Chương</th><th>CLO</th><th>Bloom</th><th>SV chọn</th><th>Đáp án</th><th>Kết quả</th><th>Điểm</th><th>Tỷ lệ lớp đúng</th></tr></thead>
+        <table className="tbl"><thead><tr><th>#</th><th>Câu hỏi</th><th>Chương</th><th>Mức độ</th><th>SV chọn</th><th>Đáp án</th><th>Kết quả</th><th>Điểm</th><th>Tỷ lệ lớp đúng</th></tr></thead>
           <tbody>{ans.map(a => { const [t, cls, ic] = RES[a.result]; return <tr key={a.question_id}>
-            <td>{a.order_index}</td><td className="clip" title={a.content}>{a.content}</td><td>{a.chapter || '—'}</td><td>{a.clos}</td><td>{a.bloom}</td>
+            <td>{a.order_index}</td><td className="clip" title={a.content}>{a.content}</td><td>{a.chapter || '—'}</td><td>{a.bloom}</td>
             <td>{a.chosen || '—'}</td><td>{a.correct}</td><td className={cls}>{ic} {t}</td><td>{a.score_earned}/{a.points}</td>
             <td>{a.p_value === null ? '—' : `${Math.round(a.p_value * 100)}%`}</td></tr> })}</tbody></table>
         {e.source === 'paper' && <p className="muted small mt">Bài trên giấy: nhãn phương án là nhãn gốc trong ngân hàng câu hỏi (đã quy đổi từ mã đề).</p>}
       </Card>
+      </details>
     </>
   )
 }

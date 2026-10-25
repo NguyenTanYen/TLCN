@@ -30,7 +30,7 @@ export default function QSync({ courseId, onClose, onDone }) {
   }
   return <Modal wide title="Đồng bộ ngân hàng câu hỏi hai chiều với Moodle" onClose={onClose}>
     <Loading {...t} />
-    {t.data && !t.data.targets.length && <div className="alert amber">Môn chưa có lớp học phần nào (của bạn) gắn khóa học Moodle. Gắn lớp với Moodle ở trang lớp hoặc "Đồng bộ các lớp với Moodle".</div>}
+    {t.data && !t.data.targets.length && <div className="alert amber">Môn chưa có lớp học phần nào (của bạn) gắn khóa học Moodle. Gắn lớp với Moodle ở trang lớp hoặc "Cập nhật lớp từ Moodle".</div>}
     {t.data && !t.data.ws_configured && <div className="alert amber">Chưa cấu hình Web Service Moodle – chỉ xem được so sánh, chưa đẩy/kéo được.</div>}
     {t.data?.targets.length > 0 && <div className="row gap wrap">
       <Field label="Khóa học Moodle"><select value={mc || ''} onChange={e => setMc(Number(e.target.value))}>

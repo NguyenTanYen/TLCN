@@ -14,6 +14,7 @@ NHOM = [
     "11. Thống kê lớp, hồ sơ sinh viên",
     "12. Nâng cấp CSDL, cầu nối",
     "13. Thời gian làm bài & cảnh báo bất thường",
+    "14. Học liệu và gợi ý đọc (RAG theo trang)",
 ]
 
 M = {
@@ -79,6 +80,11 @@ M = {
     "test_manual_exam_grid_excel_and_analysis": (7, "Bài nhập điểm: bảng điểm, Excel, phân tích", "Tạo bài 2 câu/ý gắn CLO, nhập điểm, tải mẫu Excel, nhập lại, phân tích", "Kiểm tra giới hạn điểm; p, DI, alpha, CLO đúng"),
     "test_create_exam_from_any_excel": (7, "Tạo bài từ tệp Excel bất kỳ", "Tệp Excel tự soạn có cột MSSV và cột điểm", "Tạo bài, ghi điểm; SV lạ được ghi danh khi chọn"),
     "test_combine_exams_and_evidence_flag": (7, "Gộp 2–3 bài đánh giá CLO/PLO", "Gộp bài 2 lớp theo 2 cách; bật/tắt minh chứng BM6", "Số liệu khớp; PLO theo từng CTĐT; BM6b đổi tương ứng"),
+    "test_overview_theo_chuong_va_loc_chuong": (7, "Ôn tập theo nhóm sinh viên yếu từng chương", "Xem danh sách chương có SV yếu, chọn chương rồi tạo bài kiểm tra lại cho nhóm đó", "Có danh sách chương + SV; không còn CLO riêng từng SV; bài ôn chỉ gồm câu của chương đã chọn"),
+    "test_progress_before_attempt": (7, "Theo dõi tiến bộ – trước khi làm bài ôn", "Xem bài ôn vừa giao cho 1 SV", "1 SV được giao, chưa làm; có điểm trước, chưa có điểm sau"),
+    "test_progress_after_attempt": (7, "Theo dõi tiến bộ – sau khi làm bài ôn", "SV làm bài ôn, hệ thống tính mức cải thiện", "Có điểm sau và mức tăng"),
+    "test_restrict_requires_moodle_accounts": (7, "Giới hạn bài ôn cho đúng SV trên Moodle", "Danh sách SV được giao chuyển thành tài khoản Moodle", "Thiếu tài khoản Moodle thì báo lỗi rõ ràng"),
+    "test_syllabus_pdf_mau_in": (1, "In đề cương chi tiết dạng PDF theo mẫu ký", "GET /courses/{id}/syllabus.pdf", "PDF có quốc hiệu, tiêu đề, các mục đánh số, ô ký Trưởng khoa/Trưởng bộ môn/Giảng viên; không có token thì 401"),
     "test_remedial_flow": (7, "Phụ đạo theo câu sai", "Đếm câu sai từng SV, xem câu sai, tạo bài phụ đạo", "Số câu sai đúng; bài phụ đạo có câu sai + câu tương tự, không gộp minh chứng"),
     # ---------------------------------------------------------------- test_hardening
     "test_course_level_access": (0, "Phân quyền theo môn học", "GV không dạy môn truy cập ngân hàng câu hỏi, tệp mẫu", "403; 404 môn không tồn tại"),
@@ -129,4 +135,23 @@ M = {
     "test_course_exam_create_and_blocked_actions": (3, "Tạo bài kiểm tra ở trang môn học (đề của môn)", "Sinh đề theo ma trận cấp môn rồi lưu đề chưa gắn lớp; gọi tạo Quiz, đồng bộ, thống kê; GV khác; gửi cả lớp và môn", "Đề lưu ở môn; thao tác cần lớp 409 kèm hướng dẫn chọn lớp; Moodle XML được; GV khác 403; 422"),
     "test_course_exam_deploy_to_sections": (3, "Giao đề của môn cho lớp HP khi xuất", "Giao đề giấy cho 2 lớp, sinh mã đề ở bài của lớp, giao lại lớp đã có, xóa đề của môn", "Mỗi lớp một bài cùng câu hỏi; không tạo trùng; xóa đề gốc không mất bài của lớp"),
     "test_course_manual_exam_deploy_and_grade": (7, "Đề nhập điểm của môn giao cho lớp", "Khai báo câu/ý gắn CLO ở cấp môn, giao cho lớp 02 rồi nhập điểm", "Bảng điểm đủ 35 SV của lớp; nhập điểm ở đề chưa giao bị chặn (409)"),
+    # ---------------------------------------------------------------- test_tao_khoa_hoc_moodle
+    "test_tao_lop_tu_tao_khoa_hoc_moodle": (9, "Tạo lớp HP tự tạo khóa học Moodle", "Bộ môn tạo lớp mới khi đã cấu hình Moodle", "Gọi local_clo_provision_course với mã lớp, GV; lưu moodle_course_id"),
+    "test_tao_lop_khi_chua_cau_hinh_moodle_van_thanh_cong": (9, "Tạo lớp khi chưa nối Moodle", "Tạo lớp HP khi chưa có token Web Service", "Lớp vẫn được tạo, trạng thái 'skipped'"),
+    "test_loi_moodle_khong_lam_hong_viec_tao_lop": (9, "Lỗi Moodle không làm hỏng việc tạo lớp", "Web Service báo lỗi khi tạo lớp; bấm tạo khóa học lại", "Lớp vẫn có, trạng thái 'error'; nút tạo lại trả 502"),
+    "test_nut_tao_khoa_hoc_ghi_danh_sv_va_luu_mdl_user_id": (9, "Ghi danh SV và lưu mã người dùng Moodle", "Lớp có 3 SV, bấm Tạo khóa học trên Moodle, gọi lại lần hai", "Gửi đủ 3 SV (họ, tên tách đúng); lưu moodle_user_id; gọi lại vẫn thành công"),
+    "test_gv_khac_khong_tao_duoc_khoa_hoc_cua_lop_nguoi_khac": (9, "Phân quyền khi tạo khóa học Moodle", "GV không phụ trách bấm tạo khóa học cho lớp", "403"),
+    # ---------------------------------------------------------------- test_hoc_lieu_rag
+    "test_seed_co_hoc_lieu": (13, "Học liệu mẫu có sẵn", "Danh sách học liệu của môn DBMS330284", "7 học liệu (6 slide + 1 giáo trình), số trang khớp nội dung đã sinh"),
+    "test_tim_dung_slide": (13, "Tìm đúng slide cho câu hỏi", "5 câu hỏi mẫu của 5 chương", "Kết quả đầu bảng là đúng slide mong đợi, kèm đoạn trích"),
+    "test_cau_ngoai_pham_vi_khong_goi_y": (13, "Câu ngoài phạm vi học liệu", "Tìm một câu hỏi không liên quan môn", "Kết quả rỗng, không gợi ý bừa"),
+    "test_chi_tim_trong_hoc_lieu_cua_dung_khoa": (13, "Chỉ tìm trong học liệu của đúng môn", "Tải tài liệu vào môn khác rồi tìm ở cả hai môn", "Mỗi môn chỉ thấy tài liệu của mình"),
+    "test_tai_len_docx_txt_va_loi": (13, "Tải học liệu DOCX/TXT và các lỗi", "Tải DOCX, TXT; tệp .exe, tệp rỗng, loại học liệu sai", "201 và có chỉ mục; 422 cho các trường hợp lỗi"),
+    "test_goi_y_doc_cho_sv_lam_sai": (13, "Gợi ý đọc cho sinh viên làm sai", "Dữ liệu kết quả gửi Moodle của bài đã phân tích", "Mỗi SV có danh sách trang/slide thuộc học liệu của môn; không lộ mã câu hỏi"),
+    "test_tai_tao_goi_y_sau_khi_them_hoc_lieu": (13, "Tạo lại gợi ý đọc", "Thêm học liệu rồi gọi readings/rebuild; bài không tồn tại", "Hầu hết SV có gợi ý; 404"),
+    "test_lay_hoc_lieu_tu_moodle_ve": (13, "Lấy học liệu từ khóa học Moodle", "Moodle giả lập trả danh sách tệp; lấy lần 2; đẩy ngược tệp lấy từ Moodle", "Thêm tệp mới, không trùng; 409 khi đẩy ngược"),
+    "test_day_hoc_lieu_len_moodle": (13, "Đưa học liệu lên Moodle", "Gọi local_clo_add_resource (giả lập)", "Nhận course module id; lưu lại để SV mở được"),
+    "test_moodle_loi_tra_502": (13, "Moodle báo lỗi khi đồng bộ học liệu", "Web Service giả lập trả lỗi", "502 kèm thông báo"),
+    "test_xem_tep_goc_trang_va_lap_lai_chi_muc": (13, "Xem lại trang, tải tệp gốc, lập lại chỉ mục", "Mở trang 2 của slide chương 4; trang không có; tải tệp; lập lại chỉ mục", "Trang đúng nội dung; 404; tệp PPTX; số trang không đổi"),
+    "test_on_tap_co_goi_y_doc": (13, "Gợi ý đọc ở trang Ôn tập", "Tổng quan Ôn tập của lớp", "Mỗi SV yếu và mỗi chương có danh sách trang nên đọc"),
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { Bar } from 'react-chartjs-2'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
@@ -15,7 +16,7 @@ export default function PloSummary() {
   const measured = s?.plos.filter(p => p.n_evaluated) || []
   return (
     <>
-      <div className="page-h"><div><h1>Tổng hợp đo lường CĐR CTĐT</h1><p className="muted">UC-07 · BM3c (kết quả từng PLO = cộng dồn các PI) và BM2 (tổng kết chương trình = Σ đạt / Σ đánh giá).</p></div>
+      <div className="page-h"><div><h1>Kết quả chuẩn đầu ra của chương trình đào tạo</h1><p className="muted">Kết quả từng chuẩn đầu ra chương trình (PLO) được cộng dồn từ các chỉ báo (PI) – biểu mẫu BM3c – và tổng kết toàn chương trình – biểu mẫu BM2.</p></div>
         <div className="row gap wrap">
           <ProgramPicker {...pg} />
           <Field label="Năm học"><select value={year || ''} onChange={e => setYear(e.target.value)}>{years.map(y => <option key={y}>{y}</option>)}</select></Field>
@@ -23,6 +24,7 @@ export default function PloSummary() {
           <ActionButton className="btn primary" disabled={!year} onRun={() => api.download(`/api/reports/programs/${pg.pid}/bm3.xlsx?academic_year=${year}`, 'BM2_BM3.xlsx')}>⬇ Xuất BM2/BM3 (.xlsx)</ActionButton>
           <ActionButton className="btn" disabled={!year} onRun={() => api.download(`/api/reports/programs/${pg.pid}/bm2.docx?academic_year=${year}`, `BM2_${year}.docx`)}>⬇ Xuất BM2 (.docx)</ActionButton>
         </div></div>
+      <PageHelp id="plosummary"><p>Chọn chương trình đào tạo và năm học, bấm <b>Tính lại</b> để cập nhật. Bảng cho biết tỷ lệ đạt từng chuẩn đầu ra chương trình (PLO) so với chỉ tiêu. Dùng nút Xuất để tải biểu mẫu BM2, BM3.</p></PageHelp>
       <Loading {...sum} />
       {s && <>
         <div className="stats">

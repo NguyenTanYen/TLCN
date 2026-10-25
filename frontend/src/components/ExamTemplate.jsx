@@ -19,8 +19,8 @@ export default function ExamTemplate({ e, reload }) {
     <div className="page-h">
       <div><Crumbs items={[['/', 'Môn học của tôi'], [`/courses/${e.course_id}`, e.course_code], [`/courses/${e.course_id}?tab=exams`, 'Đề kiểm tra'], [null, `Đề #${e.id}`]]} />
         <h1>{e.exam_title} <Badge tone="blue">Đề của môn</Badge></h1>
-        <p className="muted">{e.course_code} – {e.course_name} · {TYPE_VI[e.exam_type]} · minh chứng {e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'} ·
-          {' '}{e.questions.length} {e.exam_type === 'manual' ? 'câu/ý' : 'câu'} · thang {e.max_score}{e.duration_minutes ? ` · ${e.duration_minutes} phút` : ''}</p></div>
+        <p className="muted">{e.course_code} – {e.course_name} · {TYPE_VI[e.exam_type]} · loại đánh giá {e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'} ·
+          {' '}{e.questions.length} {e.exam_type === 'manual' ? 'câu/ý' : 'câu'} · thang điểm {e.max_score}{e.duration_minutes ? ` · ${e.duration_minutes} phút` : ''}</p></div>
       <div className="row gap wrap">
         {e.exam_type === 'online' && <ActionButton className="btn" onRun={() => api.download(`/api/exams/${e.id}/moodle-xml`, `de_${e.id}_moodle.xml`)}>⬇ Moodle XML</ActionButton>}
         <ActionButton className="btn danger" confirm={`Xóa đề "${e.exam_title}"? Các bài đã giao cho lớp vẫn được giữ.`}

@@ -1,0 +1,90 @@
+# Triển khai thật (miễn phí trên VPS bất kỳ có Docker)
+#   1) cp .env.example .env  rồi sửa IP_CONG_KHAI và mật khẩu
+#   2) bash deploy/trien_khai.sh email_cua_ban@gmail.com
+# Địa chỉ (HTTPS tự động qua Let's Encrypt, dùng sslip.io nên KHÔNG cần mua tên miền):
+#   Hệ thống: https://app.<IP>.sslip.io      Moodle: https://lms.<IP>.sslip.io
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --log-bin-trust-function-creators=1
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ../docker/mysql/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASS}"]
+      interval: 5s
+      retries: 30
+
+  moodle:
+    build: ../docker/moodle
+    restart: unless-stopped
+    environment:
+      APACHE_DOCUMENT_ROOT: /var/www/html      # image moodlehq cần biến này; ENTRYPOINT riêng của ta không tự đặt
+      MOODLE_URL: https://lms.${IP_CONG_KHAI}.sslip.io
+      MOODLE_DB_HOST: db
+      MOODLE_DB_USER: moodle
+      MOODLE_DB_PASS: moodle_pass
+      MOODLE_ADMIN_PASS: ${MOODLE_ADMIN_PASS}
+    volumes:
+      - moodledata:/var/www/moodledata
+      - moodlecode:/var/www/html
+    depends_on:
+      db: {condition: service_healthy}
+
+  app:
+    build: {context: .., dockerfile: backend/Dockerfile}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql+pymysql://tlcn:tlcn_pass@db:3306/assessment_db?charset=utf8mb4
+      MOODLE_DB_NAME: moodle
+      MOODLE_PREFIX: mdl_
+      MOODLE_URL: https://lms.${IP_CONG_KHAI}.sslip.io
+      JWT_SECRET: ${JWT_SECRET}
+      DEMO_DATA: "1"
+    depends_on:
+      db: {condition: service_healthy}
+
+  demo:                     # chạy một lần: docker compose ... --profile demo run --rm demo
+    profiles: ["demo"]
+    build: {context: .., dockerfile: deploy/Dockerfile.demo}
+    environment:
+      DATABASE_URL: mysql+pymysql://tlcn:tlcn_pass@db:3306/assessment_db?charset=utf8mb4
+      DATABASE_ADMIN_URL: mysql+pymysql://root:${DB_ROOT_PASS}@db:3306/mysql?charset=utf8mb4
+      MOODLE_DB_NAME: moodle
+      MOODLE_PREFIX: mdl_
+      MOODLE_URL: https://lms.${IP_CONG_KHAI}.sslip.io
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - moodlecode:/var/www/html
+      - moodledata:/var/www/moodledata
+    depends_on:
+      db: {condition: service_healthy}
+      moodle: {condition: service_started}
+
+  nginx:                    # web server + reverse proxy (HTTP/HTTPS)
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx/active.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt:ro
+    depends_on: [app, moodle]
+
+  certbot:                  # chỉ chạy khi cấp / gia hạn chứng chỉ (bat_https.sh)
+    image: certbot/certbot
+    profiles: ["tools"]
+    entrypoint: ["certbot"]
+    volumes:
+      - certbot_www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+
+volumes:
+  dbdata:
+  moodledata:
+  moodlecode:
+  certbot_www:
+  letsencrypt:

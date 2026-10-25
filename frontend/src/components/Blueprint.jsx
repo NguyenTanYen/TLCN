@@ -1,4 +1,4 @@
-// Sinh đề theo ma trận đề thi (UC-02): GV nhập số câu (hệ thống tự lập ma trận chương × mức Bloom, phủ đủ CLO)
+// Sinh đề theo ma trận đề thi (UC-02): GV nhập số câu (hệ thống tự lập ma trận chương × mức độ nhận thức, phủ đủ CLO)
 // hoặc nhập ma trận chi tiết; hệ thống báo ô/CLO/mức thiếu câu. Kết quả đổ vào danh sách chọn để GV chỉnh tay.
 import { useMemo, useState } from 'react'
 import { api } from '../api'
@@ -11,7 +11,7 @@ const PRESET_VI = { balanced: 'Cân bằng (20/30/30/15/5)', basic: 'Cơ bản (
 const BLOOM_SHORT = ['', 'Nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo']
 
 export function MatrixTable({ chapters, cells, blooms, value, render }) {
-  // bảng chương × mức Bloom; render(o, b) trả nội dung ô
+  // bảng chương × mức độ nhận thức; render(o, b) trả nội dung ô
   const usedBlooms = blooms.filter(b => cells.some(c => c.bloom_level_id === b) || (value && Object.keys(value).some(k => k.endsWith(`:${b}`))))
   return <div className="scroll"><table className="tbl compact matrix">
     <thead><tr><th>Chương / Mức Bloom</th>{usedBlooms.map(b => <th key={b} className="num-c">{BLOOM_SHORT[b]}</th>)}<th className="num-c">Cộng</th></tr></thead>
@@ -76,16 +76,16 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
         <span className="muted small">Ngân hàng: <b>{p?.pool_size ?? '…'}</b> câu dùng được{p?.untagged ? ` · ${p.untagged} câu chưa gán CLO/Bloom` : ''}</span>
       </div>
       <details className="adv" open={adv} onToggle={e => setAdv(e.currentTarget.open)}>
-        <summary>Tùy chỉnh nâng cao (tỷ lệ từng mức Bloom, ma trận chi tiết)</summary>
+        <summary>Tùy chỉnh nâng cao (tỷ lệ từng mức độ nhận thức, ma trận chi tiết)</summary>
         <div className="row gap wrap mt">
-          <label className="row gap check"><input type="checkbox" checked={preset === 'custom'} disabled={useMatrix} onChange={e => setPreset(e.target.checked ? 'custom' : 'balanced')} /> Tự đặt tỷ lệ từng mức Bloom</label>
+          <label className="row gap check"><input type="checkbox" checked={preset === 'custom'} disabled={useMatrix} onChange={e => setPreset(e.target.checked ? 'custom' : 'balanced')} /> Tự đặt tỷ lệ từng mức độ nhận thức</label>
           <label className="row gap check"><input type="checkbox" checked={useMatrix} onChange={e => setUseMatrix(e.target.checked)} /> Nhập ma trận chi tiết</label>
           <label className="row gap check"><input type="checkbox" checked={keepPicked} onChange={e => setKeepPicked(e.target.checked)} /> Giữ các câu đã chọn tay</label>
         </div>
         {preset === 'custom' && !useMatrix && <div className="row gap wrap mt">{blooms.map(b => <label key={b} className="field"><span>{BLOOM_SHORT[b]} %</span>
           <input className="num" type="number" min="0" max="100" value={mix[b]} onChange={e => setMix({ ...mix, [b]: Number(e.target.value) })} /></label>)}</div>}
         {useMatrix && p && <>
-          <p className="muted small mt">Nhập số câu mỗi ô (chương × mức Bloom); số nhỏ là số câu ngân hàng đang có. Tổng: <b>{matTotal}</b> câu.</p>
+          <p className="muted small mt">Nhập số câu mỗi ô (chương × mức độ nhận thức); số nhỏ là số câu ngân hàng đang có. Tổng: <b>{matTotal}</b> câu.</p>
           <MatrixTable chapters={chapters} cells={p.cells} blooms={blooms} value={mat} render={(o, b) => {
             if (b === 'sum') return Object.entries(mat).filter(([k]) => k.startsWith(`${o}:`)).reduce((a, [, v]) => a + (Number(v) || 0), 0) || ''
             const k = `${o}:${b}`; const a = avail[k] || 0

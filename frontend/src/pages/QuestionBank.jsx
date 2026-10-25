@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { api, auth } from '../api'
 import { ActionButton, Badge, Card, CourseSelect, Field, Loading, Modal, diClass, pClass, ploLabel } from '../components/ui'
 import { useApi } from '../hooks'
@@ -39,16 +40,18 @@ export default function QuestionBank() {
   return (
     <>
       <div className="page-h">
-        <div><h1>Ngân hàng câu hỏi</h1><p className="muted">UC-01 · Mỗi câu hỏi gắn chương, mức Bloom và một/nhiều CLO có trọng số (tổng = 1).</p></div>
+        <div><h1>Ngân hàng câu hỏi</h1><p className="muted">Kho câu hỏi của môn. Mỗi câu gắn với một chương, một mức độ nhận thức và một hoặc nhiều chuẩn đầu ra môn học (CLO); câu chưa gắn đủ thông tin thì chưa đưa vào đề được.</p></div>
         {isAdmin ? <span className="muted small">Bộ môn chỉ xem – giảng viên phụ trách môn soạn, nhập và gán CLO cho câu hỏi.</span>
           : <div className="row gap wrap">
           <button className="btn" disabled={!course} onClick={() => setDlg('qsync')} title="Đẩy câu lên Moodle, lấy câu sửa/soạn trên Moodle về">⇅ Đồng bộ với Moodle</button>
           <button className="btn" disabled={!course} onClick={() => setDlg('import')}>⬆ Nhập câu hỏi từ file</button>
-          <button className="btn" disabled={!course} onClick={() => setDlg('tag')}>Gán CLO/Bloom từ file{nUntagged > 0 && <Badge tone="amber">{nUntagged} chưa gán</Badge>}</button>
+          <button className="btn" disabled={!course} onClick={() => setDlg('tag')}>Gán CLO, mức độ nhận thức từ file{nUntagged > 0 && <Badge tone="amber">{nUntagged} chưa gán</Badge>}</button>
           <button className="btn primary" disabled={!course} onClick={() => setEdit({})}>+ Thêm câu hỏi</button>
         </div>}
       </div>
-      {nUntagged > 0 && <div className="alert amber row gap wrap"><span className="grow">Có <b>{nUntagged}</b> câu hỏi chưa gán đủ CLO và mức Bloom – chưa đưa được vào đề.
+      <PageHelp id="questions"><p>Chọn môn ở trên để xem các câu hỏi của môn. Bạn có thể thêm từng câu, nhập nhiều câu từ file (Word, Excel, Aiken) hoặc đồng bộ với Moodle.</p>
+      <p>Mỗi câu cần gắn <b>chương</b>, <b>mức độ nhận thức</b> và <b>chuẩn đầu ra (CLO)</b> mà câu đó đo. Nhờ vậy hệ thống mới tự chọn câu khi tạo đề và tính được kết quả chuẩn đầu ra.</p></PageHelp>
+      {nUntagged > 0 && <div className="alert amber row gap wrap"><span className="grow">Có <b>{nUntagged}</b> câu hỏi chưa gán đủ CLO và mức độ nhận thức – chưa đưa được vào đề.
         {isAdmin ? ' Giảng viên phụ trách môn cần gán trước khi ra đề.' : ' Gán từng câu (bấm Chi tiết) hoặc gán hàng loạt bằng file Excel.'}</span>
         <button className="btn sm" onClick={() => setFlt({ ...flt, untagged: !flt.untagged })}>{flt.untagged ? 'Hiện tất cả' : 'Chỉ xem câu chưa gán'}</button>
         {!isAdmin && <button className="btn sm primary" onClick={() => setDlg('tag')}>Gán từ file</button>}</div>}
@@ -145,7 +148,7 @@ function QuestionForm({ q, course, bloom, readOnly, onClose, onSaved }) {
     options: f.options, clos: Object.entries(f.clos).map(([clo_id, weight]) => ({ clo_id: Number(clo_id), weight: Number(weight) })) })
   const problem = !f.content.trim() ? 'Chưa nhập nội dung câu hỏi'
     : f.options.some(o => !o.content.trim()) ? 'Còn phương án để trống'
-    : !f.bloom_level_id ? 'Chưa chọn mức Bloom'
+    : !f.bloom_level_id ? 'Chưa chọn mức độ nhận thức'
     : !Object.keys(f.clos).length ? 'Chưa gán CLO'
     : Object.values(f.clos).some(w => !(Number(w) > 0 && Number(w) <= 1)) ? 'Trọng số CLO phải trong khoảng (0; 1]'
     : Math.abs(wsum - 1) > 1e-6 ? 'Tổng trọng số CLO phải bằng 1' : null

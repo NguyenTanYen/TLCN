@@ -33,33 +33,11 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         return html_writer::div(get_string('insufficient', 'local_clo'), 'alert alert-secondary mb-0');
     }
     $d = json_decode($res->data ?? '{}') ?: new stdClass();
-    $clos = $d->clos ?? [];
     $o = html_writer::start_div('local-clo-result');
     $o .= html_writer::start_div('local-clo-head');
     $o .= html_writer::div(html_writer::span(format_float($res->score, 2), 'local-clo-score') .
         html_writer::span(' / ' . format_float($res->maxscore, 0), 'local-clo-max'), 'local-clo-scorebox');
-    $o .= html_writer::div(get_string('reference', 'local_clo'), 'local-clo-sub');   // điểm là kết quả của SV; mức CLO chỉ để tham khảo
-    $o .= html_writer::end_div();
-    $o .= html_writer::start_div('local-clo-grid');
-    $radar = \local_clo\radar::svg($clos);
-    if ($radar) {
-        $legend = html_writer::tag('ul',
-            html_writer::tag('li', html_writer::span('', 'sw me') . get_string('legend_me', 'local_clo')) .
-            html_writer::tag('li', html_writer::span('', 'sw avg') . get_string('legend_avg', 'local_clo')),
-            ['class' => 'local-clo-legend']);
-        $o .= html_writer::div($radar . $legend, 'local-clo-chart');
-    }
-    $table = new html_table();
-    $table->attributes['class'] = 'generaltable local-clo-table';
-    $table->head = [get_string('clo', 'local_clo'), get_string('yourscore', 'local_clo'), get_string('classavg', 'local_clo')];
-    foreach ($clos as $c) {
-        $table->data[] = [
-            html_writer::tag('strong', s($c->code)) . html_writer::div(s($c->description ?? ''), 'small text-muted'),
-            format_float($c->pct, 1) . '%',
-            isset($c->class_avg) ? format_float($c->class_avg, 1) . '%' : '–',
-        ];
-    }
-    $o .= html_writer::div(html_writer::table($table), 'local-clo-tablewrap');
+    $o .= html_writer::div(get_string('reference', 'local_clo'), 'local-clo-sub');   // điểm là kết quả của SV; không đánh giá CLO riêng cho từng SV
     $o .= html_writer::end_div();
     if (!empty($d->summary)) {
         $o .= html_writer::tag('h4', get_string('summary', 'local_clo'), ['class' => 'h6 mt-3']);
@@ -69,15 +47,37 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $o .= html_writer::tag('h4', get_string('studyplan', 'local_clo'), ['class' => 'h6 mt-3']);
         $li = '';
         foreach ($d->items as $it) {
-            // gợi ý ôn tập theo chương; CLO chỉ ghi kèm "liên quan"
-            $chap = !empty($it->chapter) ? get_string('chapter', 'local_clo', s($it->chapter)) : get_string('chapter', 'local_clo', s($it->clo));
-            $li .= html_writer::tag('li', html_writer::tag('strong', $chap) .
-                html_writer::div(get_string('related', 'local_clo', s($it->clo) . (!empty($it->clo_description) ? ' – ' . s($it->clo_description) : '')), 'small text-muted') .
+            // gợi ý ôn tập theo chương
+            $chap = !empty($it->chapter) ? get_string('chapter', 'local_clo', s($it->chapter)) : get_string('chapterunknown', 'local_clo');
+            $li .= html_writer::tag('li', html_writer::tag('strong', $chap) . ' ' .
                 html_writer::span(get_string('gap', 'local_clo', format_float($it->gap, 1)), 'badge bg-warning text-dark'));
         }
         $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
+    }
+    // Gợi ý đọc: câu làm sai → trang/slide cụ thể trong học liệu của khóa học (do hệ thống phân tích tìm theo nội dung câu hỏi)
+    if (!empty($d->readings)) {
+        $o .= html_writer::tag('h4', get_string('readings', 'local_clo'), ['class' => 'h6 mt-3']);
+        $o .= html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']);
+        $li = '';
+        foreach ($d->readings as $r) {
+            $name = s($r->material);
+            if (!empty($r->moodle_cmid)) {      // tệp đã nằm trong khóa học → bấm để mở ngay
+                $name = html_writer::link(new moodle_url('/mod/resource/view.php', ['id' => (int)$r->moodle_cmid]), $name,
+                    ['target' => '_blank', 'rel' => 'noopener']);
+            }
+            $where = html_writer::tag('strong', $name) . ' ' .
+                html_writer::span(s($r->unit) . ' ' . (int)$r->page, 'badge bg-info text-dark');
+            if (!empty($r->heading)) {
+                $where .= ' – ' . s($r->heading);
+            }
+            if (!empty($r->chapter)) {
+                $where .= html_writer::span(' (' . s($r->chapter) . ')', 'text-muted small');
+            }
+            $li .= html_writer::tag('li', $where . html_writer::div(s($r->snippet), 'small text-muted'));
+        }
+        $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
     }
     return $o . html_writer::end_div();
 }

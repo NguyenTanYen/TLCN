@@ -39,11 +39,11 @@ Hệ thống không bao giờ ghi thẳng vào CSDL Moodle: đọc qua view ch�
 |---|---|---|
 | 0 | `0_CAU_HINH.bat` | (Không cần chạy, không cần sửa) **tự dò** XAMPP (Registry, ổ đĩa chứa dự án, rồi `C:`…`F:\xampp`) và chọn XAMPP có **Moodle 4.5** trong `htdocs\moodle45` hoặc `htdocs\moodle` (bỏ qua Moodle cũ hơn); PHP = `<XAMPP>\php\php.exe`, cổng 8000; lần đầu tự tạo `backend\cau_hinh.env` từ `cau_hinh.env.example`. Moodle/XAMPP đặt ở chỗ khác: chép `0_CAU_HINH_MAY.example.bat` thành `0_CAU_HINH_MAY.bat` rồi khai báo `MOODLE_DIR`, `PHP_BIN`, `APP_PORT` (tệp này không đưa lên Git) |
 | 1 | `1_CAI_DAT_PYTHON.bat` | Tạo `.venv`, cài thư viện Python (chạy 1 lần, cần Internet). **Bản 15/10 thêm thư viện mới** (reportlab – xuất đề/phiếu PDF, opencv – chấm phiếu bằng ảnh): chạy lại bước này một lần |
-| 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (39 bảng), CTĐT CNTT 2026 + KTDL 2026, dữ liệu minh họa, cài cầu nối đọc `moodle_db`. CSDL cũ **không cần tạo lại**: bước 5 tự thêm cột mới và nạp 2 CTĐT |
-| 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | (Bản mới: chạy lại để cập nhật plugin `local_clo` 1.4.0 – Web Service đồng bộ câu hỏi 2 chiều, Quiz 1 câu/trang để lấy thời gian từng câu, giới hạn Quiz phụ đạo cho đúng SV được giao) Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
+| 2 | `2_KHOI_TAO_CSDL.bat` | Tạo CSDL `assessment_db` (49 bảng), CTĐT CNTT 2026 + KTDL 2026, dữ liệu minh họa, cài cầu nối đọc `moodle_db`. CSDL cũ **không cần tạo lại**: bước 5 tự thêm cột mới và nạp 2 CTĐT |
+| 3 | `3_CAI_GIAO_DIEN_MOODLE.bat` | (Bản mới: chạy lại để cập nhật plugin `local_clo` 1.5.0 (kết quả SV theo chương, không còn CLO riêng từng SV; gồm 1.4.0) – Web Service đồng bộ câu hỏi 2 chiều, Quiz 1 câu/trang để lấy thời gian từng câu, giới hạn Quiz phụ đạo cho đúng SV được giao) Cài theme **UTE LMS** + plugin **local_clo** + plugin **Offline Quiz** (chấm bài giấy); bật Web Service, tạo token, khóa SSO, cấu hình phiếu (MSSV 8 số, nhãn tiếng Việt), ghi `backend\cau_hinh.env` |<br>Tạo tài khoản dịch vụ Moodle `clo_service` (thay cho token quản trị) và tài khoản CSDL `clo_app` **chỉ đọc CSDL Moodle**; tài khoản root được giữ ở dòng `DATABASE_ADMIN_URL` để dùng cho bước 2, 4, 6.
 | 4 | `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat` | *(Tùy chọn)* tạo khóa học + 40 SV; Quiz có bài làm thật; **bài giấy 2 mã đề: 38 phiếu tô sẵn được Moodle nhận diện & chấm**; đồng bộ, phân tích, công bố |
 | 5 | `5_CHAY_HE_THONG.bat` | Chạy hệ thống tại http://localhost:8000 (giữ cửa sổ mở; chạy lại sau bước 3) |
-| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* **kiểm thử toàn bộ chức năng**: 92 ca kiểm thử tự động (gọi đủ 126/126 API), kiểm tra độ bền chấm phiếu và xuất bảng kết quả `docs\kiem_thu\KET_QUA_KIEM_THU.xlsx` (kèm danh sách ca kiểm thử giao diện để điền khi trình diễn) – kiểm thử **dựng lại `assessment_db`**, chạy xong hãy chạy lại bước 4 để có lại dữ liệu demo |
+| 6 | `6_CHAY_KIEM_THU.bat` | *(Tùy chọn)* **kiểm thử toàn bộ chức năng**: 134 ca kiểm thử tự động (phủ 148/149 API), kiểm tra độ bền chấm phiếu và xuất bảng kết quả `docs\kiem_thu\KET_QUA_KIEM_THU.xlsx` (kèm danh sách ca kiểm thử giao diện để điền khi trình diễn) – kiểm thử **dựng lại `assessment_db`**, chạy xong hãy chạy lại bước 4 để có lại dữ liệu demo |
 | 7 | `7_DON_DEP_GIT.bat` | *(Khi dùng GitHub)* **đẩy đồ án lên nhánh `Tanyen`** (không đụng nhánh `main`): bỏ các tệp cũ không còn dùng, bỏ `.venv`, `__pycache__`, `cau_hinh.env`, `0_CAU_HINH_MAY.bat` (mật khẩu, token, đường dẫn riêng) theo `.gitignore`; chuyển sang nhánh `Tanyen` (tạo mới nếu chưa có), commit, hỏi xác nhận rồi `git push -u origin Tanyen` |
 | 8 | `8_CAP_NHAT_TU_GITHUB.bat` | *(Khi làm nhóm qua GitHub)* **lấy bản mới nhất của nhánh đang dùng** (ví dụ `Tanyen`) từ GitHub về máy (`git fetch` + `git rebase`), tạm cất rồi trả lại các chỉnh sửa chưa đẩy lên; không đụng `.venv`, `cau_hinh.env`, CSDL |
 | – | `tools\KIEM_TRA_DO_LUONG.bat` | *(Tùy chọn)* tính lại độc lập p, DI, mức đạt CLO, BM6b, PI, PLO, CTĐT từ dữ liệu bài làm và so với số liệu hệ thống (kết quả mong đợi: 0 sai lệch) |
@@ -184,3 +184,16 @@ thay đổi → Cập nhật. Câu đã có kết quả thi không bị đổi C
 - Bấm “Phân tích CĐR” báo *chưa được bộ môn khai báo là giảng viên* → thêm giảng viên (mã GV = tên đăng nhập Moodle).
 - Cổng 8000 bận → đặt `set "APP_PORT=8010"` trong `0_CAU_HINH_MAY.bat`, chạy lại bước 3 và 5.
 - Bước 3/4 báo *Chưa xác định được thư mục Moodle 4.5 / php.exe* → khai báo `MOODLE_DIR`, `PHP_BIN` trong `0_CAU_HINH_MAY.bat`.
+
+## Chạy ổn định trên máy dùng để bảo vệ / demo
+
+1. **Một lần**: bấm đúp `9_BAT_TU_KHOI_DONG_CUNG_WINDOWS.bat` (nếu báo lỗi: chuột phải → Run as administrator). Hệ thống sẽ tự chạy ngầm mỗi lần bạn đăng nhập Windows và tự bật lại sau 5 giây nếu bị lỗi; nhật ký ở `logs\he_thong.log`. Gỡ bằng `9b_TAT_TU_KHOI_DONG.bat`.
+2. Mở **XAMPP Control Panel** → bấm **Config** → tick *Apache* và *MySQL* ở cột **Service** (cài thành dịch vụ Windows để tự chạy cùng máy).
+3. Windows: Settings → System → Power → đặt **Sleep = Never** khi cắm điện, để máy không ngủ giữa buổi bảo vệ.
+4. Trước buổi bảo vệ: khởi động lại máy một lần, đợi 1 phút rồi mở `http://localhost:8000` và `http://localhost/moodle` để chắc cả hai đã tự chạy; bấm "Phân tích CĐR" trên Moodle thử.
+5. Sao lưu: chạy `tools\XUAT_SQL.bat` trước mỗi lần thay đổi lớn, và chép cả thư mục `D:\3. TLCN` sang USB / ổ đám mây.
+6. Muốn người khác ở xa xem được: dùng Cloudflare Tunnel (miễn phí) cho cổng 8000 và Moodle, rồi đổi địa chỉ trong cấu hình Moodle plugin; chỉ bật trong lúc cần.
+
+### Chia sẻ hệ thống ra Internet (miễn phí, tạm thời)
+Bấm đúp `10_CHIA_SE_RA_INTERNET.bat` (lần đầu tự tải cloudflared từ GitHub của Cloudflare). Tìm dòng `https://….trycloudflare.com` trong cửa sổ — đó là link công khai của **hệ thống phân tích** (cổng 8000). Link đổi mỗi lần chạy; đóng cửa sổ là tắt chia sẻ. Moodle vẫn nằm trên máy này; muốn chia sẻ cả Moodle phải đổi `wwwroot` và địa chỉ hệ thống trong cấu hình plugin.
+(Link công khai cũng được ghi vào `logs\LINK_CONG_KHAI.txt`.)

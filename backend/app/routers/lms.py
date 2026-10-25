@@ -227,7 +227,7 @@ def offlinequiz_zip(exam_id: int, u: User = Depends(require("admin", "lecturer")
 @router.get("/exams/{exam_id}/moodle/results-preview")
 def results_preview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
     get_exam_for(db, u, exam_id)
-    return lms.student_results(db, exam_id)
+    return [{**r, "data": lms.public_data(r["data"])} for r in lms.student_results(db, exam_id)]
 
 
 @router.post("/exams/{exam_id}/moodle/push-results")

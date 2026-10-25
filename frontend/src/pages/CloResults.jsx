@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHelp } from '../components/Help'
 import { Bar } from 'react-chartjs-2'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, fmtPct } from '../api'
@@ -26,15 +27,17 @@ export default function CloResults() {
   return (
     <>
       <div className="page-h">
-        <div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], [`/sections/${id}`, cs?.section_code], [null, 'Kết quả CĐR (BM6)']]} />
-          <h1>Đo lường CĐR môn học – lớp {cs?.section_code}</h1><p className="muted">{r.course} · {r.semester} · GV {cs?.lecturer}</p></div>
+        <div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], [`/sections/${id}`, cs?.section_code], [null, 'Kết quả chuẩn đầu ra của lớp (BM6)']]} />
+          <h1>Kết quả chuẩn đầu ra môn học – lớp {cs?.section_code}</h1><p className="muted">{r.course} · {r.semester} · GV {cs?.lecturer}</p></div>
         <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/class-sections/${id}/bm6.xlsx`, `BM6_${cs?.section_code || id}.xlsx`)}>⬇ Xuất bộ BM6 của lớp (.xlsx)</ActionButton>
       </div>
+      <PageHelp id="cloresults"><p>Trang này cho biết <b>cả lớp</b> đã đạt từng chuẩn đầu ra môn học (CLO) hay chưa: có bao nhiêu sinh viên đạt so với chỉ tiêu. Hệ thống không chấm CLO riêng cho từng sinh viên.</p>
+      <ul><li><b>BM6a</b>: đặt kế hoạch (ngưỡng đạt, chỉ tiêu, bài nào được tính).</li><li><b>BM6b</b>: kết quả tổng hợp của lớp.</li><li><b>BM6c/6d</b>: bảng điểm làm minh chứng. Nút "Xuất bộ BM6" tải về các biểu mẫu này dạng Excel.</li></ul></PageHelp>
       {!r.has_data && <div className="alert amber">Lớp chưa có bài kiểm tra nào được phân tích – kết quả CĐR sẽ xuất hiện sau khi đồng bộ/nhập phiếu và phân tích.</div>}
       <Flow steps={[
         ['bm6a', 'BM6a – Kế hoạch đánh giá', course.data ? `${planned}/${course.data.clos.length} CLO đã lập kế hoạch` : 'Ngưỡng đạt, chỉ tiêu từng CLO', !!course.data && planned === course.data.clos.length],
         ['bm6b', 'BM6b – Kết quả tổng hợp', cr.n_evaluated ? `Tỷ lệ đạt môn ${fmtPct(cr.achieved_pct)} / chỉ tiêu ${cr.target_pct}%` : 'Chưa có số liệu', r.has_data],
-        ['bm6c', 'BM6c/6d – Minh chứng', `${exams.length} bài KT đã phân tích`, r.has_data],
+        ['bm6c', 'BM6c/6d – Minh chứng', `${exams.length} bài kiểm tra đã phân tích`, r.has_data],
       ].map(([k, label, sub, done]) => ({ tab: true, label, sub, done, on: tab === k, onClick: () => setSp({ tab: k }, { replace: true }) }))} />
       {tab === 'bm6a' && <Card title="Bảng kế hoạch kiểm tra, đánh giá mức độ đạt cho từng CĐR môn học">
         <table className="tbl"><thead><tr><th>CĐR</th><th>Nội dung</th><th>PLO (mức)</th><th>Bài KT có CĐR</th><th>Bài KT lấy minh chứng</th><th>Phương pháp</th><th>Chu kỳ</th><th>Ngưỡng đạt / SV</th><th>Chỉ tiêu</th><th /></tr></thead>
@@ -69,7 +72,7 @@ export default function CloResults() {
       </>}
       {tab === 'bm6c' && <div className="grid2">
         <Card title="Minh chứng từng CLO (BM6c/6d)">
-          <p className="muted small">Điểm từng SV trên các câu thuộc CLO theo từng bài KT, câu hỏi có DI thấp; ghi nhận xét và hành động cải tiến (xuất vào BM6b).</p>
+          <p className="muted small">Điểm từng SV trên các câu thuộc CLO theo từng bài kiểm tra, câu hỏi có DI thấp; ghi nhận xét và hành động cải tiến (xuất vào BM6b).</p>
           <table className="tbl compact"><thead><tr><th>CLO</th><th>Tỷ lệ đạt</th><th>Nhận xét</th><th /></tr></thead>
             <tbody>{r.clos.map(c => <tr key={c.clo_id}><td><b>{c.clo_code}</b></td><td>{c.n_evaluated ? <>{fmtPct(c.achieved_pct)} <Achieved ok={!!c.is_achieved} /></> : '—'}</td>
               <td>{c.analysis || c.improvement ? <Badge tone="green">Đã ghi</Badge> : <span className="muted small">chưa có</span>}</td>
@@ -110,7 +113,7 @@ function Evidence({ cs, clo, onClose }) {
           })}
         </div>
         <Card title="Câu hỏi đo CLO này (sắp theo DI tăng dần – câu kém lên đầu)">
-          <table className="tbl compact"><thead><tr><th>Bài KT</th><th>Câu</th><th>Nội dung</th><th>Trọng số</th><th>p</th><th>DI</th><th>Phân loại</th></tr></thead>
+          <table className="tbl compact"><thead><tr><th>Bài kiểm tra</th><th>Câu</th><th>Nội dung</th><th>Trọng số</th><th>p</th><th>DI</th><th>Phân loại</th></tr></thead>
             <tbody>{data.questions.map(q => <tr key={`${q.exam_title}-${q.question_id}`}><td>{q.exam_title}</td><td>{q.order_index}</td><td className="clip">{q.content}</td><td>{q.weight}</td>
               <td>{q.p_value}</td><td className={`num-c ${diClass(q.di_value)}`}>{q.di_value}</td><td>{q.classification}</td></tr>)}</tbody></table>
         </Card>
@@ -132,7 +135,7 @@ function PlanForm({ clo, semester_id, onClose, onSaved }) {
   const set = k => e => setF({ ...f, [k]: e.target.value })
   return (
     <Modal title={`Kế hoạch đánh giá ${clo.clo_code} (BM6a)`} onClose={onClose}>
-      <Field label="Các bài KT có CĐR"><input value={f.assessments_text} onChange={set('assessments_text')} /></Field>
+      <Field label="Các bài kiểm tra có CĐR"><input value={f.assessments_text} onChange={set('assessments_text')} /></Field>
       <Field label="Bài KT lấy minh chứng"><select value={f.evidence_type} onChange={set('evidence_type')}>
         {Object.entries(EVID).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
       <div className="grid2">
@@ -141,10 +144,10 @@ function PlanForm({ clo, semester_id, onClose, onSaved }) {
         <Field label="Ngưỡng đạt của SV (% điểm tối đa)"><input type="number" min="0" max="100" value={f.pass_threshold_pct} onChange={set('pass_threshold_pct')} /></Field>
         <Field label="Chỉ tiêu mong muốn (% SV đạt)"><input type="number" min="0" max="100" value={f.target_pct} onChange={set('target_pct')} /></Field>
       </div>
-      <p className="muted">Khi lưu, hệ thống tự phân tích lại các bài KT đã phân tích của môn trong học kỳ để kết quả CLO – PI – PLO áp dụng ngưỡng/chỉ tiêu mới.</p>
+      <p className="muted">Khi lưu, hệ thống tự phân tích lại các bài kiểm tra đã phân tích của môn trong học kỳ để kết quả CLO – PI – PLO áp dụng ngưỡng/chỉ tiêu mới.</p>
       <div className="row"><span className="grow" /><ActionButton className="btn primary"
         disabled={!(Number(f.pass_threshold_pct) >= 0 && Number(f.pass_threshold_pct) <= 100 && Number(f.target_pct) >= 0 && Number(f.target_pct) <= 100) || !f.method.trim() || !f.cycle.trim()}
-        okMsg={r => `Đã lưu kế hoạch${r?.reanalyzed_exams ? ` · phân tích lại ${r.reanalyzed_exams} bài KT` : ''}`}
+        okMsg={r => `Đã lưu kế hoạch${r?.reanalyzed_exams ? ` · phân tích lại ${r.reanalyzed_exams} bài kiểm tra` : ''}`}
         onRun={async () => { const r = await api.put('/api/clo-plans', { ...f, clo_id: clo.id, semester_id, pass_threshold_pct: Number(f.pass_threshold_pct), target_pct: Number(f.target_pct) }); onSaved(); return r }}>Lưu</ActionButton></div>
     </Modal>
   )

@@ -31,8 +31,8 @@ export default function Courses() {
   return (
     <>
       <div className="page-h">
-        <div><h1>Học phần &amp; CLO</h1>
-          <p className="muted">UC-12 · Khai báo một học phần để ra đề và đo CĐR: lớp học phần → chương → CLO và ánh xạ PLO → kế hoạch đánh giá CLO → câu hỏi.</p></div>
+        <div><h1>Học phần &amp; chuẩn đầu ra</h1>
+          <p className="muted">Khai báo một học phần để ra đề và đo CĐR: lớp học phần → chương → CLO và ánh xạ PLO → kế hoạch đánh giá CLO → câu hỏi.</p></div>
         <div className="row gap wrap">
           <Field label="Môn học"><CourseSelect courses={myCourses} value={cid || ''} onChange={v => setCid(Number(v))} /></Field>
           {isAdmin && <button className="btn primary" onClick={() => setDlg({ kind: 'course' })}>+ Môn học mới</button>}
@@ -143,7 +143,7 @@ export function Clos({ c, onEdit, onSaved }) {
           : <Badge tone="red">Chưa ánh xạ</Badge>}</td>
         <td className="row gap"><button className="btn sm" onClick={() => onEdit(x)}>Sửa</button>
           <ActionButton className="btn sm ghost" confirm={`Xóa ${x.clo_code}?`} okMsg="Đã xóa" onRun={async () => { await api.del(`/api/clos/${x.id}`); onSaved() }}>✕</ActionButton></td></tr>)}</tbody></table>
-    {!c.clos.length && <p className="muted small">Chưa có CLO. Mỗi CLO cần mô tả, mức Bloom mục tiêu và ít nhất một PI của CTĐT mà CLO đóng góp (mức I, R hoặc M) – PLO được suy ra từ PI, dùng để tính PI/PLO.</p>}
+    {!c.clos.length && <p className="muted small">Chưa có CLO. Mỗi CLO cần mô tả, mức độ nhận thức mục tiêu và ít nhất một PI của CTĐT mà CLO đóng góp (mức I, R hoặc M) – PLO được suy ra từ PI, dùng để tính PI/PLO.</p>}
   </Card>
 }
 

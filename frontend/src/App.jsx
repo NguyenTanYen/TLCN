@@ -17,12 +17,13 @@ import CourseHome from './pages/CourseHome'
 import CourseList from './pages/CourseList'
 import { ProgramDetail, ProgramList } from './pages/Programs'
 import Remedial from './pages/Remedial'
+import Guide from './components/Help'
 
-// Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài KT; Bộ môn quản lý theo CTĐT → học phần → CLO
+// Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
 const MENUS = {
-  lecturer: [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi'], ['/programs', 'Chương trình đào tạo']],
-  admin: [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần'], ['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Câu hỏi'],
-    ['/pi-plans', 'Kế hoạch đo PI'], ['/plo-summary', 'Tổng hợp PLO'], ['/system', 'Kết nối Moodle']],
+  lecturer: [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi'], ['/programs', 'Chương trình đào tạo'], ['/huong-dan', 'Hướng dẫn sử dụng']],
+  admin: [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần'], ['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi'],
+    ['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)'], ['/system', 'Kết nối Moodle'], ['/huong-dan', 'Hướng dẫn sử dụng']],
 }
 const ROLE_VI = { admin: 'Bộ môn / Quản trị', lecturer: 'Giảng viên' }
 
@@ -61,19 +62,20 @@ function Shell({ user, children }) {
   const active = ([to, , also]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
   return (
     <div className="app">
+
       <header className="topbar">
         <div className="topbar-in">
-          <NavLink to="/" className="brand"><span className="logo">UTE</span><span><b>Khảo thí &amp; CĐR</b><small>Đo lường theo OBE</small></span></NavLink>
+          <NavLink to="/" className="brand"><span className="logo">UTE</span><span><b>Đánh giá chuẩn đầu ra</b><small>Hỗ trợ giảng viên và Bộ môn</small></span></NavLink>
           <nav className="mainnav" aria-label="Chức năng">
             {MENUS[user.role].map(m => <NavLink key={m[0]} to={m[0]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}
           </nav>
           <div className="topbar-r">
-            {moodle && <a className="tb-link" href={moodle} title="Về trang Moodle">Moodle ↗</a>}
             <UserMenu user={user} moodle={moodle} />
           </div>
         </div>
       </header>
       <main className="main">{children}</main>
+      <footer className="sitefoot"><div className="sitefoot-in"><span>Hệ thống đánh giá chuẩn đầu ra học phần · Khoa Công nghệ Thông tin, Trường Đại học Công nghệ Kỹ thuật TP.HCM</span><NavLink to="/huong-dan">Hướng dẫn sử dụng</NavLink></div></footer>
     </div>
   )
 }
@@ -99,6 +101,7 @@ export default function App() {
     <Route path="/sections/:id/remedial" element={<Remedial />} />
     <Route path="/sections/:cs/students/:sid" element={<StudentProfile />} />
     <Route path="/questions" element={<QuestionBank />} />
+    <Route path="/huong-dan" element={<Guide />} />
     <Route path="/exams/:id" element={<ExamDetail />} />
     {admin && <>
       <Route path="/pi-plans" element={<PiPlans />} />
