@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { auth } from './api'
+import { openMoodle } from './moodle'
 import Login from './pages/Login'
 import Sections from './pages/Sections'
 import SectionDetail from './pages/SectionDetail'
@@ -50,7 +51,7 @@ function UserMenu({ user, moodle }) {
     </button>
     {open && <div className="menu-pop" role="menu">
       <div className="menu-h"><b>{user.full_name}</b><small>{user.username} · {ROLE_VI[user.role]}</small></div>
-      {moodle && <a role="menuitem" href={moodle}>↗ Mở Moodle</a>}
+      {moodle && <a role="menuitem" href={moodle} onClick={e => { e.preventDefault(); setOpen(false); openMoodle('/') }}>↗ Mở Moodle (đúng tài khoản này)</a>}
       <button role="menuitem" onClick={() => { auth.clear(); window.location.assign('/login') }}>Đăng xuất</button>
     </div>}
   </div>

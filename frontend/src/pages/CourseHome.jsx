@@ -6,7 +6,7 @@ import { api, auth, fmtPct, STATUS_VI } from '../api'
 import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading, Modal } from '../components/ui'
 import { DeployDialog, NewExamFlow, TYPE_VI } from '../components/NewExam'
 import { useApi } from '../hooks'
-import { useMoodleBase } from '../moodle'
+import { openMoodle, useMoodleBase } from '../moodle'
 import Combine from '../components/Combine'
 import Materials from '../components/Materials'
 import { Clos, CloForm, CourseInfo, Outlines, SectionForm } from './Courses'
@@ -193,7 +193,7 @@ function SectionsTab({ s, isAdmin, reload }) {
     <table className="tbl"><thead><tr><th>Mã lớp</th><th>Học kỳ</th><th>Giảng viên</th><th>SV</th><th>Bài kiểm tra</th><th>Moodle</th><th /></tr></thead>
       <tbody>{shown.map(x => <tr key={x.id}><td><Link to={`/sections/${x.id}`}><b>{x.section_code}</b></Link></td><td>{x.semester}</td><td>{x.lecturer}</td>
         <td>{x.n_students}</td><td>{x.n_exams}</td>
-        <td>{x.moodle_course_id ? <a href={moodle && `${moodle}/course/view.php?id=${x.moodle_course_id}`} target="_blank" rel="noreferrer">Khóa học #{x.moodle_course_id} ↗</a> : <span className="muted">chưa gắn</span>}</td>
+        <td>{x.moodle_course_id ? <a href={moodle && `${moodle}/course/view.php?id=${x.moodle_course_id}`} onClick={e => { e.preventDefault(); openMoodle(`/course/view.php?id=${x.moodle_course_id}`) }}>Khóa học #{x.moodle_course_id} ↗</a> : <span className="muted">chưa gắn</span>}</td>
         <td className="row gap"><Link className="btn sm primary" to={`/sections/${x.id}`}>Mở lớp</Link>
           {x.n_exams > 0 && <Link className="btn sm ghost" to={`/sections/${x.id}/clo`}>BM6</Link>}</td></tr>)}</tbody></table>
     {!s.sections.length && <p className="muted">Chưa có lớp học phần.</p>}

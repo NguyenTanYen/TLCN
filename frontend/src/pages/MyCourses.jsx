@@ -6,7 +6,7 @@ import { api } from '../api'
 import { ActionButton, Badge, Card, Field, Loading } from '../components/ui'
 import { useApi } from '../hooks'
 import { MoodleCourses } from './Sections'
-import { useMoodleBase } from '../moodle'
+import { openMoodle, useMoodleBase } from '../moodle'
 
 export default function MyCourses() {
   const secs = useApi('/api/class-sections')
@@ -50,7 +50,7 @@ export default function MyCourses() {
           {g.sections.map(s => <div key={s.id} className="secrow">
             <div><Link to={`/sections/${s.id}`}><b>{s.section_code}</b></Link><div className="muted small">{s.semester}</div></div>
             <div className="row gap wrap small"><span className="pill">{s.n_students} SV</span><span className="pill">{s.n_exams} bài kiểm tra</span>
-              {s.moodle_course_id ? <a className="pill blue" href={moodle && `${moodle}/course/view.php?id=${s.moodle_course_id}`} target="_blank" rel="noreferrer" title="Mở khóa học trên Moodle">Moodle #{s.moodle_course_id} ↗</a>
+              {s.moodle_course_id ? <a className="pill blue" href={moodle && `${moodle}/course/view.php?id=${s.moodle_course_id}`} onClick={e => { e.preventDefault(); openMoodle(`/course/view.php?id=${s.moodle_course_id}`) }} title="Mở khóa học trên Moodle">Moodle #{s.moodle_course_id} ↗</a>
                 : <Badge tone="amber">Chưa gắn Moodle</Badge>}</div>
             <div className="row gap"><Link className="btn sm primary" to={`/sections/${s.id}`}>Mở lớp</Link></div>
           </div>)}

@@ -51,4 +51,33 @@ class sso {
         $sig = self::b64url(hash_hmac('sha256', "$head.$body", self::secret(), true));
         return "$head.$body.$sig";
     }
+
+    /**
+     * Kiểm tra vé (JWT HS256) do hệ thống phân tích cấp để đăng nhập Moodle theo chiều ngược lại.
+     * @return array các claim đã xác thực; ném moodle_exception nếu vé sai/hết hạn/đã dùng.
+     */
+    public static function verify_incoming(string $token, string $secret): array {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            throw new \moodle_exception('ssobad', 'local_clo');
+        }
+        [$h, $b, $sig] = $parts;
+        $head = json_decode(base64_decode(strtr($h, '-_', '+/')), true);
+        if (!is_array($head) || ($head['alg'] ?? '') !== 'HS256') {
+            throw new \moodle_exception('ssobad', 'local_clo');
+        }
+        $expect = self::b64url(hash_hmac('sha256', "$h.$b", $secret, true));
+        if (!hash_equals($expect, $sig)) {
+            throw new \moodle_exception('ssobad', 'local_clo');
+        }
+        $c = json_decode(base64_decode(strtr($b, '-_', '+/')), true);
+        if (!is_array($c) || ($c['aud'] ?? '') !== 'moodle-clo' || empty($c['sub']) || empty($c['jti'])
+                || !in_array($c['role'] ?? '', ['admin', 'teacher'], true)) {
+            throw new \moodle_exception('ssobad', 'local_clo');
+        }
+        if ((int)($c['exp'] ?? 0) < time() - 30 || (int)($c['iat'] ?? 0) > time() + 30) {
+            throw new \moodle_exception('ssoexpired', 'local_clo');
+        }
+        return $c;
+    }
 }

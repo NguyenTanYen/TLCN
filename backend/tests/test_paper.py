@@ -129,3 +129,15 @@ def test_omr_crossed_out_and_scribbles():
     assert res["student_code"] == "22130007" and res["version_code"] == "02"
     assert [res["answers"][q] for q in range(1, 7)] == ["A", "B", "C", "D", "AC", ""]
     assert any(i.startswith("Câu 5:") for i in res["issues"]) and not any(i.startswith("Câu 1:") for i in res["issues"])
+
+
+def test_doc_anh_chup_that_phieu_ban_cu():
+    """Ảnh chụp thật (nền tối dính ô định vị góc, ánh sáng không đều, phiếu in bản cũ không có vạch nhận chiều)."""
+    import os
+    import cv2
+    from app.services import omr, paper as pp
+    g = cv2.imread(os.path.join(os.path.dirname(__file__), "data", "anh_phieu_cu_chup_that.jpg"), cv2.IMREAD_GRAYSCALE)
+    o = pp.SheetOptions(n_questions=10, student_digits=8, version_digits=2, version_codes=["01", "02"])
+    r = omr.read_sheet(g, o)
+    assert r["student_code"] == "23110369" and r["version_code"] == "01"
+    assert "".join(r["answers"][q] for q in range(1, 11)) == "ABACDACACD"

@@ -5,7 +5,7 @@ import { api, auth, STATUS_VI } from '../api'
 import { ActionButton, Badge, Card, Crumbs, FileButton, Flow, Loading, useToast } from '../components/ui'
 import { useApi } from '../hooks'
 import { NewExamFlow, TYPE_VI } from '../components/NewExam'
-import { useMoodleBase } from '../moodle'
+import { openMoodle, useMoodleBase } from '../moodle'
 
 const ASSESS_VI = { process: 'Quá trình', final: 'Cuối kỳ' }
 
@@ -41,7 +41,7 @@ export default function SectionDetail() {
         <div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, `${cs.course_code} – ${cs.course_name}`], [null, cs?.section_code]]} />
           <h1>Lớp {cs?.section_code}</h1>
           <p className="muted">{cs?.course_name} · {cs?.semester} · GV {cs?.lecturer} · {cs?.n_students} SV ·{' '}
-            {cs?.moodle_course_id ? <><a href={moodle && `${moodle}/course/view.php?id=${cs.moodle_course_id}`} target="_blank" rel="noreferrer">Khóa học Moodle #{cs.moodle_course_id} ↗</a>{' '}
+            {cs?.moodle_course_id ? <><a href={moodle && `${moodle}/course/view.php?id=${cs.moodle_course_id}`} onClick={e => { e.preventDefault(); openMoodle(`/course/view.php?id=${cs.moodle_course_id}`) }}>Khóa học Moodle #{cs.moodle_course_id} ↗</a>{' '}
               <ActionButton className="btn sm ghost" title="Ghi danh lên Moodle các GV/SV còn thiếu (sau khi thêm SV vào lớp)" okMsg={r => `Đã đồng bộ lên Moodle: ${r.n_students} SV, ${r.enrolled} lượt ghi danh mới`}
                 onRun={async () => { const r = await api.post(`/api/class-sections/${id}/moodle-provision`); secs.reload(); return r }}>Đồng bộ GV/SV lên Moodle</ActionButton></>
               : <><ActionButton className="btn sm primary" title="Tạo khóa học mang mã lớp trên Moodle và ghi danh giảng viên + sinh viên của lớp" okMsg={r => `Đã tạo khóa học Moodle #${r.moodle_course_id}, ghi danh ${r.n_students} SV`}

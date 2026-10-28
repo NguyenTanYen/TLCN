@@ -14,7 +14,7 @@ import base64
 
 import numpy as np
 
-from .paper import FID, FID_POS, ORIENT_BAR, PAGE_H, PAGE_W, SheetOptions, sheet_layout
+from .paper import FID, FID_POS, ORIENT_BAR, PAGE_H, PAGE_W, SheetOptions, sheet_layout, sheet_layout_legacy
 
 PX = 6.0                       # độ phân giải ảnh chuẩn hóa: 6 px/mm (~152 dpi)
 FILL_MIN = 0.30                # độ đậm trung bình tối thiểu của ô được tô (0 = trắng, 1 = đen kín)
@@ -49,32 +49,52 @@ def _exif_free_resize(g: np.ndarray, target: int = 2200) -> np.ndarray:
     return cv2.resize(g, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA) if s < 1 else g
 
 
+def _four_corners(cand, w, h):
+    """Có ứng viên ở cả 4 góc ảnh (mỗi góc một ô trong phần tư tương ứng)?"""
+    q = {(c[0] > w / 2, c[1] > h / 2) for c in cand if min(c[0], w - c[0]) < 0.25 * w and min(c[1], h - c[1]) < 0.25 * h}
+    return len(q) == 4
+
+
 def find_fiducials(g: np.ndarray) -> np.ndarray:
     """Tâm 4 ô định vị theo thứ tự trên-trái, trên-phải, dưới-phải, dưới-trái."""
     import cv2
     h, w = g.shape
     blur = cv2.GaussianBlur(g, (5, 5), 0)
-    _, bw = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    otsu, _ = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     # phép mở hình thái: xóa nét bút, chữ, đường kẻ mảnh (kể cả nét vẽ chạm vào ô định vị), giữ lại các ô tô đặc lớn
     k = max(3, int(min(h, w) * 0.006))
-    bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (k, k)))
-    cnts, _ = cv2.findContours(bw, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    kern = cv2.getStructuringElement(cv2.MORPH_RECT, (k, k))
     area = h * w
     cand = []
-    for c in cnts:
-        a = cv2.contourArea(c)
-        if not (area * 0.00012 < a < area * 0.01):
-            continue
-        x, y, cw, ch = cv2.boundingRect(c)
-        if not (0.6 < cw / ch < 1.6):
-            continue
-        hull = cv2.convexHull(c)
-        solidity = a / max(cv2.contourArea(hull), 1)
-        rect = cv2.minAreaRect(c)
-        rect_fill = a / max(rect[1][0] * rect[1][1], 1)     # vuông tô đặc ≈ 1; tròn ≈ 0,785
-        if solidity > 0.9 and rect_fill > 0.86:
-            m = cv2.moments(c)
-            cand.append((m["m10"] / m["m00"], m["m01"] / m["m00"], a))
+
+    def collect(bw):
+        bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, kern)
+        cnts, _ = cv2.findContours(bw, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for c in cnts:
+            a = cv2.contourArea(c)
+            if not (area * 0.00012 < a < area * 0.01):
+                continue
+            x, y, cw, ch = cv2.boundingRect(c)
+            if not (0.6 < cw / ch < 1.6):
+                continue
+            hull = cv2.convexHull(c)
+            solidity = a / max(cv2.contourArea(hull), 1)
+            rect = cv2.minAreaRect(c)
+            rect_fill = a / max(rect[1][0] * rect[1][1], 1)     # vuông tô đặc ≈ 1; tròn ≈ 0,785
+            if solidity > 0.9 and rect_fill > 0.86:
+                m = cv2.moments(c)
+                p = (m["m10"] / m["m00"], m["m01"] / m["m00"], a)
+                if not any((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < (0.5 * k * 4) ** 2 for q in cand):
+                    cand.append(p)
+
+    # nhiều lượt: ngưỡng Otsu, các ngưỡng thấp hơn (nền tối/bóng đổ dính vào ô góc) và ngưỡng cục bộ (ánh sáng không đều)
+    for t in (otsu, 100, 70, 45):
+        collect((blur < t).astype(np.uint8) * 255)
+        if len(cand) >= 4 and t == otsu and _four_corners(cand, w, h):
+            break
+    else:
+        bs = (int(min(h, w) * 0.08) // 2) * 2 + 1
+        collect(cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, bs, 35))
     if len(cand) < 4:
         raise OMRError("Không thấy đủ 4 ô vuông định vị ở 4 góc phiếu (chụp đủ cả tờ phiếu, không che góc, đủ sáng)")
     corners = [(0, 0), (w, 0), (w, h), (0, h)]
@@ -96,7 +116,7 @@ def find_fiducials(g: np.ndarray) -> np.ndarray:
     return pts
 
 
-def warp(g: np.ndarray) -> np.ndarray:
+def warp(g: np.ndarray, has_bar: bool = True) -> np.ndarray:
     import cv2
     g = _exif_free_resize(g)
     src = find_fiducials(g)
@@ -122,7 +142,7 @@ def warp(g: np.ndarray) -> np.ndarray:
     def bar(img):
         return img[int((by + 0.6) * PX):int((by + bh - 0.6) * PX), int((bx + 2) * PX):int((bx + bw_ - 2) * PX)].mean()
     flipped = cv2.rotate(out, cv2.ROTATE_180)
-    if bar(flipped) < bar(out):
+    if has_bar and bar(flipped) + 40 < bar(out):    # chỉ lật khi vạch nhận chiều rõ ràng (phiếu bản cũ không có vạch)
         out = flipped
     return out
 
@@ -166,8 +186,31 @@ def _pick(fills: dict) -> tuple[list, float]:
 
 def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
     import cv2
-    L = sheet_layout(o)
-    wimg = warp(g)
+    wimg0 = warp(g, has_bar=False)
+
+    def ring(img, L):
+        """Điểm khớp: viền các ô tròn in sẵn nằm đúng vị trí bố cục -> điểm cao; sai bố cục/chiều -> thấp."""
+        inv = 255 - cv2.GaussianBlur(img, (3, 3), 0).astype(np.float32)
+        rr = L["r"] * PX
+        cells = L["answers"] + L["student"] + L["version"]
+        tot, n = 0.0, 0
+        for b in cells:
+            cx, cy = b["x"] * PX, b["y"] * PX
+            for ang in range(0, 360, 45):
+                best = 0.0
+                for d in (-2, -1, 0, 1, 2):
+                    px_, py_ = int(round(cx + (rr + d) * np.cos(np.radians(ang)))), int(round(cy + (rr + d) * np.sin(np.radians(ang))))
+                    if 0 <= py_ < img.shape[0] and 0 <= px_ < img.shape[1]:
+                        best = max(best, inv[py_, px_])
+                tot += best; n += 1
+        return tot / max(n, 1)
+
+    layouts = [(sheet_layout(o), wimg0), (sheet_layout(o), cv2.rotate(wimg0, cv2.ROTATE_180))]
+    try:
+        layouts += [(sheet_layout_legacy(o), wimg0), (sheet_layout_legacy(o), cv2.rotate(wimg0, cv2.ROTATE_180))]
+    except Exception:
+        pass
+    L, wimg = max(layouts, key=lambda t: ring(t[1], t[0]) - (0 if t[0] is layouts[0][0] or t[0] is layouts[1][0] else 3))   # ưu tiên bố cục hiện hành khi điểm xấp xỉ nhau
     # chuẩn hóa nền (bóng đổ, ánh sáng không đều): chia cho nền ước lượng bằng phép đóng hình thái + làm mờ
     bg = cv2.GaussianBlur(cv2.morphologyEx(wimg, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))), (31, 31), 0)
     norm = np.clip(wimg.astype(np.float32) / np.maximum(bg.astype(np.float32), 1) * 255, 0, 255)
@@ -196,7 +239,9 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
     student = digits(L["student"], o.student_digits, "MSSV")
     # mã đề: một hàng ô tô, mỗi ô là một mã đề (phiếu theo mẫu trường)
     version = ""
-    if L["version"]:
+    if L["version"] and "code" not in L["version"][0]:
+        version = digits(L["version"], o.version_digits, "Mã đề")
+    elif L["version"]:
         m, _conf = _pick({b["code"]: _fill(bw, b["x"], b["y"], r) for b in L["version"]})
         for b in L["version"]:
             if b["code"] in m:

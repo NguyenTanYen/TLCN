@@ -6,9 +6,11 @@ import html
 import json
 import os
 import time
+import uuid
+from urllib.parse import quote
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -155,3 +157,23 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
               "localStorage.setItem('tlcn_user'," + js(json.dumps(t["user"], ensure_ascii=False)) + ");"
               "location.replace(" + js(target) + ");</script>")
     return _page("Đang chuyển tới hệ thống phân tích CĐR…", f"Xin chào {u.full_name}.", script)
+
+
+# ---------------------------------------------------------------- SSO sang Moodle (chiều ngược lại)
+@router.post("/moodle-ticket")
+def moodle_ticket(next: str = Body("/", embed=True), u: User = Depends(current_user)):
+    """Vé đăng nhập một lần (120 giây) để mở Moodle bằng đúng tài khoản đang dùng ở hệ thống này.
+    Moodle (local/clo/sso_in.php) kiểm tra vé rồi đăng nhập tài khoản Moodle cùng tên đăng nhập, thay phiên cũ nếu có.
+    Chưa cấu hình khóa dùng chung thì trả về địa chỉ Moodle thường (không SSO)."""
+    base = (settings.moodle_url or "").rstrip("/")
+    if not base:
+        raise HTTPException(409, "Hệ thống chưa cấu hình địa chỉ Moodle")
+    if len(settings.moodle_sso_secret) < 32:
+        return {"url": base + next if next.startswith("/") and not next.startswith("//") else base, "sso": False}
+    if not next.startswith("/") or next.startswith("//") or "\\" in next or len(next) > 300:
+        next = "/"
+    now = int(time.time())
+    claims = {"iss": "clo-analytics", "aud": "moodle-clo", "sub": u.username, "role": "admin" if u.role == "admin" else "teacher",
+              "iat": now, "exp": now + 120, "jti": uuid.uuid4().hex}
+    tok = jwt.encode(claims, settings.moodle_sso_secret, algorithm="HS256")
+    return {"url": f"{base}/local/clo/sso_in.php?token={quote(tok)}&next={quote(next, safe='')}", "sso": True}

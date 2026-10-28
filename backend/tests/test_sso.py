@@ -49,3 +49,26 @@ def test_sso_provisions_declared_lecturer(client):
     r = client.get("/api/auth/moodle-sso", params={"token": ticket("chau.ltm", idnumber="GV002")})
     assert r.status_code == 200 and "Lê Thị Minh Châu" in r.text
     assert client.get("/api/auth/moodle-sso", params={"token": ticket("chau.ltm", idnumber="GV002")}).status_code == 200
+
+
+def test_sso_sang_moodle_cap_ve_dung_tai_khoan(client, monkeypatch):
+    """Từ hệ thống mở Moodle: vé mang đúng tên đăng nhập đang dùng, 120 giây, chỉ cho Moodle kiểm tra."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "moodle_url", "http://moodle.test")
+    assert client.post("/api/auth/moodle-ticket", json={"next": "/"}).status_code in (401, 403)
+    tok = client.post("/api/auth/login", json={"username": "gv.son", "password": "Gv@123456"}).json()["access_token"]
+    r = client.post("/api/auth/moodle-ticket", json={"next": "/course/view.php?id=5"}, headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json()["sso"] is True
+    from urllib.parse import parse_qs, urlparse
+    q = parse_qs(urlparse(r.json()["url"]).query)
+    assert r.json()["url"].startswith("http://moodle.test/local/clo/sso_in.php?token=")
+    assert q["next"] == ["/course/view.php?id=5"]
+    c = jwt.decode(q["token"][0], SECRET, algorithms=["HS256"], audience="moodle-clo")
+    assert c["sub"] == "gv.son" and c["role"] == "teacher" and c["exp"] - c["iat"] == 120
+    # đường dẫn đích lạ (sang trang khác) bị đưa về trang chủ Moodle
+    r2 = client.post("/api/auth/moodle-ticket", json={"next": "//evil.com"}, headers={"Authorization": f"Bearer {tok}"})
+    assert parse_qs(urlparse(r2.json()["url"]).query)["next"] == ["/"]
+    # tài khoản admin của hệ thống -> vai trò admin
+    ta = client.post("/api/auth/login", json={"username": "admin", "password": "Admin@123"}).json()["access_token"]
+    ra = client.post("/api/auth/moodle-ticket", json={"next": "/"}, headers={"Authorization": f"Bearer {ta}"})
+    assert jwt.decode(parse_qs(urlparse(ra.json()["url"]).query)["token"][0], SECRET, algorithms=["HS256"], audience="moodle-clo")["role"] == "admin"

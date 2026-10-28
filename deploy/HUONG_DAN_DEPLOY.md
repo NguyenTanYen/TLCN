@@ -34,7 +34,7 @@ Script dựng 4 dịch vụ (db, moodle, app, nginx), đợi Moodle cài lần �
 ```
 sudo bash sau_cai_dat.sh
 ```
-Script gộp các bước đã chạy thật từng phần trên Google Cloud (bản gộp một lệnh chưa được chạy nguyên khối) và tự: dựng Moodle + app, nâng cấp plugin `local_clo` (v1.6.0) và theme `ute`, lấy token Web Service + khóa SSO ghi vào `docker-compose.override.yml`, bật giao diện UTE, cài gói tiếng Việt, xóa cache. Chạy lại an toàn sau mỗi lần cập nhật mã nguồn.
+Script gộp các bước đã chạy thật từng phần trên Google Cloud (bản gộp một lệnh chưa được chạy nguyên khối) và tự: dựng Moodle + app, nâng cấp plugin `local_clo` (v1.7.0) và theme `ute`, lấy token Web Service + khóa SSO ghi vào `docker-compose.override.yml`, bật giao diện UTE, cài gói tiếng Việt, xóa cache. Chạy lại an toàn sau mỗi lần cập nhật mã nguồn.
 Lưu ý khi tự làm tay: Moodle chạy trong Docker cần biến `APACHE_DOCUMENT_ROOT=/var/www/html` (đã có trong compose); gói tiếng Việt phải tải về `moodledata/lang/vi`; app chỉ gọi được Moodle khi có `MOODLE_WS_TOKEN` và `MOODLE_SSO_SECRET`.
 Đăng nhập Moodle (`admin` / mật khẩu `MOODLE_ADMIN_PASS` trong `.env`; quên mật khẩu: `php admin/cli/reset_password.php --username=admin --password=...` trong container moodle).
 

@@ -218,6 +218,57 @@ def sheet_layout(o: SheetOptions) -> dict:
             "r": R_BUBBLE, "fids": fid_centers()}
 
 
+# Bố cục phiếu bản cũ (MSSV bên trái, mã đề là các cột chữ số): vẫn đọc được các phiếu đã in trước khi đổi sang mẫu trường
+def sheet_layout_legacy(o: SheetOptions) -> dict:
+    n = o.n_questions
+    if not 1 <= n <= 120:
+        raise PaperError("Phiếu trả lời hỗ trợ 1–120 câu")
+    opts = (o.options_per_question or [4] * n)[:n] + [4] * max(0, n - len(o.options_per_question or []))
+    max_opt = max(opts)
+    # khối định danh: MSSV + mã đề
+    top = 58.0
+    dx_digit, dy_digit = 5.2, 4.6
+    sx = 16.0
+    student = []
+    for c in range(o.student_digits):
+        for v in range(10):
+            student.append({"col": c, "value": v, "x": sx + 3 + c * dx_digit, "y": top + 9.5 + v * dy_digit})
+    vx = sx + 3 + o.student_digits * dx_digit + 10
+    version = []
+    for c in range(o.version_digits):
+        for v in range(10):
+            version.append({"col": c, "value": v, "x": vx + c * dx_digit, "y": top + 9.5 + v * dy_digit})
+    id_bottom = top + 9.5 + 9 * dy_digit + 6
+    # vùng trả lời
+    ncols = 4 if max_opt <= 4 else 3
+    if n <= 10:
+        ncols = 1
+    elif n <= 20:
+        ncols = 2
+    elif n <= 45 and max_opt > 4:
+        ncols = 3
+    rows_per_col = math.ceil(n / ncols)
+    a_top = id_bottom + 8
+    bottom_limit = PAGE_H - 20 - (o.essay_lines * 7 + 10 if o.essay_lines else 0)
+    groups = math.ceil(rows_per_col / 5) - 1
+    dy = min(6.8, (bottom_limit - a_top - 6 - groups * 1.6) / max(rows_per_col, 1))
+    if dy < 4.6:
+        raise PaperError("Quá nhiều câu cho một phiếu A4 – giảm số câu, số phương án hoặc bỏ phần tự luận")
+    col_w = (PAGE_W - 30) / ncols
+    dx_opt = min(6.4, (col_w - 10) / max_opt)
+    answers = []
+    for i in range(n):
+        c, r = divmod(i, rows_per_col)
+        y = a_top + 6 + r * dy + (r // 5) * 1.6
+        x0 = 15 + c * col_w
+        for j in range(opts[i]):
+            answers.append({"q": i + 1, "label": LABELS[j], "x": x0 + 10 + j * dx_opt, "y": y})
+    a_bottom = max(b["y"] for b in answers) + 5
+    return {"options": opts, "student": student, "version": version, "answers": answers, "ncols": ncols, "rows_per_col": rows_per_col,
+            "col_w": col_w, "dy": dy, "dx_opt": dx_opt, "top": top, "id_bottom": id_bottom, "a_top": a_top, "a_bottom": a_bottom,
+            "sx": sx, "vx": vx, "dx_digit": dx_digit, "dy_digit": dy_digit, "r": R_BUBBLE, "fids": fid_centers()}
+
+
 def sheet_options_for(db: Session, exam: Exam, **kw) -> SheetOptions:
     cs = exam.class_section
     vs = versions_data(db, exam) if exam.versions else []
