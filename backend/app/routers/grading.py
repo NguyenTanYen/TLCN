@@ -78,6 +78,11 @@ def _manual_exam(db: Session, u: User, exam_id: int) -> Exam:
     return e
 
 
+def _not_rubric(db: Session, exam_id: int) -> None:
+    if db.execute(text("SELECT 1 FROM exam_rubrics WHERE exam_id=:e"), {"e": exam_id}).scalar():
+        raise HTTPException(409, "Bài này chấm theo rubric: hãy chấm bằng bảng chọn mức theo tiêu chí (không nhập điểm trực tiếp)")
+
+
 def _check_items(db: Session, course_id: int, items: list[ManualItemIn]) -> None:
     for it in items:
         if it.outline_id and not db.execute(text("SELECT 1 FROM course_outlines WHERE id=:o AND course_id=:c"),
@@ -129,6 +134,7 @@ def create_course_manual_exam(course_id: int, body: ManualExamIn, u: User = Depe
 @router.put("/exams/{exam_id}/manual-items")
 def replace_items(exam_id: int, body: ItemsIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _manual_exam(db, u, exam_id)
+    _not_rubric(db, exam_id)
     if db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e"), {"e": exam_id}).scalar():
         raise HTTPException(409, "Bài đã có điểm – xóa điểm đã nhập trước khi đổi cấu trúc câu/ý")
     _check_items(db, e.class_section.course_id, body.items)
@@ -154,6 +160,7 @@ def get_grades(exam_id: int, u: User = Depends(require("admin", "lecturer")), db
 @router.put("/exams/{exam_id}/grades")
 def put_grades(exam_id: int, body: GradesIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _manual_exam(db, u, exam_id)
+    _not_rubric(db, exam_id)
     allowed = {r[0] for r in db.execute(text("""SELECT student_id FROM enrollments WHERE class_section_id=:cs
                                                  UNION SELECT student_id FROM exam_attempts WHERE exam_id=:e"""),
                                           {"cs": e.class_section_id, "e": exam_id})}
@@ -215,6 +222,7 @@ async def import_grades(exam_id: int, dry_run: bool = True, enroll_missing: bool
                         u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     """Nhập điểm từ Excel vào bài đã có: khớp cột theo mã câu (bảng điểm mẫu), theo tên câu/ý, hoặc theo thứ tự cột."""
     e = _manual_exam(db, u, exam_id)
+    _not_rubric(db, exam_id)
     try:
         parsed = manual.parse_sheet(await _read(file))
     except manual.GradeError as ex:

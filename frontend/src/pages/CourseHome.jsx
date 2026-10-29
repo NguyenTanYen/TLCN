@@ -1,7 +1,7 @@
 // Trang một học phần theo luồng công việc: Bộ môn thiết lập → đề cương → lớp HP → kết quả CĐR; giảng viên: đề cương → lớp của mình → kết quả.
 import { useEffect, useRef, useState } from 'react'
 import { PageHelp } from '../components/Help'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, auth, fmtPct, STATUS_VI } from '../api'
 import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading, Modal } from '../components/ui'
 import { DeployDialog, NewExamFlow, TYPE_VI } from '../components/NewExam'
@@ -9,6 +9,7 @@ import { useApi } from '../hooks'
 import { openMoodle, useMoodleBase } from '../moodle'
 import Combine from '../components/Combine'
 import Materials from '../components/Materials'
+import { RubricsTab } from '../components/Rubric'
 import { Clos, CloForm, CourseInfo, Outlines, SectionForm } from './Courses'
 import { AssessmentsForm, GeneralForm, OutlineForm, ReferencesForm, SYL_TEXT, TextForm } from '../components/SyllabusForms'
 
@@ -43,8 +44,8 @@ export default function CourseHome() {
     {s && <Flow steps={(isAdmin ? [
       ['setup', 'Thiết lập học phần', 'Chương, CLO, ánh xạ PI', s.clos.length > 0 && s.outlines.length > 0],
       ['syllabus', 'Đề cương chi tiết', s.doc ? `Phiên bản ${s.doc.version_no}: ${s.doc.status_label}` : 'Chưa soạn', s.doc?.status === 'approved'],
-      ['sections', `Lớp học phần (${s.sections.length})`, 'Mở lớp, gán giảng viên', s.sections.length > 0],
-      ['results', 'Kết quả chuẩn đầu ra của môn', 'Theo học kỳ (BM6b cấp môn)', s.clo_summary.length > 0],
+      ['sections', `Lớp học phần (${s.sections.length})`, 'Chọn lớp, gán giảng viên', s.sections.length > 0],
+      ['results', 'Kết quả chuẩn đầu ra của môn', 'Theo từng học kỳ, gộp các lớp', s.clo_summary.length > 0],
     ] : [
       ['syllabus', 'Đề cương chi tiết', 'Bộ môn ban hành – xem CLO, cách đánh giá', s.doc?.status === 'approved'],
       ['sections', `Lớp học phần (${s.sections.length})`, 'Chọn lớp → tạo bài kiểm tra, phân tích', s.sections.some(x => x.n_exams > 0)],
@@ -54,6 +55,8 @@ export default function CourseHome() {
         <button role="tab" aria-selected={tab === 'exams'} className={`btn sm ${tab === 'exams' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'exams' })}>Đề dùng chung ({cex.data?.exams.length ?? 0})</button>}
         <button role="tab" aria-selected={tab === 'materials'} className={`btn sm ${tab === 'materials' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'materials' })}
           title="Giáo trình, slide của môn – nguồn gợi ý sinh viên cần đọc trang nào">Học liệu & gợi ý đọc</button>
+        <button role="tab" aria-selected={tab === 'rubrics'} className={`btn sm ${tab === 'rubrics' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'rubrics' })}
+          title="Bảng tiêu chí chấm đồ án, báo cáo, thực hành">Rubric chấm điểm</button>
         <button role="tab" aria-selected={tab === 'combine'} className={`btn sm ${tab === 'combine' ? 'on' : 'ghost'}`} onClick={() => setSp({ tab: 'combine' })}
           title="Chọn bài kiểm tra nào được tính khi đo CLO của môn">Chọn bài tính vào kết quả</button></>} />}
     <Loading {...syl} />
@@ -63,6 +66,7 @@ export default function CourseHome() {
     {s && tab === 'results' && <ResultsTab s={s} isAdmin={isAdmin} />}
     {creating && s && cex.data && <NewExamFlow course={{ id: Number(id), code: s.course_code }} sections={s.sections.map(x => cex.data.sections.find(y => y.id === x.id)).filter(Boolean)} onClose={closeNew} />}
     {s && tab === 'materials' && <Materials courseId={Number(id)} outlines={s.outlines} />}
+    {s && tab === 'rubrics' && <RubricsTab courseId={Number(id)} readOnly={isAdmin} />}
     {s && tab === 'combine' && <Combine courseId={Number(id)} />}
     {s && tab === 'setup' && isAdmin && <Setup courseId={Number(id)} s={s} reload={syl.reload} />}
   </>
@@ -158,11 +162,11 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
         <td className="num-c">{a.weight_pct}%</td><td>{a.clos.map(x => x.clo_code).join(', ') || '—'}</td></tr>)}
         <tr className={`sub ${Math.abs(total - 100) > 0.01 ? 'warn-row' : ''}`}><td colSpan={4}><b>Tổng</b></td><td className="num-c"><b>{total}%</b></td><td /></tr></tbody></table>
       : <p className="muted">Chưa có kế hoạch đánh giá học phần.</p>}
-    <h4>9. Kế hoạch kiểm tra – đánh giá CLO (BM6a)</h4>
+    <h4>9. Kế hoạch kiểm tra – đánh giá CLO</h4>
     {plans.length ? <table className="tbl compact"><thead><tr><th>CLO</th><th>Học kỳ</th><th>Bài KT có CLO</th><th>Minh chứng</th><th>Phương pháp</th><th>Ngưỡng đạt</th><th>Chỉ tiêu</th></tr></thead>
       <tbody>{s.clos.filter(c => c.plan).map(c => <tr key={c.id}><td><b>{c.clo_code}</b></td><td>{c.plan.semester}</td><td>{c.plan.assessments_text || '—'}</td>
         <td>{{ process: 'Quá trình', final: 'Cuối kỳ', any: 'Mọi bài kiểm tra' }[c.plan.evidence_type]}</td><td>{c.plan.method}</td><td>≥ {c.plan.pass_threshold_pct}% điểm</td><td>{c.plan.target_pct}% SV</td></tr>)}</tbody></table>
-      : <p className="muted">Chưa lập kế hoạch BM6a (giảng viên lập ở trang Kết quả CĐR của lớp).</p>}
+      : <p className="muted">Chưa lập kế hoạch đánh giá (giảng viên lập ở trang Kết quả chuẩn đầu ra của lớp).</p>}
     <h4>10. Tài liệu học tập {edit('refs')}</h4>
     {[['main', 'Giáo trình chính'], ['extra', 'Tài liệu tham khảo']].map(([t, label]) => { const r = (d?.references || []).filter(x => x.ref_type === t)
       return <div key={t}><b className="small">{label}</b>{r.length ? <ol className="refs">{r.map(x => <li key={x.id}>{x.citation}</li>)}</ol> : <p className="muted">—</p>}</div> })}
@@ -178,6 +182,7 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
 }
 
 function SectionsTab({ s, isAdmin, reload }) {
+  const nav = useNavigate()
   const moodle = useMoodleBase()
   const [form, setForm] = useState(null)
   const sems = [...new Set(s.sections.map(x => x.semester))]           // đã sắp học kỳ mới nhất trước (API)
@@ -191,13 +196,12 @@ function SectionsTab({ s, isAdmin, reload }) {
       <option value="">Tất cả học kỳ ({s.sections.length} lớp)</option>
       {sems.map(x => <option key={x} value={x}>{x} ({s.sections.filter(y => y.semester === x).length} lớp)</option>)}</select></Field></div>}
     <table className="tbl"><thead><tr><th>Mã lớp</th><th>Học kỳ</th><th>Giảng viên</th><th>SV</th><th>Bài kiểm tra</th><th>Moodle</th><th /></tr></thead>
-      <tbody>{shown.map(x => <tr key={x.id}><td><Link to={`/sections/${x.id}`}><b>{x.section_code}</b></Link></td><td>{x.semester}</td><td>{x.lecturer}</td>
+      <tbody>{shown.map(x => <tr key={x.id} className="clickable" onClick={() => nav(`/sections/${x.id}`)}><td><Link to={`/sections/${x.id}`} onClick={e => e.stopPropagation()}><b>{x.section_code}</b></Link></td><td>{x.semester}</td><td>{x.lecturer}</td>
         <td>{x.n_students}</td><td>{x.n_exams}</td>
         <td>{x.moodle_course_id ? <a href={moodle && `${moodle}/course/view.php?id=${x.moodle_course_id}`} onClick={e => { e.preventDefault(); openMoodle(`/course/view.php?id=${x.moodle_course_id}`) }}>Khóa học #{x.moodle_course_id} ↗</a> : <span className="muted">chưa gắn</span>}</td>
-        <td className="row gap"><Link className="btn sm primary" to={`/sections/${x.id}`}>Mở lớp</Link>
-          {x.n_exams > 0 && <Link className="btn sm ghost" to={`/sections/${x.id}/clo`}>BM6</Link>}</td></tr>)}</tbody></table>
+        <td className="row gap">{x.n_exams > 0 && <Link className="btn sm ghost" to={`/sections/${x.id}/clo`} onClick={e => e.stopPropagation()}>Kết quả CĐR</Link>}<span className="chev" aria-hidden="true">›</span></td></tr>)}</tbody></table>
     {!s.sections.length && <p className="muted">Chưa có lớp học phần.</p>}
-    {!isAdmin && s.sections.length > 0 && <p className="next-hint mt">Bước tiếp theo: bấm <b>Mở lớp</b> để tạo bài kiểm tra cho lớp, đồng bộ bài làm và xem kết quả CĐR (BM6).</p>}
+    {!isAdmin && s.sections.length > 0 && <p className="next-hint mt">Bước tiếp theo: bấm vào một lớp để tạo bài kiểm tra cho lớp, đồng bộ bài làm và xem kết quả CĐR.</p>}
     {form && <SectionForm s={form} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload() }} />}
   </Card>
 }
@@ -233,14 +237,14 @@ function ResultsTab({ s, isAdmin }) {
     <div className="row gap wrap mb"><Field label="Học kỳ"><select value={sem} onChange={e => setSem(e.target.value)}>
       {sems.map(x => <option key={x} value={x}>{x}</option>)}</select></Field>
       <span className="muted small">{secs.length} lớp học phần · {secs.reduce((n, x) => n + (x.n_students || 0), 0)} sinh viên trong kỳ</span></div>
-    <Card title={`Kết quả CLO của môn – ${sem} (tổng hợp mọi lớp học phần trong kỳ, BM6b cấp môn)`}>
+    <Card title={`Kết quả CLO của môn – ${sem} (tổng hợp mọi lớp học phần trong kỳ)`}>
       <table className="tbl"><thead><tr><th>CLO</th><th className="num-c">SV đánh giá</th><th className="num-c">SV đạt</th><th className="num-c">Tỷ lệ đạt</th><th className="num-c">Chỉ tiêu</th><th>Kết luận</th></tr></thead>
         <tbody>{rows.map(r => <tr key={r.clo_code}><td><b>{r.clo_code}</b></td><td className="num-c">{r.n_evaluated}</td>
           <td className="num-c">{r.n_achieved}</td><td className="num-c">{fmtPct(r.achieved_pct)}</td><td className="num-c">{r.target_pct}%</td>
           <td><Achieved ok={Number(r.achieved_pct) + 1e-9 >= Number(r.target_pct)} /></td></tr>)}</tbody></table>
     </Card>
     {!isAdmin && secs.length > 0 && <Card title="Kết quả lớp bạn phụ trách trong kỳ">
-      <div className="row gap wrap">{secs.map(x => <Link key={x.id} className="btn" to={`/sections/${x.id}/clo`}>{x.section_code} – BM6</Link>)}</div>
+      <div className="row gap wrap">{secs.map(x => <Link key={x.id} className="btn" to={`/sections/${x.id}/clo`}>{x.section_code} – Kết quả CĐR</Link>)}</div>
     </Card>}
   </>
 }

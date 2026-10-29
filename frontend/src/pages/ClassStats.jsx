@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Bar } from 'react-chartjs-2'
+import { AttainmentChart, Histogram } from '../components/ChartKit'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { fmtNum } from '../api'
 import { C, heat } from '../charts'
@@ -28,7 +29,7 @@ export default function ClassStats() {
     <div className="page-h">
       <div><div className="crumb"><Link to="/courses">Lớp học phần</Link> / <Link to={`/sections/${id}`}>{cs?.section_code}</Link> / Thống kê lớp</div>
         <h1>Thống kê kết quả lớp học phần</h1><p className="muted">{cs?.course_code} – {cs?.course_name} · {cs?.semester}</p></div>
-      <div className="row gap"><Link className="btn" to={`/sections/${id}/clo`}>Kết quả chuẩn đầu ra của lớp (BM6)</Link></div>
+      <div className="row gap"><Link className="btn" to={`/sections/${id}/clo`}>Kết quả chuẩn đầu ra của lớp</Link></div>
     </div>)
   if (!d) return <>{head}<Loading {...st} /></>
   if (!d.exam) return <>{head}<div className="alert amber">Lớp chưa có bài kiểm tra nào được phân tích. Hãy đồng bộ &amp; phân tích bài kiểm tra trước.</div></>
@@ -79,11 +80,7 @@ export default function ClassStats() {
       <details className="more"><summary>Xem thêm biểu đồ và bảng chi tiết</summary>
       <div className="grid2">
         <Card title="Tỷ lệ sinh viên đạt từng chuẩn đầu ra (CLO) của lớp">
-          <div className="chart"><Bar data={{ labels: codes, datasets: [
-            { type: 'bar', label: 'SV đạt ngưỡng (%)', data: d.clos.map(c => c.achieved_pct), backgroundColor: C.blue, borderRadius: 4, order: 2 },
-            { type: 'line', label: 'Mục tiêu (%)', data: d.clos.map(c => c.target), borderColor: C.amber, backgroundColor: C.amber, borderWidth: 3, pointRadius: 26, pointHoverRadius: 28, pointStyle: 'line', showLine: false, order: 1 }] }}
-            options={{ maintainAspectRatio: false, scales: { y: pctAxis },
-              plugins: { legend: { labels: { usePointStyle: true } }, tooltip: { callbacks: { afterBody: it => { const c = d.clos[it[0].dataIndex]; return [`${c.n_achieved}/${c.n} SV đạt · điểm TB ${c.avg_pct}%`, `Ngưỡng θ = ${c.threshold}%`, c.description] } } } } }} /></div>
+          <AttainmentChart xTitle="Chuẩn đầu ra môn học (CLO)" items={d.clos.map(c => ({ label: c.code, k: c.n_achieved, n: c.n, target: Number(c.target) }))} />
           <table className="tbl compact mt"><thead><tr><th>CLO</th><th>SV đạt</th><th>Mục tiêu</th><th>Điểm TB</th><th /></tr></thead>
             <tbody>{d.clos.map(c => <tr key={c.code}><td><b>{c.code}</b></td><td>{c.n_achieved}/{c.n} ({c.achieved_pct}%)</td><td>{c.target}%</td><td>{c.avg_pct}%</td>
               <td>{c.achieved_pct >= c.target ? <Badge tone="green">Đạt mục tiêu</Badge> : <Badge tone="red">Chưa đạt mục tiêu</Badge>}</td></tr>)}</tbody></table>
@@ -91,13 +88,12 @@ export default function ClassStats() {
         <Card title="Tỷ lệ trả lời đúng theo mức độ nhận thức">
           <div className="chart"><Bar data={{ labels: d.bloom.map(b => b.level), datasets: [
             { label: 'Trả lời đúng (%)', data: d.bloom.map(b => b.pct_correct), backgroundColor: C.blue, borderRadius: 4 }] }}
-            options={{ maintainAspectRatio: false, scales: { y: pctAxis }, plugins: { legend: { display: false },
+            options={{ maintainAspectRatio: false, scales: { y: { ...pctAxis, title: { display: true, text: 'Tỷ lệ trả lời đúng (%)' } }, x: { title: { display: true, text: 'Mức độ nhận thức (Bloom)' } } }, plugins: { legend: { display: false },
               tooltip: { callbacks: { label: it => `${it.raw}% câu trả lời đúng · ${d.bloom[it.dataIndex].n_items} câu hỏi` } } } }} /></div>
         </Card>
       </div>
       <Card title="Phổ điểm">
-        <div className="chart"><Bar data={{ labels: d.score_hist.map(h => h.range), datasets: [{ label: 'Số SV', data: d.score_hist.map(h => h.count), backgroundColor: C.blue, borderRadius: 4 }] }}
-          options={{ maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 }, title: { display: true, text: 'Số SV' } }, x: { title: { display: true, text: 'Khoảng điểm' } } } }} /></div>
+        <Histogram labels={d.score_hist.map(h => h.range)} counts={d.score_hist.map(h => h.count)} />
       </Card>
       <Card title="Bản đồ điểm theo chương của từng sinh viên" actions={<>
         <label className="row gap small"><input type="checkbox" checked={onlyRisk} onChange={ev => setOnlyRisk(ev.target.checked)} /> Chỉ SV cần hỗ trợ</label>

@@ -18,7 +18,7 @@ export function CloTrend({ courseId }) {
         <tbody>{data.clos.map(c => <tr key={c.clo_id}><td><b>{c.clo_code}</b></td>
           {sems.map(s => { const p = c.points.find(x => x.semester_id === s.semester_id); return <td key={s.semester_id}>{p ? <span className={p.is_achieved ? 'ok-t' : 'bad-t'}>{fmtPct(p.achieved_pct)}</span> : '—'}</td> })}
           <td>{c.trend ? <span className={ARROW[c.trend][1]}>{ARROW[c.trend][0]} {c.change > 0 ? '+' : ''}{c.change} điểm %</span> : '—'}</td></tr>)}</tbody></table></div>}
-    <p className="muted small mt">Màu xanh = đạt chỉ tiêu của kỳ đó, đỏ = chưa đạt. Số liệu gộp mọi lớp học phần của môn trong học kỳ (nên có thể khác bảng BM6b của riêng một lớp); chỉ tính các lớp đã phân tích.</p>
+    <p className="muted small mt">Màu xanh = đạt chỉ tiêu của kỳ đó, đỏ = chưa đạt. Số liệu gộp mọi lớp học phần của môn trong học kỳ (nên có thể khác bảng kết quả của riêng một lớp); chỉ tính các lớp đã phân tích.</p>
   </Card>
 }
 

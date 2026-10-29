@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { auth } from './api'
+import { MENUS } from './menus'
 import { openMoodle } from './moodle'
 import Login from './pages/Login'
 import Sections from './pages/Sections'
@@ -22,21 +23,6 @@ import Guide from './components/Help'
 import Home from './pages/Home'
 
 // Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
-const MENUS = {
-  lecturer: [
-    ['Bắt đầu', [['/', 'Tổng quan']]],
-    ['Giảng dạy', [['/courses', 'Môn học của tôi', ['/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
-    ['Tra cứu', [['/programs', 'Chương trình đào tạo']]],
-    ['Trợ giúp', [['/huong-dan', 'Hướng dẫn sử dụng']]],
-  ],
-  admin: [
-    ['Bắt đầu', [['/', 'Tổng quan']]],
-    ['Đào tạo', [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần']]],
-    ['Giảng dạy', [['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
-    ['Đánh giá', [['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)']]],
-    ['Hệ thống', [['/system', 'Kết nối Moodle'], ['/huong-dan', 'Hướng dẫn sử dụng']]],
-  ],
-}
 const ROLE_VI = { admin: 'Bộ môn / Quản trị', lecturer: 'Giảng viên' }
 
 function useMoodleUrl() {
@@ -71,7 +57,7 @@ function UserMenu({ user, moodle }) {
 function Shell({ user, children }) {
   const moodle = useMoodleUrl()
   const loc = useLocation()
-  const active = ([to, , also]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
+  const active = ([to, , also = []]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
   return (
     <div className="app">
 
@@ -81,7 +67,7 @@ function Shell({ user, children }) {
           <nav className="mainnav" aria-label="Chức năng">
             {MENUS[user.role].map(([g, items]) => <div className="navgroup" key={g} role="group" aria-label={g}>
               <span className="navcap">{g}</span>
-              <div className="navitems">{items.map(m => <NavLink key={m[0]} to={m[0]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}</div>
+              <div className="navitems">{items.map(m => <NavLink key={m[0]} to={m[0]} title={m[3]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}</div>
             </div>)}
           </nav>
           <div className="topbar-r">

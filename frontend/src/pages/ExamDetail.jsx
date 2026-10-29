@@ -1,11 +1,12 @@
 import { Fragment, useRef, useState } from 'react'
 import { PageHelp } from '../components/Help'
-import { Bar } from 'react-chartjs-2'
+import { Histogram, ItemScatter } from '../components/ChartKit'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, auth, fmtNum, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading, Stat, diClass, pClass } from '../components/ui'
 import { ManualGrades } from '../components/ManualExam'
+import { RubricGrades } from '../components/Rubric'
 import PaperSystem from '../components/PaperSystem'
 import { useApi } from '../hooks'
 import { MatrixTable } from '../components/Blueprint'
@@ -73,7 +74,7 @@ export default function ExamDetail() {
         <span className="grow" /><button className="btn sm" onClick={() => go('results', 'timing')}>Xem thời gian làm bài</button></div>}
       <Flow steps={steps.filter(Boolean).map(s => ({ tab: true, label: s.label, sub: s.sub, done: s.done, on: cur === s.k, onClick: () => go(s.k) }))} />
       {cur === 'exam' && (manual ? (isAdmin() ? <AdminNote e={e} />
-        : <><ManualGrades e={e} reload={exam.reload} /><MoreActions e={e} reload={exam.reload} /></>)
+        : <>{e.rubric_id ? <RubricGrades e={e} reload={exam.reload} /> : <ManualGrades e={e} reload={exam.reload} />}<MoreActions e={e} reload={exam.reload} /></>)
         : <ExamStep e={e} reload={exam.reload} />)}
       {cur === 'release' && (isAdmin() ? <AdminNote e={e} />
         : paper ? <PaperFlow e={e} reload={exam.reload} /> : <Release e={e} reload={exam.reload} onNext={() => go('collect')} />)}
@@ -92,7 +93,7 @@ function AdminNote({ e }) {
     : e.moodle_quiz_id ? `Quiz #${e.moodle_quiz_id} trên Moodle · ${e.n_attempts} bài làm` : 'Chưa phát hành lên Moodle'
   return <Card title={e.exam_type === 'manual' ? 'Câu/ý & nhập điểm' : 'Phát hành và chấm bài'}>
     <p>{st}</p>
-    <p className="muted small">Phát hành Quiz, in đề, chấm phiếu và nhập điểm do giảng viên phụ trách lớp thực hiện. Bộ môn xem kết quả ở bước Kết quả và trang Kết quả CĐR (BM6).</p>
+    <p className="muted small">Phát hành Quiz, in đề, chấm phiếu và nhập điểm do giảng viên phụ trách lớp thực hiện. Bộ môn xem kết quả ở bước Kết quả và trang Kết quả CĐR.</p>
   </Card>
 }
 
@@ -168,7 +169,7 @@ function Collect({ e, reload, onDone }) {
 // Bước 4 – kết quả: đường đi CLO → BM6 trước, sau đó điểm, câu hỏi, từng SV, thời gian làm bài
 function Results({ e, view, setView, reload }) {
   const analyzed = e.status === 'Analyzed'
-  const views = [['clo', 'Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp (BM6)'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['students', 'Kết quả sinh viên'],
+  const views = [['clo', 'Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['students', 'Kết quả sinh viên'],
     e.exam_type === 'online' && ['timing', 'Thời gian làm bài']].filter(Boolean)
   const can = k => analyzed || (k === 'timing' && e.status === 'Synced')
   return <>
@@ -177,7 +178,7 @@ function Results({ e, view, setView, reload }) {
         {l}{k === 'timing' && e.timing_alerts?.n_warning ? <span className="tab-badge">{e.timing_alerts.n_warning}</span> : null}</button>)}</div>
       {analyzed && <Link className="btn sm" to={`/sections/${e.class_section_id}/stats?exam=${e.id}`}>Thống kê lớp</Link>}
       {analyzed && <ActionButton className="btn sm" title="Biểu mẫu BM6c riêng của bài kiểm tra này: tổng hợp + minh chứng từng CLO bài kiểm tra đo"
-        onRun={() => api.download(`/api/reports/exams/${e.id}/bm6c.xlsx`, `BM6c_${e.section_code}.xlsx`)}>⬇ Xuất BM6c bài kiểm tra này</ActionButton>}
+        onRun={() => api.download(`/api/reports/exams/${e.id}/bm6c.xlsx`, `BM6c_${e.section_code}.xlsx`)}>⬇ Xuất bảng minh chứng bài này (Excel)</ActionButton>}
     </div>
     {!can(view) ? <div className="alert">Bài chưa được phân tích – thực hiện bước {e.exam_type === 'manual' ? '"Câu/ý & nhập điểm"' : e.exam_type === 'paper' ? '"In đề & chấm phiếu"' : '"Lấy bài làm & phân tích"'} trước.</div> : <>
       {view === 'clo' && <CloTrace e={e} reload={reload} />}
@@ -198,11 +199,11 @@ function CloTrace({ e, reload }) {
   const total = qs.reduce((a, q) => a + q.points, 0) || 1
   const codes = [...new Set(qs.flatMap(q => (q.clos || '').split(', ').filter(Boolean)))].sort()
   const rate = c => { const r = (st.data || []).find(x => x.clo_code === c); return r && r.n_evaluated ? { n: Number(r.n_evaluated), ok: Number(r.n_achieved) } : null }
-  return <Card title="Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp (BM6)" actions={<ActionButton className={`btn sm ${e.counts_for_clo ? '' : 'ghost'}`} title="Gộp bài này vào kết quả CLO của lớp (BM6, PI, PLO)"
+  return <Card title="Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp" actions={<ActionButton className={`btn sm ${e.counts_for_clo ? '' : 'ghost'}`} title="Gộp bài này vào kết quả CLO của lớp (PI, PLO)"
     okMsg={r => r.counts_for_clo ? 'Bài này được tính vào kết quả của lớp' : 'Bài này không còn được tính vào kết quả của lớp'}
     onRun={async () => { const r = await api.patch(`/api/exams/${e.id}/evidence`, { counts_for_clo: !e.counts_for_clo }); reload(); return r }}>
     {e.counts_for_clo ? '✓ Đang tính vào kết quả của lớp' : 'Không tính vào kết quả của lớp'}</ActionButton>}>
-    <div className="trace head"><span>Câu hỏi trong bài</span><span>Chuẩn đầu ra (CLO)</span><span>Điểm</span><span>SV đạt trong bài này</span><span>Kết quả của cả lớp (BM6)</span></div>
+    <div className="trace head"><span>Câu hỏi trong bài</span><span>Chuẩn đầu ra (CLO)</span><span>Điểm</span><span>SV đạt trong bài này</span><span>Kết quả của cả lớp</span></div>
     {codes.map(c => {
       const q = qs.filter(x => (x.clos || '').split(', ').includes(c)), pts = q.reduce((a, x) => a + x.points, 0)
       const r = rate(c), b = bm6.data?.clos.find(x => x.clo_code === c)
@@ -322,8 +323,7 @@ function Overview({ id }) {
         <Stat label={`Độ tin cậy của đề (${o.reliability || "KR-20"})`} value={o.kr20 == null ? '–' : fmtNum(o.kr20)} sub={o.kr20 == null ? '' : o.kr20 >= 0.7 ? 'đạt (≥ 0,7)' : 'thấp (< 0,7) – đề ít câu / ít phân hóa'} tone={o.kr20 == null ? '' : o.kr20 >= 0.7 ? 'green' : 'amber'} />
       </div>
       <Card title="Phổ điểm">
-        <div className="chart"><Bar data={{ labels: o.histogram.map(h => h.range), datasets: [{ label: 'Số SV', data: o.histogram.map(h => h.count), backgroundColor: C.blue, borderRadius: 4 }] }}
-          options={{ maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 }, title: { display: true, text: 'Số SV' } }, x: { title: { display: true, text: 'Khoảng điểm' } } } }} /></div>
+        <Histogram labels={o.histogram.map(h => h.range)} counts={o.histogram.map(h => h.count)} xTitle={`Khoảng điểm (thang ${o.max_score})`} />
       </Card>
     </>
   )
@@ -344,10 +344,7 @@ function Items({ id, manual }) {
         <Stat label="DI âm (nghi sai đáp án)" value={data.filter(d => Number(d.di_value) < 0).length} tone="red" />
       </div>
       <Card title="Độ khó p và độ phân biệt DI từng câu">
-        <div className="chart"><Bar data={{ labels: data.map(d => `C${d.order_index}`), datasets: [
-          { label: 'Độ khó p', data: data.map(d => d.p_value), backgroundColor: C.blueA, borderColor: C.blue, borderWidth: 1 },
-          { label: 'Độ phân biệt DI', data: data.map(d => d.di_value), backgroundColor: data.map(d => Number(d.di_value) < 0 ? C.red : Number(d.di_value) < 0.2 ? C.amber : C.green) }] }}
-          options={{ maintainAspectRatio: false, scales: { y: { min: -1, max: 1 } } }} /></div>
+        <ItemScatter data={data} />
         <p className="muted">Ngưỡng tham khảo: p ∈ [0,25; 0,85]; DI ≥ 0,3 tốt, 0,2–0,3 chấp nhận, &lt; 0,2 cần xem lại, &lt; 0 cần kiểm tra đáp án (Ebel &amp; Frisbie, 1991).
           {manual && ' Câu/ý nhập điểm: p = điểm trung bình / điểm tối đa; DI = chênh lệch tỷ lệ điểm trung bình nhóm 27% cao nhất và thấp nhất.'}</p>
       </Card>

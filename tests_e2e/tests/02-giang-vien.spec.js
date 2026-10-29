@@ -1,6 +1,6 @@
 // VAI TRÒ GIẢNG VIÊN (gv.son) – 15 flow GV1..GV15, chạy sau tệp 01 (dùng học phần, lớp mà Bộ môn vừa tạo – .state.json).
 // Trên học phần kiểm thử (lớp UIxxxxxx_01, chưa có khóa học Moodle): SV, ngân hàng câu hỏi, đề trực tuyến, đề giấy chấm trên
-// hệ thống, bài nhập điểm, kết quả CLO/BM6.
+// hệ thống, bài nhập điểm, kết quả CLO, rubric.
 // Các flow @moodle dùng môn demo DBMS330284 / lớp DBMS330284_01 (khóa học Moodle id 7): SSO, đồng bộ SV, đồng bộ câu hỏi
 // 2 chiều, đồng bộ bài làm, phụ đạo (tạo Quiz + giới hạn SV), công bố kết quả.
 const fs = require('fs')
@@ -302,7 +302,7 @@ test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber Q
   await test.step('Bước 2 (1. Thông tin bài): tên bài, minh chứng Cuối kỳ → "Tiếp: chọn câu hỏi"', async () => {
     const m = modal(page)
     await m.getByLabel('Tên bài kiểm tra').fill('Thi cuối kỳ (kiểm thử UI)')
-    await pick(m.getByLabel('Bài KT lấy minh chứng (BM6a)'), 'Cuối kỳ')
+    await pick(m.getByLabel('Loại đánh giá của bài'), 'Cuối kỳ')
     await m.getByRole('button', { name: /Tiếp: chọn câu hỏi/ }).click()
   })
   await test.step('Bước 3 (2. Chọn câu hỏi): "Tự chọn câu từ ngân hàng" → chờ danh sách câu → "Chọn tất cả đang lọc"', async () => {
@@ -483,9 +483,9 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
   })
 })
 
-// ================================================================== GV12 – Kết quả CLO, BM6a, xuất BM6
-test('GV12 – Lớp kiểm thử: lập kế hoạch BM6a cho CLO1, xem BM6b, xuất bộ BM6 Excel', async ({ page }) => {
-  await test.step('Bước 1: trang Kết quả chuẩn đầu ra của lớp (BM6) của lớp → BM6a → "Sửa" kế hoạch của CLO1', async () => {
+// ================================================================== GV12 – Kết quả CLO, kế hoạch đánh giá, xuất biểu mẫu
+test('GV12 – Lớp kiểm thử: lập kế hoạch đánh giá cho CLO1, xem kết quả cả lớp, xuất biểu mẫu Excel', async ({ page }) => {
+  await test.step('Bước 1: trang Kết quả chuẩn đầu ra của lớp → thẻ Kế hoạch đánh giá → "Sửa" kế hoạch của CLO1', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6a`)
     await page.locator('tr').filter({ hasText: 'CLO1' }).getByRole('button', { name: 'Sửa' }).first().click()
   })
@@ -497,13 +497,13 @@ test('GV12 – Lớp kiểm thử: lập kế hoạch BM6a cho CLO1, xem BM6b, x
     await m.getByRole('button', { name: 'Lưu' }).click()
     await expect(page.locator('.modal')).toHaveCount(0)
   })
-  await test.step('Bước 3: thẻ BM6b → CLO1 có tỷ lệ đạt 75% (3/4 SV)', async () => {
-    await tab(page, 'BM6b').click()
+  await test.step('Bước 3: thẻ Kết quả cả lớp → CLO1 có tỷ lệ đạt 75% (3/4 SV)', async () => {
+    await tab(page, '2. Kết quả cả lớp').click()
     await see(page.locator('tr').filter({ hasText: 'CLO1' }).first(), '75')
   })
-  await test.step('Bước 4: "⬇ Xuất bộ BM6 của lớp (.xlsx)" → tải được tệp Excel', async () => {
+  await test.step('Bước 4: "⬇ Xuất biểu mẫu kết quả của lớp (.xlsx)" → tải được tệp Excel', async () => {
     const dl = page.waitForEvent('download')
-    await page.getByRole('button', { name: /Xuất bộ BM6 của lớp/ }).click()
+    await page.getByRole('button', { name: /Xuất biểu mẫu kết quả của lớp/ }).click()
     expect((await dl).suggestedFilename()).toMatch(/\.xlsx$/)
   })
 })
@@ -619,7 +619,7 @@ test('AD8b – Sau GV8 + GV9: kế hoạch đo PI7.1 của môn kiểm thử = 4
 
 // ================================================================== GV16 – Vòng cải tiến
 test('GV16 – Kết quả CLO: so sánh qua các học kỳ; ghi hành động cải tiến, đổi trạng thái, xóa', async ({ page }) => {
-  await test.step('Bước 1: mở BM6b của lớp → thấy bảng "Xu hướng đạt CLO qua các học kỳ" và khung "Hành động cải tiến"', async () => {
+  await test.step('Bước 1: mở Kết quả cả lớp của lớp → thấy bảng "Xu hướng đạt CLO qua các học kỳ" và khung "Hành động cải tiến"', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6b`)
     await see(page, 'Xu hướng đạt CLO qua các học kỳ')
     await see(page, 'Hành động cải tiến (đóng vòng đánh giá)')
@@ -642,5 +642,53 @@ test('GV16 – Kết quả CLO: so sánh qua các học kỳ; ghi hành động 
     page.once('dialog', d => d.accept())
     await ac().locator('tr', { hasText: 'kiểm thử UI' }).getByRole('button', { name: 'Xóa' }).click()
     await expect(ac().locator('tr', { hasText: 'kiểm thử UI' })).toHaveCount(0)
+  })
+})
+
+// ================================================================== GV17 – Rubric
+test('GV17 – Rubric: tạo rubric của môn, tạo bài chấm theo rubric, chọn mức từng SV, lưu và phân tích', async ({ page }) => {
+  await test.step('Bước 1: trang môn → thẻ "Rubric chấm điểm" → "+ Tạo rubric"', async () => {
+    await goto(page, `/courses/${S.cid}?tab=rubrics`)
+    await see(page, 'Rubric chấm điểm')
+    await page.getByRole('button', { name: '+ Tạo rubric' }).first().click()
+  })
+  await test.step('Bước 2: tên rubric, tiêu chí "Nội dung" 6 điểm đo CLO đầu tiên → "Lưu rubric"', async () => {
+    const m = modal(page)
+    await field(m, 'Tên rubric').fill('Rubric báo cáo (kiểm thử UI)')
+    await m.getByPlaceholder(/Nội dung chuyên môn/).fill('Nội dung chuyên môn')
+    await field(m, 'Điểm tối đa').fill('6')
+    await m.getByRole('button', { name: '+ Thêm tiêu chí' }).click()
+    await m.getByPlaceholder(/Nội dung chuyên môn/).nth(1).fill('Trình bày')
+    await m.getByRole('button', { name: 'Lưu rubric' }).click()
+    await expect(page.locator('.modal')).toHaveCount(0)
+    await see(page, 'Rubric báo cáo (kiểm thử UI)')
+  })
+  await test.step('Bước 3: lớp → "+ Tạo bài kiểm tra" → "Chấm theo rubric" → tên bài → "Tạo bài và bắt đầu chấm"', async () => {
+    await goto(page, `/sections/${S.cs}`)
+    await page.getByRole('button', { name: '+ Tạo bài kiểm tra' }).click()
+    await modal(page).getByRole('button', { name: /Chấm theo rubric/ }).click()
+    const m = modal(page)
+    await pick(m.getByLabel('Rubric dùng để chấm'), 'Rubric báo cáo (kiểm thử UI)')
+    await m.getByLabel('Tên bài kiểm tra').fill('Báo cáo (rubric, kiểm thử UI)')
+    await m.getByRole('button', { name: 'Tạo bài và bắt đầu chấm' }).click()
+    await page.waitForURL(/\/exams\/\d+/)
+    await see(page, 'Chấm theo rubric: Rubric báo cáo (kiểm thử UI)')
+  })
+  await test.step('Bước 4: chọn mức cho SV đầu tiên (cả hai tiêu chí) → điểm tổng hiện đủ; chọn thiếu thì không lưu được', async () => {
+    const row = page.locator('table.rub-grid tbody tr').first()
+    const sels = row.locator('select')
+    await sels.nth(0).selectOption({ index: 1 })
+    await expect(page.getByText(/chỉ chọn một phần|mới chọn một phần/)).toBeVisible()
+    await expect(page.getByRole('button', { name: /Lưu và phân tích/ })).toBeDisabled()
+    await sels.nth(1).selectOption({ index: 1 })
+    await expect(row.locator('td').last()).toHaveText('10.00')
+    await expect(page.getByRole('button', { name: /Lưu và phân tích/ })).toBeEnabled()
+  })
+  await test.step('Bước 5: "Lưu và phân tích" → thông báo đã lưu; tải lại vẫn giữ mức đã chọn', async () => {
+    await page.getByRole('button', { name: /Lưu và phân tích/ }).click()
+    await toast(page, /Đã lưu điểm và phân tích/)
+    await page.reload()
+    await page.getByText('Câu/ý & nhập điểm').first().click()
+    await expect(page.locator('table.rub-grid tbody tr').first().locator('td').last()).toHaveText('10.00')
   })
 })

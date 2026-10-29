@@ -56,7 +56,7 @@ export default function SectionDetail() {
       <Flow steps={[
         !isAdmin && { label: 'Tạo bài kiểm tra', sub: 'Trực tuyến, trên giấy hoặc nhập điểm', done: ex.length > 0, onClick: () => setCreating(true) },
         { label: 'Lấy bài làm & phân tích', sub: ex.length ? `${analyzed}/${ex.length} bài đã phân tích` : 'Mở bài → Đồng bộ & phân tích', done: analyzed > 0, on: tab === 'exams', onClick: () => setTab('exams') },
-        { label: 'Kết quả chuẩn đầu ra của lớp (BM6)', sub: 'Tỷ lệ SV đạt từng CLO của lớp', done: analyzed > 0, to: `/sections/${id}/clo` },
+        { label: 'Kết quả chuẩn đầu ra của lớp', sub: 'Tỷ lệ SV đạt từng CLO của lớp', done: analyzed > 0, to: `/sections/${id}/clo` },
         { label: 'Ôn tập', sub: 'Bài riêng cho SV làm sai', to: `/sections/${id}/remedial` },
       ]} />
       <div className="tabs">
@@ -76,7 +76,7 @@ export default function SectionDetail() {
               <td className="num-c">{e.questions.length}</td><td>{e.n_attempts} dự thi · {e.n_absent} vắng</td>
               <td><Badge tone={e.status === 'Analyzed' ? 'green' : e.status === 'Draft' ? 'gray' : 'blue'}>{STATUS_VI[e.status]}</Badge>
                 {e.publish_flag && <Badge tone="amber">Đã công bố</Badge>}
-                {!e.counts_for_clo && <span title="Không gộp vào kết quả CLO của lớp (BM6)"><Badge>Không tính BM6</Badge></span>}
+                {!e.counts_for_clo && <span title="Không gộp vào kết quả CLO của lớp"><Badge>Không tính vào kết quả</Badge></span>}
                 {e.timing_alerts?.n_warning > 0 && <Link to={`/exams/${e.id}?tab=timing`} title="Lượt làm bài có dấu hiệu bất thường (thời gian làm bài)"><Badge tone="red">⚠ {e.timing_alerts.n_warning} cảnh báo</Badge></Link>}</td>
               <td><Link className={cls} to={`/exams/${e.id}`}>{label}</Link></td>
             </tr> })}

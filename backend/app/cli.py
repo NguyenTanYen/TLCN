@@ -1,7 +1,7 @@
 """Công cụ dòng lệnh: khởi tạo CSDL, tạo dữ liệu minh họa, mô phỏng bài làm.
 
     python -m app.cli bootstrap        # (container) chờ MySQL, tạo CSDL + dữ liệu minh họa nếu chưa có, cài cầu nối
-    python -m app.cli init-db          # tạo 51 bảng + dữ liệu tham chiếu (BM2, phân công PIs)
+    python -m app.cli init-db          # tạo 57 bảng + dữ liệu tham chiếu (BM2, phân công PIs)
     python -m app.cli seed-demo        # tài khoản, môn DBMS330284, CLO, câu hỏi, lớp HP, 2 bài KT
     python -m app.cli simulate-moodle  # (môi trường thử) dựng dữ liệu Moodle mô phỏng, đồng bộ & phân tích
     python -m app.cli install-bridge   # cài view/thủ tục cầu nối vào CSDL (khi đã có CSDL Moodle)
@@ -57,7 +57,7 @@ def init_db() -> None:
     run_sql_file(DB_DIR / "01_schema.sql", name)
     run_sql_file(DB_DIR / "03_seed_reference.sql", name)
     run_sql_file(DB_DIR / "04_ctdt_2026.sql", name)
-    print(f"Đã tạo CSDL {name} (51 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT 2026, KTDL 2026.")
+    print(f"Đã tạo CSDL {name} (57 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT 2026, KTDL 2026.")
 
 
 def seed_demo() -> None:

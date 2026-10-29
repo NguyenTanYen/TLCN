@@ -38,7 +38,7 @@ USE assessment_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
-DROP TABLE IF EXISTS improvement_actions, scan_sheets, sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
+DROP TABLE IF EXISTS rubric_grades, exam_rubric_items, exam_rubrics, rubric_levels, rubric_criteria, rubrics, improvement_actions, scan_sheets, sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
@@ -809,6 +809,68 @@ CREATE TABLE improvement_actions (
   CONSTRAINT ck_ia_status CHECK (status IN ('open','doing','done','verified')),
   INDEX ix_ia_cs (class_section_id, status)
 ) ENGINE=InnoDB COMMENT='Hành động cải tiến theo lớp HP/CLO: người phụ trách, hạn, trạng thái, kết quả kiểm chứng';
+
+CREATE TABLE rubrics (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  course_id   INT          NOT NULL,
+  name        VARCHAR(150) NOT NULL,
+  description TEXT         NULL,
+  created_by  INT          NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rub_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  INDEX ix_rub_course (course_id)
+) ENGINE=InnoDB COMMENT='Rubric chấm điểm theo tiêu chí của môn học';
+
+CREATE TABLE rubric_criteria (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  rubric_id   INT          NOT NULL,
+  order_no    SMALLINT     NOT NULL,
+  name        VARCHAR(200) NOT NULL,
+  points      DECIMAL(6,2) NOT NULL COMMENT 'Điểm tối đa của tiêu chí',
+  clo_id      INT          NOT NULL COMMENT 'CLO mà tiêu chí này đo',
+  CONSTRAINT fk_rc_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rc_clo    FOREIGN KEY (clo_id)    REFERENCES clos(id)    ON DELETE RESTRICT,
+  CONSTRAINT ck_rc_points CHECK (points > 0)
+) ENGINE=InnoDB COMMENT='Tiêu chí của rubric';
+
+CREATE TABLE rubric_levels (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  criterion_id INT          NOT NULL,
+  order_no     SMALLINT     NOT NULL,
+  label        VARCHAR(80)  NOT NULL COMMENT 'VD Xuất sắc, Khá, Đạt, Chưa đạt',
+  descriptor   TEXT         NULL COMMENT 'Mô tả biểu hiện của mức',
+  score_pct    DECIMAL(5,2) NOT NULL COMMENT '% điểm tối đa của tiêu chí',
+  CONSTRAINT fk_rl_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT ck_rl_pct CHECK (score_pct BETWEEN 0 AND 100)
+) ENGINE=InnoDB COMMENT='Mức đạt của từng tiêu chí';
+
+CREATE TABLE exam_rubrics (
+  exam_id   INT NOT NULL PRIMARY KEY,
+  rubric_id INT NOT NULL,
+  CONSTRAINT fk_er_exam   FOREIGN KEY (exam_id)   REFERENCES exams(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_er_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='Bài nhập điểm chấm theo rubric';
+
+CREATE TABLE exam_rubric_items (
+  exam_id      INT NOT NULL,
+  criterion_id INT NOT NULL,
+  question_id  INT NOT NULL,
+  PRIMARY KEY (exam_id, criterion_id),
+  CONSTRAINT fk_eri_exam FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_eri_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Tiêu chí ↔ câu/ý của bài nhập điểm';
+
+CREATE TABLE rubric_grades (
+  exam_id      INT NOT NULL,
+  student_id   INT NOT NULL,
+  criterion_id INT NOT NULL,
+  level_id     INT NOT NULL,
+  PRIMARY KEY (exam_id, student_id, criterion_id),
+  CONSTRAINT fk_rg_exam  FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_rg_stu   FOREIGN KEY (student_id)   REFERENCES students(id)        ON DELETE CASCADE,
+  CONSTRAINT fk_rg_crit  FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rg_level FOREIGN KEY (level_id)     REFERENCES rubric_levels(id)   ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Mức đạt đã chọn cho từng sinh viên và tiêu chí';
 
 -- =====================================================================
 -- VIEW

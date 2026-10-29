@@ -370,3 +370,32 @@ ul.plain li{margin:2px 0}
 .empty-state { padding: 18px 6px; text-align: center; }
 .flow-line { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; counter-reset: s; }
 .flow-line li { padding: 10px 12px; border-left: 3px solid var(--brand2); background: var(--brand-soft); border-radius: 0 8px 8px 0; display: grid; gap: 2px; } .flow-line small { color: var(--muted); }
+
+/* rubric */
+fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+.rub-crit { border: 1px solid var(--line); border-radius: var(--r); padding: 12px; margin: 12px 0; background: #fcfdff; display: grid; gap: 8px; }
+.compact-grid { grid-template-columns: 2fr 1fr 2fr; }
+.rub-grid select { min-width: 120px; }
+.rub-grid .bad-row td { background: var(--amber-soft); }
+
+/* dòng bấm được cả hàng */
+.clickable { cursor: pointer; }
+tr.clickable:hover td { background: #f8faff; }
+.secrow.clickable:hover { border-color: var(--brand2); box-shadow: 0 2px 8px rgba(29,78,216,.08); }
+.secrow.clickable:focus-visible { outline: 2px solid var(--brand2); outline-offset: 1px; }
+.lnk { color: var(--brand2); }
+.chev { font-size: 22px; color: var(--muted); line-height: 1; padding: 0 4px; }
+
+/* biểu đồ */
+.chart-fig { margin: 0; display: grid; gap: 8px; }
+.chart-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; font-size: 12.5px; color: var(--muted); }
+.chart-legend li { display: flex; align-items: center; gap: 6px; }
+.chart-legend .lg { width: 14px; height: 10px; background: var(--c); display: inline-block; border-radius: 2px; }
+.chart-legend .lg.dash { height: 0; background: none; border-top: 2.5px dashed var(--c); border-radius: 0; }
+.chart-legend .lg.whisker { width: 2px; height: 14px; border-radius: 0; }
+.catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.cat-group h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.cat-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cat-group li a { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); color: var(--ink); background: #fff; }
+.cat-group li a:hover { border-color: var(--brand2); background: #f8faff; }
+.cat-group li small { color: var(--muted); }

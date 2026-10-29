@@ -36,7 +36,7 @@ export function ManualExamForm({ cs, courseId, sections, onClose }) {
       <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}>{l}</button>)}</div>
     <div className="grid3">
       <Field label="Tên bài"><input value={f.exam_title} onChange={e => setF({ ...f, exam_title: e.target.value })} placeholder="VD Bài tập lớn / Thực hành tuần 1–5" /></Field>
-      <Field label="Bài KT lấy minh chứng (BM6a)"><select value={f.assessment_type} onChange={e => setF({ ...f, assessment_type: e.target.value })}>
+      <Field label="Loại đánh giá của bài"><select value={f.assessment_type} onChange={e => setF({ ...f, assessment_type: e.target.value })}>
         <option value="process">Quá trình</option><option value="final">Cuối kỳ</option></select></Field>
       <Field label="Thang điểm"><input className="num" type="number" value={f.max_score} onChange={e => setF({ ...f, max_score: e.target.value })} /></Field>
     </div>

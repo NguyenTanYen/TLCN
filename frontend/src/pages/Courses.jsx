@@ -53,7 +53,7 @@ export default function Courses() {
             <table className="tbl compact"><thead><tr><th>Mã lớp</th><th>Học kỳ</th><th>GV</th><th>Moodle</th><th /></tr></thead>
               <tbody>{mySecs.map(s => <tr key={s.id}><td><Link to={`/sections/${s.id}`}><b>{s.section_code}</b></Link></td><td>{s.semester}</td><td>{s.lecturer}</td>
                 <td>{s.moodle_course_id ? `#${s.moodle_course_id}` : <span className="muted">chưa gắn</span>}</td>
-                <td className="row gap"><Link className="btn sm" to={`/sections/${s.id}/clo?tab=bm6a`} title="Kế hoạch BM6a và kết quả CĐR">BM6a</Link>
+                <td className="row gap"><Link className="btn sm" to={`/sections/${s.id}/clo?tab=bm6a`} title="Kế hoạch đánh giá và kết quả chuẩn đầu ra của lớp">Kế hoạch</Link>
                   {s.moodle_course_id && <ActionButton className="btn sm ghost" title="Lấy SV mới ghi danh trên Moodle vào danh sách lớp" okMsg={r => `Thêm ${r.added} SV – lớp có ${r.n_students} SV`}
                     onRun={async () => { const r = await api.post(`/api/class-sections/${s.id}/moodle-roster`); sections.reload(); return r }}>↻ SV</ActionButton>}
                   {isAdmin && <button className="btn sm ghost" onClick={() => setDlg({ kind: 'section', data: s })}>Sửa</button>}</td></tr>)}</tbody></table>
@@ -84,7 +84,7 @@ export function CourseInfo({ c, onSaved }) {
       <Field label="TC lý thuyết"><input className="num" type="number" min="0" value={f.credits_theory} onChange={e => setF({ ...f, credits_theory: e.target.value })} /></Field>
       <Field label="TC TN/TH/TT"><input className="num" type="number" min="0" value={f.credits_practice} onChange={e => setF({ ...f, credits_practice: e.target.value })} /></Field>
       <Field label="Cấu trúc" hint="VD 3(2:1:6)"><input className="num" value={f.course_structure} onChange={e => setF({ ...f, course_structure: e.target.value })} /></Field>
-      <Field label="Chỉ tiêu đạt CĐR môn học (%)" hint="Dòng tổng BM6b"><input className="num" type="number" min="0" max="100" value={f.clo_target_pct} onChange={e => setF({ ...f, clo_target_pct: e.target.value })} /></Field>
+      <Field label="Chỉ tiêu đạt CĐR môn học (%)" hint="Tỷ lệ sinh viên đạt cả môn để môn được xem là đạt"><input className="num" type="number" min="0" max="100" value={f.clo_target_pct} onChange={e => setF({ ...f, clo_target_pct: e.target.value })} /></Field>
     </div>
     <Field label="Học phần trước / tiên quyết (mã, cách nhau dấu phẩy)"><input value={f.prerequisites} onChange={e => setF({ ...f, prerequisites: e.target.value })} placeholder="VD DBSY230184, DASA230179" /></Field>
     <Field label="Mô tả vắn tắt học phần"><textarea rows={5} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></Field>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Loading, Stat } from '../components/ui'
 import { useApi } from '../hooks'
 import { auth } from '../api'
+import { MENUS } from '../menus'
 
 const STEP = { 1: 'Tạo bài', 2: 'Phân tích', 3: 'Công bố', 4: 'Cải tiến', 5: 'Quá hạn' }
 const STEP_TONE = { 1: 'blue', 2: 'blue', 3: 'amber', 4: 'red', 5: 'red' }
@@ -69,6 +70,18 @@ function Admin({ d }) {
   </>
 }
 
+// Danh mục chức năng theo nhóm: mỗi nhóm liệt kê các việc nhỏ bên trong, để người mới biết hệ thống làm được gì
+function Catalog({ role }) {
+  const groups = (MENUS[role] || []).filter(([g]) => g !== 'Bắt đầu')
+  return <section className="card home-card">
+    <div className="card-h"><h3>Tất cả chức năng</h3></div>
+    <div className="card-b catalog">{groups.map(([g, items]) => <div key={g} className="cat-group">
+      <h4>{g}</h4>
+      <ul>{items.map(m => <li key={m[0]}><Link to={m[0]}><b>{m[1]}</b><small>{m[3]}</small></Link></li>)}</ul>
+    </div>)}</div>
+  </section>
+}
+
 export default function Home() {
   const { data, ...st } = useApi('/api/dashboard')
   const u = auth.user()
@@ -76,5 +89,6 @@ export default function Home() {
     <div className="page-h"><div><h1>Xin chào, {u?.full_name}</h1>
       <p className="muted">{u?.role === 'admin' ? 'Theo dõi mức hoàn thiện của chương trình và những việc còn thiếu.' : 'Những việc cần làm tiếp theo cho các lớp bạn phụ trách.'}</p></div></div>
     {!data ? <Loading {...st} /> : data.role === 'lecturer' ? <Lecturer d={data} /> : <Admin d={data} />}
+    {data && <Catalog role={data.role} />}
   </>
 }
