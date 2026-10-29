@@ -22,9 +22,17 @@ import Guide from './components/Help'
 
 // Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
 const MENUS = {
-  lecturer: [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi'], ['/programs', 'Chương trình đào tạo'], ['/huong-dan', 'Hướng dẫn sử dụng']],
-  admin: [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần'], ['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi'],
-    ['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)'], ['/system', 'Kết nối Moodle'], ['/huong-dan', 'Hướng dẫn sử dụng']],
+  lecturer: [
+    ['Giảng dạy', [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
+    ['Tra cứu', [['/programs', 'Chương trình đào tạo']]],
+    ['Trợ giúp', [['/huong-dan', 'Hướng dẫn sử dụng']]],
+  ],
+  admin: [
+    ['Đào tạo', [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần']]],
+    ['Giảng dạy', [['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
+    ['Đánh giá', [['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)']]],
+    ['Hệ thống', [['/system', 'Kết nối Moodle'], ['/huong-dan', 'Hướng dẫn sử dụng']]],
+  ],
 }
 const ROLE_VI = { admin: 'Bộ môn / Quản trị', lecturer: 'Giảng viên' }
 
@@ -68,7 +76,10 @@ function Shell({ user, children }) {
         <div className="topbar-in">
           <NavLink to="/" className="brand"><span className="logo">UTE</span><span><b>Đánh giá chuẩn đầu ra</b><small>Hỗ trợ giảng viên và Bộ môn</small></span></NavLink>
           <nav className="mainnav" aria-label="Chức năng">
-            {MENUS[user.role].map(m => <NavLink key={m[0]} to={m[0]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}
+            {MENUS[user.role].map(([g, items]) => <div className="navgroup" key={g} role="group" aria-label={g}>
+              <span className="navcap">{g}</span>
+              <div className="navitems">{items.map(m => <NavLink key={m[0]} to={m[0]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}</div>
+            </div>)}
           </nav>
           <div className="topbar-r">
             <UserMenu user={user} moodle={moodle} />
