@@ -28,7 +28,8 @@ Tiêu đề / đề mục:
   - chữ nằm TRONG vùng hình (nhãn ô của sơ đồ vẽ bằng shape) – chuyển hẳn sang đoạn hình, không lặp ở đoạn chữ;
   - chú thích gần hình ("Hình 3.2: ...") nằm ngay trên/dưới, cùng cột với vùng hình;
   - vlm_desc: để trống – giai đoạn VLM sẽ điền mô tả nội dung hình (chỉ đoạn hình, bảng đã là chữ).
-Mọi đoạn chữ / bảng đều ≤ MAX ký tự (trừ code – không cắt; và chuỗi breadcrumb/chú thích đi kèm).
+Mọi đoạn chữ / bảng đều ≤ MAX ký tự, trừ: code (không cắt), chuỗi breadcrumb/chú thích đi kèm, và phần nối câu vắt
+trang (thêm tối đa CONTINUE_MAX ký tự vào đoạn cuối trang).
 """
 from __future__ import annotations
 
@@ -44,6 +45,7 @@ MIN = 80            # ký tự: đoạn cuối trang ngắn hơn thì nhập và
 HEAD_RATIO = 1.15   # khối có cỡ chữ ≥ 1,15 × cỡ chữ thân bài của tài liệu và ngắn → tiêu đề / đề mục
 HEAD_MAX = 120      # ký tự tối đa của một tiêu đề
 BOLD_HEAD_MAX = 80  # ký tự tối đa của đề mục chỉ nhận ra nhờ in đậm
+NUMBERED_TITLE_MAX = 60  # đề mục đánh số có dấu chấm cuối: tối đa 60 ký tự
 BOLD_HEAD_SIZE = 0.95  # đề mục in đậm có cỡ chữ ≥ 0,95 × thân bài (không nhận chữ in đậm nhỏ như chú thích)
 CAPTION_GAP = 40    # pt: chú thích phải nằm cách vùng hình / bảng không quá khoảng này
 OVERLAP_WORDS = 20  # cắt ép theo từ: hai phần liền nhau lặp lại tối đa 20 từ
@@ -59,7 +61,10 @@ SIZE_DEPTH = 3      # đề mục không đánh số: tối đa 3 cấp theo c�
 CONTINUE_MAX = 300  # câu vắt trang: nối tối đa 300 ký tự đầu trang sau vào đoạn cuối trang trước
 
 _CAPTION = re.compile(r"^(hình|hinh|figure|fig\.?|bảng|bang|table|sơ đồ)\s*[\d.:–-]", re.I)
-_CHAPTER = re.compile(r"^(chương|chuong|chapter|phần|phan|part|bài|bai)\s+[\dIVXLC]+\b", re.I)
+_CHAPTER = re.compile(r"^(chương|chuong|chapter|phần|phan|part|bài|bai|phụ lục|phu luc|appendix)\s+[\dIVXLC]+\b", re.I)
+_AGENDA = re.compile(r"(?:^|\s)\d{1,2}\.\s+\S")    # "1. Giới thiệu 2. Kiến trúc" – nhiều số thứ tự trong MỘT khối
+_SYMBOL_BULLET = re.compile(r"^\s*[•●○■□◆▪‣–\-*+]")
+_BULLET = re.compile(r"^\s*(?:[•●○■□◆▪‣–\-*+]|\d{1,2}[.)]\s)")
 _NUMBERED = re.compile(r"^(\d+(?:\.\d+)*)[.)]?\s+\S")
 _ROMAN = re.compile(r"^[IVXLC]+[.)]\s+\S")
 _LETTER = re.compile(r"^[A-Z][.)]\s+\S")
@@ -290,15 +295,43 @@ def _table_parts(md: str, rows: list[BBox]) -> list[tuple[str, list[BBox]]]:
 # ---------------------------------------------------------------- đề mục
 
 
+def _ends_sentence(s: str) -> bool:
+    return s.rstrip().endswith((".", "!", "?", ":", ";"))
+
+
+def _chapter_no(text: str) -> int | None:
+    """Số của đề mục cấp chương ("Chapter 1 ..." → 1, "Chương IV" → 4); không phải đề mục chương → None."""
+    m = _CHAPTER.match(text)
+    if not m:
+        return None
+    token = text[m.end(1):].split()[0].rstrip(".:")
+    if token.isdigit():
+        return int(token)
+    return _roman_value(token.upper()) if re.fullmatch(r"[IVXLCivxlc]+", token) else None
+
+
 def _is_heading(b: Block, body_size: float) -> bool:
     if b.mono or body_size <= 0:
+        return False
+    if len(_AGENDA.findall(b.text)) >= 2:          # "3. So sánh OLTP và OLAP 4. Mô hình đa chiều ..." = mục lục slide
+        return False
+    if _SYMBOL_BULLET.match(b.text):               # "– 44x increase from 2009" = gạch đầu dòng, dù chữ to
         return False
     if len(b.text) <= HEAD_MAX and b.size >= HEAD_RATIO * body_size:
         return True
     # TODO(slide thật): câu nhấn mạnh in đậm ngắn kết thúc bằng ":" vẫn bị nhận là đề mục – nếu gặp, thêm điều kiện khối
     # đứng riêng một dòng và cách đoạn bên dưới một khoảng (gap) như đề mục thật
-    return (b.bold and len(b.text) <= BOLD_HEAD_MAX and not b.text.endswith((".", ",", ";"))
-            and b.size >= BOLD_HEAD_SIZE * body_size)
+    return (b.bold and len(b.text) <= BOLD_HEAD_MAX and b.size >= BOLD_HEAD_SIZE * body_size
+            and (not b.text.endswith((".", ",", ";")) or _numbered_title_with_period(b.text)))
+
+
+def _numbered_title_with_period(text: str) -> bool:
+    """Đề mục đánh số lỡ có dấu chấm cuối ("1. Kiến trúc Hadoop.") vẫn là đề mục – khi ngắn và phần chữ sau số thứ tự
+    không có dấu câu nào khác (khác câu nhấn mạnh "Lưu ý: khóa chính không được NULL.")."""
+    if not (_NUMBERED.match(text) or _CHAPTER.match(text) or _ROMAN.match(text) or _LETTER.match(text)):
+        return False
+    title = text.split(None, 1)[1] if " " in text else ""
+    return text.endswith(".") and len(text) <= NUMBERED_TITLE_MAX and not re.search(r"[.,;:!?]", title[:-1])
 
 
 def _roman_value(s: str) -> int:
@@ -372,7 +405,18 @@ class _Builder:
 
     def __init__(self, pages: list[Page]):
         self.body_size = _body_size(pages)
-        heads = [b for p in pages for b in p.blocks if _is_heading(b, self.body_size)]
+        # slide (trang ngang): cỡ chữ thân bài tính RIÊNG từng trang – bộ slide trộn slide chữ dày (16 pt) với slide toàn
+        # hình vài dòng chữ to (28 pt); một mốc chung cho cả tệp biến ghi chú chữ to thành đề mục hoặc làm rớt đề mục phụ.
+        # Giáo trình (trang dọc) font đồng nhất → dùng mốc chung (trang mở đầu chương ít chữ làm mốc riêng sai)
+        self.page_body = {p.no: self.local_body(p) for p in pages}
+        # ứng viên tiêu đề slide của từng trang: khối ĐẦU TIÊN mang cỡ chữ lớn nhất trang (làm tròn 1 pt – PDF hay có nhiễu
+        # 20,0 / 20,1 khiến một dòng mục lục "lớn nhất trang")
+        self.page_title = {}
+        for p in pages:
+            sizes = [round(b.size) for b in p.blocks if not b.mono]
+            top = max(sizes, default=0)
+            self.page_title[p.no] = next((id(b) for b in p.blocks if not b.mono and round(b.size) == top), None)
+        heads = [b for p in pages for b in p.blocks if self.is_heading(b, p)]
         # cỡ chữ làm tròn tới 1 pt: PDF hay sinh cỡ lẻ (17,9 / 18,0) cho cùng một kiểu đề mục
         self.size_rank = {s: i + 1 for i, s in enumerate(sorted({round(b.size) for b in heads}, reverse=True))}
         self.schemes = _schemes(heads)
@@ -383,6 +427,24 @@ class _Builder:
         self.page_out: list[Passage] = []
         self.buf: list[Block] = []
         self.pending: Passage | None = None             # đoạn cuối trang trước kết thúc giữa câu
+
+    def local_body(self, p: Page) -> float:
+        """Mốc cỡ chữ thân bài của một trang: slide có ≥ 2 cỡ chữ → mốc riêng của trang; slide chỉ một cỡ chữ (slide chuyển
+        chương "Chương 5. Chuẩn hóa" giữa trang) không đủ thông tin → mốc chung; trang dọc → mốc chung."""
+        sizes = {round(b.size) for b in p.blocks if not b.mono}
+        if p.width > p.height and len(sizes) >= 2:
+            return _body_size([p])
+        return self.body_size
+
+    def is_heading(self, b: Block, p: Page) -> bool:
+        body = self.page_body[p.no]
+        if _is_heading(b, body):
+            return True
+        # tiêu đề slide: chữ LỚN NHẤT trang, nằm ở vùng trên – vẫn là tiêu đề khi slide gần như chỉ có tiêu đề và một dòng
+        # chữ to (mốc riêng của trang khi đó bằng chính cỡ chữ to, không vượt được 1,15 lần)
+        return (p.width > p.height and id(b) == self.page_title[p.no] and b.bbox[1] < TITLE_ZONE * p.height
+                and len(b.text) <= HEAD_MAX and (round(b.size) > round(body) or b.size >= HEAD_RATIO * self.body_size)
+                and not _SYMBOL_BULLET.match(b.text) and len(_AGENDA.findall(b.text)) < 2)
 
     def ctx(self) -> tuple[str, str, int]:
         """(đề mục gần nhất, breadcrumb, cấp) đang hiệu lực ở vị trí hiện tại."""
@@ -410,6 +472,15 @@ class _Builder:
             else:
                 rank = self.size_rank.get(round(b.size), len(self.size_rank))
                 lv = base + min(rank, SIZE_DEPTH)
+        if scheme and scheme != "num1" and scheme.startswith("num"):
+            # mục "2.1" thuộc chương 2: chương khác số đang trong breadcrumb là chương cũ (trang mở đầu chương mới không
+            # nhận được là đề mục) → bỏ chương cũ để "Chapter 1 > 2.1 ..." không xảy ra
+            major = int(b.text.split(".", 1)[0])
+            for i, (_, text, _) in enumerate(self.stack):
+                no = _chapter_no(text)
+                if no is not None and no != major:
+                    del self.stack[i:]
+                    break
         while self.stack and self.stack[-1][0] >= lv:
             self.stack.pop()
         self.stack.append((lv, b.text, scheme is not None))
@@ -436,7 +507,10 @@ class _Builder:
             for part in _split_long(b.text):
                 self.page_out.append(Passage(self.page.no, "text", title, part, [b.bbox], breadcrumb=crumb, level=lv))
             return
-        if self.buf and len(" ".join(x.text for x in self.buf)) + len(b.text) > TARGET:
+        size = len(" ".join(x.text for x in self.buf)) + 1 + len(b.text)
+        # đủ TARGET thì chốt đoạn – nhưng chỉ ở CUỐI CÂU hoặc trước gạch đầu dòng mới (PowerPoint hay tách một đoạn văn
+        # thành nhiều khối giữa câu); chưa hết câu thì gom tiếp, chạm MAX thì buộc phải cắt
+        if self.buf and (size > MAX or (size > TARGET and (_ends_sentence(self.buf[-1].text) or _BULLET.match(b.text)))):
             self.flush()
         self.buf.append(b)
 
@@ -469,7 +543,7 @@ class _Builder:
         if not pending or not text_blocks:
             return
         b = text_blocks[0]
-        if _is_heading(b, self.body_size) or b.mono:
+        if self.is_heading(b, self.page) or b.mono:
             return
         # trang sau mở đầu bằng chữ thường → chắc chắn là câu nối tiếp; mở đầu chữ HOA (tên riêng "Oracle", "SQL Server")
         # thì chỉ nối khi trang trước dừng ở từ nối / dấu phẩy ("... hiện nay là") – nếu không, chữ hoa thường là câu mới
@@ -490,7 +564,7 @@ class _Builder:
         landscape = p.width > p.height
         last_heading = False
         for b in text_blocks:
-            last_heading = _is_heading(b, self.body_size)
+            last_heading = self.is_heading(b, p)
             if last_heading:
                 self.flush()
                 slide_title = landscape and len(heads) == 1 and b.bbox[1] < TITLE_ZONE * p.height

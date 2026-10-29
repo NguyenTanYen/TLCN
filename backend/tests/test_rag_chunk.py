@@ -581,3 +581,258 @@ def test_more_connectors_and_known_limit():
     # giới hạn đã biết: dừng ở danh từ thường + trang sau mở đầu chữ hoa → không nhận ra (luật không phủ được)
     ps = _textbook("Mô hình ER biểu diễn thực thể", "Student và Course trong hệ thống.")
     assert ps[0].body == "Mô hình ER biểu diễn thực thể"
+
+
+# ---- lỗi tìm thấy khi chạy thử 8 PDF thật (slide BDES233877, giáo trình, bài báo, CTĐT) ----
+
+def test_missing_space_rebuilt_from_character_gaps():
+    doc = pymupdf.open()
+    pg = doc.new_page(width=720, height=540)
+    _t(pg, (40, 60), "Mục tiêu", 28)
+    w = pymupdf.Font(fontfile=FONT).text_length("• Tìm hiểu về", fontsize=20)
+    _t(pg, (60, 150), "• Tìm hiểu về", 20)
+    _t(pg, (60 + w + 4.6, 150), "Apache Hadoop", 20)      # PowerPoint: không có ký tự dấu cách, chỉ có khoảng trống
+    assert "về Apache Hadoop" in _passages(doc)[0].body
+
+
+def test_rotated_margin_stamp_ignored():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    _t(pg, (50, 80), "1 INTRODUCTION", 16)
+    _t(pg, (50, 110), "Documents are visually rich structures that convey information.", 10)
+    pg.insert_text((20, 700), "arXiv:2407.01449v6 [cs.IR] 28 Feb 2025", fontsize=16, fontfile=FONT, fontname="dv",
+                   rotate=90)                              # dấu arXiv dọc lề trái
+    ps = _passages(doc)
+    assert all("arXiv" not in p.text for p in ps) and ps[0].breadcrumb == "1 INTRODUCTION"
+
+
+def test_book_page_heads_varying_by_chapter_and_parity_removed():
+    doc = pymupdf.open()
+    for i in range(8):
+        pg = doc.new_page()
+        n = i + 51                                         # số trang in lệch số thứ tự tệp 50
+        chap = "3 NoSQL Database" if i < 4 else "4 Hadoop Tools"
+        head = f"{chap} {n}" if i % 2 == 0 else f"{n} Big Data Concepts"   # trang chẵn / lẻ khác nhau
+        _t(pg, (50, 40), head, 9)
+        _t(pg, (50, 120), f"Nội dung trang {n} trình bày một khái niệm của dữ liệu lớn.", 11)
+    _t(doc[0], (50, 820), "Contents x", 9)
+    ps = _passages(doc)
+    assert all("NoSQL Database" not in p.text and "Big Data Concepts" not in p.text and "Contents" not in p.text
+               for p in ps)
+
+
+def test_date_only_running_header_not_in_breadcrumb():
+    doc = pymupdf.open()
+    for i in range(4):
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (600, 25), "8 / 24 / 2026", 10)
+        _t(pg, (40, 90), f"Kho dữ liệu {i}", 28)
+        _t(pg, (60, 160), "Kho dữ liệu tích hợp dữ liệu từ nhiều nguồn.", 18)
+    assert [p.breadcrumb for p in _passages(doc)] == [f"Kho dữ liệu {i}" for i in range(4)]
+
+
+def test_slide_title_on_template_banner_and_logo_are_not_figures():
+    doc = pymupdf.open()
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 20, 20))
+    pix.clear_with(120)
+    titles = ["MỤC TIÊU", "GIỚI THIỆU", "KIẾN TRÚC HADOOP", "HDFS"]
+    for title in titles:
+        pg = doc.new_page(width=720, height=540)
+        pg.draw_rect(pymupdf.Rect(0, 20, 720, 85), color=None, fill=(0.1, 0.3, 0.6))   # banner của mẫu slide
+        _t(pg, (40, 65), title, 28)                                                    # tiêu đề nằm TRÊN banner
+        pg.insert_image(pymupdf.Rect(640, 470, 700, 520), pixmap=pix)                  # logo trường ở mọi slide
+        _t(pg, (60, 160), f"Nội dung chính của phần {title.lower()} được trình bày ở đây.", 18)
+    ps = _passages(doc)
+    assert [p.kind for p in ps] == ["text"] * 4
+    assert [p.breadcrumb for p in ps] == titles
+
+
+def test_text_box_with_fill_is_not_a_figure():
+    doc = pymupdf.open()
+    pg = doc.new_page(width=720, height=540)
+    pg.draw_rect(pymupdf.Rect(36, 50, 330, 100), color=None, fill=(0.9, 0.9, 0.2))     # hộp chữ có nền
+    _t(pg, (40, 90), "Kiến trúc Hadoop", 34)
+    _t(pg, (60, 160), "Hadoop gồm HDFS và MapReduce.", 18)
+    ps = _passages(doc)
+    assert [p.kind for p in ps] == ["text"] and ps[0].breadcrumb == "Kiến trúc Hadoop"
+
+
+def test_target_cut_only_at_sentence_end():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    a = "Hadoop bao gồm hai thành phần chính là hệ thống tệp phân tán HDFS và công cụ xử lý MapReduce " * 3
+    b = "kết nối với nhau để đảm bảo khả năng chịu lỗi và khả năng mở rộng của cụm máy."
+    c = "• MapReduce xử lý dữ liệu song song trên toàn bộ cụm máy tính của hệ thống."
+    for y, s in ((60, a.strip()), (160, b), (260, c)):     # PowerPoint tách MỘT câu thành hai khối
+        pg.insert_textbox(pymupdf.Rect(50, y, 550, y + 90), s, fontsize=11, fontfile=FONT, fontname="dv")
+    ps = _passages(doc)
+    assert all(p.body.rstrip().endswith(".") for p in ps)  # không đoạn nào bị cắt giữa câu
+    assert b in ps[0].body
+
+
+def test_agenda_block_is_not_heading():
+    doc = pymupdf.open()
+    pg = doc.new_page(width=720, height=540)
+    _t(pg, (40, 60), "NỘI DUNG", 28)
+    _t(pg, (60, 140), "1. Giới thiệu 2. Kiến trúc 3. Hệ sinh thái", 24)
+    assert [p.breadcrumb for p in _passages(doc)] == ["NỘI DUNG"]
+
+
+def test_appendix_is_chapter_level_and_drops_list_item():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    _b(pg, (50, 60), "69. Nâng cao năng lực số")
+    _t(pg, (50, 90), "Học phần trang bị kỹ năng số cho sinh viên.", 11)
+    _b(pg, (50, 140), "PHỤ LỤC II", 14)
+    _t(pg, (50, 170), "Ma trận các học phần đáp ứng chuẩn đầu ra của chương trình.", 11)
+    assert [p.breadcrumb for p in _passages(doc)] == ["69. Nâng cao năng lực số", "PHỤ LỤC II"]
+
+
+def test_section_of_new_chapter_drops_old_chapter():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    _b(pg, (50, 60), "Chapter 1 Refresher", 16)
+    _t(pg, (50, 90), "This chapter reviews big data basics.", 11)
+    _b(pg, (50, 140), "2.1 Cluster Computing")                      # trang mở đầu Chương 2 không nhận được
+    _t(pg, (50, 170), "A cluster is a group of computers working together.", 11)
+    assert [p.breadcrumb for p in _passages(doc)] == ["Chapter 1 Refresher", "2.1 Cluster Computing"]
+
+
+def test_large_bullet_line_is_not_heading():
+    doc = pymupdf.open()
+    pg = doc.new_page(width=720, height=540)
+    _t(pg, (40, 60), "Volume (Scale)", 32)
+    _t(pg, (60, 130), "– 44x increase from 2009 to 2020", 24)      # gạch đầu dòng cỡ chữ lớn hơn thân bài
+    _t(pg, (60, 180), "Data volume is increasing exponentially across every industry.", 18)
+    _t(pg, (60, 220), "Most of the data is generated by machines and sensors.", 18)
+    assert [p.breadcrumb for p in _passages(doc)] == ["Volume (Scale)"]
+
+
+# ---- review đợt PDF thật: các heuristic không được bỏ nhầm nội dung thật ----
+
+def test_repeated_diagram_in_middle_of_slides_is_kept():
+    doc = pymupdf.open()
+    for i in range(8):                                     # sơ đồ HDFS giữa slide, giảng từng bước qua 6/8 slide
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (40, 60), f"Kiến trúc HDFS - bước {i}", 28)
+        if i < 6:
+            for x in (150, 330, 510):
+                pg.draw_rect(pymupdf.Rect(x, 200, x + 120, 300))
+            pg.draw_line((270, 250), (330, 250))
+            pg.draw_line((450, 250), (510, 250))
+        _t(pg, (60, 450), f"Bước {i}: NameNode điều phối các DataNode.", 18)
+    pages = ingest.read_pdf(doc.tobytes())
+    assert [len(p.figures) for p in pages] == [1] * 6 + [0] * 2
+
+
+def test_footnotes_numbered_in_step_with_pages_are_kept():
+    doc = pymupdf.open()
+    topics = ["HDFS", "YARN", "MapReduce", "Hive", "Pig"]
+    for i, topic in enumerate(topics):
+        pg = doc.new_page()
+        _t(pg, (50, 100), f"Nội dung trang {i + 1} có một chú thích cuối trang.", 11)
+        _t(pg, (50, 800), f"{i + 1} Xem thêm tài liệu về {topic}.", 8)   # số chú thích tăng cùng nhịp số trang
+    kept = [b.text for p in ingest.read_pdf(doc.tobytes()) for b in p.blocks if "Xem thêm" in b.text]
+    assert len(kept) == 5
+
+
+def test_letter_spaced_title_not_broken_into_letters():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    font = pymupdf.Font(fontfile=FONT)
+    x = 50.0
+    for ch in "HADOOP CLUSTER":                          # chữ giãn 0,2 em, không có ký tự dấu cách
+        if ch != " ":
+            _t(pg, (x, 100), ch, 20)
+        x += font.text_length(ch, fontsize=20) + 0.2 * 20
+    assert [b.text for b in ingest.read_pdf(doc.tobytes())[0].blocks] == ["HADOOP CLUSTER"]
+
+
+def test_numbered_bold_heading_with_trailing_period():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    _b(pg, (50, 60), "1. Kiến trúc Hadoop.")
+    _t(pg, (50, 90), "Hadoop gồm HDFS và MapReduce chạy trên cụm máy.", 11)
+    _b(pg, (50, 130), "Lưu ý: khóa chính không được NULL.")      # câu nhấn mạnh in đậm vẫn KHÔNG là đề mục
+    _b(pg, (50, 170), "2. Hệ sinh thái")
+    _t(pg, (50, 200), "Hệ sinh thái gồm Hive, Pig, HBase.", 11)
+    ps = _passages(doc)
+    assert [p.breadcrumb for p in ps] == ["1. Kiến trúc Hadoop.", "2. Hệ sinh thái"]
+    assert "Lưu ý: khóa chính không được NULL." in ps[0].body
+
+
+# ---- review: cỡ chữ thân bài theo từng slide, code font thường, chữ có dấu trong ô bảng ----
+
+TITLES = ["Kiến trúc Hadoop", "Thành phần Hadoop", "Lưu trữ Hadoop", "Xử lý Hadoop", "Mở rộng Hadoop"]
+
+
+def test_big_note_on_picture_slide_is_not_heading():
+    doc = pymupdf.open()
+    for i in range(10):                                    # 8 slide chữ dày cỡ 16 + 2 slide toàn hình, ghi chú cỡ 28
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (40, 60), TITLES[i % 5], 32)
+        if i < 8:
+            for k in range(4):
+                _t(pg, (60, 140 + 30 * k), f"Gạch đầu dòng {k} của slide {i} giải thích một ý về Hadoop.", 16)
+        else:
+            _t(pg, (60, 300), f"Ghi chú lớn cho sơ đồ của slide {i}", 28)
+    ps = [p for p in _passages(doc) if p.page in (9, 10)]
+    assert [p.breadcrumb for p in ps] == [TITLES[3], TITLES[4]]
+    assert ps[0].body == "Ghi chú lớn cho sơ đồ của slide 8"
+
+
+def test_sub_heading_on_dense_slide_kept_when_most_slides_use_big_font():
+    doc = pymupdf.open()
+    for i in range(10):                                    # 6 slide chữ to cỡ 24 + 4 slide chữ dày cỡ 14, đề mục phụ cỡ 20
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (40, 60), TITLES[i % 5], 32)
+        if i < 6:
+            for k in range(4):
+                _t(pg, (60, 140 + 40 * k), f"Ý lớn {k} của slide {i} về dữ liệu lớn.", 24)
+        else:
+            _t(pg, (60, 130), "Đề mục phụ", 20)
+            for k in range(3):
+                _t(pg, (60, 170 + 22 * k), f"Dòng chi tiết {k} của slide {i} trình bày nội dung dày đặc hơn.", 14)
+    assert [p.breadcrumb for p in _passages(doc) if p.page == 7] == [TITLES[1] + " > Đề mục phụ"]
+    assert all(p.breadcrumb == TITLES[(p.page - 1) % 5] for p in _passages(doc) if p.page <= 6)
+
+
+PY_LINES = ["def tinh_diem(ds):", "    tong = 0", "    for x in ds:", "        if x.diem >= 5:",
+            "            tong += x.diem", "    return tong / len(ds)"]
+
+
+def test_python_pasted_in_proportional_font_keeps_indent_levels():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    _t(pg, (50, 40), "Ví dụ hàm tính điểm trung bình các bài đạt:", 11)
+    space = pymupdf.Font(fontfile=FONT).text_length(" ", fontsize=11)
+    for i, line in enumerate(PY_LINES):                    # font THƯỜNG, dòng lùi vào bằng tọa độ x
+        indent = len(line) - len(line.lstrip())
+        _t(pg, (50 + indent * space, 70 + 15 * i), line.lstrip(), 11)
+    code = [p for p in _passages(doc) if p.code]
+    assert len(code) == 1 and code[0].body == "\n".join(PY_LINES)
+
+
+def test_table_cells_with_tall_diacritics_and_descenders_keep_all_chars():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    rows = [["Mã", "Tên"], ["Ễ1", "QUẢN LÝ ĐỀ THI"], ["gy2", "jeopardy ghép"]]
+    for r, row in enumerate(rows):
+        for c, s in enumerate(row):
+            rc = pymupdf.Rect(60 + 200 * c, 100 + 22 * r, 260 + 200 * c, 122 + 22 * r)   # hàng thấp, sát chữ
+            pg.draw_rect(rc)
+            _t(pg, (rc.x0 + 4, rc.y0 + 16), s, 14)
+    md = ingest.read_pdf(doc.tobytes())[0].tables[0].markdown
+    assert md.split("\n")[2:] == ["|Ễ1|QUẢN LÝ ĐỀ THI|", "|gy2|jeopardy ghép|"]
+
+
+def test_font_size_noise_does_not_make_agenda_line_a_slide_title():
+    doc = pymupdf.open()
+    for i in range(3):
+        pg = doc.new_page(width=720, height=540)
+        _b(pg, (40, 40), "NỘI DUNG" if i == 0 else TITLES[i], 20)
+        items = ["1. Giới thiệu Hadoop", "2. Quá trình phát triển", "3. Kiến trúc Hadoop"]
+        for k, s in enumerate(items if i == 0 else [f"Ý {k} của slide {i} trình bày một nội dung." for k in range(3)]):
+            _t(pg, (60, 90 + 36 * k), s, 20.1 if k == 1 else 20)   # nhiễu cỡ chữ 0,1 pt ở dòng thứ hai
+    crumbs = [p.breadcrumb for p in _passages(doc)]
+    assert crumbs == ["NỘI DUNG", TITLES[1], TITLES[2]]
