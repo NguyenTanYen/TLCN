@@ -22,7 +22,7 @@ export default function StudentProfile() {
   return (
     <>
       <div className="page-h">
-        <div><div className="crumb"><Link to="/">Lớp học phần</Link> / <Link to={`/sections/${cs}`}>{section?.section_code}</Link> / <Link to={`/sections/${cs}/stats${cur ? `?exam=${cur.id}` : ''}`}>Thống kê lớp</Link> / {s.student_code}</div>
+        <div><div className="crumb"><Link to="/courses">Lớp học phần</Link> / <Link to={`/sections/${cs}`}>{section?.section_code}</Link> / <Link to={`/sections/${cs}/stats${cur ? `?exam=${cur.id}` : ''}`}>Thống kê lớp</Link> / {s.student_code}</div>
           <h1>{s.full_name}</h1>
           <p className="muted">MSSV {s.student_code} · lớp {s.class_name || '—'} · {section?.course_code} – {section?.course_name}
             {s.status !== 'active' && <> · <Badge tone="amber">Đã rút học phần</Badge></>}</p></div>

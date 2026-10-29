@@ -78,7 +78,7 @@ NEW_COLUMNS = [
 ]
 
 NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos",
-              "course_materials", "material_chunks", "learning_reading_items", "scan_sheets")
+              "course_materials", "material_chunks", "learning_reading_items", "scan_sheets", "improvement_actions")
 
 # (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
 NEW_CHECKS = [

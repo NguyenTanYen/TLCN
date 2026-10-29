@@ -23,8 +23,13 @@ test.afterEach(() => H.saveState(S))
 // ================================================================== AD1 – Đăng nhập
 test('AD1 – Bộ môn đăng nhập; sai mật khẩu bị từ chối', async ({ page, browser }) => {
   await test.step('Bước 1: menu của Bộ môn có đủ các mục quản trị', async () => {
-    for (const item of ['Chương trình đào tạo', 'Học phần', 'Lớp học phần', 'Kế hoạch đo chỉ báo (PI)', 'Kết quả chương trình (PLO)', 'Kết nối Moodle'])
+    for (const item of ['Tổng quan', 'Chương trình đào tạo', 'Học phần', 'Lớp học phần', 'Kế hoạch đo chỉ báo (PI)', 'Kết quả chương trình (PLO)', 'Kết nối Moodle'])
       await expect(nav(page, item)).toBeVisible()
+  })
+  await test.step('Bước 1b: Tổng quan hiện danh sách kiểm tra thiết lập (6 mục) với nút dẫn tới trang cần làm', async () => {
+    await goto(page, '/')
+    await see(page, /Tình trạng thiết lập · \d\/6 mục hoàn tất/)
+    await expect(page.locator('a.todo.check')).toHaveCount(6)
   })
   await test.step('Bước 2: phiên mới đăng nhập sai mật khẩu → báo lỗi, vẫn ở màn hình đăng nhập', async () => {
     const p = await H.newPage(browser)

@@ -36,7 +36,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `moodle/local/clo` | Plugin Moodle: nút SSO, Web Service tạo Quiz / Offline Quiz, nhận kết quả, trang kết quả cho SV |
 | `moodle/mod/offlinequiz_v4.5.4.zip` | Plugin Offline Quiz (GPL v3, mã gốc): in đề + phiếu, nhận diện phiếu quét, chấm bài thi giấy |
 | `moodle/theme/ute` | Giao diện UTE LMS cho Moodle |
-| `database/01_schema.sql` | CSDL `assessment_db` – 50 bảng, 4 view (MySQL 8) |
+| `database/01_schema.sql` | CSDL `assessment_db` – 51 bảng, 4 view (MySQL 8) |
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
@@ -69,7 +69,7 @@ docker compose up -d --build
 # 1) CSDL (MySQL 8.0+) – tạo user có quyền trên assessment_db và SELECT trên moodle
 cd backend && pip install -r requirements.txt
 echo 'DATABASE_URL=mysql+pymysql://USER:PASS@127.0.0.1:3306/assessment_db?charset=utf8mb4' > .env
-python -m app.cli init-db          # 50 bảng + dữ liệu tham chiếu
+python -m app.cli init-db          # 51 bảng + dữ liệu tham chiếu
 python -m app.cli seed-demo        # tài khoản, môn DBMS330284, 4 CLO, 30 câu hỏi, lớp HP 40 SV, 2 bài KT
 python -m app.cli install-bridge   # khi đã có CSDL Moodle trên cùng server
 

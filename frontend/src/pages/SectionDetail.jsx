@@ -38,7 +38,7 @@ export default function SectionDetail() {
   return (
     <>
       <div className="page-h">
-        <div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, `${cs.course_code} – ${cs.course_name}`], [null, cs?.section_code]]} />
+        <div><Crumbs items={[['/courses', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, `${cs.course_code} – ${cs.course_name}`], [null, cs?.section_code]]} />
           <h1>Lớp {cs?.section_code}</h1>
           <p className="muted">{cs?.course_name} · {cs?.semester} · GV {cs?.lecturer} · {cs?.n_students} SV ·{' '}
             {cs?.moodle_course_id ? <><a href={moodle && `${moodle}/course/view.php?id=${cs.moodle_course_id}`} onClick={e => { e.preventDefault(); openMoodle(`/course/view.php?id=${cs.moodle_course_id}`) }}>Khóa học Moodle #{cs.moodle_course_id} ↗</a>{' '}

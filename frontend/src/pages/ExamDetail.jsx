@@ -56,7 +56,7 @@ export default function ExamDetail() {
   return (
     <>
       <div className="page-h">
-        <div><Crumbs items={[['/', 'Môn học của tôi'], [`/courses/${e.course_id}`, e.course_code], [`/sections/${e.class_section_id}`, e.section_code], [null, `Bài kiểm tra #${e.id}`]]} />
+        <div><Crumbs items={[['/courses', 'Môn học của tôi'], [`/courses/${e.course_id}`, e.course_code], [`/sections/${e.class_section_id}`, e.section_code], [null, `Bài kiểm tra #${e.id}`]]} />
           <h1>{e.exam_title} {e.parent_exam_id && <Badge tone="amber">Ôn tập</Badge>}</h1>
           <p className="muted">{e.course_code} – {e.course_name} · {e.semester} · {TYPE_VI[e.exam_type]} ·
             loại đánh giá {e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'} · {e.questions.length} {manual ? 'câu/ý' : 'câu'} · thang điểm {e.max_score}

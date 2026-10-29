@@ -58,7 +58,7 @@ export default function Courses() {
                     onRun={async () => { const r = await api.post(`/api/class-sections/${s.id}/moodle-roster`); sections.reload(); return r }}>↻ SV</ActionButton>}
                   {isAdmin && <button className="btn sm ghost" onClick={() => setDlg({ kind: 'section', data: s })}>Sửa</button>}</td></tr>)}</tbody></table>
             {!mySecs.length && <p className="muted small">Chưa có lớp học phần. {isAdmin ? 'Bấm "+ Lớp HP" để tạo và gán giảng viên.' : 'Liên hệ Bộ môn.'}</p>}
-            <p className="muted small">Khóa học đã tạo trên Moodle: dùng "Đưa vào hệ thống" ở trang <Link to="/">Lớp học phần</Link> (tự gắn khóa học và lấy danh sách SV). Lớp tạo tay được gắn khóa học Moodle khi tạo Quiz/đề giấy lần đầu.</p>
+            <p className="muted small">Khóa học đã tạo trên Moodle: dùng "Đưa vào hệ thống" ở trang <Link to="/courses">Lớp học phần</Link> (tự gắn khóa học và lấy danh sách SV). Lớp tạo tay được gắn khóa học Moodle khi tạo Quiz/đề giấy lần đầu.</p>
           </Card>
         </div>
         <Outlines c={c} onSaved={reload} />

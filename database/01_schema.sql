@@ -38,7 +38,7 @@ USE assessment_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
-DROP TABLE IF EXISTS scan_sheets, sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
+DROP TABLE IF EXISTS improvement_actions, scan_sheets, sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
@@ -792,6 +792,23 @@ CREATE TABLE scan_sheets (
   CONSTRAINT ck_scansheet_status CHECK (status IN ('saved','review','superseded')),
   INDEX ix_scansheet_exam (exam_id, status)
 ) ENGINE=InnoDB COMMENT='Phiếu trả lời đã quét: chấm & lưu ngay, phiếu sai MSSV/mã đề chờ giảng viên xử lý';
+
+CREATE TABLE improvement_actions (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  class_section_id INT          NOT NULL,
+  clo_id           INT          NULL COMMENT 'NULL = hành động chung của cả lớp HP',
+  description      TEXT         NOT NULL COMMENT 'Hành động cải tiến',
+  owner            VARCHAR(150) NULL COMMENT 'Người phụ trách',
+  due_date         DATE         NULL,
+  status           VARCHAR(10)  NOT NULL DEFAULT 'open' COMMENT 'open | doing | done | verified',
+  result           TEXT         NULL COMMENT 'Kết quả kiểm chứng sau khi thực hiện (kỳ sau)',
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ia_cs  FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ia_clo FOREIGN KEY (clo_id) REFERENCES clos(id) ON DELETE SET NULL,
+  CONSTRAINT ck_ia_status CHECK (status IN ('open','doing','done','verified')),
+  INDEX ix_ia_cs (class_section_id, status)
+) ENGINE=InnoDB COMMENT='Hành động cải tiến theo lớp HP/CLO: người phụ trách, hạn, trạng thái, kết quả kiểm chứng';
 
 -- =====================================================================
 -- VIEW

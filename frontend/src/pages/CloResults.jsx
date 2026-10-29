@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Badge, Card, Crumbs, Field, Flow, Loading, Modal, Stat, diClass } from '../components/ui'
+import { CloTrend, ImprovementActions } from '../components/Improvement'
 import { useApi } from '../hooks'
 
 const EVID = { process: 'Quá trình', final: 'Cuối kỳ', any: 'Quá trình + Cuối kỳ' }
@@ -27,7 +28,7 @@ export default function CloResults() {
   return (
     <>
       <div className="page-h">
-        <div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], [`/sections/${id}`, cs?.section_code], [null, 'Kết quả chuẩn đầu ra của lớp (BM6)']]} />
+        <div><Crumbs items={[['/courses', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], [`/sections/${id}`, cs?.section_code], [null, 'Kết quả chuẩn đầu ra của lớp (BM6)']]} />
           <h1>Kết quả chuẩn đầu ra môn học – lớp {cs?.section_code}</h1><p className="muted">{r.course} · {r.semester} · GV {cs?.lecturer}</p></div>
         <ActionButton className="btn primary" onRun={() => api.download(`/api/reports/class-sections/${id}/bm6.xlsx`, `BM6_${cs?.section_code || id}.xlsx`)}>⬇ Xuất bộ BM6 của lớp (.xlsx)</ActionButton>
       </div>
@@ -69,6 +70,8 @@ export default function CloResults() {
               <tr className="total"><td colSpan={4}>KẾT QUẢ ĐẠT ĐƯỢC CĐR MÔN HỌC</td><td>{cr.n_achieved}</td><td>{cr.n_evaluated}</td><td>{fmtPct(cr.achieved_pct)}</td><td>{cr.target_pct}%</td><td><Achieved ok={cr.n_evaluated ? cr.is_achieved : null} /></td><td /></tr>
             </tbody></table>
         </Card>
+        {cs && <CloTrend courseId={cs.course_id} />}
+        <ImprovementActions csId={id} clos={r.clos} />
       </>}
       {tab === 'bm6c' && <div className="grid2">
         <Card title="Minh chứng từng CLO (BM6c/6d)">

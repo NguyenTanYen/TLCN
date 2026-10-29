@@ -19,15 +19,18 @@ import CourseList from './pages/CourseList'
 import { ProgramDetail, ProgramList } from './pages/Programs'
 import Remedial from './pages/Remedial'
 import Guide from './components/Help'
+import Home from './pages/Home'
 
 // Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
 const MENUS = {
   lecturer: [
-    ['Giảng dạy', [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
+    ['Bắt đầu', [['/', 'Tổng quan']]],
+    ['Giảng dạy', [['/courses', 'Môn học của tôi', ['/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
     ['Tra cứu', [['/programs', 'Chương trình đào tạo']]],
     ['Trợ giúp', [['/huong-dan', 'Hướng dẫn sử dụng']]],
   ],
   admin: [
+    ['Bắt đầu', [['/', 'Tổng quan']]],
     ['Đào tạo', [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần']]],
     ['Giảng dạy', [['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi']]],
     ['Đánh giá', [['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)']]],
@@ -101,7 +104,7 @@ export default function App() {
   }
   const admin = user.role === 'admin'
   return <Shell user={user}><Routes>
-    <Route path="/" element={admin ? <Navigate to="/programs" replace /> : <MyCourses />} />
+    <Route path="/" element={<Home />} />
     <Route path="/courses" element={admin ? <CourseList /> : <MyCourses />} />
     <Route path="/courses/:id" element={<CourseHome />} />
     <Route path="/programs" element={<ProgramList />} />

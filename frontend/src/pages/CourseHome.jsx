@@ -28,7 +28,7 @@ export default function CourseHome() {
   const closeNew = () => { setCreating(false); if (sp.get('new')) setSp({ tab }) }
   return <>
     <div className="page-h">
-      <div><Crumbs items={[isAdmin ? ['/courses', 'Học phần'] : ['/', 'Môn học của tôi'], [null, s?.course_code || '…']]} />
+      <div><Crumbs items={[isAdmin ? ['/courses', 'Học phần'] : ['/courses', 'Môn học của tôi'], [null, s?.course_code || '…']]} />
         <h1>{s?.course_name || 'Học phần'}</h1>
         {s && <p className="muted">{s.course_code} · {s.credits} tín chỉ{s.course_structure ? ` · ${s.course_structure}` : ''}
           {s.programs.length ? ` · ${s.programs.map(p => p.code).join(', ')}` : ''}</p>}</div>

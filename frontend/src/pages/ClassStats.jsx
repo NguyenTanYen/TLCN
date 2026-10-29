@@ -26,7 +26,7 @@ export default function ClassStats() {
 
   const head = (
     <div className="page-h">
-      <div><div className="crumb"><Link to="/">Lớp học phần</Link> / <Link to={`/sections/${id}`}>{cs?.section_code}</Link> / Thống kê lớp</div>
+      <div><div className="crumb"><Link to="/courses">Lớp học phần</Link> / <Link to={`/sections/${id}`}>{cs?.section_code}</Link> / Thống kê lớp</div>
         <h1>Thống kê kết quả lớp học phần</h1><p className="muted">{cs?.course_code} – {cs?.course_name} · {cs?.semester}</p></div>
       <div className="row gap"><Link className="btn" to={`/sections/${id}/clo`}>Kết quả chuẩn đầu ra của lớp (BM6)</Link></div>
     </div>)

@@ -52,7 +52,16 @@ const examIdFromUrl = page => Number(page.url().match(/\/exams\/(\d+)/)[1])
 // ================================================================== GV1 – Đăng nhập
 test('GV1 – Giảng viên đăng nhập: menu chỉ có mục của GV', async ({ page }) => {
   await test.step('Bước 1: có Môn học của tôi, Ngân hàng câu hỏi, Chương trình đào tạo', async () => {
-    for (const item of ['Môn học của tôi', 'Ngân hàng câu hỏi', 'Chương trình đào tạo']) await expect(nav(page, item)).toBeVisible()
+    for (const item of ['Tổng quan', 'Môn học của tôi', 'Ngân hàng câu hỏi', 'Chương trình đào tạo']) await expect(nav(page, item)).toBeVisible()
+  })
+  await test.step('Bước 1b: trang chủ là Tổng quan, có "Việc cần làm" và "Làm ngay" dẫn đến đúng trang', async () => {
+    await goto(page, '/')
+    await see(page, 'Việc cần làm')
+    await see(page, 'Quy trình một bài kiểm tra')
+    const first = page.locator('a.todo').first()
+    await expect(first).toBeVisible()
+    await first.click()
+    await page.waitForURL(/\/(exams|sections)\//)
   })
   await test.step('Bước 2: không có mục quản trị của Bộ môn (Kế hoạch đo PI, Tổng hợp PLO, Kết nối Moodle)', async () => {
     for (const item of ['Kế hoạch đo chỉ báo (PI)', 'Kết quả chương trình (PLO)', 'Kết nối Moodle']) await expect(nav(page, item)).toHaveCount(0)
@@ -75,7 +84,7 @@ test('GV1b – SSO: gv.son bấm "Phân tích CĐR" trên Moodle → vào thẳn
 // ================================================================== GV2 – Môn của tôi, chỉ xem đề cương, phân quyền
 test('GV2 – Thấy môn mình phụ trách, chỉ xem đề cương bản đang áp dụng; GV khác bị chặn', async ({ page, browser }) => {
   await test.step('Bước 1: Môn học của tôi → có môn kiểm thử (được phân công ở AD5) và môn demo', async () => {
-    await goto(page, '/')
+    await goto(page, '/courses')
     await see(page, S.code)
     await see(page, H.DEMO.code)
   })
@@ -606,4 +615,32 @@ test('AD8b – Sau GV8 + GV9: kế hoạch đo PI7.1 của môn kiểm thử = 4
     await see(row, 'Đạt')
   })
   await p.context().close()
+})
+
+// ================================================================== GV16 – Vòng cải tiến
+test('GV16 – Kết quả CLO: so sánh qua các học kỳ; ghi hành động cải tiến, đổi trạng thái, xóa', async ({ page }) => {
+  await test.step('Bước 1: mở BM6b của lớp → thấy bảng "Xu hướng đạt CLO qua các học kỳ" và khung "Hành động cải tiến"', async () => {
+    await goto(page, `/sections/${S.cs}/clo?tab=bm6b`)
+    await see(page, 'Xu hướng đạt CLO qua các học kỳ')
+    await see(page, 'Hành động cải tiến (đóng vòng đánh giá)')
+  })
+  const ac = () => card(page, 'Hành động cải tiến')
+  await test.step('Bước 2: nhập hành động, người phụ trách → "+ Thêm hành động" → hiện trong bảng', async () => {
+    await ac().getByPlaceholder(/Thêm 2 buổi/).fill('Bổ sung bài tập truy vấn lồng (kiểm thử UI)')
+    await field(ac(), 'Người phụ trách').fill('ThS. Sơn')
+    await ac().getByRole('button', { name: '+ Thêm hành động' }).click()
+    await see(ac(), 'Bổ sung bài tập truy vấn lồng (kiểm thử UI)')
+  })
+  await test.step('Bước 3: đổi trạng thái sang "Đang làm" → giữ nguyên sau khi tải lại trang', async () => {
+    const row = ac().locator('tr', { hasText: 'kiểm thử UI' })
+    await row.locator('select').selectOption('doing')
+    await page.waitForTimeout(600)
+    await page.reload()
+    await expect(ac().locator('tr', { hasText: 'kiểm thử UI' }).locator('select')).toHaveValue('doing')
+  })
+  await test.step('Bước 4: "Xóa" → hành động biến mất', async () => {
+    page.once('dialog', d => d.accept())
+    await ac().locator('tr', { hasText: 'kiểm thử UI' }).getByRole('button', { name: 'Xóa' }).click()
+    await expect(ac().locator('tr', { hasText: 'kiểm thử UI' })).toHaveCount(0)
+  })
 })

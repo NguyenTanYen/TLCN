@@ -22,7 +22,8 @@ def rows(db, sql, **p):
 
 
 def classify(p, di):
-    """Phân loại câu hỏi theo p (0,3–0,7 phù hợp) và DI (Ebel & Frisbie, 1991)."""
+    """Phân loại câu hỏi theo DI (Ebel & Frisbie, 1991: ≥0,30 tốt; 0,20–0,29 chấp nhận được; <0,20 cần xem lại) và độ khó p
+    (khoảng lý tưởng 0,30–0,70; ở đây chỉ gắn nhãn quá dễ khi p > 0,85 và quá khó khi p < 0,25 để tránh báo quá tay)."""
     if p is None:
         return "Chưa đủ dữ liệu"
     p, di = float(p), (None if di is None else float(di))
@@ -56,7 +57,8 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
         corr["is_correct"] = corr.is_correct.astype(int)
     rel = analysis.cronbach_alpha(corr) if e.exam_type == "manual" else analysis.kr20(corr)
     return {"n_students": len(conv), "n_absent": n_abs, "max_score": float(e.max_score), "kr20": rel,
-            "reliability": "Cronbach alpha" if e.exam_type == "manual" else "KR-20", "exam_type": e.exam_type,
+            "reliability": "Cronbach alpha" if e.exam_type == "manual" else "KR-20",
+            "warnings": (["Mẫu nhỏ (dưới 30 SV dự thi): độ phân biệt DI và độ tin cậy chỉ mang tính tham khảo"] if 0 < len(conv) < 30 else []), "exam_type": e.exam_type,
             "mean": round(sum(conv) / len(conv), 2) if conv else None,
             "min": min(conv) if conv else None, "max": max(conv) if conv else None,
             "pass_rate": round(100 * sum(1 for s in conv if s >= float(e.max_score) / 2) / len(conv), 2) if conv else None,
