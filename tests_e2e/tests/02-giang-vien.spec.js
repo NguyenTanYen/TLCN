@@ -363,16 +363,19 @@ test('GV8 – Đề giấy: sinh 2 mã đề, tải đề/đáp án, tải ảnh
     const py = path.join(H.ROOT, '.venv', 'Scripts', 'python.exe')
     execFileSync(py, [path.join(__dirname, '..', 'tools', 'tao_phieu_da_to.py'), String(eid), STUDENTS[0][0], png], { env: { ...process.env, PYTHONUTF8: '1' } })
   })
-  await test.step('Bước 5: thẻ "4. Chấm phiếu" → "⬆ Tải ảnh phiếu / PDF đã quét" → hệ thống đọc được MSSV', async () => {
+  await test.step('Bước 5: thẻ "4. Chấm phiếu" → "⬆ Tải ảnh phiếu / PDF đã quét" → hệ thống đọc, chấm và lưu ngay (không cần bấm lưu)', async () => {
     await page.getByRole('button', { name: '4. Chấm phiếu' }).click()
     const chooser = page.waitForEvent('filechooser')
     await page.getByRole('button', { name: /Tải ảnh phiếu/ }).click()
     await (await chooser).setFiles(png)
+    await toast(page, /Đã chấm & lưu 1 phiếu/, 30000)
+    await see(page, 'Đã chấm vào kết quả lớp')
+    await page.getByRole('button', { name: /Tất cả phiếu/ }).click()
     await see(page, STUDENTS[0][0], 30000)
   })
-  await test.step('Bước 6: "Lưu kết quả 1 phiếu & phân tích" → đã lưu 1 bài', async () => {
-    await page.getByRole('button', { name: /Lưu kết quả 1 phiếu/ }).click()
-    await toast(page, /Đã lưu 1 bài/, 30000)
+  await test.step('Bước 6: "Hoàn tất: tính vắng & phân tích" → đã hoàn tất 1 bài', async () => {
+    await page.getByRole('button', { name: /Hoàn tất: tính vắng/ }).click()
+    await toast(page, /Đã hoàn tất: 1 bài/, 30000)
   })
 })
 
