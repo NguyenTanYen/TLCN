@@ -141,3 +141,69 @@ def test_doc_anh_chup_that_phieu_ban_cu():
     r = omr.read_sheet(g, o)
     assert r["student_code"] == "23110369" and r["version_code"] == "01"
     assert "".join(r["answers"][q] for q in range(1, 11)) == "ABACDACACD"
+
+
+def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
+    """Quét là chấm & lưu ngay: phiếu hợp lệ vào kết quả lớp; MSSV sai/thiếu được lưu ở danh sách cần xử lý để GV sửa sau."""
+    from app.database import SessionLocal
+    from app.models import Exam
+    qs = [q for q in client.get("/api/questions?course_id=5", headers=gv).json() if q["tagged"] is not False][:6]
+    eid = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Quét là chấm", "exam_type": "paper", "assessment_type": "process",
+                                                      "max_score": 10, "items": [{"question_id": q["id"], "points": 1} for q in qs]}).json()["id"]
+    assert client.post(f"/api/exams/{eid}/paper/versions", headers=gv, json={"n_versions": 2, "seed": 3}).status_code == 200
+    st = client.get(f"/api/exams/{eid}/paper", headers=gv).json()
+    studs = [r[0] for r in _q("""SELECT s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id
+                                 WHERE e.class_section_id=1 ORDER BY s.student_code LIMIT 4""")]
+    v = st["versions"][0]
+    right = {q["position"]: q["answer"] for q in v["questions"]}
+    fills = [{"student": studs[0], "version": "01", "answers": right},                  # hợp lệ, đúng hết
+             {"student": studs[1], "version": "01", "answers": {**right, 1: ""}},         # hợp lệ, bỏ trống câu 1
+             {"student": "99999999", "version": "01", "answers": right},                  # MSSV không thuộc lớp
+             {"student": studs[2][:-1], "version": "01", "answers": right}]               # MSSV thiếu 1 chữ số (gần đúng studs[2])
+    db = SessionLocal()
+    o = P.sheet_options_for(db, db.get(Exam, eid), student_digits=8, essay_lines=0)
+    db.close()
+    filled = fitz.open(stream=P.sheet_pdf(o, prefills=fills), filetype="pdf")
+    files = []
+    for k, page in enumerate(filled):
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), colorspace=fitz.csGRAY)
+        img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width).copy()
+        files.append(("files", (f"p{k}.jpg", cv2.imencode(".jpg", img)[1].tobytes(), "image/jpeg")))
+    assert client.post(f"/api/exams/{eid}/scan/save", headers=gv_other, files=files).status_code == 403
+    r = client.post(f"/api/exams/{eid}/scan/save", headers=gv, files=files)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["saved"] == 2 and d["review"] == 2 and d["errors"] == 0
+    # phiếu hợp lệ đã chấm vào kết quả lớp ngay (không cần bấm lưu)
+    tot = dict(_q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
+                     WHERE a.exam_id=:e AND a.status='finished'""", e=eid))
+    assert float(tot[studs[0]]) == 6 and float(tot[studs[1]]) == 5 and len(tot) == 2
+    lst = client.get(f"/api/exams/{eid}/scan/sheets", headers=gv).json()
+    assert lst["n_saved"] == 2 and lst["n_review"] == 2 and lst["sheets"][0]["status"] == "review" and len(lst["roster"]) >= 4
+    bad_out = next(s for s in lst["sheets"] if s["student_code"] == "99999999")
+    short = next(s for s in lst["sheets"] if s["status"] == "review" and s["student_code"] != "99999999")
+    assert any("không có trong danh sách lớp" in t or "chưa đủ" in t for t in bad_out["issues"])
+    assert studs[2] in [x["student_code"] for x in short["suggest"]]              # gợi ý MSSV gần đúng
+    detail = client.get(f"/api/exams/{eid}/scan/sheets/{short['id']}", headers=gv).json()
+    assert detail["image"].startswith("data:image/jpeg") and len(detail["answers"]) == 6
+    # GV sửa MSSV theo gợi ý -> chấm vào kết quả lớp; phiếu MSSV lạ -> bỏ
+    assert client.patch(f"/api/exams/{eid}/scan/sheets/{short['id']}", headers=gv, json={"student_code": "12345678"}).json()["status"] == "review"
+    fx = client.patch(f"/api/exams/{eid}/scan/sheets/{short['id']}", headers=gv, json={"student_code": studs[2]}).json()
+    assert fx["status"] == "saved" and not fx["issues"]
+    assert client.delete(f"/api/exams/{eid}/scan/sheets/{bad_out['id']}", headers=gv).json() == {"deleted": bad_out["id"]}
+    # đổi đáp án câu 1 của SV đầu rồi chấm lại; quét lại cùng SV thì phiếu cũ bị thay
+    ok0 = next(s for s in lst["sheets"] if s["student_code"] == studs[1])
+    assert client.patch(f"/api/exams/{eid}/scan/sheets/{ok0['id']}", headers=gv, json={"answers": {**{str(k): a for k, a in right.items()}}}).json()["status"] == "saved"
+    tot = dict(_q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
+                     WHERE a.exam_id=:e AND a.status='finished'""", e=eid))
+    assert float(tot[studs[1]]) == 6 and studs[2] in tot and len(tot) == 3
+    again = client.post(f"/api/exams/{eid}/scan/save", headers=gv, files=files[:1]).json()
+    assert again["saved"] == 1
+    assert client.get(f"/api/exams/{eid}/scan/sheets", headers=gv).json()["n_saved"] == 3        # 3 SV (phiếu cũ của SV đầu bị thay)
+    fin = client.post(f"/api/exams/{eid}/scan/finish", headers=gv, json={}).json()
+    assert fin["saved"] == 3 and fin["review"] == 0 and fin["absent"] > 0 and fin["analysis"]["n_students"] == 3
+    assert client.get(f"/api/exams/{eid}", headers=gv).json()["status"] == "Analyzed"
+    with engine.begin() as c:
+        c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})
+    from app.services import results
+    db = SessionLocal(); results.recompute_class_section(db, 1); db.close()

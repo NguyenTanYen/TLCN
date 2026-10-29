@@ -38,7 +38,7 @@ USE assessment_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
-DROP TABLE IF EXISTS sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
+DROP TABLE IF EXISTS scan_sheets, sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
@@ -771,6 +771,27 @@ CREATE TABLE sync_runs (
   CONSTRAINT ck_sync_kind   CHECK (kind IN ('moodle','paper','scan','manual','analyze')),
   CONSTRAINT ck_sync_status CHECK (status IN ('running','success','failed'))
 ) ENGINE=InnoDB COMMENT='Nhật ký đồng bộ / nhập kết quả / phân tích';
+
+CREATE TABLE scan_sheets (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  exam_id       INT          NOT NULL,
+  source_name   VARCHAR(255) NULL COMMENT 'Tên tệp / trang ảnh đã quét',
+  student_code  VARCHAR(100) NOT NULL DEFAULT '' COMMENT 'MSSV đọc được (có thể chứa ? nếu tô thiếu), GV sửa được',
+  version_code  VARCHAR(10)  NOT NULL DEFAULT '' COMMENT 'Mã đề đọc được',
+  answers       TEXT         NOT NULL COMMENT 'JSON {số câu: nhãn đã tô}',
+  score         DECIMAL(7,2) NULL COMMENT 'Điểm thô theo đáp án mã đề',
+  raw_max       DECIMAL(7,2) NULL,
+  confidence    DECIMAL(4,2) NULL,
+  issues        TEXT         NULL COMMENT 'JSON danh sách cảnh báo cần GV xem',
+  image         MEDIUMTEXT   NULL COMMENT 'Ảnh phiếu đã nắn + dấu các ô đọc được (data URL JPEG) để GV soát lại',
+  status        VARCHAR(12)  NOT NULL DEFAULT 'review' COMMENT 'saved = đã chấm vào kết quả lớp; review = cần GV xử lý (MSSV/mã đề); superseded = bị phiếu quét lại thay',
+  attempt_id    INT          NULL COMMENT 'Bài làm đã ghi (khi status = saved)',
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_scansheet_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+  CONSTRAINT ck_scansheet_status CHECK (status IN ('saved','review','superseded')),
+  INDEX ix_scansheet_exam (exam_id, status)
+) ENGINE=InnoDB COMMENT='Phiếu trả lời đã quét: chấm & lưu ngay, phiếu sai MSSV/mã đề chờ giảng viên xử lý';
 
 -- =====================================================================
 -- VIEW

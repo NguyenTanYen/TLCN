@@ -184,6 +184,7 @@ with sync_playwright() as pw:
         v = vs[i % len(vs)]
         fills.append({"student": code, "version": v["version_code"],
                       "answers": {q["position"]: (q["answer"] if rg.random() < .75 else rg.choice([o["label"] for o in q["options"]])) for q in v["questions"]}})
+    fills.append({"student": roster[0][:-1], "version": vs[0]["version_code"], "answers": fills[0]["answers"]})   # MSSV tô thiếu 1 chữ số -> vào danh sách cần xử lý
     L = _P.sheet_layout(so); S_ = 150 / 25.4
     pos = {(b["q"], b["label"]): (int(b["x"] * S_), int(b["y"] * S_)) for b in L["answers"]}; rr = int(L["r"] * S_)
     imgs = []
@@ -199,8 +200,10 @@ with sync_playwright() as pw:
             h, w = g.shape; g = cv2.warpAffine(g, cv2.getRotationMatrix2D((w / 2, h / 2), 6, .9), (w, h), borderValue=110)
         f = TMP / f"phieu_{k + 1}.jpg"; cv2.imwrite(str(f), g); imgs.append(str(f))
     page.click("button:has-text('4. Chấm phiếu')"); page.wait_for_timeout(300)
-    page.set_input_files("input[type=file][multiple]", imgs); page.wait_for_selector(".scan-grid img", timeout=60000); page.wait_for_timeout(600)
-    page.click(".tbl tbody tr >> nth=1"); page.wait_for_timeout(400)
+    page.set_input_files("input[type=file][multiple]", imgs); page.wait_for_selector(".tbl tbody tr", timeout=60000); page.wait_for_timeout(600)
+    page.screenshot(path=str(OUT / "41a_cham_phieu_can_xu_ly.png"), full_page=True)
+    page.click("button:has-text('Tất cả phiếu')"); page.wait_for_selector(".tbl tbody tr >> nth=1")
+    page.click(".tbl tbody tr >> nth=1"); page.wait_for_selector(".scan-grid img", timeout=15000); page.wait_for_timeout(400)
     page.screenshot(path=str(OUT / "41_cham_phieu.png"), full_page=True); print("saved scan")
     requests.delete(BASE + f"/api/exams/{pe}/paper/versions", headers=gv); requests.delete(BASE + f"/api/exams/{pe}", headers=gv)
     page.goto(BASE + "/questions"); page.wait_for_selector(".tbl tbody tr"); page.click("text=Đồng bộ với Moodle"); page.wait_for_timeout(1500)
