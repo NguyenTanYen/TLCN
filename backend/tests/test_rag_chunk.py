@@ -209,7 +209,7 @@ def test_sql_pasted_in_normal_font_is_code_and_not_split():
     _t(pg, (50, 600), "Mệnh đề WHERE dùng để lọc các dòng thỏa điều kiện, còn FROM chỉ ra bảng nguồn được JOIN.", 11)
     ps = _passages(doc)
     code = [p for p in ps if p.code]
-    assert len(code) == 1 and code[0].body == sql   # nguyên vẹn, không bị cắt dù > MAX
+    assert len(code) == 1 and " ".join(code[0].body.split()) == sql   # nguyên vẹn (giữ xuống dòng), không cắt dù > MAX
     prose = [p for p in ps if not p.code]
     assert len(prose) == 1 and prose[0].body.startswith("Mệnh đề WHERE")   # câu giảng giải nhắc từ khóa ≠ code
 
@@ -327,3 +327,195 @@ def test_overlong_table_row_keeps_header_in_every_piece():
     assert all(len(x) <= chunk.MAX and x.startswith(head) for x, _ in parts)
     assert all(bbs[0] == rows[0] for _, bbs in parts)   # khung header luôn đi kèm
     assert any("|MaSV|" in x for x, _ in parts) and any("|HoTen|" in x for x, _ in parts)
+
+
+# ---- feedback lần 4 ----
+
+def test_single_overlong_row_split_into_wellformed_rows():
+    head = "|Thuộc tính|Mô tả|Kiểu|\n|---|---|---|"
+    long_desc = " ".join(["ghi chú dài về ràng buộc"] * 80)
+    md = head + f"\n|GhiChu|{long_desc}|TEXT|"         # bảng CHỈ 1 hàng dữ liệu (trước đây không cắt gì)
+    parts = chunk._table_parts(md, [(0, 0, 9, 9), (0, 10, 9, 19)])
+    assert len(parts) >= 2
+    for x, bbs in parts:
+        assert len(x) <= chunk.MAX and x.startswith(head) and bbs == [(0, 0, 9, 9), (0, 10, 9, 19)]
+        for row in x.split("\n")[2:]:
+            cells = chunk._cells(row)
+            assert len(cells) == 3 and cells[0] == "GhiChu" and cells[2] == "TEXT"   # cấu trúc 3 cột còn nguyên
+    joined = " ".join(chunk._cells(r)[1] for x, _ in parts for r in x.split("\n")[2:])
+    assert set(joined.split()) == set(long_desc.split())
+
+
+def test_code_heavy_slides_do_not_turn_bullets_into_headings():
+    doc = pymupdf.open()
+    for i in range(4):
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (40, 60), f"Truy vấn {i}", 28)
+        for k in range(3):
+            _t(pg, (60, 110 + 30 * k), f"Gạch đầu dòng số {k} giải thích ý chính", 18)
+        for k in range(8):                                   # nhiều code chữ nhỏ hơn thân bài
+            pg.insert_text((60, 220 + 18 * k), f"SELECT a{k}, b{k} FROM T{k} WHERE c{k} = {k};", fontsize=14, fontname="cour")
+    ps = _passages(doc)
+    assert [p.breadcrumb for p in ps if not p.code] == [f"Truy vấn {i}" for i in range(4)]
+    assert all("Gạch đầu dòng số 2" in p.body for p in ps if not p.code)
+
+
+def test_overlap_when_last_sentence_is_long():
+    long_s = "Câu dài " + " ".join(f"từ{i}" for i in range(70)) + "."     # > MAX/3 ký tự
+    text = " ".join([long_s, long_s.replace("từ", "chữ"), long_s.replace("từ", "ý")])
+    parts = chunk._split_long(text)
+    assert len(parts) >= 2 and all(len(x) <= chunk.MAX for x in parts)
+    for a, b in zip(parts, parts[1:]):                     # phần sau mở đầu bằng đuôi của phần trước
+        head = b.split()[:5]
+        assert " ".join(head) in a and 50 <= len(chunk._tail(a, chunk.OVERLAP_CHARS))
+
+
+def test_roman_and_letter_headings_levels():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    for y, (s, bold) in enumerate([("Chương 2. Mô hình quan hệ", True), ("I. Khái niệm", True),
+                                   ("A. Quan hệ", True), ("Quan hệ là một bảng hai chiều gồm các bộ.", False),
+                                   ("B. Thuộc tính", True), ("Thuộc tính là một cột của quan hệ.", False),
+                                   ("II. Ràng buộc", True), ("Ràng buộc giới hạn dữ liệu hợp lệ.", False)]):
+        (_b if bold else _t)(pg, (50, 60 + 30 * y), s, 11)
+    ps = _passages(doc)
+    assert [(p.breadcrumb, p.level) for p in ps] == [
+        ("Chương 2. Mô hình quan hệ > I. Khái niệm > A. Quan hệ", 3),
+        ("Chương 2. Mô hình quan hệ > I. Khái niệm > B. Thuộc tính", 3),
+        ("Chương 2. Mô hình quan hệ > II. Ràng buộc", 2)]
+
+
+def test_letter_c_is_letter_when_document_uses_letters():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    for y, (s, bold) in enumerate([("A. Khóa chính", True), ("Nội dung về khóa chính của bảng.", False),
+                                   ("B. Khóa ngoại", True), ("Nội dung về khóa ngoại của bảng.", False),
+                                   ("C. Ràng buộc kiểm tra", True), ("Nội dung về ràng buộc kiểm tra.", False)]):
+        (_b if bold else _t)(pg, (50, 60 + 30 * y), s, 11)
+    assert [p.breadcrumb for p in _passages(doc)] == ["A. Khóa chính", "B. Khóa ngoại", "C. Ràng buộc kiểm tra"]
+
+
+def test_colon_and_question_headings_kept():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    _b(pg, (50, 60), "Ví dụ:")
+    _t(pg, (50, 90), "Bảng SINHVIEN có khóa chính MaSV.", 11)
+    _b(pg, (50, 130), "Câu hỏi thảo luận?")
+    _t(pg, (50, 160), "Vì sao khóa chính không được NULL.", 11)
+    assert [p.breadcrumb for p in _passages(doc)] == ["Ví dụ:", "Câu hỏi thảo luận?"]
+
+
+# ---- feedback bước 3 ----
+
+def test_autofit_slide_titles_stay_siblings():
+    doc = pymupdf.open()
+    _t(doc.new_page(width=720, height=540), (40, 70), "Chương 3: Ràng buộc", 40)
+    for title, size in [("Khóa chính", 40), ("Khóa ngoại và ràng buộc tham chiếu", 36),
+                        ("Ràng buộc kiểm tra CHECK trên cột", 32)]:     # PowerPoint tự thu nhỏ tiêu đề dài
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (40, 70), title, size)
+        for k in range(3):
+            _t(pg, (60, 150 + 30 * k), f"Ý chính số {k} của slide này", 20)
+        _t(pg, (60, 300), "Ví dụ", 26)                                      # đề mục phụ trong slide
+        _t(pg, (60, 340), "Một ví dụ minh họa cho slide.", 20)
+    crumbs = [p.breadcrumb for p in _passages(doc)]
+    assert crumbs == ["Chương 3: Ràng buộc",
+                      "Chương 3: Ràng buộc > Khóa chính", "Chương 3: Ràng buộc > Khóa chính > Ví dụ",
+                      "Chương 3: Ràng buộc > Khóa ngoại và ràng buộc tham chiếu",
+                      "Chương 3: Ràng buộc > Khóa ngoại và ràng buộc tham chiếu > Ví dụ",
+                      "Chương 3: Ràng buộc > Ràng buộc kiểm tra CHECK trên cột",
+                      "Chương 3: Ràng buộc > Ràng buộc kiểm tra CHECK trên cột > Ví dụ"]
+
+
+def test_noisy_heading_sizes_do_not_nest_endlessly():
+    doc = pymupdf.open()
+    pg = doc.new_page()                                      # trang dọc (giáo trình), không đánh số
+    y = 60
+    for i, size in enumerate([18, 17.6, 16, 15, 14, 13.4]):  # cỡ lẻ do PDF + nhiều cỡ tiêu đề
+        _t(pg, (50, y), f"Đề mục {i}", size)
+        _t(pg, (50, y + 25), f"Nội dung của đề mục số {i} trình bày một ý.", 10)
+        y += 60
+    ps = _passages(doc)
+    assert max(p.level for p in ps) <= chunk.SIZE_DEPTH
+    assert ps[1].breadcrumb == "Đề mục 1"                   # 18 và 17,6 làm tròn cùng 18 → ngang hàng
+
+
+def test_table_cell_with_backslash_and_pipes():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    rows = [["Biểu thức", "Ý nghĩa"], ["a || b", "hoặc logic"], ["C:" + chr(92), "thư mục gốc"]]
+    for r, row in enumerate(rows):
+        for c, s in enumerate(row):
+            rc = pymupdf.Rect(60 + 200 * c, 100 + 30 * r, 260 + 200 * c, 130 + 30 * r)
+            pg.draw_rect(rc)
+            _t(pg, (rc.x0 + 5, rc.y0 + 20), s, 12)
+    md = ingest.read_pdf(doc.tobytes())[0].tables[0].markdown
+    assert [chunk._cells(line) for line in md.split("\n")] == [rows[0], ["---", "---"], rows[1], rows[2]]
+
+
+def test_split_row_keeps_escaped_pipes_intact():
+    long_cell = " ".join(["a || b && c"] * 120)
+    line = chunk._row(["OR", long_cell, "C:" + chr(92)])
+    out = chunk._split_row(line, 300)
+    assert len(out) >= 2
+    for row in out:
+        cells = chunk._cells(row)
+        assert len(row) <= 300 and len(cells) == 3 and cells[0] == "OR" and cells[2] == "C:" + chr(92)
+    assert " ".join(chunk._cells(r)[1] for r in out).count("||") >= 120
+
+
+def test_hard_split_fuzz_bounds_and_coverage():
+    import random
+    rnd = random.Random(1)
+    for _ in range(2000):
+        lim = rnd.randint(5, 900)
+        words = ["".join(rnd.choice("abc") for _ in range(rnd.choice([1, 3, 8, 40, 1200])))
+                 for _ in range(rnd.randint(1, 300))]
+        parts = chunk._hard_split(" ".join(words), lim)
+        assert all(len(p) <= lim for p in parts)
+        got = {w for p in parts for w in p.split()}
+        assert {w[i:i + lim] for w in words for i in range(0, len(w), lim)} <= got
+
+
+# ---- feedback: code giữ xuống dòng + thụt lề; từ viết tắt không phân biệt hoa thường ----
+
+PY_CODE = ["def tinh_diem(ds):",
+           "    tong = 0",
+           "    for x in ds:",
+           "        tong += x.diem",
+           "    return tong / len(ds)"]
+
+
+def test_python_code_keeps_newlines_and_indentation_from_x_offset():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    for i, line in enumerate(PY_CODE):          # PDF không lưu khoảng trắng đầu dòng: dòng được đặt lùi bằng tọa độ x
+        indent = len(line) - len(line.lstrip())
+        pg.insert_text((50 + indent * 6.0, 60 + 14 * i), line.lstrip(), fontsize=10, fontname="cour")  # Courier 10: 6 pt/ký tự
+    ps = _passages(doc)
+    assert len(ps) == 1 and ps[0].code
+    assert ps[0].body == "\n".join(PY_CODE)
+
+
+def test_python_code_with_literal_leading_spaces():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    for i, line in enumerate(PY_CODE):          # PDF có lưu khoảng trắng đầu dòng
+        pg.insert_text((50, 60 + 14 * i), line, fontsize=10, fontname="cour")
+    assert _passages(doc)[0].body == "\n".join(PY_CODE)
+
+
+def test_prose_line_breaks_still_joined():
+    doc = pymupdf.open()
+    pg = doc.new_page()
+    pg.insert_textbox(pymupdf.Rect(50, 50, 250, 200), "Khóa ngoại là tập thuộc tính tham chiếu tới khóa chính của bảng khác.",
+                      fontsize=11, fontfile=FONT, fontname="dv")
+    ps = _passages(doc)
+    assert ps[0].body == "Khóa ngoại là tập thuộc tính tham chiếu tới khóa chính của bảng khác."   # xuống dòng do khổ giấy bị nối
+
+
+def test_abbreviations_case_insensitive():
+    for s in ["Do Ths. Nguyễn dạy. Câu sau.", "Do Ts. Lê dạy. Câu sau.", "Do pgs. Trần dạy. Câu sau."]:
+        assert len(chunk.sentences(s)) == 2, s
+    assert chunk.sentences("Xem cột a. Câu sau.") == ["Xem cột a.", "Câu sau."]   # chữ cái thường đơn vẫn hết câu
+    assert chunk.sentences("Pi xấp xỉ 3.14. Tải http://a.com/b.pdf. Hết.") == ["Pi xấp xỉ 3.14.", "Tải http://a.com/b.pdf.", "Hết."]

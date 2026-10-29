@@ -13,7 +13,7 @@
 --   * BM6c/6d : Bảng minh chứng đo lường từ kết quả kiểm tra (1 hoặc nhiều bài KT)
 --   * Phân công đánh giá PIs theo học kỳ
 --
---  46 bảng, 7 nhóm:
+--  49 bảng, 8 nhóm:
 --   A. Người dùng & tổ chức      (4)  users, lecturers, students, semesters
 --   B. Chương trình & CĐR CTĐT   (6)  programs, plos, plo_measurement_plans,
 --                                     performance_indicators, program_courses, pi_courses
@@ -30,6 +30,7 @@
 --   G. Kết quả & báo cáo         (10) exam_attempts, item_level_results, item_statistics,
 --                                     attempt_clo_results, clo_results, pi_results, plo_results,
 --                                     personalized_learning_paths, learning_path_items, sync_runs
+--   H. Học liệu & gợi ý đọc      (3)  section_materials, material_pages, material_passages
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS assessment_db
@@ -38,7 +39,8 @@ USE assessment_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
-DROP TABLE IF EXISTS sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
+DROP TABLE IF EXISTS material_passages, material_pages, section_materials,
+  sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
   exam_version_options, exam_version_questions, exam_versions, exam_questions, exams,
@@ -723,6 +725,73 @@ CREATE TABLE sync_runs (
   CONSTRAINT ck_sync_kind   CHECK (kind IN ('moodle','paper','scan','manual','analyze')),
   CONSTRAINT ck_sync_status CHECK (status IN ('running','success','failed'))
 ) ENGINE=InnoDB COMMENT='Nhật ký đồng bộ / nhập kết quả / phân tích';
+
+-- =====================================================================
+-- H. HỌC LIỆU & GỢI Ý ĐỌC (RAG)
+-- Học liệu thuộc LỚP HỌC PHẦN: chỉ gợi ý tài liệu của chính lớp SV đang học (lấy từ course Moodle của lớp hoặc GV tải lên)
+-- =====================================================================
+CREATE TABLE section_materials (
+  id                   INT AUTO_INCREMENT PRIMARY KEY,
+  class_section_id     INT           NOT NULL,
+  source               VARCHAR(10)   NOT NULL DEFAULT 'upload' COMMENT 'moodle = tệp trong course Moodle của lớp, upload = GV tải lên hệ thống',
+  material_type        VARCHAR(10)   NOT NULL DEFAULT 'slide' COMMENT 'slide = bài giảng, reference = tài liệu tham khảo',
+  title                VARCHAR(255)  NOT NULL COMMENT 'Tên hiển thị cho SV',
+  file_name            VARCHAR(255)  NOT NULL,
+  content_hash         CHAR(40)      NOT NULL COMMENT 'SHA-1 nội dung tệp (= contenthash của Moodle) – chống nạp trùng',
+  file_size            BIGINT        NULL,
+  storage_path         VARCHAR(500)  NULL COMMENT 'Tệp lưu cục bộ để đọc lại / vẽ ảnh trang',
+  moodle_cmid          BIGINT        NULL COMMENT 'mdl_course_modules.id của tài nguyên',
+  moodle_file_url      VARCHAR(1000) NULL COMMENT 'Liên kết pluginfile để SV mở đúng trang (#page=N)',
+  moodle_timemodified  BIGINT        NULL COMMENT 'timemodified của tệp trên Moodle – đồng bộ lại khi GV sửa',
+  status               VARCHAR(10)   NOT NULL DEFAULT 'pending' COMMENT 'pending = chờ nạp, ready = đã nạp, failed = lỗi',
+  error                TEXT          NULL COMMENT 'Lỗi khi nạp',
+  n_pages              INT           NULL,
+  added_by             INT           NULL COMMENT 'Người đánh dấu / tải lên học liệu',
+  created_at           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  indexed_at           DATETIME      NULL COMMENT 'Thời điểm nạp xong',
+  CONSTRAINT fk_sm_cs   FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sm_user FOREIGN KEY (added_by)         REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT uq_sm_hash UNIQUE (class_section_id, content_hash),
+  CONSTRAINT ck_sm_source CHECK (source IN ('moodle','upload')),
+  CONSTRAINT ck_sm_type   CHECK (material_type IN ('slide','reference')),
+  CONSTRAINT ck_sm_status CHECK (status IN ('pending','ready','failed')),
+  CONSTRAINT ck_sm_moodle CHECK (source = 'upload' OR moodle_cmid IS NOT NULL)
+) ENGINE=InnoDB COMMENT='Học liệu của lớp học phần (slide, tài liệu tham khảo)';
+
+CREATE TABLE material_pages (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  material_id     INT           NOT NULL,
+  page_no         INT           NOT NULL COMMENT 'Số trang, bắt đầu từ 1 (đúng số dùng cho #page=N)',
+  width           DECIMAL(7,1)  NOT NULL COMMENT 'Khổ trang (point) – để quy đổi khung tô lên ảnh trang',
+  height          DECIMAL(7,1)  NOT NULL,
+  running_header  TEXT          NULL COMMENT 'Đầu trang lặp lại (tên chương...) – ngữ cảnh của trang',
+  is_scanned      TINYINT(1)    NOT NULL DEFAULT 0 COMMENT 'Trang scan: cần OCR / VLM',
+  is_visual       TINYINT(1)    NOT NULL DEFAULT 0 COMMENT 'Ít chữ, nhiều hình: cần VLM mô tả',
+  CONSTRAINT fk_mp_material FOREIGN KEY (material_id) REFERENCES section_materials(id) ON DELETE CASCADE,
+  CONSTRAINT uq_mp UNIQUE (material_id, page_no),
+  CONSTRAINT ck_mp_page CHECK (page_no >= 1)
+) ENGINE=InnoDB COMMENT='Trang của học liệu';
+
+CREATE TABLE material_passages (
+  id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+  material_id  INT           NOT NULL,
+  page_id      BIGINT        NOT NULL,
+  seq          INT           NOT NULL COMMENT 'Thứ tự đoạn trong tài liệu',
+  kind         VARCHAR(8)    NOT NULL DEFAULT 'text' COMMENT 'text, table (Markdown) hoặc figure (hình / trang scan)',
+  title        VARCHAR(255)  NOT NULL DEFAULT '' COMMENT 'Đề mục gần nhất',
+  breadcrumb   VARCHAR(1000) NOT NULL DEFAULT '' COMMENT 'Chương 3 > 3.2 Khóa ngoại',
+  level        TINYINT       NOT NULL DEFAULT 0 COMMENT 'Cấp của đề mục gần nhất (0 = chưa có)',
+  caption      TEXT          NULL COMMENT 'Chú thích Hình / Bảng',
+  body         MEDIUMTEXT    NOT NULL COMMENT 'Nội dung đoạn (bảng: Markdown)',
+  vlm_desc     TEXT          NULL COMMENT 'Mô tả hình do VLM sinh (giai đoạn sau)',
+  is_code      TINYINT(1)    NOT NULL DEFAULT 0,
+  bboxes       JSON          NOT NULL COMMENT '[[x0,y0,x1,y1],...] – các khối tạo nên đoạn, để tô khúc cần đọc',
+  CONSTRAINT fk_mps_material FOREIGN KEY (material_id) REFERENCES section_materials(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mps_page     FOREIGN KEY (page_id)     REFERENCES material_pages(id)    ON DELETE CASCADE,
+  CONSTRAINT uq_mps UNIQUE (material_id, seq),
+  CONSTRAINT ck_mps_kind CHECK (kind IN ('text','table','figure')),
+  CONSTRAINT ck_mps_bboxes CHECK (JSON_VALID(bboxes) AND JSON_LENGTH(bboxes) >= 1)
+) ENGINE=InnoDB COMMENT='Đoạn học liệu – đơn vị tìm kiếm và trích dẫn';
 
 -- =====================================================================
 -- VIEW

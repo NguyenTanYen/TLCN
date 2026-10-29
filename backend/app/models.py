@@ -1,4 +1,4 @@
-"""Ánh xạ ORM cho 45 bảng của assessment_db (xem database/01_schema.sql).
+"""Ánh xạ ORM cho 49 bảng của assessment_db (xem database/01_schema.sql).
 
 Ràng buộc CHECK/UNIQUE được khai báo trong DDL; ORM chỉ khai báo cột, khóa và quan hệ cần dùng.
 """
@@ -8,7 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import (BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger,
+from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger,
                         String, Table, Text, func)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -564,3 +564,60 @@ class SyncRun(Base):
     n_attempts: Mapped[Optional[int]] = mapped_column(Integer)
     n_absent: Mapped[Optional[int]] = mapped_column(Integer)
     message: Mapped[Optional[str]] = mapped_column(Text)
+
+
+# ---------------------------------------------------------------- H. Học liệu & gợi ý đọc (RAG)
+
+
+class SectionMaterial(Base):
+    __tablename__ = "section_materials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    class_section_id: Mapped[int] = mapped_column(ForeignKey("class_sections.id"))
+    source: Mapped[str] = mapped_column(String(10), default="upload")          # moodle | upload
+    material_type: Mapped[str] = mapped_column(String(10), default="slide")    # slide | reference
+    title: Mapped[str] = mapped_column(String(255))
+    file_name: Mapped[str] = mapped_column(String(255))
+    content_hash: Mapped[str] = mapped_column(String(40))
+    file_size: Mapped[Optional[int]] = mapped_column(BigInteger)
+    storage_path: Mapped[Optional[str]] = mapped_column(String(500))
+    moodle_cmid: Mapped[Optional[int]] = mapped_column(BigInteger)
+    moodle_file_url: Mapped[Optional[str]] = mapped_column(String(1000))
+    moodle_timemodified: Mapped[Optional[int]] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(10), default="pending")         # pending | ready | failed
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    n_pages: Mapped[Optional[int]] = mapped_column(Integer)
+    added_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    pages: Mapped[list["MaterialPage"]] = relationship(order_by="MaterialPage.page_no", cascade="all, delete-orphan",
+                                                       passive_deletes=True)
+
+
+class MaterialPage(Base):
+    __tablename__ = "material_pages"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    material_id: Mapped[int] = mapped_column(ForeignKey("section_materials.id"))
+    page_no: Mapped[int] = mapped_column(Integer)
+    width: Mapped[Decimal] = mapped_column(Numeric(7, 1))
+    height: Mapped[Decimal] = mapped_column(Numeric(7, 1))
+    running_header: Mapped[Optional[str]] = mapped_column(Text)
+    is_scanned: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_visual: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class MaterialPassage(Base):
+    __tablename__ = "material_passages"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    material_id: Mapped[int] = mapped_column(ForeignKey("section_materials.id"))
+    page_id: Mapped[int] = mapped_column(ForeignKey("material_pages.id"))
+    seq: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(8), default="text")               # text | table | figure
+    title: Mapped[str] = mapped_column(String(255), default="")
+    breadcrumb: Mapped[str] = mapped_column(String(1000), default="")
+    level: Mapped[int] = mapped_column(SmallInteger, default=0)
+    caption: Mapped[Optional[str]] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    vlm_desc: Mapped[Optional[str]] = mapped_column(Text)
+    is_code: Mapped[bool] = mapped_column(Boolean, default=False)
+    bboxes: Mapped[list] = mapped_column(JSON)                                 # [[x0,y0,x1,y1],...]
+    page: Mapped[MaterialPage] = relationship()

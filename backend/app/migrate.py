@@ -75,7 +75,8 @@ NEW_COLUMNS = [
     ("course_outlines", "teaching_activities", "TEXT NULL COMMENT 'Hoạt động dạy và học' AFTER practice_hours"),
 ]
 
-NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos")
+NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos",
+              "section_materials", "material_pages", "material_passages")
 
 # (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
 NEW_CHECKS = [
@@ -110,7 +111,8 @@ def _upgrade_clo_pi(c, done: list) -> None:
 
 
 def _upgrade_new_tables(c, done: list) -> None:
-    """Bảng mới: đồng bộ câu hỏi theo khóa Moodle (F3), đề cương có phiên bản (F1; cột mới của course_outlines ở NEW_COLUMNS)."""
+    """Bảng mới: đồng bộ câu hỏi theo khóa Moodle (F3), đề cương có phiên bản (F1; cột mới của course_outlines ở NEW_COLUMNS),
+    học liệu của lớp học phần cho gợi ý đọc (RAG)."""
     for t in NEW_TABLES:
         if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t"), {"t": t}).scalar():
             c.execute(text(_ddl(t)))

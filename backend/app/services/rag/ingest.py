@@ -90,6 +90,7 @@ class Block:
     size: float = 0.0           # cỡ chữ lớn nhất trong khối – để nhận ra tiêu đề
     bold: bool = False
     mono: bool = False          # code / câu lệnh SQL (font monospace HOẶC nội dung giống code) – không được cắt ngang
+    char_w: float = 0.0         # khối code: bề rộng một ký tự (pt) – để dựng thụt lề giữa các khối code liền nhau
 
 
 @dataclass
@@ -118,8 +119,19 @@ class Page:
         return "\n".join([b.text for b in self.blocks] + [t.markdown for t in self.tables])
 
 
+# ký tự rác hay gặp khi xuất slide/giáo trình ra PDF:
+#   zero-width space giữa hai âm tiết → khoảng trắng; soft hyphen, ZWJ/ZWNJ, word joiner, BOM → bỏ;
+#   ký tự vùng riêng (Private Use) = bullet của font Wingdings/Symbol ("\uf0b7", "\uf0a7"...) → "•";
+#   glyph không có mã Unicode (PDF thiếu bảng ToUnicode) ra "\x00" hoặc "\ufffd" → bỏ
+_DIRTY = str.maketrans({"\u200b": " ", "\xad": None, "\u200c": None, "\u200d": None, "\u2060": None, "\ufeff": None})
+_PUA = re.compile("[\ue000-\uf8ff]")
+_CONTROL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffd]")
+
+
 def clean(s: str) -> str:
-    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", s)).strip()
+    s = unicodedata.normalize("NFC", s).translate(_DIRTY)
+    s = _CONTROL.sub("", _PUA.sub("• ", s))
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def _round(r) -> BBox:
@@ -141,7 +153,9 @@ def _image_share(page: pymupdf.Page, image_rects: list[pymupdf.Rect]) -> float:
 
 def _markdown(page: pymupdf.Page, t) -> str:
     # đọc chữ từng ô bằng get_textbox: extract()/to_markdown() của PyMuPDF tách sai chữ có dấu ("Kiể\nu")
-    rows = [[clean(page.get_textbox(c)).replace("|", "\\|") if c else "" for c in r.cells] for r in t.rows]
+    # escape "\" trước rồi "|": ô kết thúc bằng "\" (VD "C:\") không được nuốt dấu "|" phân cách phía sau
+    rows = [[clean(page.get_textbox(c)).replace("\\", "\\\\").replace("|", "\\|") if c else "" for c in r.cells]
+            for r in t.rows]
     keep = [j for j in range(len(rows[0])) if any(r[j] for r in rows)]   # cột rỗng do 2 đường kẻ sát nhau
     rows = [[r[j] for j in keep] for r in rows]
     lines = ["|" + "|".join(r) + "|" for r in rows]
@@ -187,6 +201,31 @@ def _style(spans: list[dict], bit: int, name: re.Pattern | None = None) -> bool:
     return total > 0 and hit >= STYLE_SHARE * total
 
 
+def _clean_code_line(s: str) -> str:
+    """Như clean() nhưng GIỮ khoảng trắng đầu dòng và giữa dòng (thụt lề, căn cột của code)."""
+    s = unicodedata.normalize("NFC", s).translate(_DIRTY).replace("\t", "    ").replace(chr(0xA0), " ")
+    return _CONTROL.sub("", _PUA.sub("• ", s)).rstrip()
+
+
+def _code_text(lines: list[dict]) -> tuple[str, float]:
+    """Khối code: giữ XUỐNG DÒNG và dựng lại THỤT LỀ. PDF thường không lưu khoảng trắng đầu dòng mà đặt dòng lùi vào bằng
+    tọa độ x → thụt lề = (x của dòng − x của dòng lùi trái nhất) / bề rộng một ký tự, cộng khoảng trắng đầu dòng nếu có.
+    Trả về (chữ, bề rộng ký tự). Dòng lùi vào thường bị PyMuPDF tách thành khối riêng → thụt lề GIỮA các khối do
+    chunk dựng tiếp từ bbox + bề rộng ký tự."""
+    rows = []
+    for ln in lines:
+        text = "".join(s["text"] for s in ln["spans"])
+        if text.strip():
+            x0, _, x1, _ = ln["bbox"]
+            rows.append((x0, (x1 - x0) / max(len(text), 1), _clean_code_line(text)))
+    if not rows:
+        return "", 0.0
+    base = min(x for x, _, _ in rows)
+    widths = sorted(w for _, w, _ in rows)
+    char_w = widths[len(widths) // 2] or 1.0               # bề rộng ký tự: lấy trung vị các dòng
+    return "\n".join(" " * round((x - base) / char_w) + text for x, _, text in rows), char_w
+
+
 def _read_page(page: pymupdf.Page) -> Page:
     drawings = page.get_drawings()
     tables = _tables(page, drawings)
@@ -203,9 +242,13 @@ def _read_page(page: pymupdf.Page) -> Page:
         t = clean(raw)
         if t and not _PAGE_NO.match(t):
             size = max((s["size"] for s in spans if s["text"].strip()), default=0.0)
+            mono = _style(spans, _MONO, _MONO_FONT) or looks_like_code(raw)
+            char_w = 0.0
+            if mono:
+                t, char_w = _code_text(b["lines"])
             blocks.append(Block(t, _round(b["bbox"]), round(size, 1),
-                                bold=_style(spans, _BOLD, re.compile(r"bold|black|heavy", re.I)),
-                                mono=_style(spans, _MONO, _MONO_FONT) or looks_like_code(raw)))
+                                bold=_style(spans, _BOLD, re.compile(r"bold|black|heavy", re.I)), mono=mono,
+                                char_w=round(char_w, 2)))
     return Page(page.number + 1, page.rect.width, page.rect.height, blocks, _figures(page, images, drawings, tables),
                 tables, image_share=round(_image_share(page, images), 3), drawings=len(drawings))
 
