@@ -337,12 +337,16 @@ def test_single_overlong_row_split_into_wellformed_rows():
     md = head + f"\n|GhiChu|{long_desc}|TEXT|"         # bảng CHỈ 1 hàng dữ liệu (trước đây không cắt gì)
     parts = chunk._table_parts(md, [(0, 0, 9, 9), (0, 10, 9, 19)])
     assert len(parts) >= 2
+    rows = []
     for x, bbs in parts:
         assert len(x) <= chunk.MAX and x.startswith(head) and bbs == [(0, 0, 9, 9), (0, 10, 9, 19)]
-        for row in x.split("\n")[2:]:
-            cells = chunk._cells(row)
-            assert len(cells) == 3 and cells[0] == "GhiChu" and cells[2] == "TEXT"   # cấu trúc 3 cột còn nguyên
-    joined = " ".join(chunk._cells(r)[1] for x, _ in parts for r in x.split("\n")[2:])
+        rows += [chunk._cells(row) for row in x.split("\n")[2:]]
+    assert all(len(c) == 3 for c in rows)                                     # cấu trúc 3 cột còn nguyên
+    assert rows[0][0] == "GhiChu" and rows[0][2] == "TEXT" and not rows[0][1].startswith(chunk.CONT_LEAD)
+    for c in rows[1:]:                                   # hàng con sau: đánh dấu là phần tiếp theo của cùng bản ghi
+        assert c[0] == "GhiChu" + chunk.CONT_MARK and c[2] == "TEXT" + chunk.CONT_MARK
+        assert c[1].startswith(chunk.CONT_LEAD)
+    joined = " ".join(c[1].removeprefix(chunk.CONT_LEAD) for c in rows)
     assert set(joined.split()) == set(long_desc.split())
 
 
@@ -458,9 +462,10 @@ def test_split_row_keeps_escaped_pipes_intact():
     line = chunk._row(["OR", long_cell, "C:" + chr(92)])
     out = chunk._split_row(line, 300)
     assert len(out) >= 2
-    for row in out:
+    for i, row in enumerate(out):
         cells = chunk._cells(row)
-        assert len(row) <= 300 and len(cells) == 3 and cells[0] == "OR" and cells[2] == "C:" + chr(92)
+        mark = chunk.CONT_MARK if i else ""
+        assert len(row) <= 300 and len(cells) == 3 and cells[0] == "OR" + mark and cells[2] == "C:" + chr(92) + mark
     assert " ".join(chunk._cells(r)[1] for r in out).count("||") >= 120
 
 
@@ -519,3 +524,60 @@ def test_abbreviations_case_insensitive():
         assert len(chunk.sentences(s)) == 2, s
     assert chunk.sentences("Xem cột a. Câu sau.") == ["Xem cột a.", "Câu sau."]   # chữ cái thường đơn vẫn hết câu
     assert chunk.sentences("Pi xấp xỉ 3.14. Tải http://a.com/b.pdf. Hết.") == ["Pi xấp xỉ 3.14.", "Tải http://a.com/b.pdf.", "Hết."]
+
+
+# ---- review bước 3: câu vắt trang ----
+
+def _textbook(first_page_end: str, second_page_start: str, landscape=False):
+    doc = pymupdf.open()
+    w, h = (842, 595) if landscape else (595, 842)
+    p1 = doc.new_page(width=w, height=h)
+    _t(p1, (50, 60), "3.2 Chuẩn hóa", 16)
+    _t(p1, (50, h - 60), first_page_end, 11)
+    p2 = doc.new_page(width=w, height=h)
+    _t(p2, (50, 60), second_page_start, 11)
+    _t(p2, (50, 90), "Dạng chuẩn 1 yêu cầu mọi thuộc tính nguyên tố.", 11)
+    return _passages(doc)
+
+
+def test_sentence_split_across_pages_is_completed():
+    ps = _textbook("Quá trình chuẩn hóa CSDL nhằm mục đích", "loại bỏ dư thừa dữ liệu và đảm bảo toàn vẹn.")
+    assert (ps[0].page, ps[0].body) == (1, "Quá trình chuẩn hóa CSDL nhằm mục đích loại bỏ dư thừa dữ liệu và đảm bảo toàn vẹn.")
+    assert all(b[3] <= 842 for b in ps[0].bboxes) and len(ps[0].bboxes) == 1   # khung tô vẫn chỉ trên trang 1
+    assert ps[1].page == 2 and ps[1].body.startswith("loại bỏ dư thừa")       # trang 2 giữ nguyên
+
+
+def test_no_continuation_when_page_ends_with_full_sentence_or_next_starts_capital():
+    ps = _textbook("Quá trình chuẩn hóa CSDL rất quan trọng.", "loại bỏ dư thừa dữ liệu.")
+    assert ps[0].body == "Quá trình chuẩn hóa CSDL rất quan trọng."
+    ps = _textbook("Danh sách các dạng chuẩn", "Dạng chuẩn Boyce-Codd được trình bày sau.")
+    assert ps[0].body == "Danh sách các dạng chuẩn"
+
+
+def test_no_continuation_on_slides():
+    ps = _textbook("Quá trình chuẩn hóa CSDL nhằm mục đích", "loại bỏ dư thừa dữ liệu.", landscape=True)
+    assert ps[0].body == "Quá trình chuẩn hóa CSDL nhằm mục đích"
+
+
+def test_continuation_starting_with_proper_noun_after_connector():
+    ps = _textbook("Hệ quản trị CSDL phổ biến hiện nay là", "Oracle Database và PostgreSQL.")
+    assert ps[0].body == "Hệ quản trị CSDL phổ biến hiện nay là Oracle Database và PostgreSQL."
+    ps = _textbook("Các hệ quản trị như MySQL,", "SQL Server cũng hỗ trợ giao tác.")
+    assert ps[0].body.endswith("MySQL, SQL Server cũng hỗ trợ giao tác.")
+
+
+def test_bullet_without_period_does_not_swallow_next_page():
+    ps = _textbook("• Khóa ngoại", "Dạng chuẩn 1 yêu cầu mọi thuộc tính nguyên tố.")
+    assert ps[0].body == "• Khóa ngoại"
+
+
+def test_more_connectors_and_known_limit():
+    ps = _textbook("Chương trình thực thi trên", "Linux kernel phiên bản 6.0.")
+    assert ps[0].body.endswith("thực thi trên Linux kernel phiên bản 6.0.")
+    ps = _textbook("Hệ điều hành sử dụng", "Windows Server để chạy SQL Server.")
+    assert ps[0].body.endswith("sử dụng Windows Server để chạy SQL Server.")
+    ps = _textbook("• Giao diện người dùng", "Phần này trình bày kiến trúc.")      # "người dùng" là danh từ → không nối
+    assert ps[0].body == "• Giao diện người dùng"
+    # giới hạn đã biết: dừng ở danh từ thường + trang sau mở đầu chữ hoa → không nhận ra (luật không phủ được)
+    ps = _textbook("Mô hình ER biểu diễn thực thể", "Student và Course trong hệ thống.")
+    assert ps[0].body == "Mô hình ER biểu diễn thực thể"

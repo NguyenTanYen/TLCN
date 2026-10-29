@@ -1,4 +1,5 @@
 """UC-01: Quản lý câu hỏi & gán CLO; cây CTĐT → PLO → PI → CLO → câu hỏi (góp ý F2a)."""
+import logging
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,9 +10,11 @@ from ..database import get_db
 from ..deps import check_course_access, require, lecturer_only
 from ..models import CLO, CLOPIMapping, PerformanceIndicator, Question, QuestionCLO, QuestionOption, User
 from ..schemas import CancelIn, QuestionIn
+from ..services import results
 
 router = APIRouter(prefix="/api/questions", tags=["UC-01 Ngân hàng câu hỏi"])
 LABELS = "ABCDEFGHIJ"
+log = logging.getLogger(__name__)
 
 
 def outcome_paths(db: Session, clo_ids) -> dict[int, list[dict]]:
@@ -199,7 +202,23 @@ def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: 
     q = _get_q(db, u, qid)
     q.is_cancelled, q.cancel_reason = True, body.reason
     db.commit()
-    return {"id": qid, "is_cancelled": True}
+    # Hủy câu sau khi đã chấm (VD phúc khảo chứng minh đề sai): phân tích lại các bài KT đã phân tích có câu này để
+    # minh chứng CLO (bỏ câu đã Hủy) không giữ số cũ khi GV quên bấm "Phân tích lại".
+    # analyze_exam tự commit từng bài → không gộp chung một giao dịch được; lỗi ở một bài được cô lập (rollback riêng,
+    # ghi log) để các bài khác vẫn tính lại, và trả về danh sách bài lỗi cho GV bấm "Phân tích lại" ở bài đó.
+    exam_ids = [r[0] for r in db.execute(text("""SELECT e.id FROM exams e JOIN exam_questions eq ON eq.exam_id = e.id
+                                                  WHERE eq.question_id = :q AND e.status = 'Analyzed' ORDER BY e.id"""),
+                                         {"q": qid})]
+    done, failed = [], []
+    for exam_id in exam_ids:
+        try:
+            results.analyze_exam(db, exam_id)
+            done.append(exam_id)
+        except Exception:  # noqa: BLE001 – một bài lỗi không được chặn các bài còn lại
+            db.rollback()
+            log.exception("Phân tích lại bài KT %s sau khi hủy câu %s thất bại", exam_id, qid)
+            failed.append(exam_id)
+    return {"id": qid, "is_cancelled": True, "reanalyzed_exams": done, "reanalyze_failed": failed}
 
 
 @router.delete("/{qid}")

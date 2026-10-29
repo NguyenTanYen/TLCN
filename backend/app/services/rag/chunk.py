@@ -52,8 +52,11 @@ OVERLAP_SENTENCE = MAX // 3  # câu cuối ngắn hơn ngần này thì lặp l�
 OVERLAP_SHARE = 4   # cắt ép theo từ: phần chồng lấn không quá 1/4 số từ của phần
 TABLE_HEADER_SHARE = 2  # header bảng dài hơn MAX/2 thì các phần không kèm header
 CELL_KEEP_SHARE = 2     # tách hàng bảng: các ô ngắn được giữ nguyên ở mọi hàng con nếu tổng ≤ 1/2 chỗ
+CONT_MARK = " (tiếp)"   # tách hàng bảng: ô ngắn ở hàng con thứ 2 trở đi
+CONT_LEAD = "… "        # tách hàng bảng: phần tiếp theo của ô dài
 TITLE_ZONE = 0.25   # trang ngang (slide): đề mục đầu tiên nằm trong 25% trên cùng là TIÊU ĐỀ SLIDE
 SIZE_DEPTH = 3      # đề mục không đánh số: tối đa 3 cấp theo cỡ chữ dưới đề mục đánh số gần nhất
+CONTINUE_MAX = 300  # câu vắt trang: nối tối đa 300 ký tự đầu trang sau vào đoạn cuối trang trước
 
 _CAPTION = re.compile(r"^(hình|hinh|figure|fig\.?|bảng|bang|table|sơ đồ)\s*[\d.:–-]", re.I)
 _CHAPTER = re.compile(r"^(chương|chuong|chapter|phần|phan|part|bài|bai)\s+[\dIVXLC]+\b", re.I)
@@ -63,6 +66,13 @@ _LETTER = re.compile(r"^[A-Z][.)]\s+\S")
 # thứ tự cấp chuẩn của các kiểu đánh số
 _ORDER = ("chapter", "roman", "letter", "num1", "num2", "num3", "num4", "num5", "num6")
 _SENT = re.compile(r"(?<=[.!?;])\s+")
+# đoạn dừng ở từ nối / dấu phẩy → câu chắc chắn còn tiếp (dùng cho câu vắt trang mà nửa sau mở đầu bằng chữ hoa).
+# Cố ý KHÔNG có "dùng" ("người dùng" hay đứng cuối gạch đầu dòng). Giới hạn đã biết: câu dừng ở danh từ thường
+# ("... biểu diễn thực thể" + "Student và Course ...") không nhận ra được bằng luật – để lại cho dữ liệu thật quyết định.
+_CONNECTOR = re.compile(r"(,|\b(là|và|của|các|những|như|gồm|bằng|với|cho|trong|để|nhằm|từ|theo|khi|nếu|mà|hoặc|hay|"
+                        r"được|bởi|tới|đến|về|thì|có|tại|qua|trên|dưới|giữa|vào|sau|trước|thuộc|chứa|sử dụng|"
+                        r"the|a|an|of|and|or|to|in|for|with|is|are|by|from|as|that|on|at|into|using|via|between|than))\s*$",
+                        re.I)
 # câu kết thúc bằng từ viết tắt / chữ cái đầu tên → chưa phải hết câu
 #   từ viết tắt so khớp KHÔNG phân biệt hoa thường (ThS / Ths / ths, PGS / pgs); riêng chữ cái đơn chỉ nhận chữ HOA
 #   (câu kết thúc bằng "... cột a." vẫn được cắt)
@@ -215,23 +225,35 @@ def _row(cells: list[str]) -> str:
 def _split_row(line: str, budget: int) -> list[str]:
     """Hàng Markdown dài hơn budget → nhiều hàng con ĐÚNG CẤU TRÚC |..|..|: các ô ngắn (tổng ≤ nửa chỗ) lặp lại ở mọi hàng
     con, chỉ các ô dài bị chia; ô dài hết chữ thì để trống ở các hàng con sau. Chia trên nội dung ĐÃ BỎ escape rồi escape
-    lại → không bao giờ cắt đôi "\\|"."""
+    lại → không bao giờ cắt đôi "\\|".
+    Hàng con thứ 2 trở đi được ĐÁNH DẤU là phần tiếp theo (ô ngắn thêm CONT_MARK, ô dài mở đầu bằng "… ") để LLM hiểu
+    đó là cùng một bản ghi bị chia, không phải nhiều bản ghi trùng tên."""
     cells = _cells(line)
     size = [len(_esc(c)) for c in cells]
     room = budget - (len(cells) + 1)                 # trừ các ký tự "|"
     keep, used = set(), 0
     for j in sorted(range(len(cells)), key=lambda j: size[j]):
-        if used + size[j] > room // CELL_KEEP_SHARE:
+        if used + size[j] + len(CONT_MARK) > room // CELL_KEEP_SHARE:
             break
         keep.add(j)
-        used += size[j]
+        used += size[j] + len(CONT_MARK)             # chừa chỗ cho dấu "(tiếp)" ở hàng con sau
     longs = [j for j in range(len(cells)) if j not in keep]
-    limit = max(1, (room - used) // len(longs))
+    limit = max(1, (room - used) // len(longs) - len(CONT_LEAD))
     # ô có "\" hoặc "|" dài thêm tối đa gấp đôi khi escape → chia nhỏ hơn cho chắc
     pieces = {j: _hard_split(cells[j], max(1, limit // 2) if size[j] > len(cells[j]) else limit) for j in longs}
     n = max(len(v) for v in pieces.values())
-    return [_row([cells[j] if j in keep else (pieces[j][i] if i < len(pieces[j]) else "") for j in range(len(cells))])
-            for i in range(n)]
+    rows = []
+    for i in range(n):
+        row = []
+        for j in range(len(cells)):
+            if j in keep:
+                row.append(cells[j] + (CONT_MARK if i and cells[j] else ""))
+            elif i < len(pieces[j]):
+                row.append((CONT_LEAD if i else "") + pieces[j][i])
+            else:
+                row.append("")
+        rows.append(_row(row))
+    return rows
 
 
 def _table_parts(md: str, rows: list[BBox]) -> list[tuple[str, list[BBox]]]:
@@ -360,6 +382,7 @@ class _Builder:
         self.page: Page | None = None
         self.page_out: list[Passage] = []
         self.buf: list[Block] = []
+        self.pending: Passage | None = None             # đoạn cuối trang trước kết thúc giữa câu
 
     def ctx(self) -> tuple[str, str, int]:
         """(đề mục gần nhất, breadcrumb, cấp) đang hiệu lực ở vị trí hiện tại."""
@@ -439,13 +462,36 @@ class _Builder:
             text_blocks.append(b)
         return figs, tabs, text_blocks
 
+    def continue_sentence(self, text_blocks: list[Block]) -> None:
+        """Câu vắt sang trang mới: nối phần còn thiếu (tới hết câu đầu tiên của trang này) vào cuối đoạn đang dở của
+        trang trước. Chỉ nối CHỮ – khung tô của mỗi đoạn vẫn nằm trên trang của nó, trích dẫn vẫn đúng "trang N"."""
+        pending, self.pending = self.pending, None
+        if not pending or not text_blocks:
+            return
+        b = text_blocks[0]
+        if _is_heading(b, self.body_size) or b.mono:
+            return
+        # trang sau mở đầu bằng chữ thường → chắc chắn là câu nối tiếp; mở đầu chữ HOA (tên riêng "Oracle", "SQL Server")
+        # thì chỉ nối khi trang trước dừng ở từ nối / dấu phẩy ("... hiện nay là") – nếu không, chữ hoa thường là câu mới
+        # (gạch đầu dòng cuối trang không có dấu chấm như "• Khóa ngoại" không được nuốt câu đầu trang sau)
+        first = next((c for c in b.text if c.isalpha()), "")
+        if not (first.islower() or _CONNECTOR.search(pending.body)):
+            return
+        rest = sentences(b.text)[0]
+        if len(rest) > CONTINUE_MAX:                       # câu rất dài: chỉ lấy phần đầu, cắt ở ranh giới từ
+            rest = rest[:CONTINUE_MAX].rsplit(" ", 1)[0] + " …"
+        pending.body += " " + rest
+
     def page_passages(self, p: Page) -> list[Passage]:
         self.page, self.page_out, self.buf = p, [], []
         figs, tabs, text_blocks = self.split_objects(p)
+        self.continue_sentence(text_blocks)
         heads = [(float("-inf"), self.ctx())]      # (tung độ, ngữ cảnh có hiệu lực từ đó) – để gán đề mục cho hình / bảng
         landscape = p.width > p.height
+        last_heading = False
         for b in text_blocks:
-            if _is_heading(b, self.body_size):
+            last_heading = _is_heading(b, self.body_size)
+            if last_heading:
                 self.flush()
                 slide_title = landscape and len(heads) == 1 and b.bbox[1] < TITLE_ZONE * p.height
                 self.push_heading(b, slide_title, landscape)
@@ -460,6 +506,10 @@ class _Builder:
             last = out.pop()
             out[-1].body += ("\n" if last.code else " ") + last.body
             out[-1].bboxes += last.bboxes
+        # trang dọc (giáo trình) kết thúc giữa câu → chờ trang sau nối tiếp; slide (trang ngang) là đơn vị độc lập
+        if (not landscape and out and not last_heading and out[-1].kind == "text" and not out[-1].code
+                and out[-1].body and not out[-1].body.rstrip().endswith((".", "!", "?", ":", ";"))):
+            self.pending = out[-1]
         for o in figs + tabs:
             o.title, o.breadcrumb, o.level = [c for y, c in heads if y <= o.bboxes[0][1]][-1]
         tabs = self.split_tables(p, tabs)
