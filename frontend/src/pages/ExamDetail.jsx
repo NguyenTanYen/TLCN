@@ -214,7 +214,9 @@ function CloTrace({ e, reload }) {
         <div>{r ? <><b>{r.ok}/{r.n} SV · {Math.round(100 * r.ok / r.n)}%</b><small>đạt khi ≥ {Number(b?.pass_threshold_pct ?? 50)}% điểm CLO</small></>
           : <span className="muted small">{analyzed ? '—' : 'chưa phân tích'}</span>}</div>
         <div>{b?.n_evaluated ? <><b>{fmtPct(b.achieved_pct)}</b> <Achieved ok={Number(b.achieved_pct) + 1e-9 >= Number(b.target_pct)} /><small>chỉ tiêu {Number(b.target_pct)}% SV</small></>
-          : <span className="muted small">chưa có</span>}</div>
+          : <span className="muted small">{analyzed && e.counts_for_clo && b?.evidence_type && b.evidence_type !== 'any' && b.evidence_type !== e.assessment_type
+              ? `chưa có – theo kế hoạch đánh giá, ${c} chỉ lấy bài ${b.evidence_type === 'final' ? 'Cuối kỳ' : 'Quá trình'} (bài này là ${e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'}). Đổi ở thẻ "Kế hoạch đánh giá" của lớp.`
+              : 'chưa có'}</span>}</div>
       </div>
     })}
     <p className="small muted mt">Cách tính chỉ dùng để đếm số sinh viên đạt của <b>cả lớp</b>, không đánh giá riêng từng sinh viên. <Link to={`/sections/${e.class_section_id}/clo`}>Xem kết quả chuẩn đầu ra của lớp →</Link></p>
