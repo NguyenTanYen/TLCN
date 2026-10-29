@@ -16,6 +16,9 @@
 - Đề cương chi tiết có phiên bản (góp ý F1): course_syllabi, syllabus_references, syllabus_assessments,
   syllabus_assessment_clos, outline_clos; nội dung, số tiết và hoạt động dạy học của từng chương (course_outlines).
 - question_moodle_links (góp ý F3): trạng thái đồng bộ câu hỏi theo từng khóa học Moodle, phát hiện câu bị sửa ở cả hai bên.
+- Học liệu của lớp học phần cho gợi ý đọc (RAG): section_materials, material_pages, material_passages.
+- exam_attempts.fk_att_exam: ON DELETE RESTRICT (trước là CASCADE) – CSDL không cho xóa bài KT đã có kết quả thi,
+  kể cả khi xóa bằng SQL trực tiếp hay script; muốn xóa phải xóa exam_attempts tường minh trước.
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
 """
 from sqlalchemy import text
@@ -199,6 +202,12 @@ def upgrade_schema() -> list[str]:
         if cols == ["moodle_attempt_id"]:
             c.execute(text("ALTER TABLE exam_attempts DROP INDEX uq_att_moodle, ADD CONSTRAINT uq_att_moodle UNIQUE (exam_id, moodle_attempt_id)"))
             done.append("exam_attempts.uq_att_moodle (exam_id, moodle_attempt_id)")
+        rule = c.execute(text("""SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS
+                                 WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='exam_attempts' AND CONSTRAINT_NAME='fk_att_exam'""")).scalar()
+        if rule == "CASCADE":
+            c.execute(text("ALTER TABLE exam_attempts DROP FOREIGN KEY fk_att_exam"))
+            c.execute(text("ALTER TABLE exam_attempts ADD CONSTRAINT fk_att_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE RESTRICT"))
+            done.append("exam_attempts.fk_att_exam ON DELETE RESTRICT")
         n = c.execute(text("""SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
                                AND TABLE_NAME='students' AND COLUMN_NAME='student_code'""")).scalar()
         if n is not None and n < 100:

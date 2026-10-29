@@ -574,7 +574,7 @@ CREATE TABLE exam_attempts (
   time_limit_sec     INT          NULL COMMENT 'Giới hạn thời gian của Quiz khi làm bài (giây; NULL = không giới hạn)',
   last_answer_at     DATETIME     NULL COMMENT 'Lần cuối SV chọn/đổi một đáp án (từ các bước question engine của Moodle)',
   finished_by_timeout BOOLEAN     NULL COMMENT '1 = bài được nộp khi hết giờ (Moodle tự nộp), không do SV bấm nộp',
-  CONSTRAINT fk_att_exam    FOREIGN KEY (exam_id)    REFERENCES exams(id)         ON DELETE CASCADE,
+  CONSTRAINT fk_att_exam    FOREIGN KEY (exam_id)    REFERENCES exams(id)         ON DELETE RESTRICT,
   CONSTRAINT fk_att_student FOREIGN KEY (student_id) REFERENCES students(id)      ON DELETE RESTRICT,
   CONSTRAINT fk_att_version FOREIGN KEY (version_id) REFERENCES exam_versions(id) ON DELETE RESTRICT,
   CONSTRAINT uq_att_exam_student UNIQUE (exam_id, student_id),

@@ -100,7 +100,8 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     assert float(tot[studs[0]]) == truth[studs[0]] + 1 and all(float(tot[c]) == truth[c] for c in studs[1:])
     assert client.get(f"/api/exams/{eid}", headers=gv).json()["status"] == "Analyzed"
     assert client.delete(f"/api/exams/{eid}/paper/versions", headers=gv).status_code == 409   # đã có kết quả
-    with engine.begin() as c:     # dọn: bài thử không ảnh hưởng kiểm thử khác
+    with engine.begin() as c:     # dọn: bài thử không ảnh hưởng kiểm thử khác (bài làm phải xóa trước – fk_att_exam RESTRICT)
+        c.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": eid})
         c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})
     from app.services import results
     db = SessionLocal(); results.recompute_class_section(db, 1); db.close()

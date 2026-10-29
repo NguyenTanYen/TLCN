@@ -15,6 +15,7 @@ def _cleanup():
     """Các bài nhập điểm tạo trong tệp này bị xóa sau cùng để không ảnh hưởng kiểm thử khác (thống kê lớp, BM6…)."""
     yield
     with engine.begin() as c:
+        c.execute(text("DELETE a FROM exam_attempts a JOIN exams e ON e.id=a.exam_id WHERE e.exam_type='manual' AND e.class_section_id=1"))
         c.execute(text("DELETE FROM exams WHERE exam_type='manual' AND class_section_id=1"))
         c.execute(text("DELETE e FROM enrollments e JOIN students s ON s.id=e.student_id WHERE s.student_code='99999901'"))
     db = SessionLocal()

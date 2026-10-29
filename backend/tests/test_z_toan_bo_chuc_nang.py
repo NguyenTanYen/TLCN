@@ -262,6 +262,7 @@ def test_moodle_web_service_flows(client, gv, admin, moodle_ws, gv_teacher_of_co
     assert client.post(f"/api/exams/{on}/moodle/push-results", headers=gv).status_code == 409                # chưa phân tích
     # dọn
     for eid in (on, pp):
+        ex("DELETE FROM exam_attempts WHERE exam_id=:e", e=eid)
         ex("DELETE FROM exams WHERE id=:e", e=eid)
 
 

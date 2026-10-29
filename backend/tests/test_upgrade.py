@@ -1,5 +1,7 @@
 """Nâng cấp CSDL từ bản cũ và cài cầu nối khi Moodle chưa có plugin Offline Quiz."""
+import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app import migrate
 from app.database import engine
@@ -56,3 +58,50 @@ def test_upgrade_old_database_adds_offlinequiz_column():
     migrate.run()                                   # cài lại cầu nối theo lược đồ mới
     with engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM v_mdl_attempts WHERE exam_id=1")).scalar() == 38
+
+
+def _fk_att_exam_rule(c):
+    return c.execute(text("""SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS
+                             WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='exam_attempts' AND CONSTRAINT_NAME='fk_att_exam'""")).scalar()
+
+
+def test_db_rejects_deleting_exam_with_attempts(client, gv):
+    """fk_att_exam = RESTRICT: xóa bài KT đã có kết quả bằng SQL trực tiếp bị CSDL từ chối (không xóa dây chuyền bài làm)."""
+    with engine.connect() as c:
+        assert _fk_att_exam_rule(c) == "RESTRICT"
+        n1 = c.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=1")).scalar()
+    assert n1 > 0
+    with pytest.raises(IntegrityError), engine.begin() as c:
+        c.execute(text("DELETE FROM exams WHERE id=1"))
+    with engine.connect() as c:
+        assert c.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=1")).scalar() == n1
+    # bài KT mới: chưa có bài làm thì xóa qua API được; có một bài làm thì API trả 409 và SQL bị CSDL chặn
+    qs = [x["id"] for x in client.get("/api/questions?course_id=5", headers=gv).json() if x["tagged"]][:3]
+    body = {"class_section_id": 1, "exam_title": "Thử khóa ngoại bài làm", "exam_type": "paper",
+            "items": [{"question_id": i, "points": 1} for i in qs]}
+    e1 = client.post("/api/exams", headers=gv, json=body).json()["id"]
+    r = client.delete(f"/api/exams/{e1}", headers=gv)
+    assert r.status_code == 200 and r.json()["deleted"] == e1, r.text
+    e2 = client.post("/api/exams", headers=gv, json=body).json()["id"]
+    with engine.begin() as c:
+        sid = c.execute(text("SELECT student_id FROM enrollments WHERE class_section_id=1 LIMIT 1")).scalar()
+        c.execute(text("INSERT INTO exam_attempts (exam_id, student_id, source, status, total_score) VALUES (:e, :s, 'manual', 'absent', 0)"),
+                  {"e": e2, "s": sid})
+    assert client.delete(f"/api/exams/{e2}", headers=gv).status_code == 409
+    with pytest.raises(IntegrityError), engine.begin() as c:
+        c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": e2})
+    with engine.begin() as c:          # xóa tường minh bài làm trước thì xóa được bài KT
+        c.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": e2})
+        assert c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": e2}).rowcount == 1
+
+
+def test_upgrade_fk_att_exam_cascade_to_restrict():
+    """CSDL cũ (fk_att_exam ON DELETE CASCADE) được nâng cấp sang RESTRICT; chạy lại không đổi gì."""
+    with engine.begin() as c:
+        c.execute(text("ALTER TABLE exam_attempts DROP FOREIGN KEY fk_att_exam"))
+        c.execute(text("ALTER TABLE exam_attempts ADD CONSTRAINT fk_att_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE"))
+        assert _fk_att_exam_rule(c) == "CASCADE"
+    assert "exam_attempts.fk_att_exam ON DELETE RESTRICT" in migrate.upgrade_schema()
+    with engine.connect() as c:
+        assert _fk_att_exam_rule(c) == "RESTRICT"
+    assert migrate.upgrade_schema() == []
