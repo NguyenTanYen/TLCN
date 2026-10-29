@@ -8,7 +8,21 @@ LEVELS = [{"label": "Tốt", "score_pct": 100}, {"label": "Khá", "score_pct": 7
 def ctx(client, gv):
     cs = next(s for s in client.get("/api/class-sections", headers=gv).json() if s["section_code"] == "DBMS330284_01")
     clos = client.get(f"/api/class-sections/{cs['id']}/clo-results", headers=gv).json()["clos"]
-    return {"cs": cs, "clos": [c["clo_id"] for c in clos]}
+    return {"cs": cs, "clos": [c["clo_id"] for c in clos][-2:]}   # đo CLO cuối (CLO3, CLO4) để không lẫn vào minh chứng CLO1 của test khác
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _don_dep(client, gv, ctx):
+    """Xóa bài và rubric do test tạo, để không làm lệch số liệu của các test sau."""
+    yield
+    cs = ctx["cs"]
+    for e in client.get(f"/api/class-sections/{cs['id']}/exams", headers=gv).json():
+        if "(rubric)" in e["exam_title"] or e["exam_title"] == "Bài vắng thử":
+            if client.delete(f"/api/exams/{e['id']}", headers=gv).status_code == 409:   # đã có điểm → bỏ khỏi minh chứng CLO
+                client.patch(f"/api/exams/{e['id']}/evidence", headers=gv, json={"counts_for_clo": False})
+    for r in client.get(f"/api/courses/{cs['course_id']}/rubrics", headers=gv).json():
+        if r["name"] in ("Rubric báo cáo đồ án", "Rubric vắng", "Bản sao đã sửa") or r["name"].startswith("Rubric báo cáo đồ án"):
+            client.delete(f"/api/rubrics/{r['id']}", headers=gv)
 
 
 def _body(ctx, name="Rubric báo cáo đồ án"):

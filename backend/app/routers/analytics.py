@@ -126,8 +126,9 @@ def clo_results(cs_id: int, u: User = Depends(require("admin", "lecturer")), db:
         SELECT c.id AS clo_id, c.clo_code, c.description, r.n_evaluated, r.n_achieved, r.achieved_pct,
                COALESCE(r.target_pct, p.target_pct, co.clo_target_pct) AS target_pct, r.is_achieved, r.analysis, r.improvement,
                COALESCE(p.pass_threshold_pct, :thr0) AS pass_threshold_pct, p.evidence_type,
-               (SELECT GROUP_CONCAT(CONCAT(pl.plo_code, '(', m.level, ')') ORDER BY pl.plo_code) FROM clo_plo_mapping m
-                 JOIN plos pl ON pl.id=m.plo_id WHERE m.clo_id=c.id) AS plos
+               (SELECT GROUP_CONCAT(CONCAT(pg.code, ' · ', pl.plo_code, ' (', m.level, ')') ORDER BY pg.code, pl.plo_code SEPARATOR '; ')
+                  FROM clo_plo_mapping m JOIN plos pl ON pl.id=m.plo_id JOIN programs pg ON pg.id=pl.program_id
+                 WHERE m.clo_id=c.id) AS plos
         FROM clos c JOIN courses co ON co.id=c.course_id
         LEFT JOIN clo_results r ON r.clo_id=c.id AND r.class_section_id=:cs
         LEFT JOIN clo_assessment_plans p ON p.clo_id=c.id AND p.semester_id=:s

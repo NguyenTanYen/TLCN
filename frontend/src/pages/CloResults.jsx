@@ -43,7 +43,7 @@ export default function CloResults() {
       {tab === 'bm6a' && <Card title="Bảng kế hoạch kiểm tra, đánh giá mức độ đạt cho từng CĐR môn học">
         <table className="tbl"><thead><tr><th>CĐR</th><th>Nội dung</th><th>PLO (mức)</th><th>Bài KT có CĐR</th><th>Bài KT lấy minh chứng</th><th>Phương pháp</th><th>Chu kỳ</th><th>Ngưỡng đạt / SV</th><th>Chỉ tiêu</th><th /></tr></thead>
           <tbody>{course.data?.clos.map(c => <tr key={c.id}><td><b>{c.clo_code}</b></td><td className="clip">{c.description}</td>
-            <td>{c.plos.map(p => `${p.plo_code}(${p.level})`).join(', ')}</td><td>{c.plan?.assessments_text || '—'}</td><td>{EVID[c.plan?.evidence_type] || '—'}</td>
+            <td>{c.plos.map(p => `${p.program_code ? p.program_code + ' · ' : ''}${p.plo_code} (${p.level})`).join('; ')}</td><td>{c.plan?.assessments_text || '—'}</td><td>{EVID[c.plan?.evidence_type] || '—'}</td>
             <td>{c.plan?.method}</td><td>{c.plan?.cycle}</td><td>{c.plan ? `${c.plan.pass_threshold_pct}% điểm tối đa` : '—'}</td><td>{c.plan ? `${c.plan.target_pct}%` : '—'}</td>
             <td><button className="btn sm" onClick={() => setPlan({ clo: c, semester_id: cs.semester_id })}>Sửa</button></td></tr>)}</tbody></table>
         <p className="muted mt">Chỉ tiêu mong muốn đạt CĐR môn học: <b>{course.data?.clo_target_pct}%</b>. Mỗi SV được tính “đạt” một CLO khi tổng điểm các câu hỏi thuộc CLO ≥ ngưỡng % điểm tối đa của các câu đó.</p>
