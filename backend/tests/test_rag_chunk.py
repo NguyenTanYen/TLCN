@@ -836,3 +836,146 @@ def test_font_size_noise_does_not_make_agenda_line_a_slide_title():
             _t(pg, (60, 90 + 36 * k), s, 20.1 if k == 1 else 20)   # nhiễu cỡ chữ 0,1 pt ở dòng thứ hai
     crumbs = [p.breadcrumb for p in _passages(doc)]
     assert crumbs == ["NỘI DUNG", TITLES[1], TITLES[2]]
+
+
+PARTS = ["MỞ ĐẦU", "BẢN CHẤT ETL", "ĐỘ PHỨC TẠP", "YÊU CẦU", "KIẾN TRÚC", "TRÍCH XUẤT", "BIẾN ĐỔI", "NẠP DỮ LIỆU",
+         "KIỂM THỬ", "VẬN HÀNH", "GIÁM SÁT", "TỔNG KẾT"]
+
+
+def _handout(n_slides: int, frame=True) -> pymupdf.Document:
+    """Bản in handout kiểu "Microsoft Print to PDF": trang A4 dọc, 2 slide / trang, mỗi slide trong khung viền 16:9;
+    ngoài khung là ngày in, số trang, số slide."""
+    doc = pymupdf.open()
+    boxes = [pymupdf.Rect(66, 89, 546, 359), pymupdf.Rect(66, 433, 546, 703)]
+    for k in range(n_slides):
+        if k % 2 == 0:
+            pg = doc.new_page(width=612, height=792)
+            _t(pg, (550, 16), "9/16/2026", 8)
+            _t(pg, (599, 775), str(k // 2 + 1), 8)
+        r = boxes[k % 2]
+        if frame:
+            pg.draw_rect(r, color=(0, 0, 0), width=0.96)
+        _t(pg, (r.x0 + 4, r.y1 + 12), str(k + 1), 8)                     # số slide dưới khung
+        _t(pg, (r.x0 + 23, r.y0 + 12), "TIẾT 1 • " + PARTS[k], 5)            # dòng nhỏ TRÊN tiêu đề
+        _t(pg, (r.x0 + 23, r.y0 + 40), f"Tiêu đề slide {k + 1}", 16)
+        _t(pg, (r.x0 + 23, r.y0 + 90), f"Nội dung của slide {k + 1} giải thích khái niệm số {k + 1}.", 10)
+        for j in range(3):                                                 # sơ đồ nhỏ: 3 ô nối bằng mũi tên
+            pg.draw_rect(pymupdf.Rect(r.x0 + 30 + 140 * j, r.y0 + 150, r.x0 + 130 + 140 * j, r.y0 + 200), color=(0, 0, 1))
+            if j:
+                pg.draw_line((r.x0 - 10 + 140 * j, r.y0 + 175), (r.x0 + 30 + 140 * j, r.y0 + 175), color=(0, 0, 1))
+    return doc
+
+
+def test_handout_slides_split_into_sub_pages_with_titles_and_page_coordinates():
+    doc = _handout(7)
+    pages = ingest.read_pdf(doc.tobytes())
+    slides = [p for p in pages if p.sheet]
+    assert [(p.no, p.offset[1]) for p in slides] == [(1, 89.0), (1, 433.0), (2, 89.0), (2, 433.0), (3, 89.0),
+                                                     (3, 433.0), (4, 89.0)]   # tờ cuối chỉ 1 slide
+    assert all((p.width, p.height, p.sheet) == (480.0, 270.0, (612.0, 792.0)) for p in slides)
+    ps = chunk.build_passages(pages)
+    text = [p for p in ps if p.kind == "text"]
+    assert [p.breadcrumb for p in text] == [f"Tiêu đề slide {k}" for k in range(1, 8)]
+    # dòng nhỏ nằm TRÊN tiêu đề thuộc về slide của nó, không phải slide trước
+    assert text[1].body == "TIẾT 1 • BẢN CHẤT ETL Nội dung của slide 2 giải thích khái niệm số 2."
+    assert not any("9/16/2026" in p.body for p in ps)                     # ngày in ngoài khung bị lọc
+    figs = [p for p in ps if p.kind == "figure"]
+    assert len(figs) == 7 and figs[1].breadcrumb == "Tiêu đề slide 2"     # khung slide không bị coi là hình
+    x0, y0, x1, y1 = figs[1].bbox                                          # khung tô ở tọa độ TRANG THẬT (slide dưới)
+    assert figs[1].page == 1 and 90 < x0 < 100 and 580 < y0 < y1 < 640
+
+
+def test_framed_box_not_repeated_on_pages_is_not_a_handout():
+    doc = pymupdf.open()
+    for i in range(3):
+        pg = doc.new_page(width=612, height=792)
+        _t(pg, (72, 80), f"Chương {i + 1}. Nội dung", 16)
+        _t(pg, (72, 120), "Đoạn văn của giáo trình trình bày khái niệm.", 11)
+    doc[1].draw_rect(pymupdf.Rect(72, 300, 540, 560), color=(0, 0, 0))       # một hộp viền tỷ lệ 16:9 ở MỘT trang
+    _t(doc[1], (80, 330), "Ghi nhớ: khóa chính không được trùng.", 11)
+    pages = ingest.read_pdf(doc.tobytes())
+    assert len(pages) == 3 and not any(p.sheet for p in pages)
+
+
+def test_mixed_file_only_handout_pages_are_split_in_both_directions():
+    """Tệp gộp: handout chiếm phần lớn + vài trang bài tập A4 không khung → trang A4 giữ nguyên;
+    handout chiếm phần NHỎ sau nhiều slide thường → phần handout vẫn được nhận."""
+    def a4(doc, k):
+        pg = doc.new_page(width=612, height=792)
+        _t(pg, (72, 80), f"Bài tập {['khóa', 'chuẩn hóa', 'truy vấn'][k - 1]}", 16)
+        _t(pg, (72, 120), f"Cho lược đồ quan hệ R{k}, hãy xác định khóa chính và khóa ngoại.", 11)
+
+    doc = _handout(12)                                   # 6 tờ handout ...
+    for k in range(1, 4):                                # ... + 3 trang bài tập A4
+        a4(doc, k)
+    pages = ingest.read_pdf(doc.tobytes())
+    assert [p.no for p in pages if p.sheet] == [n for n in range(1, 7) for _ in range(2)]
+    tail = [p for p in pages if p.no >= 7]
+    assert [(p.no, p.offset, p.sheet) for p in tail] == [(n, (0.0, 0.0), None) for n in (7, 8, 9)]
+    assert [b.text for b in tail[0].blocks][0] == "Bài tập khóa"
+
+    doc = pymupdf.open()
+    for k in range(8):                                   # 8 slide thường ...
+        pg = doc.new_page(width=720, height=540)
+        _t(pg, (40, 60), f"Slide thường {k}", 28)
+        _t(pg, (60, 140), f"Nội dung slide thường số {k}.", 18)
+    doc.insert_pdf(_handout(6))                          # ... + 3 tờ handout (27% số trang)
+    pages = ingest.read_pdf(doc.tobytes())
+    assert [p.no for p in pages if p.sheet] == [9, 9, 10, 10, 11, 11]
+    ps = chunk.build_passages(pages)
+    assert [p.breadcrumb for p in ps if p.kind == "text" and p.page >= 9] == [f"Tiêu đề slide {k}" for k in range(1, 7)]
+
+
+def test_repeated_table_or_page_border_is_not_a_handout_frame():
+    """Giáo trình: bảng lớn tỷ lệ ngang cùng chỗ trên nhiều trang, và slide có viền trang trí bao gần hết trang –
+    không phải khung handout, chữ ngoài bảng / viền vẫn giữ nguyên."""
+    doc = pymupdf.open()
+    for i in range(4):
+        pg = doc.new_page(width=612, height=792)
+        _t(pg, (72, 70), f"Bảng tra cứu {['A', 'B', 'C', 'D'][i]}", 16)
+        x0, y0, cw, rh = 72, 100, 117, 36.5                               # bảng 468 × 292 pt: tỷ lệ 1,6 như slide
+        for r in range(8):
+            for c in range(4):
+                rc = pymupdf.Rect(x0 + cw * c, y0 + rh * r, x0 + cw * (c + 1), y0 + rh * (r + 1))
+                pg.draw_rect(rc)
+                _t(pg, (rc.x0 + 4, rc.y0 + 20), f"ô {r}{c}", 10)
+        pg.draw_rect(pymupdf.Rect(x0, y0, x0 + 4 * cw, y0 + 8 * rh), width=2)   # viền ngoài bảng: 1 hình chữ nhật
+        _t(pg, (72, 420), "Ghi chú dưới bảng giải thích ý nghĩa các cột.", 11)
+    assert all(ingest._frame_candidates(pg, pg.get_drawings()) for pg in doc)   # đúng là ứng viên khung ...
+    pages = ingest.read_pdf(doc.tobytes())
+    assert len(pages) == 4 and not any(p.sheet for p in pages)          # ... nhưng trùng viền bảng → không tách
+    assert pages[0].tables and pages[0].blocks[-1].text == "Ghi chú dưới bảng giải thích ý nghĩa các cột."
+
+    doc = pymupdf.open()
+    for i in range(4):
+        pg = doc.new_page(width=720, height=540)
+        pg.draw_rect(pymupdf.Rect(20, 20, 700, 520), color=(0, 0, 0.5), width=3)  # viền mẫu slide: 87% trang
+        _t(pg, (40, 70), f"Tiêu đề {['một', 'hai', 'ba', 'bốn'][i]}", 28)
+        _t(pg, (60, 140), "Nội dung slide có viền trang trí.", 18)
+    assert not any(p.sheet for p in ingest.read_pdf(doc.tobytes()))
+
+    doc = pymupdf.open()                       # slide in cả trang ngang, tùy chọn "Frame slides": viền 69% trang
+    for i in range(4):
+        pg = doc.new_page(width=842, height=595)
+        pg.draw_rect(pymupdf.Rect(30, 40, 812, 480), width=0.7)
+        _t(pg, (60, 90), f"Tiêu đề {['một', 'hai', 'ba', 'bốn'][i]}", 24)
+        _t(pg, (70, 150), "Nội dung slide in cả trang có viền.", 16)
+    pages = ingest.read_pdf(doc.tobytes())
+    assert not any(p.sheet or p.figures for p in pages)               # không tách, viền không thành hình
+    assert [p.title for p in chunk.build_passages(pages)] == ["Tiêu đề một", "Tiêu đề hai", "Tiêu đề ba", "Tiêu đề bốn"]
+
+    doc = pymupdf.open()                       # bảng lớn kéo dài nhiều trang ngang: viền 67% trang, tỷ lệ 1,73 như slide
+    for i in range(4):
+        pg = doc.new_page(width=842, height=595)
+        _t(pg, (40, 40), f"Bảng {i + 1} (tiếp theo)", 14)
+        x0, y0, cw, rh = 40, 60, 152, 40
+        for r in range(11):
+            for c in range(5):
+                rc = pymupdf.Rect(x0 + cw * c, y0 + rh * r, x0 + cw * (c + 1), y0 + rh * (r + 1))
+                pg.draw_rect(rc)
+                _t(pg, (rc.x0 + 4, rc.y0 + 24), f"ô {r}{c}", 10)
+        pg.draw_rect(pymupdf.Rect(x0, y0, x0 + 5 * cw, y0 + 11 * rh), width=2)
+    assert all(ingest._frame_candidates(pg, pg.get_drawings(), whole=True) for pg in doc)
+    pages = ingest.read_pdf(doc.tobytes())
+    assert len(pages) == 4 and all(len(p.tables) == 1 and not p.sheet and not p.figures for p in pages)
+    assert "ô 00" in pages[3].tables[0].markdown and "ô 104" in pages[3].tables[0].markdown      # đủ ô đầu – cuối

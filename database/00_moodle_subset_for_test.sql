@@ -495,3 +495,66 @@ CREATE TABLE IF NOT EXISTS `mdl_offlinequiz_results` (
   PRIMARY KEY (`id`),
   KEY `mdl_offlresu_use_ix` (`userid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tài nguyên khóa học (học liệu): hoạt động File (resource), Thư mục (folder) và tệp đính kèm (files) – cột theo Moodle 4.x
+CREATE TABLE IF NOT EXISTS `mdl_modules` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(20) NOT NULL DEFAULT '',
+  `visible` TINYINT NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `mdl_course_sections` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `course` BIGINT NOT NULL DEFAULT '0',
+  `section` BIGINT NOT NULL DEFAULT '0',
+  `name` VARCHAR(255),
+  `sequence` LONGTEXT,
+  `visible` TINYINT NOT NULL DEFAULT '1',
+  `availability` LONGTEXT,
+  PRIMARY KEY (`id`),
+  KEY `mdl_coursect_cou_ix` (`course`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `mdl_course_modules` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `course` BIGINT NOT NULL DEFAULT '0',
+  `module` BIGINT NOT NULL DEFAULT '0',
+  `instance` BIGINT NOT NULL DEFAULT '0',
+  `section` BIGINT NOT NULL DEFAULT '0',
+  `visible` TINYINT NOT NULL DEFAULT '1',
+  `deletioninprogress` TINYINT NOT NULL DEFAULT '0',
+  `availability` LONGTEXT,
+  PRIMARY KEY (`id`),
+  KEY `mdl_coursemodu_cou_ix` (`course`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `mdl_resource` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `course` BIGINT NOT NULL DEFAULT '0',
+  `name` VARCHAR(1333) NOT NULL DEFAULT '',
+  `revision` BIGINT NOT NULL DEFAULT '0',
+  `timemodified` BIGINT NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `mdl_folder` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `course` BIGINT NOT NULL DEFAULT '0',
+  `name` VARCHAR(1333) NOT NULL DEFAULT '',
+  `revision` BIGINT NOT NULL DEFAULT '0',
+  `timemodified` BIGINT NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `mdl_files` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `contenthash` VARCHAR(40) NOT NULL DEFAULT '',
+  `pathnamehash` VARCHAR(40) NOT NULL DEFAULT '',
+  `contextid` BIGINT NOT NULL,
+  `component` VARCHAR(100) NOT NULL DEFAULT '',
+  `filearea` VARCHAR(50) NOT NULL DEFAULT '',
+  `itemid` BIGINT NOT NULL,
+  `filepath` VARCHAR(255) NOT NULL DEFAULT '',
+  `filename` VARCHAR(255) NOT NULL DEFAULT '',
+  `filesize` BIGINT NOT NULL,
+  `mimetype` VARCHAR(100),
+  `timemodified` BIGINT NOT NULL,
+  `sortorder` BIGINT NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `mdl_file_comfilconite_ix` (`component`,`filearea`,`contextid`,`itemid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

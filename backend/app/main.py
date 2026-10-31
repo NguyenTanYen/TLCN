@@ -1,5 +1,7 @@
 """Điểm vào ứng dụng FastAPI – Hệ thống hỗ trợ kiểm tra, đánh giá và phân tích mức độ đạt CĐR."""
-from contextlib import asynccontextmanager
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,12 +12,13 @@ from fastapi.staticfiles import StaticFiles
 
 from . import migrate
 from .config import settings
-from .routers import analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync, remedial, question_io, questions, reports, syllabi, sync
+from .services.rag import index as rag_index
+from .routers import analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync, remedial, question_io, questions, reports, section_materials, syllabi, sync
 
 app = FastAPI(title="Hệ thống đánh giá mức độ đạt CĐR (OBE Assessment)", version="2.0",
               description="Tiểu luận chuyên ngành – Nhóm 01. Tài liệu API tự sinh (OpenAPI).")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-for r in (auth, programs, catalog, courses, syllabi, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms, analytics, insights, reports):
+for r in (auth, programs, catalog, courses, syllabi, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms, analytics, insights, reports, section_materials):
     app.include_router(r.router)
 
 
@@ -33,10 +36,26 @@ def _data(_req: Request, ex: DataError):
                         status_code=422)
 
 
+async def _rag_loop():
+    """Tự đồng bộ học liệu của mọi lớp theo chu kỳ rồi xếp vào hàng đợi nạp (luồng nạp riêng, không chặn API).
+    Chạy nhiều worker thì khóa tên trong run_all bảo đảm mỗi lúc chỉ một vòng đồng bộ."""
+    while True:
+        await asyncio.sleep(settings.rag_sync_minutes * 60)
+        try:
+            await asyncio.to_thread(rag_index.run_all)
+        except Exception:
+            logging.getLogger(__name__).exception("Đồng bộ học liệu định kỳ lỗi")
+
+
 @asynccontextmanager
 async def lifespan(_app):
     migrate.run()
+    task = asyncio.create_task(_rag_loop()) if settings.rag_sync_minutes > 0 else None
     yield
+    if task:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 app.router.lifespan_context = lifespan

@@ -10,7 +10,10 @@ Chiều ĐỌC (bài làm của SV) vẫn dùng cầu nối CSDL chỉ đọc + 
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import contextmanager
 from datetime import datetime
+from typing import Iterator
 from urllib.parse import urlencode
 
 import httpx
@@ -20,6 +23,10 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import Exam
 from . import xml_export
+
+
+# httpx ghi URL của mọi request ở mức INFO – URL tải tệp / gọi Web Service chứa token Moodle → không để lọt vào log
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 class MoodleWSError(RuntimeError):
@@ -112,9 +119,7 @@ def process_scans(exam: Exam) -> dict:
 
 def download(url: str) -> tuple[bytes, str]:
     """Tải tệp Moodle qua webservice/pluginfile.php bằng token (chỉ nhận URL thuộc Moodle đã cấu hình)."""
-    base = settings.moodle_url.rstrip("/") + "/webservice/pluginfile.php/"
-    if not url.startswith(base):
-        raise MoodleWSError("Đường dẫn tệp không thuộc Moodle đã cấu hình")
+    _check_url(url)
     try:
         with httpx.Client(timeout=120, trust_env=False) as client:
             r = client.get(url, params={"token": settings.moodle_ws_token})
@@ -124,6 +129,28 @@ def download(url: str) -> tuple[bytes, str]:
     if r.status_code != 200 or "json" in ctype:
         raise MoodleWSError(f"Moodle không trả tệp (HTTP {r.status_code}): {r.text[:200]}")
     return r.content, ctype
+
+
+def _check_url(url: str) -> None:
+    if not url.startswith(settings.moodle_url.rstrip("/") + "/webservice/pluginfile.php/"):
+        raise MoodleWSError("Đường dẫn tệp không thuộc Moodle đã cấu hình")
+
+
+@contextmanager
+def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
+    """Tải tệp Moodle qua webservice/pluginfile.php theo TỪNG KHÚC (tệp lớn không phải nằm trọn trong RAM).
+    Lỗi mạng giữa chừng → MoodleWSError."""
+    _check_url(url)
+    try:
+        with httpx.Client(timeout=120, trust_env=False) as client:
+            with client.stream("GET", url, params={"token": settings.moodle_ws_token}) as r:
+                ctype = r.headers.get("content-type", "application/octet-stream")
+                if r.status_code != 200 or "json" in ctype:
+                    r.read()
+                    raise MoodleWSError(f"Moodle không trả tệp (HTTP {r.status_code}): {r.text[:200]}")
+                yield r.iter_bytes(chunk)
+    except httpx.HTTPError as ex:
+        raise MoodleWSError(f"Lỗi kết nối LMS: {ex}") from ex
 
 
 # ------------------------------------------------------------------ kết quả từng SV (UC-05)

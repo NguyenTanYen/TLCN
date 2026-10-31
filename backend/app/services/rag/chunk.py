@@ -408,14 +408,14 @@ class _Builder:
         # slide (trang ngang): cỡ chữ thân bài tính RIÊNG từng trang – bộ slide trộn slide chữ dày (16 pt) với slide toàn
         # hình vài dòng chữ to (28 pt); một mốc chung cho cả tệp biến ghi chú chữ to thành đề mục hoặc làm rớt đề mục phụ.
         # Giáo trình (trang dọc) font đồng nhất → dùng mốc chung (trang mở đầu chương ít chữ làm mốc riêng sai)
-        self.page_body = {p.no: self.local_body(p) for p in pages}
+        self.page_body = {id(p): self.local_body(p) for p in pages}    # theo từng Page: bản in handout nhiều slide / trang
         # ứng viên tiêu đề slide của từng trang: khối ĐẦU TIÊN mang cỡ chữ lớn nhất trang (làm tròn 1 pt – PDF hay có nhiễu
         # 20,0 / 20,1 khiến một dòng mục lục "lớn nhất trang")
         self.page_title = {}
         for p in pages:
             sizes = [round(b.size) for b in p.blocks if not b.mono]
             top = max(sizes, default=0)
-            self.page_title[p.no] = next((id(b) for b in p.blocks if not b.mono and round(b.size) == top), None)
+            self.page_title[id(p)] = next((id(b) for b in p.blocks if not b.mono and round(b.size) == top), None)
         heads = [b for p in pages for b in p.blocks if self.is_heading(b, p)]
         # cỡ chữ làm tròn tới 1 pt: PDF hay sinh cỡ lẻ (17,9 / 18,0) cho cùng một kiểu đề mục
         self.size_rank = {s: i + 1 for i, s in enumerate(sorted({round(b.size) for b in heads}, reverse=True))}
@@ -437,12 +437,12 @@ class _Builder:
         return self.body_size
 
     def is_heading(self, b: Block, p: Page) -> bool:
-        body = self.page_body[p.no]
+        body = self.page_body[id(p)]
         if _is_heading(b, body):
             return True
         # tiêu đề slide: chữ LỚN NHẤT trang, nằm ở vùng trên – vẫn là tiêu đề khi slide gần như chỉ có tiêu đề và một dòng
         # chữ to (mốc riêng của trang khi đó bằng chính cỡ chữ to, không vượt được 1,15 lần)
-        return (p.width > p.height and id(b) == self.page_title[p.no] and b.bbox[1] < TITLE_ZONE * p.height
+        return (p.width > p.height and id(b) == self.page_title[id(p)] and b.bbox[1] < TITLE_ZONE * p.height
                 and len(b.text) <= HEAD_MAX and (round(b.size) > round(body) or b.size >= HEAD_RATIO * self.body_size)
                 and not _SYMBOL_BULLET.match(b.text) and len(_AGENDA.findall(b.text)) < 2)
 
@@ -556,9 +556,21 @@ class _Builder:
             rest = rest[:CONTINUE_MAX].rsplit(" ", 1)[0] + " …"
         pending.body += " " + rest
 
+    def title_first(self, p: Page, blocks: list[Block]) -> list[Block]:
+        """Slide có dòng nhỏ NẰM TRÊN tiêu đề (tên phần "TIẾT 1 • BẢN CHẤT ETL", tên môn): xét tiêu đề trước – nếu không,
+        các dòng đó bị gán vào đề mục của slide TRƯỚC."""
+        t = next((b for b in blocks if id(b) == self.page_title[id(p)]), None)
+        if p.width <= p.height or t is None or blocks[0] is t or not self.is_heading(t, p):
+            return blocks
+        above = blocks[:blocks.index(t)]
+        if all(b.bbox[3] <= t.bbox[1] + 1 and len(b.text) <= HEAD_MAX for b in above):
+            return [t] + [b for b in blocks if b is not t]
+        return blocks
+
     def page_passages(self, p: Page) -> list[Passage]:
         self.page, self.page_out, self.buf = p, [], []
         figs, tabs, text_blocks = self.split_objects(p)
+        text_blocks = self.title_first(p, text_blocks)
         self.continue_sentence(text_blocks)
         heads = [(float("-inf"), self.ctx())]      # (tung độ, ngữ cảnh có hiệu lực từ đó) – để gán đề mục cho hình / bảng
         landscape = p.width > p.height
@@ -614,5 +626,10 @@ def build_passages(pages: list[Page]) -> list[Passage]:
     builder = _Builder(pages)
     out: list[Passage] = []
     for p in pages:
-        out += builder.page_passages(p)
+        ps = builder.page_passages(p)
+        dx, dy = p.offset
+        if dx or dy:                                  # slide của bản in handout: khung tô về tọa độ trang thật
+            for x in ps:
+                x.bboxes = [tuple(round(v, 1) for v in (b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy)) for b in x.bboxes]
+        out += ps
     return out

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     moodle_ws_token: str = ""           # token dịch vụ "local_clo" (tạo bởi local/clo/cli/setup.php)
     moodle_new_user_password: str = "Sv@123456"   # mật khẩu ban đầu cho tài khoản Moodle do hệ thống tự tạo (GV/SV đổi sau; ĐỔI khi triển khai thật)
     moodle_sso_secret: str = ""         # khóa dùng chung để kiểm tra vé đăng nhập một lần từ nút "Phân tích CĐR"
+    rag_sync_minutes: int = 30          # chu kỳ tự đồng bộ + nạp học liệu từ Moodle (phút); 0 = tắt
     demo_mode: bool = False             # True: trang đăng nhập hiện nút điền nhanh tài khoản minh họa (bước 4 tự bật)
 
     @property

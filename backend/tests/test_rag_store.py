@@ -123,3 +123,17 @@ def test_upgrade_creates_rag_tables_on_old_database():
         n = c.execute(text("""SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()
                               AND TABLE_NAME IN ('section_materials','material_pages','material_passages')""")).scalar()
     assert n == 3
+
+
+def test_handout_sub_pages_stored_as_one_page_row(db):
+    import importlib
+    tc = importlib.import_module("tests.test_rag_chunk")
+    pages = ingest.read_pdf(tc._handout(7).tobytes())
+    m = _material(db, name="test_rag_handout.pdf")
+    store.save_document(db, m, pages, chunk.build_passages(pages))
+    rows = db.query(MaterialPage).filter_by(material_id=m.id).order_by(MaterialPage.page_no).all()
+    assert [(r.page_no, float(r.width), float(r.height)) for r in rows] == [(n, 612.0, 792.0) for n in (1, 2, 3, 4)]
+    assert m.n_pages == 4
+    by_page = {r.id: r.page_no for r in rows}
+    ps = db.query(MaterialPassage).filter_by(material_id=m.id, kind="text").order_by(MaterialPassage.seq).all()
+    assert [(by_page[p.page_id], p.breadcrumb) for p in ps] == [((k + 1) // 2, f"Tiêu đề slide {k}") for k in range(1, 8)]

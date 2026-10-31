@@ -23,18 +23,27 @@ Làm sạch:
       chân trang (tên trường, tên môn, số trang) → bỏ.
     Khối lặp nằm giữa trang được giữ nguyên (là nội dung).
 
+BẢN IN HANDOUT (in slide 2–3 slide / trang, hoặc trang ghi chú – "Microsoft Print to PDF"): mỗi slide nằm trong một
+KHUNG VIỀN hình chữ nhật tỷ lệ slide, lặp lại cùng vị trí trên các trang. Không tách thì khung bị coi là MỘT HÌNH nuốt
+hết chữ của slide (mất tiêu đề, trộn chữ giữa các ô). Mỗi khung thành một TRANG CON (Page) cùng số trang, tọa độ tính
+từ góc khung (chunk nhận tiêu đề slide như slide thường); Page.offset để đổi khung tô về tọa độ trang thật. Chữ ngoài
+khung (ngày in, số trang, ghi chú của trang ghi chú) thành một trang con còn lại.
+
 Đánh dấu trang cần xử lý thêm (dùng ở giai đoạn VLM/OCR, chưa xử lý ở đây):
   scanned – gần như không có chữ nhưng có ảnh phủ phần lớn trang (PDF scan) → cần OCR / VLM đọc;
   visual  – ít chữ nhưng nhiều hình (ảnh hoặc hình vẽ vector như sơ đồ ER, cây B-tree) → cần VLM mô tả.
 """
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 
 import pymupdf
+
+log = logging.getLogger(__name__)
 
 REPEAT_SHARE = 0.5      # khối lặp ở ≥ 50% số trang ...
 EDGE = 0.12             # ... và nằm trong 12% trên cùng / dưới cùng của trang thì là đầu / chân trang
@@ -59,6 +68,17 @@ DECOR_EDGE = 0.2        # ... và tâm vùng nằm ở rìa trang (20% trên/dư
 PAGE_HEAD_LEAD_MAX = 50  # số đứng ĐẦU khối chỉ coi là số trang khi khối ngắn và không kết thúc bằng dấu câu (khác chú thích
                          # cuối trang "1 Xem thêm tài liệu về Hadoop.")
 TEXTBOX_SHARE = 0.5     # vùng "hình" mà chữ bên trong phủ ≥ 50% diện tích = hộp chữ có nền → không phải hình
+FRAME_MIN_SHARE = 0.12  # khung slide của bản in handout: hình chữ nhật ≥ 12% trang (6 slide / trang vẫn đạt) ...
+FRAME_MAX_SHARE = 0.6   # ... và ≤ 60% trang: khung slide nằm trên tờ DỌC thì rộng tối đa bằng tờ → 16:9 ≤ 43%, 4:3 ≤ 58%
+                        # (ETL.pdf 2 slide / tờ: 27%). Lớn hơn = slide in cả trang ("Frame slides") – trang đã là một
+                        # slide, không tách; viền đó chỉ bị bỏ khỏi nét vẽ (_read_page, borders) ...
+FRAME_TABLE_IOU = 0.8   # ... và không trùng viền một bảng (IoU ≥ ngưỡng: cùng một hình chữ nhật – bảng và khung đều lấy
+                        # từ nét vẽ vector của PDF số nên trùng gần như tuyệt đối; trang scan không có nét vẽ → không có
+                        # khung) ...
+FRAME_RATIO = (1.25, 1.85)  # ... tỷ lệ rộng / cao của slide (4:3 = 1,33; 16:10 = 1,6; 16:9 = 1,78) ...
+FRAME_PAGES = 0.5       # ... lặp CÙNG VỊ TRÍ trên ≥ 2 trang và ≥ 50% số trang CÓ ứng viên khung (hộp viền lẻ trong giáo
+                        # trình không phải handout; tệp gộp slide thường + handout vẫn nhận được phần handout dù ít trang)
+FRAME_TOL = 3.0         # pt: hai khung lệch nhau ≤ 3 pt coi là cùng vị trí
 
 CODE_MIN_KW = 3         # nhận code theo nội dung: ≥ 3 từ khóa SQL / cú pháp Python-Java khác nhau ...
 CODE_KW_DENSITY = 0.2   # ... chiếm ≥ 20% số từ ...
@@ -136,6 +156,8 @@ class Page:
     drawings: int = 0           # số nét vẽ vector
     scanned: bool = False
     visual: bool = False
+    offset: tuple[float, float] = (0.0, 0.0)   # trang con (một slide của bản in handout): góc khung trên trang thật
+    sheet: tuple[float, float] | None = None   # trang con: khổ trang thật (rộng, cao)
 
     @property
     def text(self) -> str:
@@ -379,14 +401,77 @@ def _textbox(region: BBox, blocks: list[Block]) -> bool:
     return area > 0 and covered >= TEXTBOX_SHARE * area
 
 
-def _read_page(page: pymupdf.Page) -> Page:
-    drawings = page.get_drawings()
+def _frame_candidates(page: pymupdf.Page, drawings: list[dict], whole: bool = False) -> list[pymupdf.Rect]:
+    """Hình chữ nhật đơn lẻ tỷ lệ slide, đủ lớn – ứng viên khung slide của bản in handout. whole: khung bao gần cả trang
+    (slide in cả trang có viền) thay vì khung slide của handout."""
+    area, out = abs(page.rect), []
+    lo, hi = (FRAME_MAX_SHARE, FIG_MAX_SHARE) if whole else (FRAME_MIN_SHARE, FRAME_MAX_SHARE)
+    for d in drawings:
+        r = d["rect"]
+        if len(d["items"]) != 1 or d["items"][0][0] != "re" or not r.height:
+            continue
+        share = abs(r) / area                                     # whole: (60%, 90%) – từ 90% đã không bị coi là hình
+        if (lo < share < hi if whole else lo <= share <= hi) and FRAME_RATIO[0] <= r.width / r.height <= FRAME_RATIO[1]:
+            if not any(_same_rect(r, o) for o in out):          # nền tô + viền của cùng một khung
+                out.append(pymupdf.Rect(r))
+    return out
+
+
+def _same_rect(a, b) -> bool:
+    return all(abs(x - y) <= FRAME_TOL for x, y in zip(a, b))
+
+
+def _handout_frames(cands: list[list[pymupdf.Rect]]) -> list[list[pymupdf.Rect]]:
+    """Khung của TỪNG TRANG: ứng viên của chính trang đó lặp cùng vị trí trên ≥ 2 trang và ≥ FRAME_PAGES số trang có
+    ứng viên – trang không có khung (bài tập A4 gộp chung tệp) không bị cắt. Khung chồng lên nhau thì bỏ cả trang."""
+    with_cands = [rs for rs in cands if rs]
+    out = []
+    for rs in cands:
+        keep = [r for r in rs if sum(any(_same_rect(r, o) for o in other) for other in with_cands)
+                >= max(2, FRAME_PAGES * len(with_cands))]
+        if any(a.intersects(b) for i, a in enumerate(keep) for b in keep[i + 1:]):
+            keep = []
+        out.append(sorted(keep, key=lambda r: (r.y0, r.x0)))
+    return out
+
+
+def _sub_page(p: Page, region: BBox, images: list[pymupdf.Rect], drawings: list[dict], taken: list[Block]) -> Page:
+    """Trang con của bản in handout: phần của trang p nằm trong khung slide region, tọa độ tính từ góc khung."""
+    dx, dy = region[0], region[1]
+    w, h = region[2] - region[0], region[3] - region[1]
+    def move(b):
+        return _round((b[0] - dx, b[1] - dy, b[2] - dx, b[3] - dy))
+    blocks = []
+    for b in p.blocks:
+        if _center_in(b.bbox, region):
+            taken.append(b)
+            blocks.append(Block(b.text, move(b.bbox), b.size, b.bold, b.mono, b.char_w, [(x - dx, t) for x, t in b.lines]))
+    covered = sum(abs(r & pymupdf.Rect(region)) for r in images)
+    return Page(p.no, w, h, blocks, [move(f) for f in p.figures if _center_in(f, region)],
+                [Table(move(t.bbox), t.markdown, [move(r) for r in t.rows]) for t in p.tables if _center_in(t.bbox, region)],
+                image_share=round(min(1.0, covered / (w * h)), 3),
+                drawings=sum(1 for d in drawings if _center_in(d["rect"], region)), offset=(dx, dy), sheet=(p.width, p.height))
+
+
+def _read_page(page: pymupdf.Page, drawings: list[dict] | None = None,
+               frames: list[pymupdf.Rect] | None = None, borders: list[pymupdf.Rect] | None = None) -> list[Page]:
+    """Một trang PDF → một Page; bản in handout (frames) → mỗi khung slide một trang con + phần còn lại ngoài khung.
+    borders: viền slide in cả trang – không tách, chỉ không coi là hình."""
+    if drawings is None:
+        drawings = page.get_drawings()
     # rawdict: từng ký tự kèm tọa độ – dựng lại dấu cách bị thiếu, chia chữ vào ô bảng; sort: thứ tự đọc
     # TEXT_INHIBIT_SPACES: PyMuPDF không tự chèn dấu cách ở khoảng trống lớn (chữ giãn ra "H A D O O P") – việc
     # chèn dấu cách do _line_text quyết định theo khoảng cách thường gặp của từng dòng
     d = page.get_text("rawdict", sort=True, flags=pymupdf.TEXTFLAGS_RAWDICT | pymupdf.TEXT_INHIBIT_SPACES)
     chars = _chars(d)
     tables = _tables(page, drawings, chars)
+    # THỨ TỰ: bảng nhận ở trên từ nét vẽ GỐC; khung / viền chỉ bị bỏ khỏi danh sách nét vẽ dùng để tìm HÌNH (_figures) ở
+    # dưới – không đổi bảng, không đổi tệp PDF / ảnh trang. Khung trùng viền một BẢNG (bảng lớn tỷ lệ ngang ở cùng chỗ
+    # trên nhiều trang giáo trình) không phải khung slide
+    frames = [f for f in frames or [] if not any(_iou(tuple(f), t.bbox) >= FRAME_TABLE_IOU for t in tables)]
+    borders = [f for f in borders or [] if not any(_iou(tuple(f), t.bbox) >= FRAME_TABLE_IOU for t in tables)]
+    if frames or borders:                                  # khung slide không phải hình, cũng không phải nét của sơ đồ
+        drawings = [d for d in drawings if not any(_same_rect(d["rect"], f) for f in frames + borders)]
     blocks, images = [], []
     for b in d["blocks"]:
         if b["type"] == 1:
@@ -417,8 +502,17 @@ def _read_page(page: pymupdf.Page) -> Page:
                                 lines=[(ln["bbox"][0], _clean_code_line(_line_text(ln))) for ln in lines]))
     _mark_code_runs(blocks)                                # code dán bằng font thường: nhận theo cả chuỗi khối
     figures = [r for r in _figures(page, images, drawings, tables) if not _textbox(r, blocks)]
-    return Page(page.number + 1, page.rect.width, page.rect.height, blocks, figures,
-                tables, image_share=round(_image_share(page, images), 3), drawings=len(drawings))
+    p = Page(page.number + 1, page.rect.width, page.rect.height, blocks, figures,
+             tables, image_share=round(_image_share(page, images), 3), drawings=len(drawings))
+    if not frames:
+        return [p]
+    taken: list[Block] = []
+    subs = [_sub_page(p, _round(f), images, drawings, taken) for f in frames]
+    # phần ngoài khung (ngày in, số trang – bị lọc như đầu/chân trang; ghi chú của trang ghi chú – giữ)
+    rest = Page(p.no, p.width, p.height, [b for b in p.blocks if id(b) not in {id(t) for t in taken}],
+                [f for f in p.figures if not any(_center_in(f, _round(r)) for r in frames)],
+                [t for t in p.tables if not any(_center_in(t.bbox, _round(r)) for r in frames)])
+    return subs + ([rest] if rest.blocks or rest.figures or rest.tables else [])
 
 
 def _repeat_key(s: str) -> str:
@@ -518,10 +612,25 @@ def _open(src: str | bytes) -> pymupdf.Document:
 def read_pdf(src: str | bytes) -> list[Page]:
     """src: đường dẫn tệp hoặc nội dung PDF (bytes)."""
     with _open(src) as doc:
-        pages = [_read_page(pg) for pg in doc]
-    _strip_running(pages)
-    _strip_page_heads(pages)
-    _drop_decorations(pages)
+        drawings = [pg.get_drawings() for pg in doc]
+        frames = _handout_frames([_frame_candidates(pg, d) for pg, d in zip(doc, drawings)])
+        borders = _handout_frames([_frame_candidates(pg, d, whole=True) for pg, d in zip(doc, drawings)])
+        pages = [sp for pg, d, f, b in zip(doc, drawings, frames, borders) for sp in _read_page(pg, d, f, b)]
+    # bản in handout: phần NGOÀI KHUNG của tờ handout – dòng ngắn ở dải đầu/chân trang là thông tin in (ngày in, tên tệp,
+    # số trang) → bỏ ngay, không chờ lặp đủ nhiều (handout vài tờ); ghi chú giữa trang (trang ghi chú) giữ
+    sheets = {p.no for p in pages if p.sheet}
+    if sheets:                                             # để soát khi nghi nhận nhầm (bảng / viền thành khung slide)
+        log.info("PDF dạng bản in handout: %d/%d trang, tách thành %d slide (trang %s)", len(sheets),
+                 len({p.no for p in pages}), sum(1 for p in pages if p.sheet), sorted(sheets))
+    for p in pages:
+        if not p.sheet and p.no in sheets:
+            p.blocks = [b for b in p.blocks if not (_edge(b, p) and len(b.text) <= PAGE_HEAD_MAX)]
+    # lọc đầu/chân trang và trang trí RIÊNG cho các slide của handout và cho các trang còn lại
+    for group in ([p for p in pages if p.sheet], [p for p in pages if not p.sheet]):
+        if group:
+            _strip_running(group)
+            _strip_page_heads(group)
+            _drop_decorations(group)
     for p in pages:
         _flag(p)
     return pages

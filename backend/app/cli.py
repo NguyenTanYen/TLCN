@@ -354,12 +354,54 @@ def simulate_moodle() -> None:
     cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (999999,70,'mod_quiz','deferredfeedback')")
     cur.execute("INSERT INTO mdl_quiz_attempts (quiz, userid, attempt, uniqueid, layout, preview, state, timestart, timefinish) VALUES (900,99,1,999999,'',1,'finished',%s,%s)", (t0, t0 + 60))
     _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step + 1000, t0)
+    _simulate_materials(cur, t0)
     conn.close()
     exam.moodle_quiz_id = 900; pexam.moodle_offlinequiz_id = 910; db.commit()
     print("Cài cầu nối:", moodle.install_bridge(), "câu lệnh")
     for e in (pexam, exam):
         print(f"Đồng bộ bài #{e.id}:", moodle.sync_exam(db, e.id))
         print("Phân tích:", results.analyze_exam(db, e.id))
+
+
+def _simulate_materials(cur, t0: int) -> None:
+    """Tài nguyên của khóa học 50 (học liệu): slide, đề ôn tập (SV đang xem được → là học liệu), thư mục tài liệu tham khảo
+    (PDF + Word), slide chương 2 "mở khóa theo tuần" đã qua mốc ngày (được lấy); một slide đang ẩn, một ĐÁP ÁN giới hạn
+    truy cập "chỉ mở sau ngày thi" và một bài đọc thêm chỉ mở khi SV hoàn thành hoạt động khác (cả ba không được lấy)."""
+    now = int(datetime.now().timestamp())     # mốc mở khóa tính theo HÔM NAY (t0 là ngày cố định trong quá khứ)
+    cur.execute("INSERT INTO mdl_modules (id, name) VALUES (17,'resource'),(8,'folder')")
+    cur.execute("INSERT INTO mdl_course_sections (id, course, section, name, visible) VALUES "
+                "(500,50,1,'Chương 1. Tổng quan',1),(501,50,2,'Kiểm tra',1)")
+    cur.execute("INSERT INTO mdl_resource (id, course, name, revision, timemodified) VALUES "
+                "(300,50,'Slide Chương 1 - Tổng quan CSDL',3,%s),(301,50,'Đề ôn tập giữa kỳ',1,%s),"
+                "(302,50,'Slide bản nháp',1,%s),(303,50,'Đáp án đề thi giữa kỳ',1,%s),"
+                "(304,50,'Slide Chương 2 - Mô hình quan hệ',1,%s),(305,50,'Bài đọc thêm',1,%s)", (t0,) * 6)
+    cur.execute("INSERT INTO mdl_folder (id, course, name, revision, timemodified) VALUES (310,50,'Tài liệu tham khảo',2,%s)",
+                (t0,))
+    cur.execute("INSERT INTO mdl_course_modules (id, course, module, instance, section, visible) VALUES "
+                "(800,50,17,300,500,1),(801,50,17,301,501,1),(802,50,17,302,500,0),(810,50,8,310,500,1)")
+    cur.execute("INSERT INTO mdl_course_modules (id, course, module, instance, section, visible, availability) VALUES "
+                "(803,50,17,303,501,1,%s),(804,50,17,304,500,1,%s),(805,50,17,305,500,1,%s)",
+                ('{"op":"&","c":[{"type":"date","d":">=","t":%d}],"showc":[true]}' % (now + 86400 * 30),  # đáp án: chưa tới ngày
+                 '{"op":"&","c":[{"type":"date","d":">=","t":%d}],"showc":[true]}' % (now - 86400 * 7),   # slide tuần trước: đã mở
+                 '{"op":"&","c":[{"type":"completion","cm":800,"e":1}],"showc":[true]}'))           # theo từng SV
+    cur.execute("INSERT INTO mdl_context (id, contextlevel, instanceid, path, depth) VALUES "
+                "(1800,70,800,'/1/70/1800',3),(1801,70,801,'/1/70/1801',3),(1802,70,802,'/1/70/1802',3),"
+                "(1810,70,810,'/1/70/1810',3),(1803,70,803,'/1/70/1803',3),(1804,70,804,'/1/70/1804',3),"
+                "(1805,70,805,'/1/70/1805',3)")
+    files = [(1800, "mod_resource", "/", ".", 0, None), (1800, "mod_resource", "/", "slide_ch1.pdf", 524288, "application/pdf"),
+             (1801, "mod_resource", "/", "de_on_tap_giua_ky.pdf", 120000, "application/pdf"),
+             (1802, "mod_resource", "/", "nhap.pdf", 1000, "application/pdf"),
+             (1810, "mod_folder", "/", "giao_trinh csdl.pdf", 2097152, "application/pdf"),
+             (1810, "mod_folder", "/bai_tap/", "bai_tap_ch1.docx", 30000,
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+             (1803, "mod_resource", "/", "dap_an_giua_ky.pdf", 80000, "application/pdf"),
+             (1804, "mod_resource", "/", "slide_ch2.pdf", 400000, "application/pdf"),
+             (1805, "mod_resource", "/", "bai_doc_them.pdf", 90000, "application/pdf")]
+    for i, (ctx, comp, path, name, size, mime) in enumerate(files):
+        cur.execute("INSERT INTO mdl_files (contenthash, pathnamehash, contextid, component, filearea, itemid, filepath, filename,"
+                    " filesize, mimetype, timemodified, sortorder) VALUES (%s,%s,%s,%s,'content',0,%s,%s,%s,%s,%s,%s)",
+                    (("da39a3ee5e6b4b0d3255bfef95601890afd80709" if name == "." else f"{i:02d}" + "ab" * 19),
+                     f"{i:040d}", ctx, comp, path, name, size, mime, t0 + i, 1 if name != "." else 0))
 
 
 def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> None:

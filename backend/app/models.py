@@ -576,6 +576,7 @@ class SectionMaterial(Base):
     source: Mapped[str] = mapped_column(String(10), default="upload")          # moodle | upload
     material_type: Mapped[str] = mapped_column(String(10), default="slide")    # slide | reference
     title: Mapped[str] = mapped_column(String(255))
+    title_custom: Mapped[bool] = mapped_column(Boolean, default=False)        # GV tự đặt tên → đồng bộ không ghi đè
     file_name: Mapped[str] = mapped_column(String(255))
     content_hash: Mapped[str] = mapped_column(String(40))
     file_size: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -583,12 +584,13 @@ class SectionMaterial(Base):
     moodle_cmid: Mapped[Optional[int]] = mapped_column(BigInteger)
     moodle_file_url: Mapped[Optional[str]] = mapped_column(String(1000))
     moodle_timemodified: Mapped[Optional[int]] = mapped_column(BigInteger)
-    status: Mapped[str] = mapped_column(String(10), default="pending")         # pending | ready | failed
+    status: Mapped[str] = mapped_column(String(10), default="pending")         # pending | indexing | ready | failed | excluded | missing
     error: Mapped[Optional[str]] = mapped_column(Text)
     n_pages: Mapped[Optional[int]] = mapped_column(Integer)
     added_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)            # bắt đầu nạp – quá hạn thì nạp lại
     pages: Mapped[list["MaterialPage"]] = relationship(order_by="MaterialPage.page_no", cascade="all, delete-orphan",
                                                        passive_deletes=True)
 

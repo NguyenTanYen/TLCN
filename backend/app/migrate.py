@@ -120,6 +120,22 @@ def _upgrade_new_tables(c, done: list) -> None:
         if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t"), {"t": t}).scalar():
             c.execute(text(_ddl(t)))
             done.append(f"bảng {t}")
+    # học liệu: trạng thái 'indexing' (đang nạp), 'excluded' (GV bỏ chọn), 'missing' (tệp không còn trên Moodle), cột
+    # title_custom – cho bảng tạo từ bản trước (chạy SAU khi bảng chắc chắn đã có)
+    cur = _check_clause(c, "section_materials", "ck_sm_status")
+    if cur is not None and "indexing" not in cur:
+        c.execute(text("ALTER TABLE section_materials DROP CONSTRAINT ck_sm_status"))
+        c.execute(text("ALTER TABLE section_materials ADD CONSTRAINT ck_sm_status "
+                       "CHECK (status IN ('pending','indexing','ready','failed','excluded','missing'))"))
+        done.append("section_materials.ck_sm_status (indexing, excluded, missing)")
+    if _col(c, "section_materials", "title_custom") is None:
+        c.execute(text("ALTER TABLE section_materials ADD COLUMN title_custom TINYINT(1) NOT NULL DEFAULT 0 "
+                       "COMMENT '1 = GV tự đặt tên – đồng bộ không ghi đè bằng tên hoạt động Moodle' AFTER title"))
+        done.append("section_materials.title_custom")
+    if _col(c, "section_materials", "claimed_at") is None:
+        c.execute(text("ALTER TABLE section_materials ADD COLUMN claimed_at DATETIME NULL "
+                       "COMMENT 'Thời điểm bắt đầu nạp (status indexing) – quá hạn thì coi như bỏ dở, nạp lại' AFTER indexed_at"))
+        done.append("section_materials.claimed_at")
 
 
 def _upgrade_v3(c, done: list) -> None:
