@@ -8,16 +8,17 @@ nạp). Giao diện gọi đồng bộ khi GV mở trang học liệu; sau đó 
 GV xem trạng thái từng tệp (đang nạp / đã nạp / lỗi). Ngoài ra hệ thống tự đồng bộ + nạp định kỳ (RAG_SYNC_MINUTES).
 Phân quyền: GV phụ trách lớp đồng bộ / chọn / bỏ chọn / nạp lại; Bộ môn chỉ xem.
 """
+from dataclasses import asdict
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import check_section_access, lecturer_only, require
 from ..models import SectionMaterial, User
-from ..services.rag import index, moodle_files, sync
+from ..services.rag import index, moodle_files, search, sync
 
 router = APIRouter(prefix="/api/class-sections", tags=["Học liệu (RAG)"])
 
@@ -54,6 +55,14 @@ def list_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
                               "material_status": by_hash[f["content_hash"]].status if f["content_hash"] in by_hash else None}
                              for f in files],
             "materials": [_material(m) for m in chosen]}
+
+
+@router.get("/{cs_id}/materials/search")
+def search_materials(cs_id: int, q: str = Query(min_length=1, max_length=2000), k: int = Query(10, ge=1, le=50),
+                     db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
+    """Tìm đoạn trong học liệu đã nạp của lớp (BM25) – để GV / Bộ môn thử truy vấn, dựng bộ câu hỏi chuẩn."""
+    check_section_access(db, u, cs_id)
+    return [asdict(h) for h in search.search(db, cs_id, q, k)]
 
 
 @router.post("/{cs_id}/materials/sync")
@@ -127,6 +136,7 @@ def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db),
     sync.delete_indexed(db, m.id)
     m.status, m.n_pages, m.indexed_at, m.error = "excluded", None, None, None
     db.commit()
+    index.enqueue(cs_id)                         # luồng nạp dựng lại chỉ mục tìm kiếm của lớp
     return {"excluded": material_id}
 
 
