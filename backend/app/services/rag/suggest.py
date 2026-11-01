@@ -7,7 +7,8 @@ hỏi chuẩn (eval/rag_gold.json, `python -m app.services.rag.evaluate`, bảng
     lên các đoạn nhắc CẢ hai khái niệm (trang tổng quan) chen mất trang giải thích chính. Giữ hàm (wrong_weight) để
     đo lại khi có bộ nhãn cho "trang giải thích chỗ nhầm".
 Cổng ngữ nghĩa (semantic.py): không đoạn ứng viên nào đủ gần câu hỏi (cos MiniLM) → không gợi ý gì – tài liệu của lớp
-không nói về câu hỏi (BM25 thì luôn trả về "đoạn gần nhất"); qua cổng thì giữ nguyên thứ tự BM25.
+không nói về câu hỏi (BM25 thì luôn trả về "đoạn gần nhất"); qua cổng thì giữ thứ tự BM25 nhưng bỏ trang kém xa trang
+gần câu hỏi nhất (close_pages) – có thể còn ít hơn PAGES trang.
 Kết quả gom theo TRANG (sinh viên mở một trang, không mở một "đoạn"): mỗi trang lấy hạng của đoạn tốt nhất, kèm
 khung tô của đoạn đó.
 """
@@ -48,6 +49,15 @@ def rank_passages(ix, stem: str, correct: list[str], wrong: str | None = None, s
     return fuse([(first, 1.0), ([i for i, _, _ in ix.score(wrong, DEPTH, synonyms)], wrong_weight)])
 
 
+def close_pages(pages: list[tuple], margin: float | None, floor: float | None = None) -> list:
+    """[(trang, cos cao nhất của các đoạn ứng viên trên trang)] theo thứ tự gợi ý → các trang giữ lại (giữ thứ tự): bỏ
+    trang có cos thấp hơn trang gần câu hỏi nhất quá margin, hoặc thấp hơn floor. Trang gần nhất luôn được giữ."""
+    if not pages:
+        return []
+    top = max(c for _, c in pages)
+    return [pg for pg, c in pages if c == top or ((margin is None or c >= top - margin) and (floor is None or c >= floor))]
+
+
 def pages_of(ranked: list[int], page_of) -> list:
     """Gom đoạn theo trang, giữ thứ tự xuất hiện đầu tiên: [(trang, id đoạn tốt nhất của trang)]."""
     seen, out = set(), []
@@ -73,6 +83,7 @@ class PageSuggestion:
 
 def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) -> list[PageSuggestion]:
     """Các trang học liệu của lớp nên đọc lại khi làm sai câu hỏi (chỉ học liệu 'ready' của đúng lớp)."""
+    from ...config import settings
     from . import search, semantic, synonyms                     # tránh vòng import khi nạp models
 
     correct = [o.content for o in question.options if o.is_correct]
@@ -91,10 +102,19 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
             .filter(MaterialPassage.id.in_(ranked), SectionMaterial.class_section_id == cs_id,
                     SectionMaterial.status == "ready")}
     live = [pid for pid in ranked if pid in rows]                # bản chỉ mục cũ: bỏ đoạn đã bị nạp lại / bỏ chọn
-    if not semantic.related(query_text(question.content, correct), [rows[pid][0].embedding for pid in live]):
-        return []
+    page_key = lambda i: (rows[i][2].id, rows[i][1].page_no)
+    pages = pages_of(live, page_key)[:k]
+    cos = semantic.scores(query_text(question.content, correct), [rows[pid][0].embedding for pid in live])
+    if cos is not None:                                          # None: không đánh giá được → không chặn, không lọc
+        if max(cos) < settings.rag_min_similarity:               # tài liệu của lớp không nói về câu hỏi
+            return []
+        best: dict = {}
+        for pid, c in zip(live, cos):
+            best[page_key(pid)] = max(best.get(page_key(pid), -1.0), c)
+        keep = set(close_pages([(pg, best[pg]) for pg, _ in pages], settings.rag_page_margin))
+        pages = [(pg, pid) for pg, pid in pages if pg in keep]
     out = []
-    for (_, _), pid in pages_of(live, lambda i: (rows[i][2].id, rows[i][1].page_no))[:k]:
+    for (_, _), pid in pages:
         p, pg, m = rows[pid]
         url = f"{m.moodle_file_url}#page={pg.page_no}" if m.moodle_file_url else None
         out.append(PageSuggestion(m.id, m.title, m.file_name, url, pg.page_no, p.title, p.body[:SNIPPET], p.bboxes))

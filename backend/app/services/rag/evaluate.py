@@ -26,6 +26,7 @@ from dataclasses import dataclass
 import numpy as np
 from pathlib import Path
 
+from ...config import settings
 from . import synonyms as synonym_files
 from .chunk import build_passages
 from .ingest import read_pdf
@@ -125,13 +126,16 @@ def embeddings(pdf_dir: Path, docs: list[Doc], questions: list[dict]) -> tuple[n
 
 
 def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None,
-                wrong_weight: float | None = None, gate: tuple | None = None) -> dict:
+                wrong_weight: float | None = None, gate: tuple | None = None, margin: float | None = None,
+                floor: float | None = None) -> dict:
     """Bước 8 – gợi ý theo TRANG cho từng cặp (câu, phương án SAI sinh viên chọn). wrong_weight None: không dùng
     truy vấn phương án sai. gate = (vector đoạn, vector câu hỏi, ngưỡng, lọc từng đoạn?): theo câu – như
     semantic.related, không đoạn ứng viên nào đạt ngưỡng thì không gợi ý; từng đoạn – bỏ đoạn dưới ngưỡng (đã thử, bỏ).
-    Chỉ số theo trang: Hit@1, Hit@3 (số trang gợi ý), MRR."""
+    margin / floor (cần gate): bỏ trang có cos thấp hơn trang gần nhất quá margin / thấp hơn floor (suggest.close_pages).
+    Chỉ số theo trang: Hit@1, Hit@3 (số trang gợi ý), MRR; P@3 – tỷ lệ trang ĐÚNG trong các trang được gợi ý (tối đa 3;
+    bị chặn hết thì 0) – trang thừa làm giảm P@3; "trang/câu" – số trang trung bình được gợi ý."""
     from . import suggest
-    ranks, neg = [], []
+    ranks, neg, prec, shown = [], [], [], []
     for q in questions:
         rel = {(f, p) for f, pages in q["relevant"].items() for p in pages}
         correct = [q["options"][q["answer"]]]
@@ -147,15 +151,25 @@ def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None
                     ranked = [i for i in ranked if cos[i] >= thr]
                 elif ranked and not plain(suggest.query_text(q["stem"], correct)) and max(cos.values()) < thr:   # như semantic.related
                     ranked = []
-            pages = [pg for pg, _ in suggest.pages_of(ranked, lambda i: (docs[i].file, docs[i].page))]
+            page_of = lambda i: (docs[i].file, docs[i].page)
+            pages = [pg for pg, _ in suggest.pages_of(ranked, page_of)]
+            if gate and (margin is not None or floor is not None) and pages:
+                best = {}
+                for i in ranked:
+                    best[page_of(i)] = max(best.get(page_of(i), -1.0), cos[i])
+                pages = suggest.close_pages([(pg, best[pg]) for pg in pages[:suggest.PAGES]], margin, floor)
             if not rel:
                 neg.append(bool(pages))
                 continue
             ranks.append(next((r for r, pg in enumerate(pages[:10], 1) if pg in rel), None))
+            top = pages[:suggest.PAGES]
+            prec.append(sum(pg in rel for pg in top) / len(top) if top else 0.0)
+            shown.append(len(top))
     n = len(ranks)
     return {"n": n, "hit@1": sum(bool(r and r <= 1) for r in ranks) / n,
             "hit@3": sum(bool(r and r <= suggest.PAGES) for r in ranks) / n,
-            "mrr": sum(1 / r for r in ranks if r) / n, "wrong": sum(neg) / len(neg) if neg else 0.0}
+            "mrr": sum(1 / r for r in ranks if r) / n, "p@3": sum(prec) / n, "pages": sum(shown) / n,
+            "wrong": sum(neg) / len(neg) if neg else 0.0}
 
 
 SUGGEST_VARIANTS = [                         # "bỏ từ khuôn mẫu của đề" đã thử: không đổi chỉ số → bỏ (xem suggest.py)
@@ -207,20 +221,30 @@ def main(argv: list[str] | None = None) -> None:
             for d in r["detail"]:
                 print("    ", d)
     print("\nGỢI Ý THEO TRANG (bước 8) – mỗi cặp (câu, phương án sai), từ điển đồng nghĩa bật")
-    print(f"{'biến thể':32} {'Hit@1':>6} {'Hit@3':>6} {'MRR':>6}  {'gợi ý sai':>9}")
+    print(f"{'biến thể':36} {'Hit@1':>6} {'Hit@3':>6} {'MRR':>6} {'P@3':>6} {'trang/câu':>9}  {'gợi ý sai':>9}")
+
+    def row(name, r):
+        print(f"{name:36} {r['hit@1']:>6.2f} {r['hit@3']:>6.2f} {r['mrr']:>6.2f} {r['p@3']:>6.2f} {r['pages']:>9.2f}  "
+              f"{r['wrong']:>9.0%}  ({r['n']} cặp)")
     for name, v in SUGGEST_VARIANTS:
-        r = run_suggest(gold["questions"], docs, ix, syn, v.get("wrong_weight"))
-        print(f"{name:32} {r['hit@1']:>6.2f} {r['hit@3']:>6.2f} {r['mrr']:>6.2f}  {r['wrong']:>9.0%}  ({r['n']} cặp)")
+        row(name, run_suggest(gold["questions"], docs, ix, syn, v.get("wrong_weight")))
     if a.semantic:
         emb = embeddings(a.pdf_dir, docs, gold["questions"])
         if emb is None:
             print("--semantic: chưa cài sentence-transformers (requirements-semantic.txt)")
             return
+        thrs = [float(x) for x in a.semantic.split(",")]
         for per_passage, how in ((False, "theo câu"), (True, "từng đoạn")):
-            for thr in (float(x) for x in a.semantic.split(",")):
-                r = run_suggest(gold["questions"], docs, ix, syn, gate=(*emb, thr, per_passage))
-                print(f"{f'+ cổng {how} cos ≥ {thr:g}':32} {r['hit@1']:>6.2f} {r['hit@3']:>6.2f} {r['mrr']:>6.2f}  "
-                      f"{r['wrong']:>9.0%}  ({r['n']} cặp)")
+            for thr in thrs:
+                row(f"+ cổng {how} cos ≥ {thr:g}", run_suggest(gold["questions"], docs, ix, syn,
+                                                                gate=(*emb, thr, per_passage)))
+        thr = settings.rag_min_similarity
+        for m in (0.05, 0.1, 0.15, 0.2):
+            row(f"  cổng {thr:g} + bỏ trang kém nhất > {m:g}", run_suggest(gold["questions"], docs, ix, syn,
+                                                                          gate=(*emb, thr, False), margin=m))
+        for fl in (0.4, 0.45, 0.5):
+            row(f"  cổng {thr:g} + bỏ trang cos < {fl:g}", run_suggest(gold["questions"], docs, ix, syn,
+                                                                    gate=(*emb, thr, False), floor=fl))
 
 
 if __name__ == "__main__":

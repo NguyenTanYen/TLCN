@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     rag_sync_minutes: int = 30          # chu kỳ tự đồng bộ + nạp học liệu từ Moodle (phút); 0 = tắt
     # cổng ngữ nghĩa của gợi ý học liệu (cần requirements-semantic.txt; rỗng hoặc chưa cài = tắt, chỉ dùng BM25)
     rag_embed_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    rag_page_margin: float = 0.15       # bỏ trang gợi ý có cos thấp hơn trang gần câu hỏi nhất quá mức này
     rag_min_similarity: float = 0.55    # cos cao nhất (câu hỏi, đoạn ứng viên) dưới mức này → không gợi ý (evaluate --semantic)
     demo_mode: bool = False             # True: trang đăng nhập hiện nút điền nhanh tài khoản minh họa (bước 4 tự bật)
 

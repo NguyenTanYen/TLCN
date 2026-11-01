@@ -7,6 +7,10 @@ cos ≥ RAG_MIN_SIMILARITY với câu hỏi thì không gợi ý gì; có thì g
 ĐOẠN (bỏ đoạn cos thấp): mất trang đúng ngay ở ngưỡng thấp – có đoạn đúng mà cos thấp (bảng, đoạn tiếng Anh) – nên
 không dùng. Ngưỡng 0,55 đo trên bộ câu hỏi chuẩn (`evaluate --semantic`): câu không đáp án cao nhất 0,534, câu có
 đáp án thấp nhất 0,567 – khoảng cách hẹp, chỉ có 5 câu không đáp án; cần đo lại khi bộ câu hỏi lớn hơn.
+Qua cổng rồi thì lọc TRANG (suggest.close_pages): bỏ trang có cos thấp hơn trang gần câu hỏi nhất quá
+RAG_PAGE_MARGIN (0,15) – dù câu có liên quan, BM25 vẫn kéo theo trang chỉ trùng từ khóa yếu (chạy thử trên Moodle: 6/9
+dòng gợi ý của một SV là trang ETL không liên quan câu DBMS). Bộ câu hỏi chuẩn: P@3 0,51 → 0,65, số trang/câu 3 →
+2,18, đổi lại Hit@3 0,94 → 0,92 (V10: trang đúng gần như chỉ có lệnh Hive, cos 0,37).
 Câu gõ KHÔNG DẤU không qua cổng (MiniLM hiểu tiếng Việt không dấu kém: câu đúng W15 chỉ 0,39) – vẫn gợi ý theo BM25.
 
 Vector của từng đoạn tính MỘT lần sau khi nạp (embed_missing, chạy ở luồng nạp sau khi giao dịch ghi đoạn đã commit)
@@ -81,20 +85,26 @@ def unpack(b: bytes) -> np.ndarray:
     return np.frombuffer(b, dtype=np.float16).astype(np.float32)
 
 
-def related(query: str, embeddings: list[bytes | None], threshold: float | None = None) -> bool:
-    """Câu hỏi có liên quan tới các đoạn ứng viên không: cos cao nhất ≥ ngưỡng. Không chặn (True) khi cổng tắt, câu
-    không dấu, không có ứng viên, hoặc có ứng viên chưa có vector / vector của model khác (chưa tính lại xong)."""
+def scores(query: str, embeddings: list[bytes | None]) -> list[float] | None:
+    """cos(câu hỏi, từng đoạn ứng viên); None = không đánh giá được (cổng tắt, câu không dấu, không có ứng viên, có
+    ứng viên chưa có vector / vector của model khác – chưa tính lại xong) → không chặn, không lọc gì."""
     from .search import plain
-    threshold = settings.rag_min_similarity if threshold is None else threshold
     if not embeddings or not all(embeddings) or plain(query):   # kiểm trước: không nạp model khi không cần so
-        return True
+        return None
     q = encode([query])
     if q is None:
-        return True
+        return None
     vs = [unpack(b) for b in embeddings]
     if any(v.shape[0] != q.shape[1] for v in vs):
-        return True
-    return max(float(v @ q[0]) for v in vs) >= threshold
+        return None
+    return [float(v @ q[0]) for v in vs]
+
+
+def related(query: str, embeddings: list[bytes | None], threshold: float | None = None) -> bool:
+    """Câu hỏi có liên quan tới các đoạn ứng viên không: cos cao nhất ≥ ngưỡng (không đánh giá được → True)."""
+    threshold = settings.rag_min_similarity if threshold is None else threshold
+    s = scores(query, embeddings)
+    return s is None or max(s) >= threshold
 
 
 def embed_missing(db: Session, cs_id: int) -> int:

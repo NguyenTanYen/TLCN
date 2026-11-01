@@ -24,6 +24,39 @@ $PAGE->navbar->add(get_string('results', 'local_clo'), new moodle_url('/local/cl
 
 $exams = $DB->get_records('local_clo_exam', ['courseid' => $course->id], 'timecreated DESC, id DESC');
 
+/**
+ * Gợi ý đọc gửi từ hệ thống phân tích ([{question, pages: [{material, page, heading, url}]}]) gom theo trang.
+ * Liên kết chỉ nhận tệp của CHÍNH Moodle này (pluginfile.php) – địa chỉ Moodle mà hệ thống phân tích dùng có thể khác
+ * wwwroot (localhost / 127.0.0.1...), nên dựng lại từ phần /pluginfile.php/...; liên kết khác bị bỏ, chỉ hiện tên.
+ */
+function local_clo_reading_pages(array $materials): array {
+    global $CFG;
+    $out = [];
+    foreach ($materials as $m) {
+        foreach ($m->pages ?? [] as $p) {
+            $url = null;
+            $at = strpos((string)($p->url ?? ''), '/pluginfile.php/');
+            if ($at !== false) {
+                $url = new moodle_url($CFG->wwwroot . substr($p->url, $at));
+            }
+            // khóa gom: liên kết tệp + trang (hai học liệu có thể trùng TÊN – tên lấy từ hoạt động Moodle);
+            // không có liên kết thì mới dùng tên + trang
+            $key = $url ? $url->out(false) : ($p->material ?? '') . '#' . (int)($p->page ?? 0);
+            if (!isset($out[$key])) {
+                $out[$key] = (object)['material' => (string)($p->material ?? ''), 'page' => (int)($p->page ?? 0),
+                    'heading' => (string)($p->heading ?? ''), 'url' => $url, 'questions' => [], 'first' => count($out)];
+            }
+            $out[$key]->questions[] = (int)$m->question;
+        }
+    }
+    foreach ($out as $p) {
+        $p->questions = array_values(array_unique($p->questions));
+        sort($p->questions);
+    }
+    usort($out, fn($a, $b) => [count($b->questions), $a->first] <=> [count($a->questions), $b->first]);
+    return $out;
+}
+
 /** Khối kết quả của một SV cho một bài kiểm tra. */
 function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     if (!$exam->published) {                               // E1 – GV chưa công bố
@@ -56,26 +89,23 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
     }
-    // Gợi ý đọc: câu làm sai → trang/slide cụ thể trong học liệu của khóa học (do hệ thống phân tích tìm theo nội dung câu hỏi)
-    if (!empty($d->readings)) {
+    // Gợi ý đọc (RAG): mỗi câu làm sai → các trang học liệu của lớp nên đọc lại. Gom theo TRANG (nhiều câu sai thường
+    // cùng trỏ về một trang): trang liên quan nhiều câu xếp trước, kèm số các câu đó.
+    $pages = local_clo_reading_pages($d->materials ?? []);
+    if ($pages) {
         $o .= html_writer::tag('h4', get_string('readings', 'local_clo'), ['class' => 'h6 mt-3']);
         $o .= html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']);
         $li = '';
-        foreach ($d->readings as $r) {
-            $name = s($r->material);
-            if (!empty($r->moodle_cmid)) {      // tệp đã nằm trong khóa học → bấm để mở ngay
-                $name = html_writer::link(new moodle_url('/mod/resource/view.php', ['id' => (int)$r->moodle_cmid]), $name,
-                    ['target' => '_blank', 'rel' => 'noopener']);
+        foreach ($pages as $p) {
+            $name = get_string('readings_page', 'local_clo', (object)['material' => s($p->material), 'page' => $p->page]);
+            $name = $p->url ? html_writer::link($p->url, $name, ['target' => '_blank', 'rel' => 'noopener']) : $name;
+            $line = html_writer::tag('strong', $name);
+            if ($p->heading !== '') {
+                $line .= ' – ' . s($p->heading);
             }
-            $where = html_writer::tag('strong', $name) . ' ' .
-                html_writer::span(s($r->unit) . ' ' . (int)$r->page, 'badge bg-info text-dark');
-            if (!empty($r->heading)) {
-                $where .= ' – ' . s($r->heading);
-            }
-            if (!empty($r->chapter)) {
-                $where .= html_writer::span(' (' . s($r->chapter) . ')', 'text-muted small');
-            }
-            $li .= html_writer::tag('li', $where . html_writer::div(s($r->snippet), 'small text-muted'));
+            $line .= ' ' . html_writer::span(get_string('readings_questions', 'local_clo', implode(', ', $p->questions)),
+                'badge bg-light text-dark');
+            $li .= html_writer::tag('li', $line);
         }
         $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
     }

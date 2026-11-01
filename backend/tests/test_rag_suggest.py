@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import text
 
 from app.database import SessionLocal
-from app.models import MaterialPage, MaterialPassage, SectionMaterial
+from app.models import MaterialPage, MaterialPassage, Question, SectionMaterial
 from app.services import lms
 from app.services.rag import search, suggest
 from app.services.rag.search import Index
@@ -119,3 +119,29 @@ def test_lecturer_previews_suggestions_per_question(client, gv, gv_other, materi
     assert _ours(by_q[PITR]["pages"], mid)[0]["page_no"] == 1
     assert _ours(by_q[INSTEAD_OF]["pages"], mid)[0]["page_no"] == 2
     assert client.get(f"/api/exams/{EXAM}/material-suggestions", headers=gv_other).status_code == 403
+
+
+def test_close_pages_drops_pages_far_below_the_closest():
+    pages = [("a", 0.60), ("b", 0.70), ("c", 0.56), ("d", 0.40)]
+    assert suggest.close_pages(pages, 0.15) == ["a", "b", "c"]                  # giữ thứ tự gợi ý, bỏ d (0,70 − 0,40)
+    assert suggest.close_pages(pages, None, 0.58) == ["a", "b"]
+    assert suggest.close_pages([("x", 0.1)], 0.15) == ["x"]                     # trang gần nhất luôn được giữ
+    assert suggest.close_pages([], 0.15) == []
+
+
+def test_weak_pages_are_trimmed_after_the_gate(material, monkeypatch):
+    from app.services.rag import semantic
+    _, cs = material
+    db = SessionLocal()
+    try:
+        q = db.get(Question, PITR)
+        full = suggest.for_question(db, cs, q)
+        assert len(full) >= 2
+        # đoạn đứng đầu rất gần câu hỏi, các đoạn khác kém xa → chỉ còn trang của đoạn đầu
+        monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.8] + [0.5] * (len(embs) - 1))
+        trimmed = suggest.for_question(db, cs, q)
+        assert [(p.material_id, p.page_no) for p in trimmed] == [(full[0].material_id, full[0].page_no)]
+        monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.4] * len(embs))   # dưới cổng: không gợi ý
+        assert suggest.for_question(db, cs, q) == []
+    finally:
+        db.close()
