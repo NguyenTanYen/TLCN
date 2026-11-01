@@ -27,6 +27,7 @@ from . import xml_export
 
 # httpx ghi URL của mọi request ở mức INFO – URL tải tệp / gọi Web Service chứa token Moodle → không để lọt vào log
 logging.getLogger("httpx").setLevel(logging.WARNING)
+log = logging.getLogger(__name__)
 
 
 class MoodleWSError(RuntimeError):
@@ -190,6 +191,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         items.setdefault(r["attempt_id"], []).append({"priority": r["priority"], "clo": r["clo_code"],
                                                       "clo_description": r["description"], "chapter": chap,
                                                       "gap": float(r["gap_pct"])})
+    materials = material_suggestions(db, exam_id, e["class_section_id"])
     out = []
     for a in db.execute(text("""SELECT a.id, a.status, a.total_score, s.student_code, s.full_name, s.moodle_user_id
                                 FROM exam_attempts a JOIN students s ON s.id=a.student_id
@@ -197,11 +199,51 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         absent = a["status"] == "absent"
         p = paths.get(a["id"])
         data = {} if absent else {"clos": radar.get(a["id"], []), "summary": p["diagnostic_summary"] if p else None,
-                                  "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], [])}
+                                  "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], []),
+                                  "materials": materials.get(a["id"], [])}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
                     "score": None if absent else round(float(a["total_score"]) * float(e["max_score"]) / raw_max, 2),
                     "max_score": float(e["max_score"]), "data": data})
+    return out
+
+
+def wrong_items(db: Session, exam_id: int) -> list:
+    """(lượt làm, câu hỏi, số thứ tự câu SV thấy) của các câu làm sai / bỏ trống – số thứ tự theo mã đề nếu bài có
+    nhiều mã đề (thứ tự câu bị trộn)."""
+    return db.execute(text("""
+        SELECT r.attempt_id, r.question_id, COALESCE(vq.position, eq.order_index) AS no
+        FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+        JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
+        JOIN question_bank q ON q.id=r.question_id
+        LEFT JOIN exam_version_questions vq ON vq.version_id=a.version_id AND vq.question_id=r.question_id
+        WHERE a.exam_id=:e AND a.status='finished' AND r.is_correct=0 AND q.is_cancelled=0
+        ORDER BY r.attempt_id, no"""), {"e": exam_id}).fetchall()
+
+
+def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[int, list]:
+    """Lượt làm → [{câu SV làm sai, các trang học liệu của lớp nên đọc lại}] (RAG bước 8). Gợi ý tính MỘT lần mỗi câu.
+    Lỗi của bộ tìm kiếm không được chặn việc gửi kết quả: ghi log, gửi không kèm gợi ý."""
+    from ..models import SectionMaterial
+    from .rag import suggest
+
+    if not cs_id or not db.query(SectionMaterial.id).filter_by(class_section_id=cs_id, status="ready").first():
+        return {}
+    wrong = wrong_items(db, exam_id)
+    if not wrong:
+        return {}
+    try:
+        pages = suggest.for_questions(db, cs_id, sorted({q for _, q, _ in wrong}))
+    except Exception:
+        log.exception("Gợi ý học liệu cho bài KT %s lỗi – gửi kết quả không kèm gợi ý", exam_id)
+        return {}
+    out: dict[int, list] = {}
+    for attempt_id, qid, no in wrong:
+        if pages.get(qid):
+            out.setdefault(attempt_id, []).append({
+                "question": int(no),
+                "pages": [{"material": p.material_title, "page": p.page_no, "heading": p.title, "url": p.url}
+                          for p in pages[qid]]})
     return out
 
 

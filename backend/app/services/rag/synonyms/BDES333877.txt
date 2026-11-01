@@ -1,0 +1,91 @@
+# Nhập môn dữ liệu lớn (BDES333877) – nhóm cách nói tương đương (Việt – Anh – viết tắt), ngăn bằng "|".
+# Thuật ngữ chuẩn của môn (dữ liệu lớn, Hadoop, Hive, kho dữ liệu, ETL, điện toán đám mây).
+
+# dữ liệu lớn
+dữ liệu lớn | big data
+khối lượng | volume
+tốc độ | velocity
+tính đa dạng | đa dạng | variety
+tính xác thực | độ tin cậy | veracity
+siêu dữ liệu | metadata
+dữ liệu có cấu trúc | structured data
+dữ liệu bán cấu trúc | semi-structured data
+dữ liệu phi cấu trúc | unstructured data
+thời gian thực | real-time
+
+# điện toán đám mây
+điện toán đám mây | cloud computing
+đám mây công cộng | public cloud
+đám mây riêng | private cloud
+đám mây lai | hybrid cloud
+hạ tầng như một dịch vụ | infrastructure as a service | iaas
+nền tảng như một dịch vụ | platform as a service | paas
+phần mềm như một dịch vụ | software as a service | saas
+
+# Hadoop
+hệ thống tệp phân tán | hệ thống tập tin phân tán | distributed file system | hdfs
+nút chính | master node
+nút công nhân | nút nô lệ | worker node | slave node
+nút máy khách | client node
+cụm | cluster
+khối dữ liệu | block
+sao chép | bản sao | replication
+hệ số sao chép | replication factor
+giá máy | giá đỡ | rack
+nhận biết giá đỡ | rack awareness
+khả năng chịu lỗi | fault tolerance
+khả năng mở rộng | scalability
+phần cứng thông dụng | commodity hardware
+quản lý tài nguyên | resource management
+lập lịch | scheduling
+xử lý song song | parallel processing
+
+# Hive
+ngôn ngữ truy vấn hive | hive query language | hiveql | hql
+kho siêu dữ liệu | metastore
+bảng được quản lý | bảng nội bộ | managed table | internal table
+bảng bên ngoài | bảng ngoài | external table
+phân vùng | partition | partitioning
+phân vùng tĩnh | static partitioning
+phân vùng động | dynamic partitioning
+thùng | chia thùng | bucket | bucketing
+hàm băm | hash function
+kiểu dữ liệu phức hợp | complex type
+mảng | array
+hàm tích hợp | built-in function
+
+# kho dữ liệu
+kho dữ liệu | data warehouse
+kho dữ liệu chủ đề | data mart
+xử lý giao dịch trực tuyến | online transaction processing | oltp
+xử lý phân tích trực tuyến | online analytical processing | olap
+mô hình đa chiều | multidimensional model
+khối dữ liệu đa chiều | data cube | cube
+bảng sự kiện | bảng fact | fact table
+bảng chiều | dimension table | dimension
+độ đo | measure
+mức chi tiết | grain
+cấu trúc phân cấp | phân cấp | hierarchy
+tổng hợp lên | roll-up | roll up
+đi xuống chi tiết | drill-down | drill down
+cắt lát | slice
+xoay | pivot
+lược đồ hình sao | star schema
+lược đồ bông tuyết | snowflake schema
+khóa thay thế | surrogate key
+khóa nghiệp vụ | khóa tự nhiên | business key | natural key
+chiều thay đổi chậm | slowly changing dimension | scd
+chiều dùng chung | conformed dimension
+bảng cầu nối | bridge table
+
+# ETL
+trích xuất biến đổi và nạp | extract transform load | etl
+trích xuất | extraction
+biến đổi | chuyển đổi | transformation
+nạp dữ liệu | loading
+khu vực trung gian | vùng đệm | staging area | staging
+loại bỏ trùng lặp | khử trùng lặp | deduplication
+nhật ký giao dịch | transaction log
+bắt dữ liệu thay đổi | change data capture | cdc
+làm sạch dữ liệu | data cleaning | data cleansing
+tích hợp dữ liệu | data integration

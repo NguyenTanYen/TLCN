@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from ...models import MaterialPage, MaterialPassage, SectionMaterial
+from ...models import ClassSection, Course, MaterialPage, MaterialPassage, SectionMaterial
 
 log = logging.getLogger(__name__)
 
@@ -97,34 +97,98 @@ def tokens(text: str) -> list[str]:
 
 
 # hư từ gõ KHÔNG DẤU ("mot", "nhung", "ra") khớp bản bỏ dấu của từ HIẾM có dấu ("mốt", "nhúng", "rà" – bản có dấu
-# của chính hư từ không có trong chỉ mục) → IDF CAO (đo trên 8 PDF thật: 7,0–7,5), kéo nhiễu lên; nhưng nhiều dạng lại trùng âm tiết quan trọng ("bang" – bảng, "ma" – mã, "qua" – kết quả, "co"
-# – cơ sở) nên không chặn hẳn: câu không dấu KHÔNG tính chúng như một từ riêng, chỉ tính trong cặp ("co_so", "ket_qua")
+# của chính hư từ không có trong chỉ mục) → IDF CAO (đo trên 8 PDF thật: 7,0–7,5), kéo nhiễu lên; nhưng nhiều dạng
+# lại trùng âm tiết quan trọng ("bang" – bảng, "ma" – mã, "qua" – kết quả, "co" – cơ sở) nên không chặn hẳn: câu không
+# dấu KHÔNG tính chúng như một từ riêng, chỉ tính trong cặp ("co_so", "ket_qua") – như bộ lọc common_grams
 STOP_PLAIN = frozenset(fold(w) for w in STOP)
+SYN_WEIGHT = 0.8            # cách nói đồng nghĩa (từ điển) nhẹ hơn chữ người hỏi gõ
+
+
+@dataclass
+class Query:
+    terms: dict[str, float]                 # từ → trọng số
+    concepts: list[frozenset[str]]          # khái niệm của câu hỏi (âm tiết có nghĩa / cụm đồng nghĩa) → các từ khớp nó
+
+
+def _weights(ws: list[str], plain_query: bool) -> tuple[list[float], list[bool]]:
+    """Trọng số từng âm tiết + có tạo cặp với âm tiết sau hay không. Từ ghép tiếng Việt sinh 3 từ (2 âm tiết + 1 cặp)
+    còn thuật ngữ một từ ("NameNode") chỉ 1 → từ ghép chung chung ("vai trò") lấn thuật ngữ chính. Cân lại: âm tiết
+    NẰM TRONG cụm ≥ 2 âm tiết và mỗi cặp tính ½, âm tiết đứng riêng tính 1 – "vai trò" khớp đủ = 1,5, "NameNode" = 1.
+    plain_query: hư từ (bỏ dấu) không tính riêng, cặp chỉ bỏ khi CẢ HAI là hư từ."""
+    if plain_query:
+        single = [w not in STOP_PLAIN for w in ws]
+        pairs = [single[i] or single[i + 1] for i in range(len(ws) - 1)]
+    else:
+        single = [w not in STOP for w in ws]
+        pairs = [single[i] and single[i + 1] for i in range(len(ws) - 1)]
+    uni = [0.0 if not single[i] else 0.5 if (i > 0 and pairs[i - 1]) or (i < len(pairs) and pairs[i]) else 1.0
+           for i in range(len(ws))]
+    return uni, pairs
+
+
+def _phrase_terms(ws: list[str], plain_query: bool) -> Counter:
+    uni, pairs = _weights(ws, plain_query)
+    out: Counter[str] = Counter()
+    for w, x in zip(ws, uni):
+        if x:
+            out[w] += x
+    for i, ok in enumerate(pairs):
+        if ok:
+            out[f"{ws[i]}_{ws[i + 1]}"] += 0.5
+    return out
+
+
+def syllables(text: str, plain_query: bool = False) -> list[list[str]]:
+    """Các cụm (tách ở dấu câu / xuống dòng), mỗi cụm là dãy âm tiết dạng chuẩn (bỏ dấu nếu plain_query)."""
+    out = []
+    for part in _BREAK.split(unicodedata.normalize("NFC", text.lower())):
+        ws = [_syllable(w) for w in _WORD.findall(part)]
+        out.append([fold(w) for w in ws] if plain_query else ws)
+    return out
+
+
+def analyze(text: str, plain_query: bool = False, synonyms=None) -> Query:
+    """Câu truy vấn → từ (kèm trọng số) + khái niệm. synonyms (services.rag.synonyms.Synonyms): cụm khớp từ điển của
+    môn (dài nhất trước) được thêm các cách nói khác trong nhóm, TỔNG trọng số phần thêm = SYN_WEIGHT × trọng số của
+    cụm gốc (cụm 4 âm tiết thêm vào không lấn át từ viết tắt gốc); cả cụm gốc + cách nói khác tính là MỘT khái niệm."""
+    terms: Counter[str] = Counter()
+    concepts: list[frozenset[str]] = []
+    for ws in syllables(text, plain_query):
+        if not ws:
+            continue
+        own = _phrase_terms(ws, plain_query)
+        terms.update(own)
+        uni, _ = _weights(ws, plain_query)
+        covered: set[int] = set()
+        for i, j, alts in (synonyms.find(ws, plain_query) if synonyms else []):
+            span = _phrase_terms(ws[i:j], plain_query)
+            budget = SYN_WEIGHT * sum(span.values())
+            extra: dict[str, float] = {}
+            for alt in alts:                                  # mỗi cách nói là một phương án – lấy max, không cộng
+                at = _phrase_terms(alt, plain_query)
+                total = sum(at.values()) or 1.0
+                for t, x in at.items():
+                    extra[t] = max(extra.get(t, 0.0), budget * x / total)
+            for t, x in extra.items():
+                if t not in span:
+                    terms[t] = max(terms.get(t, 0.0), x)
+            concepts.append(frozenset(span) | frozenset(extra))
+            covered.update(range(i, j))
+        concepts += [frozenset({w}) for i, w in enumerate(ws) if uni[i] and i not in covered]
+    return Query(dict(terms), list(dict.fromkeys(concepts)))
 
 
 def query_terms(text: str, plain_query: bool = False) -> dict[str, float]:
-    """Từ của câu truy vấn kèm trọng số. Từ ghép tiếng Việt sinh 3 từ (2 âm tiết + 1 cặp) còn thuật ngữ một từ
-    ("NameNode") chỉ 1 → từ ghép chung chung ("vai trò") lấn thuật ngữ chính. Cân lại: âm tiết NẰM TRONG cụm ≥ 2 âm
-    tiết và mỗi cặp tính ½, âm tiết đứng riêng tính 1 – "vai trò" khớp đủ = 1,5, "NameNode" = 1.
-    plain_query: câu không dấu – từ đã bỏ dấu; hư từ (bỏ dấu) không tính riêng, cặp chỉ bỏ khi CẢ HAI là hư từ."""
-    out: Counter[str] = Counter()
-    for part in _BREAK.split(unicodedata.normalize("NFC", text.lower())):
-        ws = [_syllable(w) for w in _WORD.findall(part)]
-        if plain_query:
-            ws = [fold(w) for w in ws]
-            single = [w not in STOP_PLAIN for w in ws]
-            pairs = [single[i] or single[i + 1] for i in range(len(ws) - 1)]
-        else:
-            single = [w not in STOP for w in ws]
-            pairs = [single[i] and single[i + 1] for i in range(len(ws) - 1)]
-        for i, w in enumerate(ws):
-            if single[i]:
-                joined = (i > 0 and pairs[i - 1]) or (i < len(pairs) and pairs[i])
-                out[w] += 0.5 if joined else 1.0
-        for i, ok in enumerate(pairs):
-            if ok:
-                out[f"{ws[i]}_{ws[i + 1]}"] += 0.5
-    return dict(out)
+    return analyze(text, plain_query).terms
+
+
+def required(n: int, spec: str | None) -> int:
+    """Số khái niệm phải khớp theo minimum_should_match dạng "2<70%": câu ≤ 2 khái niệm phải khớp hết, dài hơn khớp ít
+    nhất 70% (làm tròn xuống, tối thiểu 1). spec None: chỉ cần khớp một từ bất kỳ."""
+    if not spec or n == 0:
+        return 0
+    head, pct = spec.split("<")
+    return n if n <= int(head) else max(1, math.floor(n * float(pct.rstrip("%")) / 100))
 
 
 def _doc_text(title: str, breadcrumb: str, caption: str | None, body: str, vlm: str | None) -> str:
@@ -162,13 +226,15 @@ class Index:
             self.folded = {t: sorted(d.items()) for t, d in acc.items()}   # hai luồng cùng dựng: cùng kết quả
         return self.folded
 
-    def score(self, query: str, k: int) -> list[tuple[int, float, list[str]]]:
-        """[(id đoạn, điểm, các từ khớp)] cao nhất trước; chỉ đoạn có khớp."""
+    def score(self, query: str, k: int, synonyms=None, msm: str | None = None) -> list[tuple[int, float, list[str]]]:
+        """[(id đoạn, điểm, các từ khớp)] cao nhất trước; chỉ đoạn có khớp. synonyms: từ điển đồng nghĩa của môn;
+        msm: minimum_should_match ("2<70%") – đoạn khớp ít khái niệm hơn mức yêu cầu bị loại."""
         n = len(self.ids)
         if not n:
             return []
         is_plain = plain(query)
-        postings, terms = (self._folded() if is_plain else self.postings), query_terms(query, is_plain)
+        q = analyze(query, is_plain, synonyms)
+        postings, terms = (self._folded() if is_plain else self.postings), q.terms
         acc: dict[int, float] = {}
         hit: dict[int, list[str]] = {}
         for t, qtf in terms.items():
@@ -180,6 +246,9 @@ class Index:
                 norm = tf * (K1 + 1) / (tf + K1 * (1 - B + B * self.lengths[i] / self.avgdl))
                 acc[i] = acc.get(i, 0.0) + qtf * idf * norm
                 hit.setdefault(i, []).append(t)
+        need = required(len(q.concepts), msm)
+        if need:
+            acc = {i: s for i, s in acc.items() if sum(1 for c in q.concepts if not c.isdisjoint(hit[i])) >= need}
         best = sorted(acc.items(), key=lambda x: (-x[1], x[0]))[:k]
         return [(self.ids[i], s, hit[i]) for i, s in best]
 
@@ -280,9 +349,12 @@ def warm(db: Session, cs_id: int) -> None:
     section_index(db, cs_id, wait=True)
 
 
-def search(db: Session, cs_id: int, query: str, k: int = 10) -> list[Hit]:
-    """k đoạn học liệu của lớp khớp nhất với query (BM25)."""
-    scored = section_index(db, cs_id).score(query, k)
+def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = None) -> list[Hit]:
+    """k đoạn học liệu của lớp khớp nhất với query (BM25 + từ điển đồng nghĩa của môn)."""
+    from . import synonyms                                       # synonyms dùng bộ tách từ của module này
+    code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
+            .filter(ClassSection.id == cs_id).scalar())
+    scored = section_index(db, cs_id).score(query, k, synonyms.for_course(code), msm)
     if not scored:
         return []
     rows = {p.id: (p, pg, m) for p, pg, m in

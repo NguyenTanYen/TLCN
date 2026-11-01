@@ -1,4 +1,6 @@
 """UC-04: Thống kê lớp học – tổng quan bài KT, chỉ số câu hỏi, kết quả CLO (BM6b) và minh chứng (BM6c)."""
+from dataclasses import asdict
+
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -7,9 +9,10 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..deps import check_section_access, get_exam_for, require
-from ..models import CLOResult, User
+from ..models import CLOResult, ExamQuestion, User
 from ..schemas import NarrativeIn
-from ..services import analysis, timing
+from ..services import analysis, lms, timing
+from ..services.rag import suggest
 from ..http_utils import attachment
 from fastapi.responses import Response
 from typing import Optional
@@ -62,6 +65,21 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
             "pass_rate": round(100 * sum(1 for s in conv if s >= float(e.max_score) / 2) / len(conv), 2) if conv else None,
             "histogram": [{"range": f"{i * float(e.max_score) / 10:g}–{(i + 1) * float(e.max_score) / 10:g}", "count": c} for i, c in enumerate(bins)],
             "status": e.status, "publish_flag": e.publish_flag}
+
+
+@router.get("/exams/{exam_id}/material-suggestions")
+def material_suggestions(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    """Xem trước gợi ý học liệu (RAG) cho TỪNG câu của bài KT – GV kiểm tra trước khi công bố kết quả cho SV.
+    SV làm sai câu nào thì nhận các trang của câu đó (kèm kết quả gửi về Moodle)."""
+    e = get_exam_for(db, u, exam_id)
+    eqs = db.query(ExamQuestion).filter_by(exam_id=exam_id).order_by(ExamQuestion.order_index).all()
+    n_wrong: dict[int, int] = {}
+    for _, qid, _ in lms.wrong_items(db, exam_id):
+        n_wrong[qid] = n_wrong.get(qid, 0) + 1
+    pages = suggest.for_questions(db, e.class_section_id, [q.question_id for q in eqs])
+    return [{"question_no": q.order_index, "question_id": q.question_id, "content": q.question.content[:300],
+             "n_wrong": n_wrong.get(q.question_id, 0), "pages": [asdict(p) for p in pages.get(q.question_id, [])]}
+            for q in eqs]
 
 
 @router.get("/exams/{exam_id}/item-stats")

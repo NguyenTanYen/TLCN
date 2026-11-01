@@ -1,0 +1,134 @@
+"""Cổng chặn ngữ nghĩa cho gợi ý học liệu (MiniLM đa ngôn ngữ, CPU).
+
+BM25 luôn trả về "đoạn gần nhất" kể cả khi tài liệu của lớp KHÔNG nói về câu hỏi (bộ câu hỏi chuẩn: 5/5 câu không có
+đáp án vẫn bị gợi ý; tín hiệu từ khóa – độ phủ truy vấn, minimum_should_match – không tách được mà không mất câu
+đúng). Độ tương đồng cosine của MiniLM tách được, nên cổng xét THEO CÂU: nếu KHÔNG đoạn ứng viên nào của BM25 có
+cos ≥ RAG_MIN_SIMILARITY với câu hỏi thì không gợi ý gì; có thì giữ NGUYÊN thứ tự của BM25. Đã đo cả cách lọc TỪNG
+ĐOẠN (bỏ đoạn cos thấp): mất trang đúng ngay ở ngưỡng thấp – có đoạn đúng mà cos thấp (bảng, đoạn tiếng Anh) – nên
+không dùng. Ngưỡng 0,55 đo trên bộ câu hỏi chuẩn (`evaluate --semantic`): câu không đáp án cao nhất 0,534, câu có
+đáp án thấp nhất 0,567 – khoảng cách hẹp, chỉ có 5 câu không đáp án; cần đo lại khi bộ câu hỏi lớn hơn.
+Câu gõ KHÔNG DẤU không qua cổng (MiniLM hiểu tiếng Việt không dấu kém: câu đúng W15 chỉ 0,39) – vẫn gợi ý theo BM25.
+
+Vector của từng đoạn tính MỘT lần sau khi nạp (embed_missing, chạy ở luồng nạp sau khi giao dịch ghi đoạn đã commit)
+và lưu ngay trong MySQL (material_passages.embedding, float16 – 768 byte/đoạn): không có kho vector riêng phải giữ
+khớp với MySQL; nạp lại học liệu thì đoạn cũ bị xóa cùng vector. section_materials.embed_model ghi model đã dùng –
+đổi model thì các học liệu được tính lại.
+
+Tính vector chạy ở luồng nạp của tiến trình API (model nạp một lần, ~470 MB RAM; ~34 ms/đoạn – giáo trình 1.000 đoạn
+mất khoảng nửa phút, torch nhả GIL khi tính nên API vẫn trả lời). Khi tìm: chỉ mã hóa MỘT câu hỏi (~15 ms) và so với
+vector đoạn ứng viên đọc kèm từ MySQL.
+
+Tùy chọn, không chặn: chưa cài sentence-transformers (requirements-semantic.txt) hoặc RAG_EMBED_MODEL rỗng → cổng
+tắt, gợi ý như cũ (BM25); đoạn chưa có vector (vừa nạp, chưa tính xong) → không bị chặn.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import threading
+
+import numpy as np
+from sqlalchemy import bindparam, update
+from sqlalchemy.orm import Session
+
+from ...config import settings
+from ...models import MaterialPassage, SectionMaterial
+
+log = logging.getLogger(__name__)
+
+_model = None
+_loaded = False
+_lock = threading.Lock()
+
+
+def model_name() -> str:
+    return settings.rag_embed_model
+
+
+def _load():
+    """Nạp model một lần cho cả tiến trình (~5 s, ~470 MB RAM). Không có thư viện / tải model lỗi → None (cổng tắt)."""
+    global _model, _loaded
+    with _lock:
+        if not _loaded:
+            _loaded = True
+            if model_name():
+                os.environ.setdefault("USE_TF", "0")         # transformers không nạp TensorFlow nếu máy có cài
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    _model = SentenceTransformer(model_name(), device="cpu")
+                except Exception as ex:                      # ImportError, không tải được model...
+                    log.warning("Cổng ngữ nghĩa tắt (%s: %s) – gợi ý học liệu chỉ dùng BM25", type(ex).__name__, ex)
+        return _model
+
+
+def enabled() -> bool:
+    return _load() is not None
+
+
+def encode(texts: list[str]) -> np.ndarray | None:
+    """Vector đã chuẩn hóa (cos = tích vô hướng); None nếu cổng tắt."""
+    m = _load()
+    if m is None:
+        return None
+    return m.encode(texts, batch_size=32, normalize_embeddings=True, convert_to_numpy=True).astype(np.float32)
+
+
+def pack(v: np.ndarray) -> bytes:
+    return v.astype(np.float16).tobytes()
+
+
+def unpack(b: bytes) -> np.ndarray:
+    return np.frombuffer(b, dtype=np.float16).astype(np.float32)
+
+
+def related(query: str, embeddings: list[bytes | None], threshold: float | None = None) -> bool:
+    """Câu hỏi có liên quan tới các đoạn ứng viên không: cos cao nhất ≥ ngưỡng. Không chặn (True) khi cổng tắt, câu
+    không dấu, không có ứng viên, hoặc có ứng viên chưa có vector / vector của model khác (chưa tính lại xong)."""
+    from .search import plain
+    threshold = settings.rag_min_similarity if threshold is None else threshold
+    if not embeddings or not all(embeddings) or plain(query):   # kiểm trước: không nạp model khi không cần so
+        return True
+    q = encode([query])
+    if q is None:
+        return True
+    vs = [unpack(b) for b in embeddings]
+    if any(v.shape[0] != q.shape[1] for v in vs):
+        return True
+    return max(float(v @ q[0]) for v in vs) >= threshold
+
+
+def embed_missing(db: Session, cs_id: int) -> int:
+    """Tính vector cho các học liệu 'ready' của lớp chưa có vector (hoặc tính bằng model khác). Trả về số đoạn đã tính.
+
+    Mỗi học liệu: đọc đoạn → kết thúc giao dịch đọc → tính (không giữ giao dịch / khóa) → ghi trong giao dịch ngắn,
+    CHỈ khi học liệu chưa bị nạp lại (indexed_at không đổi). Đoạn bị xóa trong lúc tính thì UPDATE không trúng dòng nào
+    – không để lại vector mồ côi."""
+    if not enabled():
+        return 0
+    from .search import _doc_text
+    name = model_name()
+    todo = [(i, at) for i, at in db.query(SectionMaterial.id, SectionMaterial.indexed_at)
+            .filter(SectionMaterial.class_section_id == cs_id, SectionMaterial.status == "ready",
+                    (SectionMaterial.embed_model.is_(None)) | (SectionMaterial.embed_model != name))]
+    db.rollback()
+    total = 0
+    for mid, stamp in todo:
+        rows = db.query(MaterialPassage.id, MaterialPassage.title, MaterialPassage.breadcrumb, MaterialPassage.caption,
+                        MaterialPassage.body, MaterialPassage.vlm_desc).filter(MaterialPassage.material_id == mid).all()
+        db.rollback()
+        vecs = encode([_doc_text(t, b, c, body, v) for _, t, b, c, body, v in rows]) if rows else []
+        if rows:     # executemany trên connection: "bulk UPDATE theo khóa chính" của ORM ném StaleDataError khi đoạn đã bị
+            #          xóa (nạp lại trong lúc tính) – ở đây trượt dòng là bình thường, kiểm indexed_at ngay dưới
+            db.connection().execute(
+                update(MaterialPassage).where(MaterialPassage.id == bindparam("b_id"))
+                .values(embedding=bindparam("b_emb")),
+                [{"b_id": pid, "b_emb": pack(v)} for (pid, *_), v in zip(rows, vecs)])
+        n = db.execute(update(SectionMaterial).where(SectionMaterial.id == mid, SectionMaterial.indexed_at == stamp,
+                                                     SectionMaterial.status == "ready")
+                       .values(embed_model=name)).rowcount
+        if n:
+            db.commit()
+            total += len(rows)
+        else:                                                # đã bị nạp lại / bỏ chọn trong lúc tính: bỏ kết quả
+            db.rollback()
+    return total

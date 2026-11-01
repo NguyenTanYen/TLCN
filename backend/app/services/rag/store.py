@@ -36,4 +36,5 @@ def save_document(db: Session, material: SectionMaterial, pages: list[Page], pas
                for i, ps in enumerate(passages, 1))
     material.n_pages = len(rows)                                  # số trang THẬT (handout: nhiều slide / trang)
     material.status, material.error, material.indexed_at = "ready", None, datetime.now()
+    material.embed_model = None                                  # đoạn mới chưa có vector: semantic.embed_missing tính
     db.flush()

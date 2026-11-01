@@ -9,8 +9,12 @@ RUN npm run build
 # ---- API FastAPI + Pandas, phục vụ luôn giao diện đã build
 FROM python:3.12-slim
 WORKDIR /app/backend
-COPY backend/requirements.txt .
+COPY backend/requirements.txt backend/requirements-semantic.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+# cổng ngữ nghĩa của gợi ý học liệu (torch CPU + MiniLM, ~1 GB); --build-arg SEMANTIC=0 để bỏ – gợi ý chỉ dùng BM25
+ARG SEMANTIC=1
+RUN if [ "$SEMANTIC" = "1" ]; then pip install --no-cache-dir -r requirements-semantic.txt \
+      --extra-index-url https://download.pytorch.org/whl/cpu; fi
 COPY database /app/database
 COPY backend /app/backend
 COPY --from=web /web/dist /app/frontend/dist

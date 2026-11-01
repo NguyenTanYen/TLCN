@@ -8,8 +8,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, SmallInteger,
-                        String, Table, Text, func)
+from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, Numeric,
+                        SmallInteger, String, Table, Text, func)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -591,6 +591,7 @@ class SectionMaterial(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)            # bắt đầu nạp – quá hạn thì nạp lại
+    embed_model: Mapped[Optional[str]] = mapped_column(String(120))            # model đã tính vector các đoạn (cổng ngữ nghĩa)
     pages: Mapped[list["MaterialPage"]] = relationship(order_by="MaterialPage.page_no", cascade="all, delete-orphan",
                                                        passive_deletes=True)
 
@@ -622,4 +623,5 @@ class MaterialPassage(Base):
     vlm_desc: Mapped[Optional[str]] = mapped_column(Text)
     is_code: Mapped[bool] = mapped_column(Boolean, default=False)
     bboxes: Mapped[list] = mapped_column(JSON)                                 # [[x0,y0,x1,y1],...]
+    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, deferred=True)   # vector MiniLM float16 (semantic.py)
     page: Mapped[MaterialPage] = relationship()

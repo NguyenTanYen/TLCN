@@ -16,7 +16,8 @@
 - Đề cương chi tiết có phiên bản (góp ý F1): course_syllabi, syllabus_references, syllabus_assessments,
   syllabus_assessment_clos, outline_clos; nội dung, số tiết và hoạt động dạy học của từng chương (course_outlines).
 - question_moodle_links (góp ý F3): trạng thái đồng bộ câu hỏi theo từng khóa học Moodle, phát hiện câu bị sửa ở cả hai bên.
-- Học liệu của lớp học phần cho gợi ý đọc (RAG): section_materials, material_pages, material_passages.
+- Học liệu của lớp học phần cho gợi ý đọc (RAG): section_materials, material_pages, material_passages; vector của đoạn
+  cho cổng ngữ nghĩa (material_passages.embedding, section_materials.embed_model).
 - exam_attempts.fk_att_exam: ON DELETE RESTRICT (trước là CASCADE) – CSDL không cho xóa bài KT đã có kết quả thi,
   kể cả khi xóa bằng SQL trực tiếp hay script; muốn xóa phải xóa exam_attempts tường minh trước.
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
@@ -136,6 +137,14 @@ def _upgrade_new_tables(c, done: list) -> None:
         c.execute(text("ALTER TABLE section_materials ADD COLUMN claimed_at DATETIME NULL "
                        "COMMENT 'Thời điểm bắt đầu nạp (status indexing) – quá hạn thì coi như bỏ dở, nạp lại' AFTER indexed_at"))
         done.append("section_materials.claimed_at")
+    for table, col, ddl in (
+            ("section_materials", "embed_model", "VARCHAR(120) NULL COMMENT 'Model đã tính vector các đoạn (NULL = chưa "
+             "tính; đổi model thì tính lại)' AFTER claimed_at"),
+            ("material_passages", "embedding", "BLOB NULL COMMENT 'Vector MiniLM float16 của đoạn (cổng ngữ nghĩa của "
+             "gợi ý học liệu)' AFTER bboxes")):
+        if _col(c, table, col) is None:
+            c.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+            done.append(f"{table}.{col}")
 
 
 def _upgrade_v3(c, done: list) -> None:

@@ -1,0 +1,5 @@
+# Tùy chọn: cổng ngữ nghĩa của gợi ý học liệu (app/services/rag/semantic.py) – MiniLM đa ngôn ngữ chạy CPU.
+# Không cài thì cổng tắt, gợi ý chỉ dùng BM25. Model (~470 MB) tự tải từ Hugging Face lần đầu dùng.
+#   pip install -r requirements-semantic.txt --extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.6
+sentence-transformers>=3.4
