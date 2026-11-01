@@ -1,6 +1,6 @@
 """Bước 7: đo chất lượng tìm học liệu trên bộ câu hỏi chuẩn (eval/rag_gold.json).
 
-    python -m app.services.rag.evaluate <thư mục PDF> [eval/rag_gold.json] [--detail] [--semantic 0.5,0.55,0.59]
+    python -m app.services.rag.evaluate <thư mục PDF> [eval/rag_gold.json] [--detail] [--semantic 0.5,0.55,0.59] [--vlm]
 
 Thư mục PDF chứa các tệp trong "corpus" của bộ câu hỏi (học liệu không đưa vào kho mã). Mỗi câu hỏi có các TRANG đúng
 (gán theo trang, không theo id đoạn – chia đoạn thay đổi thì bộ câu hỏi vẫn dùng được). Một kết quả "đúng" khi đoạn
@@ -11,6 +11,7 @@ Chỉ số (trên các câu CÓ đáp án trong tài liệu):
   (trong 10 kết quả đầu, không có thì 0);  nDCG@10 – các trang đúng có được xếp sớm không (mỗi trang đúng chỉ tính
   một lần ở đoạn đầu tiên của nó – trang nhiều đoạn không được cộng dồn; chuẩn hóa theo cách xếp lý tưởng).
 Câu KHÔNG có đáp án (negative): "gợi ý sai" – tỷ lệ câu vẫn trả về kết quả (hệ thống đáng lẽ không gợi ý gì).
+--vlm: đoạn hình kèm mô tả của VLM (vlm.py; mô tả lưu đệm cạnh PDF) – chạy cả có và không có để so.
 --semantic: thêm các dòng "gợi ý theo trang" có cổng ngữ nghĩa (semantic.py) ở từng ngưỡng cos (cần sentence-transformers;
 vector của các đoạn lưu đệm cạnh PDF).
 """
@@ -44,28 +45,63 @@ class Doc:
     text: str = ""
 
 
-def load_corpus(pdf_dir: Path, files: list[str]) -> tuple[list[Doc], Index]:
-    """Đọc + chia đoạn các PDF (lưu đệm theo cỡ / thời điểm sửa tệp – chạy lại không phải đọc PDF)."""
+def load_corpus(pdf_dir: Path, files: list[str], vlm: bool = False) -> tuple[list[Doc], Index]:
+    """Đọc + chia đoạn các PDF (lưu đệm theo cỡ / thời điểm sửa tệp – chạy lại không phải đọc PDF). vlm: thêm mô tả
+    hình của VLM (describe_corpus) vào văn bản các đoạn hình – như sau vlm.describe_missing."""
     cache_path = pdf_dir / CACHE
     try:
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         cache = {}
-    docs, texts, dirty = [], [], False
+    dirty = False
     for f in files:
         st = (pdf_dir / f).stat()
         key = f"{st.st_size}:{int(st.st_mtime)}"
-        if cache.get(f, {}).get("key") != key:
+        if cache.get(f, {}).get("key") != key or cache[f].get("v") != 2:
             ps = build_passages(read_pdf(str(pdf_dir / f)))
-            cache[f] = {"key": key, "passages": [[p.page, _doc_text(p.title, p.breadcrumb, p.caption, p.body,
-                                                                     p.vlm_desc)] for p in ps]}
+            cache[f] = {"key": key, "v": 2, "passages": [[p.page, p.kind, p.title, p.breadcrumb, p.caption, p.body,
+                                                          list(p.bboxes[0]) if p.bboxes else None] for p in ps]}
             dirty = True
-        for page, text in cache[f]["passages"]:
-            texts.append((len(docs), text))
-            docs.append(Doc(f, page, text))
     if dirty:
         cache_path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    descs = describe_corpus(pdf_dir, files, cache) if vlm else {}
+    docs, texts = [], []
+    for f in files:
+        for i, (page, _, title, crumb, caption, body, _) in enumerate(cache[f]["passages"]):
+            text = _doc_text(title, crumb, caption, body, descs.get(f, {}).get(str(i)))
+            texts.append((len(docs), text))
+            docs.append(Doc(f, page, text))
     return docs, Index.build(texts)
+
+
+def describe_corpus(pdf_dir: Path, files: list[str], cache: dict) -> dict[str, dict[str, str]]:
+    """Mô tả VLM của các đoạn hình: {tệp: {thứ tự đoạn: mô tả}} – lưu đệm cạnh PDF theo model + tham số gọi + phiên bản tệp (mỗi
+    tệp xong là ghi lại – dừng giữa chừng chạy lại không mất phần đã làm)."""
+    from . import vlm
+    from .ingest import render_regions
+    path = pdf_dir / f".rag_eval_vlm_{''.join(c if c.isalnum() else '_' for c in vlm.model_name())}.json"
+    try:
+        out = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        out = {}
+    for f in files:
+        figs = [(i, pg, bb, crumb, body) for i, (pg, kind, _, crumb, _, body, bb) in enumerate(cache[f]["passages"])
+                if kind == "figure" and bb]
+        if (out.get(f, {}).get("key") == cache[f]["key"] and out[f].get("options") == vlm.OPTIONS
+                and len(out[f]["descs"]) == len(figs)):
+            continue
+        if not vlm.available():
+            sys.exit(f"--vlm: Ollama chưa chạy hoặc chưa có model {vlm.model_name()} (RAG_VLM_MODEL / RAG_VLM_URL)")
+        t = time.monotonic()
+        pngs = render_regions(str(pdf_dir / f), [(pg, tuple(bb)) for _, pg, bb, _, _ in figs])
+        descs = {}
+        for (i, _, _, crumb, body), png in zip(figs, pngs):
+            descs[str(i)] = vlm.describe(png, vlm.prompt_for(Path(f).stem, True, crumb, body))
+        out[f] = {"key": cache[f]["key"], "options": vlm.OPTIONS, "descs": descs, "seconds": round(time.monotonic() - t, 1)}
+        path.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"  VLM {f}: {len(figs)} hình ({sum(not d for d in descs.values())} bị từ chối), "
+              f"{time.monotonic() - t:.0f} s", flush=True)
+    return {f: out[f]["descs"] for f in files}
 
 
 def query_text(q: dict, mode: str) -> str:
@@ -195,12 +231,13 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--detail", action="store_true", help="in hạng của từng câu")
     ap.add_argument("--msm", default="", help='thử thêm các mức minimum_should_match, vd "2<30%%,2<50%%"')
     ap.add_argument("--semantic", default="", help='các ngưỡng cos của cổng ngữ nghĩa, vd "0.5,0.55,0.59"')
+    ap.add_argument("--vlm", action="store_true", help="thêm mô tả hình của VLM (Ollama, RAG_VLM_MODEL) vào đoạn hình")
     a = ap.parse_args(argv)
     variants = VARIANTS + [(f"+ đồng nghĩa + msm {m}", {"synonyms": True, "msm": m}) for m in a.msm.split(",") if m]
     sys.stdout.reconfigure(encoding="utf-8")
     gold = json.loads(a.gold.read_text(encoding="utf-8"))
     t = time.monotonic()
-    docs, ix = load_corpus(a.pdf_dir, gold["corpus"])
+    docs, ix = load_corpus(a.pdf_dir, gold["corpus"], a.vlm)
     print(f"{len(docs)} đoạn / {len(gold['corpus'])} tệp, dựng chỉ mục {time.monotonic() - t:.1f} s; "
           f"{len(gold['questions'])} câu hỏi")
     syn = synonym_files.for_course(gold.get("course_code"))

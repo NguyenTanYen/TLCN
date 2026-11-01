@@ -276,9 +276,10 @@ _building: dict[int, threading.Lock] = {}     # khóa dựng theo lớp (số l�
 
 
 def _ready(db: Session, cs_id: int) -> tuple:
-    rows = (db.query(SectionMaterial.id, SectionMaterial.indexed_at)
+    # vlm_model: VLM điền mô tả hình SAU khi nạp (indexed_at không đổi) – chỉ mục phải dựng lại để tìm được theo mô tả
+    rows = (db.query(SectionMaterial.id, SectionMaterial.indexed_at, SectionMaterial.vlm_model)
             .filter_by(class_section_id=cs_id, status="ready").order_by(SectionMaterial.id).all())
-    return tuple((i, str(t)) for i, t in rows)
+    return tuple((i, str(t), v) for i, t, v in rows)
 
 
 def _cached(cs_id: int, key: tuple) -> Index | None:
@@ -291,7 +292,7 @@ def _cached(cs_id: int, key: tuple) -> Index | None:
 
 
 def _build(db: Session, cs_id: int, key: tuple) -> Index:
-    ids = [i for i, _ in key]
+    ids = [i for i, *_ in key]
     rows = (db.query(MaterialPassage.id, MaterialPassage.title, MaterialPassage.breadcrumb, MaterialPassage.caption,
                      MaterialPassage.body, MaterialPassage.vlm_desc)
             .filter(MaterialPassage.material_id.in_(ids)).order_by(MaterialPassage.id).all()) if ids else []

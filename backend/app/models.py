@@ -592,6 +592,7 @@ class SectionMaterial(Base):
     indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)            # bắt đầu nạp – quá hạn thì nạp lại
     embed_model: Mapped[Optional[str]] = mapped_column(String(120))            # model đã tính vector các đoạn (cổng ngữ nghĩa)
+    vlm_model: Mapped[Optional[str]] = mapped_column(String(120))              # model VLM đã mô tả các hình (vlm.py)
     pages: Mapped[list["MaterialPage"]] = relationship(order_by="MaterialPage.page_no", cascade="all, delete-orphan",
                                                        passive_deletes=True)
 

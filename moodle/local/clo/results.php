@@ -103,7 +103,8 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
             if ($p->heading !== '') {
                 $line .= ' – ' . s($p->heading);
             }
-            $line .= ' ' . html_writer::span(get_string('readings_questions', 'local_clo', implode(', ', $p->questions)),
+            $qs = count($p->questions) > 1 ? 'readings_questions_many' : 'readings_questions';   // số nhiều (en)
+            $line .= ' ' . html_writer::span(get_string($qs, 'local_clo', implode(', ', $p->questions)),
                 'badge bg-light text-dark');
             $li .= html_writer::tag('li', $line);
         }

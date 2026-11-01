@@ -5,6 +5,7 @@ import { api, auth, STATUS_VI } from '../api'
 import { ActionButton, Badge, Card, Crumbs, FileButton, Flow, Loading, useToast } from '../components/ui'
 import { useApi } from '../hooks'
 import { NewExamFlow, TYPE_VI } from '../components/NewExam'
+import SectionMaterials from '../components/SectionMaterials'
 import { openMoodle, useMoodleBase } from '../moodle'
 
 const ASSESS_VI = { process: 'Quá trình', final: 'Cuối kỳ' }
@@ -62,6 +63,7 @@ export default function SectionDetail() {
       <div className="tabs">
         <button className={tab === 'exams' ? 'on' : ''} onClick={() => setTab('exams')}>Bài kiểm tra ({exams.data?.length ?? 0})</button>
         <button className={tab === 'students' ? 'on' : ''} onClick={() => setTab('students')}>Danh sách SV ({students.data?.length ?? 0})</button>
+        <button className={tab === 'materials' ? 'on' : ''} onClick={() => setTab('materials')}>Học liệu</button>
       </div>
       {tab === 'exams' && <Card>
         <Loading {...exams} />
@@ -90,6 +92,7 @@ export default function SectionDetail() {
             <td>{s.moodle_user_id ?? '—'}</td><td>{s.status === 'active' ? 'Đang học' : 'Rút HP'}</td>
             <td><Link className="btn sm" to={`/sections/${id}/students/${s.id}`} onClick={e => e.stopPropagation()}>Xem kết quả</Link></td></tr>)}</tbody></table>
       </Card>}
+      {tab === 'materials' && cs && <SectionMaterials cs={cs} canEdit={auth.user()?.role === 'lecturer'} />}
       {creating && cs && <NewExamFlow cs={cs} onClose={() => setCreating(false)} />}
     </>
   )

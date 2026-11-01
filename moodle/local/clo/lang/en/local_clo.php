@@ -60,6 +60,7 @@ $string['readings'] = 'Where to read again (from the questions you got wrong)';
 $string['readings_help'] = 'Pages/slides in the course materials related to the questions you got wrong – start by re-reading these.';
 $string['readings_page'] = '{$a->material} – page {$a->page}';
 $string['readings_questions'] = 'question {$a}';
+$string['readings_questions_many'] = 'questions {$a}';
 $string['ssobad'] = 'Invalid sign-in ticket from the analytics system.';
 $string['ssoexpired'] = 'The sign-in ticket has expired - use the open Moodle button in the system again.';
 $string['ssoused'] = 'The sign-in ticket was already used - use the open Moodle button in the system again.';

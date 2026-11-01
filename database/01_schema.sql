@@ -752,6 +752,7 @@ CREATE TABLE section_materials (
   indexed_at           DATETIME      NULL COMMENT 'Thời điểm nạp xong',
   claimed_at           DATETIME      NULL COMMENT 'Thời điểm bắt đầu nạp (status indexing) – quá hạn thì coi như bỏ dở, nạp lại',
   embed_model          VARCHAR(120)  NULL COMMENT 'Model đã tính vector các đoạn (NULL = chưa tính; đổi model thì tính lại)',
+  vlm_model            VARCHAR(120)  NULL COMMENT 'Model VLM đã mô tả các đoạn hình (NULL = chưa mô tả; đổi model thì mô tả lại)',
   CONSTRAINT fk_sm_cs   FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
   CONSTRAINT fk_sm_user FOREIGN KEY (added_by)         REFERENCES users(id)          ON DELETE SET NULL,
   CONSTRAINT uq_sm_hash UNIQUE (class_section_id, content_hash),

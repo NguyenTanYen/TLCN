@@ -17,7 +17,8 @@
   syllabus_assessment_clos, outline_clos; nội dung, số tiết và hoạt động dạy học của từng chương (course_outlines).
 - question_moodle_links (góp ý F3): trạng thái đồng bộ câu hỏi theo từng khóa học Moodle, phát hiện câu bị sửa ở cả hai bên.
 - Học liệu của lớp học phần cho gợi ý đọc (RAG): section_materials, material_pages, material_passages; vector của đoạn
-  cho cổng ngữ nghĩa (material_passages.embedding, section_materials.embed_model).
+  cho cổng ngữ nghĩa (material_passages.embedding, section_materials.embed_model); model VLM đã mô tả hình
+  (section_materials.vlm_model).
 - exam_attempts.fk_att_exam: ON DELETE RESTRICT (trước là CASCADE) – CSDL không cho xóa bài KT đã có kết quả thi,
   kể cả khi xóa bằng SQL trực tiếp hay script; muốn xóa phải xóa exam_attempts tường minh trước.
 - Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
@@ -140,6 +141,8 @@ def _upgrade_new_tables(c, done: list) -> None:
     for table, col, ddl in (
             ("section_materials", "embed_model", "VARCHAR(120) NULL COMMENT 'Model đã tính vector các đoạn (NULL = chưa "
              "tính; đổi model thì tính lại)' AFTER claimed_at"),
+            ("section_materials", "vlm_model", "VARCHAR(120) NULL COMMENT 'Model VLM đã mô tả các đoạn hình (NULL = "
+             "chưa mô tả; đổi model thì mô tả lại)' AFTER embed_model"),
             ("material_passages", "embedding", "BLOB NULL COMMENT 'Vector MiniLM float16 của đoạn (cổng ngữ nghĩa của "
              "gợi ý học liệu)' AFTER bboxes")):
         if _col(c, table, col) is None:

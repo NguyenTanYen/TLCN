@@ -3,6 +3,8 @@ import contextlib, io, os
 
 # kiểm thử dùng CSDL Moodle MÔ PHỎNG riêng, không đụng tới Moodle thật (nếu có)
 os.environ["MOODLE_DB_NAME"] = "moodle_sim"
+# không gọi VLM thật (Ollama trên máy dev) khi kiểm thử luồng nạp – chậm, kết quả không cố định; test VLM tự giả lập
+os.environ["RAG_VLM_MODEL"] = ""
 # kiểm thử cần ghi vào CSDL Moodle mô phỏng -> dùng tài khoản quản trị CSDL nếu hệ thống đang chạy bằng tài khoản chỉ đọc Moodle
 _env = os.path.join(os.path.dirname(__file__), "..", "cau_hinh.env")
 if "DATABASE_URL" not in os.environ and os.path.exists(_env):

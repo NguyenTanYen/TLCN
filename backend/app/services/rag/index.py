@@ -52,7 +52,7 @@ from ...config import settings
 from ...database import SessionLocal, engine
 from ...models import ClassSection, SectionMaterial
 from .. import lms
-from . import search, semantic, store, sync
+from . import search, semantic, store, sync, vlm
 from .chunk import build_passages
 from .ingest import read_pdf
 
@@ -296,13 +296,17 @@ def index_pending(db: Session, cs_id: int, fetcher: Fetcher | None = None) -> di
 
 def run_section(cs_id: int) -> None:
     """Nạp các tệp chờ của một lớp – phiên CSDL riêng – rồi dựng sẵn chỉ mục tìm kiếm của lớp (dựng khi GHI: lần tìm
-    sau không phải dựng) và tính vector cho cổng ngữ nghĩa (sau khi đoạn đã commit; cổng tắt thì bỏ qua)."""
+    sau không phải dựng) và tính vector cho cổng ngữ nghĩa (sau khi đoạn đã commit; cổng tắt thì bỏ qua). Cuối cùng VLM
+    mô tả hình (chậm – gợi ý đã dùng được trước đó); có hình được mô tả thì dựng lại chỉ mục và tính lại vector."""
     db = SessionLocal()
     try:
         index_pending(db, cs_id)
         db.rollback()
         search.warm(db, cs_id)
         semantic.embed_missing(db, cs_id)
+        if vlm.describe_missing(db, cs_id):
+            search.warm(db, cs_id)
+            semantic.embed_missing(db, cs_id)
     except Exception:
         log.exception("Nạp học liệu lớp %s lỗi", cs_id)
     finally:

@@ -640,3 +640,18 @@ def render_page(src: str | bytes, page_no: int, dpi: int = 110) -> bytes:
     """Ảnh PNG của một trang (page_no bắt đầu từ 1) – để hiển thị khung tô và cho VLM nhìn."""
     with _open(src) as doc:
         return doc[page_no - 1].get_pixmap(dpi=dpi).tobytes("png")
+
+
+def render_regions(src: str | bytes, regions: list[tuple[int, BBox]], dpi: int = 144,
+                   max_side: int = 1280) -> list[bytes]:
+    """Ảnh PNG của từng vùng (số trang, bbox tọa độ trang thật) – mở PDF MỘT lần cho cả học liệu. Ảnh lớn được thu
+    nhỏ cho cạnh dài ≤ max_side (VLM nhỏ chậm hẳn khi ảnh to, chữ slide vẫn đọc được)."""
+    out = []
+    with _open(src) as doc:
+        for page_no, (x0, y0, x1, y1) in regions:
+            page = doc[page_no - 1]
+            clip = pymupdf.Rect(x0, y0, x1, y1) & page.rect
+            side = max(clip.width, clip.height, 1.0)
+            zoom = min(dpi / 72, max_side / side)
+            out.append(page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=clip).tobytes("png"))
+    return out
