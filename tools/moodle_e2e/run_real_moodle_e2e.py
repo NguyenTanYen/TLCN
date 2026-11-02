@@ -10,6 +10,10 @@ nhập XML, tạo Quiz xáo trộn phương án, cho 38 SV làm bài (Moodle t�
 Bài thi GIẤY (cần Web Service local_clo + plugin Offline Quiz): hệ thống tạo Offline Quiz 2 mã đề qua API -> tải phiếu trả lời
 Moodle sinh ra -> tô phiếu cho 38 SV (fill_answer_sheets.py) và đưa ảnh vào hàng đợi quét -> MOODLE nhận diện & chấm
 (local_clo_process_scans) -> hệ thống đồng bộ, đối chiếu với điểm Moodle chấm và với phương án SV đã tô.
+
+Học liệu (cần Web Service local_clo): tải bài giảng tóm tắt mẫu (hoc_lieu_mau.py) lên khóa học làm Tài nguyên -> hệ
+thống đồng bộ, nạp, tính vector (+ VLM mô tả slide dạng thẻ nếu Ollama chạy) TRƯỚC khi đẩy kết quả -> trang kết quả
+của SV trên Moodle có mục "Nên đọc lại ở đâu". Khóa học demo bị xóa và tạo lại mỗi lần chạy nên học liệu cũng tạo lại.
 """
 import contextlib, io, json, os, random, shutil, subprocess, sys
 from pathlib import Path
@@ -85,6 +89,7 @@ def main():
         moodle.sync_exam(db, exam.id); results.analyze_exam(db, exam.id)
         print(f"\n== grademethod={gm}: {label}")
         reports[label] = verify(exam.id, info["quiz_id"], spec, gm)
+    reports["hoc_lieu"] = materials_on_moodle(db, exam, info)
     reports["day_ket_qua_len_moodle"] = push_to_moodle(db, exam)
     reports["bai_thi_giay"] = paper_on_moodle(db, info, php)
     (WORK / "verification.json").write_text(json.dumps({"moodle": info, "ket_qua": reports}, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -190,6 +195,32 @@ def paper_on_moodle(db, info, php):
     exam.publish_flag = True; db.commit()
     pushed = lms.push_results(db, exam)
     report["day_ket_qua_len_moodle"] = pushed["saved"]
+    return report
+
+
+def materials_on_moodle(db, exam, info):
+    """Tải bài giảng mẫu lên khóa học (Tài nguyên) -> đồng bộ + nạp học liệu của lớp -> kiểm tra gợi ý trang cho câu sai."""
+    import base64
+    from hoc_lieu_mau import FILENAME, TITLE, build_pdf
+    from app.models import ClassSection, SectionMaterial
+    from app.services.rag import index, sync
+    if not lms.configured():
+        print("\n(Bỏ qua học liệu: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
+        return None
+    print("\n== Học liệu: tải bài giảng mẫu lên khóa học, hệ thống đồng bộ và nạp (VLM mô tả hình nếu Ollama chạy)")
+    r = lms.call("local_clo_add_resource", {"courseid": info["course_id"], "name": TITLE, "filename": FILENAME,
+                                            "content": base64.b64encode(build_pdf()).decode()})
+    cs = db.get(ClassSection, exam.class_section_id)
+    out = sync.sync_section(db, cs); db.commit()
+    index.run_section(cs.id)
+    db.expire_all()
+    mats = db.query(SectionMaterial).filter_by(class_section_id=cs.id).all()
+    sugg = lms.material_suggestions(db, exam.id, cs.id)
+    report = {"tai_nguyen_moodle": r["cmid"], "dong_bo": out["added"],
+              "hoc_lieu": [{"ten": m.title, "trang_thai": m.status, "so_trang": m.n_pages, "vlm": m.vlm_model} for m in mats],
+              "luot_lam_co_goi_y": sum(1 for v in sugg.values() if v)}
+    print(json.dumps(report, ensure_ascii=False, indent=1))
+    assert mats and all(m.status == "ready" for m in mats) and report["luot_lam_co_goi_y"], "Học liệu chưa nạp được"
     return report
 
 
