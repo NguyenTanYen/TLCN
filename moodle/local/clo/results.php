@@ -24,39 +24,6 @@ $PAGE->navbar->add(get_string('results', 'local_clo'), new moodle_url('/local/cl
 
 $exams = $DB->get_records('local_clo_exam', ['courseid' => $course->id], 'timecreated DESC, id DESC');
 
-/**
- * Gợi ý đọc gửi từ hệ thống phân tích ([{question, pages: [{material, page, heading, url}]}]) gom theo trang.
- * Liên kết chỉ nhận tệp của CHÍNH Moodle này (pluginfile.php) – địa chỉ Moodle mà hệ thống phân tích dùng có thể khác
- * wwwroot (localhost / 127.0.0.1...), nên dựng lại từ phần /pluginfile.php/...; liên kết khác bị bỏ, chỉ hiện tên.
- */
-function local_clo_reading_pages(array $materials): array {
-    global $CFG;
-    $out = [];
-    foreach ($materials as $m) {
-        foreach ($m->pages ?? [] as $p) {
-            $url = null;
-            $at = strpos((string)($p->url ?? ''), '/pluginfile.php/');
-            if ($at !== false) {
-                $url = new moodle_url($CFG->wwwroot . substr($p->url, $at));
-            }
-            // khóa gom: liên kết tệp + trang (hai học liệu có thể trùng TÊN – tên lấy từ hoạt động Moodle);
-            // không có liên kết thì mới dùng tên + trang
-            $key = $url ? $url->out(false) : ($p->material ?? '') . '#' . (int)($p->page ?? 0);
-            if (!isset($out[$key])) {
-                $out[$key] = (object)['material' => (string)($p->material ?? ''), 'page' => (int)($p->page ?? 0),
-                    'heading' => (string)($p->heading ?? ''), 'url' => $url, 'questions' => [], 'first' => count($out)];
-            }
-            $out[$key]->questions[] = (int)$m->question;
-        }
-    }
-    foreach ($out as $p) {
-        $p->questions = array_values(array_unique($p->questions));
-        sort($p->questions);
-    }
-    usort($out, fn($a, $b) => [count($b->questions), $a->first] <=> [count($a->questions), $b->first]);
-    return $out;
-}
-
 /** Khối kết quả của một SV cho một bài kiểm tra. */
 function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     if (!$exam->published) {                               // E1 – GV chưa công bố
@@ -97,12 +64,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $o .= html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']);
         $li = '';
         foreach ($pages as $p) {
-            $name = get_string('readings_page', 'local_clo', (object)['material' => s($p->material), 'page' => $p->page]);
-            $name = $p->url ? html_writer::link($p->url, $name, ['target' => '_blank', 'rel' => 'noopener']) : $name;
-            $line = html_writer::tag('strong', $name);
-            if ($p->heading !== '') {
-                $line .= ' – ' . s($p->heading);
-            }
+            $line = local_clo_reading_line($p);
             $qs = count($p->questions) > 1 ? 'readings_questions_many' : 'readings_questions';   // số nhiều (en)
             $line .= ' ' . html_writer::span(get_string($qs, 'local_clo', implode(', ', $p->questions)),
                 'badge bg-light text-dark');

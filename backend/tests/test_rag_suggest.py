@@ -85,6 +85,7 @@ def test_wrong_answers_get_material_pages_in_results_sent_to_moodle(material):
             mats = {m["question"]: m["pages"] for m in r["data"].get("materials", [])}
             if (att, PITR) in wrong:
                 pages = _ours(mats[wrong[(att, PITR)]], mid)
+                assert PITR in {m["question_id"] for m in r["data"]["materials"]}     # plugin khớp câu theo QB-n
                 assert pages[0]["page"] == 1 and pages[0]["url"] == URL + "#page=1"
                 assert pages[0]["heading"] == "Recovery model"
                 n_with += 1

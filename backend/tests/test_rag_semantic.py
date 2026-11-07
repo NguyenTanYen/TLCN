@@ -35,6 +35,15 @@ def test_related_keeps_suggestions_only_when_some_candidate_is_close(fake_encode
     assert not semantic.related("Recovery model nào?", [far, far], 0.55)
 
 
+def test_english_question_goes_through_the_gate_unaccented_vietnamese_does_not(fake_encoder):
+    far = _vec(0.1, 1, 0)
+    assert not semantic.related("Which HTML tag creates a hyperlink?", [far], 0.55)
+    assert not semantic.related("What is a view in SQL?", [far], 0.55)
+    assert semantic.related("Nut nao trong HDFS luu tru cac khoi du lieu?", [far], 0.55)
+    assert semantic.related("Menh de where va group by dung de lam gi?", [far], 0.55)    # từ khóa SQL không phải tiếng Anh
+    assert semantic.related("Define a primary key", [far], 0.55)                          # không nhận ra: như cũ, không chặn
+
+
 def test_related_never_blocks_when_it_cannot_judge(fake_encoder, monkeypatch):
     far = _vec(0, 1, 0)
     assert semantic.related("Câu hỏi có dấu", [], 0.55)                       # không có ứng viên

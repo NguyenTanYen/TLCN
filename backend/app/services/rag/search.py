@@ -86,6 +86,15 @@ def plain(query: str) -> bool:
     return fold(q) == unicodedata.normalize("NFD", q)
 
 
+# Từ chức năng tiếng Anh không trùng âm tiết tiếng Việt bỏ dấu và không phải từ khóa SQL (where, from, for, and, by, on...)
+# – câu tiếng Việt không dấu hay nhắc các từ khóa đó: "menh de where".
+_ENGLISH = frozenset("which what who whose whom why how does did is are was were of this these those following".split())
+
+
+def looks_english(query: str) -> bool:
+    return plain(query) and bool(_ENGLISH & set(_WORD.findall(query.lower())))
+
+
 def tokens(text: str) -> list[str]:
     """Từ để chấm điểm: âm tiết (bỏ hư từ) + cặp âm tiết liền nhau trong cùng một cụm."""
     out: list[str] = []

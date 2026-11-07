@@ -31,7 +31,7 @@ from ...config import settings
 from . import synonyms as synonym_files
 from .chunk import build_passages
 from .ingest import read_pdf
-from .search import Index, _doc_text, plain
+from .search import Index, _doc_text, looks_english, plain
 
 KS = (1, 3, 5, 10)
 GOLD = Path(__file__).resolve().parents[3] / "eval" / "rag_gold.json"
@@ -185,7 +185,7 @@ def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None
                 cos = {i: float(D[i] @ Q[q["id"]]) for i in ranked}
                 if per_passage:
                     ranked = [i for i in ranked if cos[i] >= thr]
-                elif ranked and not plain(suggest.query_text(q["stem"], correct)) and max(cos.values()) < thr:   # như semantic.related
+                elif ranked and (not plain(qt := suggest.query_text(q["stem"], correct)) or looks_english(qt)) and max(cos.values()) < thr:   # như semantic.related
                     ranked = []
             page_of = lambda i: (docs[i].file, docs[i].page)
             pages = [pg for pg, _ in suggest.pages_of(ranked, page_of)]

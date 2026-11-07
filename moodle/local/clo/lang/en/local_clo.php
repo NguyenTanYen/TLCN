@@ -61,6 +61,7 @@ $string['readings_help'] = 'Pages/slides in the course materials related to the 
 $string['readings_page'] = '{$a->material} – page {$a->page}';
 $string['readings_questions'] = 'question {$a}';
 $string['readings_questions_many'] = 'questions {$a}';
+$string['review_readings'] = 'Read again';
 $string['ssobad'] = 'Invalid sign-in ticket from the analytics system.';
 $string['ssoexpired'] = 'The sign-in ticket has expired - use the open Moodle button in the system again.';
 $string['ssoused'] = 'The sign-in ticket was already used - use the open Moodle button in the system again.';

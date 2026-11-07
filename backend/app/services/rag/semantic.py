@@ -11,7 +11,10 @@ Qua cổng rồi thì lọc TRANG (suggest.close_pages): bỏ trang có cos th�
 RAG_PAGE_MARGIN (0,15) – dù câu có liên quan, BM25 vẫn kéo theo trang chỉ trùng từ khóa yếu (chạy thử trên Moodle: 6/9
 dòng gợi ý của một SV là trang ETL không liên quan câu DBMS). Bộ câu hỏi chuẩn: P@3 0,51 → 0,65, số trang/câu 3 →
 2,18, đổi lại Hit@3 0,94 → 0,92 (V10: trang đúng gần như chỉ có lệnh Hive, cos 0,37).
-Câu gõ KHÔNG DẤU không qua cổng (MiniLM hiểu tiếng Việt không dấu kém: câu đúng W15 chỉ 0,39) – vẫn gợi ý theo BM25.
+Câu tiếng Việt gõ KHÔNG DẤU không qua cổng (MiniLM hiểu tiếng Việt không dấu kém: câu đúng W15 chỉ 0,39) – vẫn gợi ý
+theo BM25. Câu tiếng Anh (cũng không dấu, search.looks_english) vẫn qua cổng: đo trên giáo trình tiếng Anh 1.373 trang,
+18 câu có trong sách cos 0,554–0,846; 16 câu ngoài sách: 8 câu dưới ngưỡng (khác lĩnh vực ≤ 0,364), 8 câu còn lại là
+tin học gần với sách, 0,555–0,673 – ngưỡng chặn được câu lạc đề, không chặn được câu cùng ngành.
 
 Vector của từng đoạn tính MỘT lần sau khi nạp (embed_missing, chạy ở luồng nạp sau khi giao dịch ghi đoạn đã commit)
 và lưu ngay trong MySQL (material_passages.embedding, float16 – 768 byte/đoạn): không có kho vector riêng phải giữ
@@ -86,10 +89,10 @@ def unpack(b: bytes) -> np.ndarray:
 
 
 def scores(query: str, embeddings: list[bytes | None]) -> list[float] | None:
-    """cos(câu hỏi, từng đoạn ứng viên); None = không đánh giá được (cổng tắt, câu không dấu, không có ứng viên, có
+    """cos(câu hỏi, từng đoạn ứng viên); None = không đánh giá được (cổng tắt, tiếng Việt không dấu, không có ứng viên, có
     ứng viên chưa có vector / vector của model khác – chưa tính lại xong) → không chặn, không lọc gì."""
-    from .search import plain
-    if not embeddings or not all(embeddings) or plain(query):   # kiểm trước: không nạp model khi không cần so
+    from .search import looks_english, plain
+    if not embeddings or not all(embeddings) or (plain(query) and not looks_english(query)):   # kiểm trước: không nạp model khi không cần so
         return None
     q = encode([query])
     if q is None:

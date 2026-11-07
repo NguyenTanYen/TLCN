@@ -241,7 +241,7 @@ def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[i
     for attempt_id, qid, no in wrong:
         if pages.get(qid):
             out.setdefault(attempt_id, []).append({
-                "question": int(no),
+                "question": int(no), "question_id": int(qid),
                 "pages": [{"material": p.material_title, "page": p.page_no, "heading": p.title, "url": p.url}
                           for p in pages[qid]]})
     return out

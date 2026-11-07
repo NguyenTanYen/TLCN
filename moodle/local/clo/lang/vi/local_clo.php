@@ -60,6 +60,7 @@ $string['readings_help'] = 'Các trang/slide trong tài liệu của môn liên 
 $string['readings_page'] = '{$a->material} – trang {$a->page}';
 $string['readings_questions'] = 'câu {$a}';
 $string['readings_questions_many'] = 'câu {$a}';
+$string['review_readings'] = 'Nên đọc lại';
 $string['ssobad'] = 'Vé đăng nhập từ hệ thống phân tích không hợp lệ.';
 $string['ssoexpired'] = 'Vé đăng nhập đã hết hạn – hãy bấm lại nút mở Moodle trong hệ thống.';
 $string['ssoused'] = 'Vé đăng nhập đã được sử dụng – hãy bấm lại nút mở Moodle trong hệ thống.';

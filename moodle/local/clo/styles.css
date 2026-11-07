@@ -10,4 +10,7 @@
 .local-clo-legend .sw.avg{border-top:2px dotted #98a2b3}
 .local-clo-tablewrap{overflow-x:auto}
 .local-clo-plan li{margin-bottom:.4rem}
+.local-clo-review-readings{margin-top:.75rem;padding:.6rem .8rem;background:#eef4ff;border-left:3px solid #0f4c9c;border-radius:4px}
+.local-clo-review-title{font-weight:600;margin-bottom:.25rem}
+.local-clo-review-readings ul{margin:0;padding-left:1.1rem}
 @media (max-width:767px){.local-clo-grid{grid-template-columns:1fr}}
