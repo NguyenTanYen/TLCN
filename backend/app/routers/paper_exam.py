@@ -234,13 +234,8 @@ def package(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: S
 
 
 # ------------------------------------------------------------------ chấm phiếu
-@router.post("/exams/{exam_id}/scan")
-async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only),
-               db: Session = Depends(get_db)):
-    """Nhận diện phiếu từ ảnh quét / ảnh chụp (JPG, PNG) hoặc PDF nhiều trang. Chưa ghi CSDL – GV soát rồi lưu (scan/commit)."""
-    e = _paper(db, u, exam_id)
-    if e.moodle_offlinequiz_id:
-        raise HTTPException(409, "Bài dùng Moodle Offline Quiz – tải phiếu lên Moodle để chấm")
+async def _read_files(db: Session, e: Exam, files: list[UploadFile]) -> tuple[list, dict]:
+    """Đọc các tệp ảnh/PDF -> danh sách kết quả từng trang (đã đối chiếu danh sách lớp, chấm thử) + các mã đề."""
     vs = {v["version_code"]: v for v in paper.versions_data(db, e)}
     if not vs:
         raise HTTPException(409, "Chưa sinh mã đề")
@@ -277,7 +272,233 @@ async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depe
                 r["raw_max"] = round(sum(pts.values()), 2)
             r["answers"] = {str(k2): v2 for k2, v2 in r["answers"].items()}
             out.append(r)
-    return {"sheets": out, "n_questions": o.n_questions, "versions": list(vs)}
+    return out, vs
+
+
+@router.post("/exams/{exam_id}/scan")
+async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only),
+               db: Session = Depends(get_db)):
+    """Nhận diện phiếu từ ảnh quét / ảnh chụp (JPG, PNG) hoặc PDF nhiều trang. Chưa ghi CSDL – GV soát rồi lưu (scan/commit)."""
+    e = _paper(db, u, exam_id)
+    if e.moodle_offlinequiz_id:
+        raise HTTPException(409, "Bài dùng Moodle Offline Quiz – tải phiếu lên Moodle để chấm")
+    out, vs = await _read_files(db, e, files)
+    return {"sheets": out, "n_questions": _sheet_opts(db, e).n_questions, "versions": list(vs)}
+
+
+# ---------------------------------------------------------------- Quét là chấm & lưu ngay (phiếu sai MSSV/mã đề chờ GV xử lý)
+def _roster_ids(db: Session, e: Exam) -> dict:
+    return {r[0]: (r[1], r[2]) for r in db.execute(text("""SELECT s.student_code, s.id, s.full_name FROM enrollments en JOIN students s ON s.id=en.student_id
+                                                           WHERE en.class_section_id=:cs"""), {"cs": e.class_section_id})}
+
+
+def _problems(code: str, vcode: str, vs: dict, roster: dict) -> list[str]:
+    out = []
+    if not code or "?" in code:
+        out.append("MSSV đọc chưa đủ (có cột chưa tô hoặc tô nhiều ô) – nhập lại MSSV")
+    elif code not in roster:
+        out.append(f"MSSV '{code}' không có trong danh sách lớp")
+    if vcode not in vs:
+        out.append(f"Mã đề '{vcode}' không có trong bài (có: {', '.join(vs)})")
+    return out
+
+
+def _suggest(code: str, roster: dict, k: int = 3) -> list[dict]:
+    """MSSV trong lớp gần nhất với mã đọc được (đếm số chữ số khác nhau, '?' tính là khác); tối đa 2 chữ số lệch."""
+    cand = []
+    for c, (sid, name) in roster.items():
+        if len(c) != len(code):
+            continue
+        d = sum(1 for a, b in zip(c, code) if a != b)
+        if d <= 2:
+            cand.append((d, c, name))
+    return [{"student_code": c, "full_name": n} for d, c, n in sorted(cand)[:k]]
+
+
+def _write_attempt(db: Session, e: Exam, student_id: int, v: dict, vid: int, answers: dict) -> int:
+    """Chấm một phiếu (Reverse Shuffle: nhãn in trên mã đề -> phương án gốc) và ghi thay kết quả cũ của SV này."""
+    db.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e AND student_id=:s"), {"e": e.id, "s": student_id})
+    aid = db.execute(text("""INSERT INTO exam_attempts (exam_id, student_id, version_id, source, finished_at, status, total_score)
+                             VALUES (:e, :s, :v, 'scan', NOW(), 'finished', 0)"""), {"e": e.id, "s": student_id, "v": vid}).lastrowid
+    total = 0.0
+    for q in v["questions"]:
+        lab = (answers.get(str(q["position"])) or "").strip().upper()
+        opt = next((o for o in q["options"] if o["label"] == lab), None) if len(lab) == 1 else None
+        ok = bool(opt) and lab == q["answer"]
+        sc = q["points"] if ok else 0.0
+        total += sc
+        db.execute(text("""INSERT INTO item_level_results (attempt_id, question_id, selected_option_id, response_status, is_correct, score_earned)
+                           VALUES (:a, :q, :o, :st, :ok, :sc)"""),
+                   {"a": aid, "q": q["question_id"], "o": opt["option_id"] if opt else None,
+                    "st": "answered" if opt else "blank", "ok": ok, "sc": sc})
+    db.execute(text("UPDATE exam_attempts SET total_score=:t WHERE id=:a"), {"t": round(total, 2), "a": aid})
+    return aid
+
+
+def _score(v: dict | None, answers: dict) -> tuple[Optional[float], Optional[float]]:
+    if not v:
+        return None, None
+    ans = {str(q["position"]): q["answer"] for q in v["questions"]}
+    pts = {str(q["position"]): q["points"] for q in v["questions"]}
+    return round(sum(pts[p] for p, a in answers.items() if p in ans and a == ans[p]), 2), round(sum(pts.values()), 2)
+
+
+def _apply_sheet(db: Session, e: Exam, sid: int, vs: dict, roster: dict, vid: dict) -> dict:
+    """Đặt trạng thái phiếu theo nội dung hiện tại: hợp lệ -> chấm & ghi kết quả lớp (saved), ngược lại -> chờ GV (review)."""
+    row = db.execute(text("SELECT * FROM scan_sheets WHERE id=:i AND exam_id=:e"), {"i": sid, "e": e.id}).mappings().first()
+    if not row:
+        raise HTTPException(404, "Không có phiếu này")
+    answers = json.loads(row["answers"] or "{}")
+    code, vcode = (row["student_code"] or "").strip(), (row["version_code"] or "").strip()
+    probs = _problems(code, vcode, vs, roster)
+    v = vs.get(vcode)
+    score, raw_max = _score(v, answers)
+    if row["attempt_id"]:   # phiếu từng được ghi: gỡ kết quả cũ (có thể đã đổi SV hoặc đáp án)
+        db.execute(text("DELETE FROM exam_attempts WHERE id=:a"), {"a": row["attempt_id"]})
+    aid, status = None, "review"
+    if not probs:
+        aid = _write_attempt(db, e, roster[code][0], v, vid[vcode], answers)
+        status = "saved"
+        db.execute(text("""UPDATE scan_sheets SET status='superseded', attempt_id=NULL WHERE exam_id=:e AND student_code=:c AND id<>:i AND status='saved'"""),
+                   {"e": e.id, "c": code, "i": sid})
+    db.execute(text("""UPDATE scan_sheets SET student_code=:c, version_code=:v, score=:sc, raw_max=:mx, issues=:iss, status=:st, attempt_id=:a WHERE id=:i"""),
+               {"c": code, "v": vcode, "sc": score, "mx": raw_max, "iss": json.dumps(probs, ensure_ascii=False), "st": status, "a": aid, "i": sid})
+    return {"id": sid, "status": status, "issues": probs}
+
+
+def _sheet_row(r, roster: dict) -> dict:
+    d = {"id": r["id"], "source_name": r["source_name"], "student_code": r["student_code"], "version_code": r["version_code"],
+         "full_name": roster.get(r["student_code"], (None, None))[1], "score": float(r["score"]) if r["score"] is not None else None,
+         "raw_max": float(r["raw_max"]) if r["raw_max"] is not None else None, "confidence": float(r["confidence"] or 0),
+         "issues": json.loads(r["issues"] or "[]"), "status": r["status"], "created_at": r["created_at"].isoformat() if r["created_at"] else None}
+    if r["status"] == "review":
+        d["suggest"] = _suggest(r["student_code"] or "", roster)
+    return d
+
+
+@router.post("/exams/{exam_id}/scan/save")
+async def scan_save(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    """Quét là chấm & lưu ngay: phiếu có MSSV thuộc lớp và mã đề hợp lệ được chấm vào kết quả lớp luôn; phiếu còn lỗi được lưu ở
+    danh sách "cần xử lý" để giảng viên sửa MSSV/mã đề/đáp án sau (xem scan/sheets). Phân tích chạy khi bấm Hoàn tất (scan/finish)."""
+    e = _paper(db, u, exam_id)
+    if e.moodle_offlinequiz_id:
+        raise HTTPException(409, "Bài dùng Moodle Offline Quiz – tải phiếu lên Moodle để chấm")
+    out, vs = await _read_files(db, e, files)
+    roster, vid = _roster_ids(db, e), {v.version_code: v.id for v in e.versions}
+    res = []
+    for r in out:
+        if r.get("error"):
+            res.append({"source_name": r["source_name"], "error": r["error"]}); continue
+        sid = db.execute(text("""INSERT INTO scan_sheets (exam_id, source_name, student_code, version_code, answers, confidence, image)
+                                 VALUES (:e, :n, :c, :v, :a, :cf, :im)"""),
+                         {"e": exam_id, "n": r["source_name"], "c": r["student_code"] or "", "v": r["version_code"] or "",
+                          "a": json.dumps(r["answers"]), "cf": r.get("confidence"), "im": r.get("image")}).lastrowid
+        _apply_sheet(db, e, sid, vs, roster, vid)
+        row = db.execute(text("SELECT * FROM scan_sheets WHERE id=:i"), {"i": sid}).mappings().first()
+        res.append(_sheet_row(row, roster))
+    if any(x.get("status") == "saved" for x in res):
+        from datetime import datetime
+        e.status = "Synced"; e.last_synced_at = datetime.now()
+    db.commit()
+    return {"sheets": res, "saved": sum(1 for x in res if x.get("status") == "saved"),
+            "review": sum(1 for x in res if x.get("status") == "review"), "errors": sum(1 for x in res if x.get("error"))}
+
+
+@router.get("/exams/{exam_id}/scan/sheets")
+def scan_sheets(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    """Danh sách phiếu đã quét của bài (không kèm ảnh): đã chấm / cần xử lý, kèm gợi ý MSSV gần đúng và danh sách lớp để chọn."""
+    e = _paper(db, u, exam_id)
+    roster = _roster_ids(db, e)
+    rows = db.execute(text("SELECT id, source_name, student_code, version_code, score, raw_max, confidence, issues, status, created_at, answers "
+                           "FROM scan_sheets WHERE exam_id=:e AND status<>'superseded' ORDER BY (status='review') DESC, id DESC"), {"e": exam_id}).mappings().all()
+    sheets = [_sheet_row(r, roster) for r in rows]
+    return {"sheets": sheets, "n_saved": sum(1 for s in sheets if s["status"] == "saved"), "n_review": sum(1 for s in sheets if s["status"] == "review"),
+            "roster": [{"student_code": c, "full_name": n} for c, (_i, n) in sorted(roster.items())],
+            "n_absent_if_finish": sum(1 for c, (sid, _n) in roster.items()
+                                      if not db.execute(text("SELECT 1 FROM exam_attempts WHERE exam_id=:e AND student_id=:s AND status<>'absent'"), {"e": exam_id, "s": sid}).scalar())}
+
+
+@router.get("/exams/{exam_id}/scan/sheets/{sheet_id}")
+def scan_sheet_detail(exam_id: int, sheet_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    e = _paper(db, u, exam_id)
+    roster = _roster_ids(db, e)
+    r = db.execute(text("SELECT * FROM scan_sheets WHERE id=:i AND exam_id=:e"), {"i": sheet_id, "e": exam_id}).mappings().first()
+    if not r:
+        raise HTTPException(404, "Không có phiếu này")
+    return {**_sheet_row(r, roster), "image": r["image"], "answers": json.loads(r["answers"] or "{}")}
+
+
+class SheetPatch(BaseModel):
+    student_code: Optional[str] = Field(default=None, max_length=100)
+    version_code: Optional[str] = Field(default=None, max_length=10)
+    answers: Optional[dict[str, str]] = None
+
+
+@router.patch("/exams/{exam_id}/scan/sheets/{sheet_id}")
+def scan_sheet_fix(exam_id: int, sheet_id: int, body: SheetPatch, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    """GV sửa MSSV / mã đề / đáp án của phiếu: hợp lệ thì chấm lại & ghi vào kết quả lớp, chưa hợp lệ thì vẫn ở danh sách cần xử lý."""
+    e = _paper(db, u, exam_id)
+    if not db.execute(text("SELECT 1 FROM scan_sheets WHERE id=:i AND exam_id=:e"), {"i": sheet_id, "e": exam_id}).scalar():
+        raise HTTPException(404, "Không có phiếu này")
+    upd, par = [], {"i": sheet_id}
+    if body.student_code is not None:
+        upd.append("student_code=:c"); par["c"] = body.student_code.strip()
+    if body.version_code is not None:
+        upd.append("version_code=:v"); par["v"] = body.version_code.strip()
+    if body.answers is not None:
+        upd.append("answers=:a"); par["a"] = json.dumps({str(k): (v or "").strip().upper()[:2] for k, v in body.answers.items()})
+    if upd:
+        db.execute(text(f"UPDATE scan_sheets SET {', '.join(upd)}, status='review' WHERE id=:i"), par)
+    vs = {v["version_code"]: v for v in paper.versions_data(db, e)}
+    out = _apply_sheet(db, e, sheet_id, vs, _roster_ids(db, e), {v.version_code: v.id for v in e.versions})
+    if out["status"] == "saved":
+        from datetime import datetime
+        e.status = "Synced"; e.last_synced_at = datetime.now()
+    db.commit()
+    return out
+
+
+@router.delete("/exams/{exam_id}/scan/sheets/{sheet_id}")
+def scan_sheet_drop(exam_id: int, sheet_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    """Xóa phiếu (quét nhầm / trùng); nếu phiếu đã được chấm vào kết quả lớp thì gỡ kết quả đó."""
+    _paper(db, u, exam_id)
+    r = db.execute(text("SELECT attempt_id FROM scan_sheets WHERE id=:i AND exam_id=:e"), {"i": sheet_id, "e": exam_id}).first()
+    if not r:
+        raise HTTPException(404, "Không có phiếu này")
+    if r[0]:
+        db.execute(text("DELETE FROM exam_attempts WHERE id=:a"), {"a": r[0]})
+    db.execute(text("DELETE FROM scan_sheets WHERE id=:i"), {"i": sheet_id})
+    db.commit()
+    return {"deleted": sheet_id}
+
+
+class FinishIn(BaseModel):
+    mark_absent: bool = True
+    analyze: bool = True
+
+
+@router.post("/exams/{exam_id}/scan/finish")
+def scan_finish(exam_id: int, body: FinishIn = FinishIn(), u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    """Hoàn tất đợt chấm: SV trong lớp chưa có bài -> vắng, rồi chạy phân tích CĐR. Còn phiếu cần xử lý thì báo để GV biết (vẫn hoàn tất được)."""
+    e = _paper(db, u, exam_id)
+    roster = _roster_ids(db, e)
+    n_abs = 0
+    if body.mark_absent:
+        for code, (sid, _n) in roster.items():
+            if not db.execute(text("SELECT 1 FROM exam_attempts WHERE exam_id=:e AND student_id=:s"), {"e": exam_id, "s": sid}).scalar():
+                db.execute(text("INSERT INTO exam_attempts (exam_id, student_id, source, status, total_score) VALUES (:e, :s, 'scan', 'absent', 0)"),
+                           {"e": exam_id, "s": sid}); n_abs += 1
+    n_saved = db.execute(text("SELECT COUNT(*) FROM scan_sheets WHERE exam_id=:e AND status='saved'"), {"e": exam_id}).scalar()
+    n_review = db.execute(text("SELECT COUNT(*) FROM scan_sheets WHERE exam_id=:e AND status='review'"), {"e": exam_id}).scalar()
+    db.execute(text("INSERT INTO sync_runs (exam_id, kind, status, finished_at, n_attempts, n_absent, message) VALUES (:e,'scan','success',NOW(),:n,:a,:m)"),
+               {"e": exam_id, "n": n_saved, "a": n_abs, "m": f"Hoàn tất chấm phiếu: {n_saved} phiếu đã chấm, {n_review} phiếu còn chờ xử lý"})
+    from datetime import datetime
+    e.status = "Synced"; e.last_synced_at = datetime.now()
+    db.commit()
+    res = {"saved": n_saved, "review": n_review, "absent": n_abs}
+    if body.analyze and n_saved:
+        res["analysis"] = results.analyze_exam(db, exam_id)
+    return res
 
 
 @router.post("/exams/{exam_id}/scan/commit")

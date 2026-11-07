@@ -1,4 +1,4 @@
-// Gộp 2, 3… bài kiểm tra (cùng môn, có thể khác lớp) để đánh giá CĐR môn học (CLO) và CĐR CTĐT (PLO/PI); chọn bài làm minh chứng BM6.
+// Gộp 2, 3… bài kiểm tra (cùng môn, có thể khác lớp) để đánh giá CĐR môn học (CLO) và CĐR CTĐT (PLO/PI); chọn bài làm minh chứng.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, fmtPct } from '../api'
@@ -24,12 +24,12 @@ export default function Combine({ courseId, sectionId }) {
       {sections.map(([cs, label]) => <div key={cs} className="mb">
         <div className="small"><b>Lớp {label}</b></div>
         <table className="tbl compact"><thead><tr><th style={{ width: 36 }} /><th>Bài kiểm tra</th><th>Hình thức</th><th>Loại</th><th>Ngày</th><th className="num-c">SV</th>
-          <th title="Bài được gộp vào kết quả CLO của lớp (BM6, PI, PLO)">Minh chứng BM6</th></tr></thead>
+          <th title="Bài được gộp vào kết quả CLO của lớp (PI, PLO)">Tính vào kết quả</th></tr></thead>
           <tbody>{list.filter(e => e.class_section_id === cs).map(e => <tr key={e.id} className={sel.includes(e.id) ? 'sel' : ''}>
             <td><input type="checkbox" aria-label={`Chọn ${e.exam_title}`} checked={sel.includes(e.id)} onChange={() => toggle(e.id)} /></td>
             <td><Link to={`/exams/${e.id}`}>{e.exam_title}</Link>{e.parent_exam_id && <Badge tone="amber">Ôn tập</Badge>}</td>
             <td>{TYPE[e.exam_type]}</td><td>{e.assessment_type === 'final' ? 'Cuối kỳ' : 'Quá trình'}</td><td>{e.exam_date || '—'}</td><td className="num-c">{e.n_students}</td>
-            <td><ActionButton className={`btn sm ${e.counts_for_clo ? '' : 'ghost'}`} okMsg={r => r.counts_for_clo ? 'Đã đưa vào minh chứng – BM6 của lớp được tính lại' : 'Đã bỏ khỏi minh chứng – BM6 của lớp được tính lại'}
+            <td><ActionButton className={`btn sm ${e.counts_for_clo ? '' : 'ghost'}`} okMsg={r => r.counts_for_clo ? 'Đã đưa vào minh chứng – kết quả của lớp được tính lại' : 'Đã bỏ khỏi minh chứng – kết quả của lớp được tính lại'}
               onRun={async () => { const r = await api.patch(`/api/exams/${e.id}/evidence`, { counts_for_clo: !e.counts_for_clo }); ex.reload(); return r }}>
               {e.counts_for_clo ? '✓ Có gộp' : 'Không gộp'}</ActionButton></td></tr>)}</tbody></table>
       </div>)}
@@ -38,7 +38,7 @@ export default function Combine({ courseId, sectionId }) {
         <span>Đã chọn <b>{sel.length}</b> bài</span>
         <select value={mode} onChange={e => setMode(e.target.value)} aria-label="Cách gộp">
           <option value="merge">Cộng điểm các câu đo CLO của từng SV trên mọi bài (mỗi SV đếm 1 lần)</option>
-          <option value="cumulative">Cộng dồn lượt đánh giá qua các bài (BM6d – mỗi bài một lượt)</option>
+          <option value="cumulative">Cộng dồn lượt đánh giá qua các bài (mỗi bài tính một lượt)</option>
         </select>
         <span className="grow" />
         <ActionButton className="btn primary" disabled={!sel.length} onRun={async () => setRes(await api.post('/api/combined-analysis', { exam_ids: sel, mode }))}>Phân tích gộp</ActionButton>

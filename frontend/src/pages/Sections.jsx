@@ -10,7 +10,7 @@ export default function Sections() {
   return (
     <>
       <div className="page-h"><div><h1>Lớp học phần</h1><p className="muted">Các lớp học phần bạn phụ trách. Chọn lớp để tạo bài kiểm tra và xem kết quả chuẩn đầu ra.</p></div></div>
-      <PageHelp id="sections"><p>Mỗi thẻ là một lớp học phần (một môn trong một học kỳ). Bấm <b>Mở lớp</b> để tạo bài kiểm tra, xem điểm và kết quả chuẩn đầu ra của lớp.</p></PageHelp>
+      <PageHelp id="sections"><p>Mỗi thẻ là một lớp học phần (một môn trong một học kỳ). Bấm vào lớp để tạo bài kiểm tra, xem điểm và kết quả chuẩn đầu ra của lớp.</p></PageHelp>
       <Loading error={error} loading={loading} />
       <MoodleCourses onImported={reload} />
       <div className="grid3">
@@ -24,7 +24,7 @@ export default function Sections() {
             </div>
             <div className="row gap mt">
               <Link className="btn primary" to={`/sections/${cs.id}`}>Bài kiểm tra</Link>
-              <Link className="btn" to={`/sections/${cs.id}/clo`}>Kết quả chuẩn đầu ra của lớp (BM6)</Link>
+              <Link className="btn" to={`/sections/${cs.id}/clo`}>Kết quả chuẩn đầu ra của lớp</Link>
             </div>
           </Card>
         ))}

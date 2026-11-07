@@ -13,12 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from . import migrate
 from .config import settings
 from .services.rag import index as rag_index
-from .routers import analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync, remedial, question_io, questions, reports, section_materials, syllabi, sync
+from .routers import analytics, dashboard, improvement, auth, catalog, courses, exams, grading, insights, lms, paper_exam, rubrics, programs, qsync, remedial, question_io, questions, reports, section_materials, syllabi, sync
 
 app = FastAPI(title="Hệ thống đánh giá mức độ đạt CĐR (OBE Assessment)", version="2.0",
               description="Tiểu luận chuyên ngành – Nhóm 01. Tài liệu API tự sinh (OpenAPI).")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-for r in (auth, programs, catalog, courses, syllabi, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms, analytics, insights, reports, section_materials):
+for r in (auth, programs, catalog, courses, syllabi, question_io, questions, exams, grading, remedial, paper_exam, qsync, sync, lms, analytics, dashboard, improvement, insights, reports, rubrics, section_materials):
     app.include_router(r.router)
 
 

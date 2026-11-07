@@ -40,6 +40,7 @@ USE assessment_db;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
 DROP TABLE IF EXISTS material_passages, material_pages, section_materials,
+  rubric_grades, exam_rubric_items, exam_rubrics, rubric_levels, rubric_criteria, rubrics, improvement_actions, scan_sheets,
   sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
@@ -725,6 +726,106 @@ CREATE TABLE sync_runs (
   CONSTRAINT ck_sync_kind   CHECK (kind IN ('moodle','paper','scan','manual','analyze')),
   CONSTRAINT ck_sync_status CHECK (status IN ('running','success','failed'))
 ) ENGINE=InnoDB COMMENT='Nhật ký đồng bộ / nhập kết quả / phân tích';
+
+CREATE TABLE scan_sheets (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  exam_id       INT          NOT NULL,
+  source_name   VARCHAR(255) NULL COMMENT 'Tên tệp / trang ảnh đã quét',
+  student_code  VARCHAR(100) NOT NULL DEFAULT '' COMMENT 'MSSV đọc được (có thể chứa ? nếu tô thiếu), GV sửa được',
+  version_code  VARCHAR(10)  NOT NULL DEFAULT '' COMMENT 'Mã đề đọc được',
+  answers       TEXT         NOT NULL COMMENT 'JSON {số câu: nhãn đã tô}',
+  score         DECIMAL(7,2) NULL COMMENT 'Điểm thô theo đáp án mã đề',
+  raw_max       DECIMAL(7,2) NULL,
+  confidence    DECIMAL(4,2) NULL,
+  issues        TEXT         NULL COMMENT 'JSON danh sách cảnh báo cần GV xem',
+  image         MEDIUMTEXT   NULL COMMENT 'Ảnh phiếu đã nắn + dấu các ô đọc được (data URL JPEG) để GV soát lại',
+  status        VARCHAR(12)  NOT NULL DEFAULT 'review' COMMENT 'saved = đã chấm vào kết quả lớp; review = cần GV xử lý (MSSV/mã đề); superseded = bị phiếu quét lại thay',
+  attempt_id    INT          NULL COMMENT 'Bài làm đã ghi (khi status = saved)',
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_scansheet_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+  CONSTRAINT ck_scansheet_status CHECK (status IN ('saved','review','superseded')),
+  INDEX ix_scansheet_exam (exam_id, status)
+) ENGINE=InnoDB COMMENT='Phiếu trả lời đã quét: chấm & lưu ngay, phiếu sai MSSV/mã đề chờ giảng viên xử lý';
+
+CREATE TABLE improvement_actions (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  class_section_id INT          NOT NULL,
+  clo_id           INT          NULL COMMENT 'NULL = hành động chung của cả lớp HP',
+  description      TEXT         NOT NULL COMMENT 'Hành động cải tiến',
+  owner            VARCHAR(150) NULL COMMENT 'Người phụ trách',
+  due_date         DATE         NULL,
+  status           VARCHAR(10)  NOT NULL DEFAULT 'open' COMMENT 'open | doing | done | verified',
+  result           TEXT         NULL COMMENT 'Kết quả kiểm chứng sau khi thực hiện (kỳ sau)',
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ia_cs  FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ia_clo FOREIGN KEY (clo_id) REFERENCES clos(id) ON DELETE SET NULL,
+  CONSTRAINT ck_ia_status CHECK (status IN ('open','doing','done','verified')),
+  INDEX ix_ia_cs (class_section_id, status)
+) ENGINE=InnoDB COMMENT='Hành động cải tiến theo lớp HP/CLO: người phụ trách, hạn, trạng thái, kết quả kiểm chứng';
+
+CREATE TABLE rubrics (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  course_id   INT          NOT NULL,
+  name        VARCHAR(150) NOT NULL,
+  description TEXT         NULL,
+  created_by  INT          NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rub_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  INDEX ix_rub_course (course_id)
+) ENGINE=InnoDB COMMENT='Rubric chấm điểm theo tiêu chí của môn học';
+
+CREATE TABLE rubric_criteria (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  rubric_id   INT          NOT NULL,
+  order_no    SMALLINT     NOT NULL,
+  name        VARCHAR(200) NOT NULL,
+  points      DECIMAL(6,2) NOT NULL COMMENT 'Điểm tối đa của tiêu chí',
+  clo_id      INT          NOT NULL COMMENT 'CLO mà tiêu chí này đo',
+  CONSTRAINT fk_rc_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rc_clo    FOREIGN KEY (clo_id)    REFERENCES clos(id)    ON DELETE RESTRICT,
+  CONSTRAINT ck_rc_points CHECK (points > 0)
+) ENGINE=InnoDB COMMENT='Tiêu chí của rubric';
+
+CREATE TABLE rubric_levels (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  criterion_id INT          NOT NULL,
+  order_no     SMALLINT     NOT NULL,
+  label        VARCHAR(80)  NOT NULL COMMENT 'VD Xuất sắc, Khá, Đạt, Chưa đạt',
+  descriptor   TEXT         NULL COMMENT 'Mô tả biểu hiện của mức',
+  score_pct    DECIMAL(5,2) NOT NULL COMMENT '% điểm tối đa của tiêu chí',
+  CONSTRAINT fk_rl_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT ck_rl_pct CHECK (score_pct BETWEEN 0 AND 100)
+) ENGINE=InnoDB COMMENT='Mức đạt của từng tiêu chí';
+
+CREATE TABLE exam_rubrics (
+  exam_id   INT NOT NULL PRIMARY KEY,
+  rubric_id INT NOT NULL,
+  CONSTRAINT fk_er_exam   FOREIGN KEY (exam_id)   REFERENCES exams(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_er_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='Bài nhập điểm chấm theo rubric';
+
+CREATE TABLE exam_rubric_items (
+  exam_id      INT NOT NULL,
+  criterion_id INT NOT NULL,
+  question_id  INT NOT NULL,
+  PRIMARY KEY (exam_id, criterion_id),
+  CONSTRAINT fk_eri_exam FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_eri_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Tiêu chí ↔ câu/ý của bài nhập điểm';
+
+CREATE TABLE rubric_grades (
+  exam_id      INT NOT NULL,
+  student_id   INT NOT NULL,
+  criterion_id INT NOT NULL,
+  level_id     INT NOT NULL,
+  PRIMARY KEY (exam_id, student_id, criterion_id),
+  CONSTRAINT fk_rg_exam  FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_rg_stu   FOREIGN KEY (student_id)   REFERENCES students(id)        ON DELETE CASCADE,
+  CONSTRAINT fk_rg_crit  FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rg_level FOREIGN KEY (level_id)     REFERENCES rubric_levels(id)   ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Mức đạt đã chọn cho từng sinh viên và tiêu chí';
 
 -- =====================================================================
 -- H. HỌC LIỆU & GỢI Ý ĐỌC (RAG)

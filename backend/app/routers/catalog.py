@@ -181,8 +181,8 @@ def course_detail(cid: int, semester_id: int | None = None, db: Session = Depend
     if not c:
         raise HTTPException(404, "Không tìm thấy môn học")
     clos = rows(db, "SELECT c.*, b.name_vi AS bloom FROM clos c LEFT JOIN bloom_levels b ON b.id=c.bloom_level_id WHERE course_id=:c ORDER BY clo_code", c=cid)
-    maps = rows(db, """SELECT m.clo_id, m.plo_id, m.level, p.plo_code FROM clo_plo_mapping m JOIN plos p ON p.id=m.plo_id
-                       JOIN clos c ON c.id=m.clo_id WHERE c.course_id=:c""", c=cid)
+    maps = rows(db, """SELECT m.clo_id, m.plo_id, m.level, p.plo_code, pg.code AS program_code FROM clo_plo_mapping m JOIN plos p ON p.id=m.plo_id
+                       JOIN programs pg ON pg.id=p.program_id JOIN clos c ON c.id=m.clo_id WHERE c.course_id=:c""", c=cid)
     plans = rows(db, "SELECT p.* FROM clo_assessment_plans p JOIN clos c ON c.id=p.clo_id WHERE c.course_id=:c AND (:s IS NULL OR p.semester_id=:s)",
                  c=cid, s=semester_id)
     pimaps = rows(db, """SELECT m.clo_id, m.pi_id, m.level, i.pi_code, p.id AS plo_id, p.plo_code, pr.code AS program_code

@@ -22,7 +22,7 @@ export default function Remedial() {
   const sel = exams || d?.selected || []
   const weak = useMemo(() => (d?.students || []).filter(s => s.n_wrong > 0), [d])
   return <>
-    <div className="page-h"><div><Crumbs items={[['/', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], cs && [`/sections/${id}`, cs.section_code], [null, 'Ôn tập']]} />
+    <div className="page-h"><div><Crumbs items={[['/courses', 'Môn học của tôi'], cs && [`/courses/${cs.course_id}`, cs.course_code], cs && [`/sections/${id}`, cs.section_code], [null, 'Ôn tập']]} />
       <h1>Ôn tập cho sinh viên còn yếu</h1>
       <p className="muted">Xem sinh viên nào còn yếu ở chương nào, rồi tạo bài kiểm tra lại đúng phần kiến thức đó cho một sinh viên hoặc cả nhóm. Hệ thống không đánh giá chuẩn đầu ra (CLO) riêng cho từng sinh viên; chỉ dựa vào các câu làm sai.</p></div>
       {!isAdmin && <button className="btn primary" disabled={!pick.length} onClick={() => { setOutlines([]); setMk(true) }}>{pick.length ? `Tạo bài ôn tập cho ${pick.length} SV đã chọn` : 'Chọn SV để tạo bài ôn tập'}</button>}</div>

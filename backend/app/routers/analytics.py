@@ -25,7 +25,8 @@ def rows(db, sql, **p):
 
 
 def classify(p, di):
-    """Phân loại câu hỏi theo p (0,3–0,7 phù hợp) và DI (Ebel & Frisbie, 1991)."""
+    """Phân loại câu hỏi theo DI (Ebel & Frisbie, 1991: ≥0,30 tốt; 0,20–0,29 chấp nhận được; <0,20 cần xem lại) và độ khó p
+    (khoảng lý tưởng 0,30–0,70; ở đây chỉ gắn nhãn quá dễ khi p > 0,85 và quá khó khi p < 0,25 để tránh báo quá tay)."""
     if p is None:
         return "Chưa đủ dữ liệu"
     p, di = float(p), (None if di is None else float(di))
@@ -59,7 +60,8 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
         corr["is_correct"] = corr.is_correct.astype(int)
     rel = analysis.cronbach_alpha(corr) if e.exam_type == "manual" else analysis.kr20(corr)
     return {"n_students": len(conv), "n_absent": n_abs, "max_score": float(e.max_score), "kr20": rel,
-            "reliability": "Cronbach alpha" if e.exam_type == "manual" else "KR-20", "exam_type": e.exam_type,
+            "reliability": "Cronbach alpha" if e.exam_type == "manual" else "KR-20",
+            "warnings": (["Mẫu nhỏ (dưới 30 SV dự thi): độ phân biệt DI và độ tin cậy chỉ mang tính tham khảo"] if 0 < len(conv) < 30 else []), "exam_type": e.exam_type,
             "mean": round(sum(conv) / len(conv), 2) if conv else None,
             "min": min(conv) if conv else None, "max": max(conv) if conv else None,
             "pass_rate": round(100 * sum(1 for s in conv if s >= float(e.max_score) / 2) / len(conv), 2) if conv else None,
@@ -142,8 +144,9 @@ def clo_results(cs_id: int, u: User = Depends(require("admin", "lecturer")), db:
         SELECT c.id AS clo_id, c.clo_code, c.description, r.n_evaluated, r.n_achieved, r.achieved_pct,
                COALESCE(r.target_pct, p.target_pct, co.clo_target_pct) AS target_pct, r.is_achieved, r.analysis, r.improvement,
                COALESCE(p.pass_threshold_pct, :thr0) AS pass_threshold_pct, p.evidence_type,
-               (SELECT GROUP_CONCAT(CONCAT(pl.plo_code, '(', m.level, ')') ORDER BY pl.plo_code) FROM clo_plo_mapping m
-                 JOIN plos pl ON pl.id=m.plo_id WHERE m.clo_id=c.id) AS plos
+               (SELECT GROUP_CONCAT(CONCAT(pg.code, ' · ', pl.plo_code, ' (', m.level, ')') ORDER BY pg.code, pl.plo_code SEPARATOR '; ')
+                  FROM clo_plo_mapping m JOIN plos pl ON pl.id=m.plo_id JOIN programs pg ON pg.id=pl.program_id
+                 WHERE m.clo_id=c.id) AS plos
         FROM clos c JOIN courses co ON co.id=c.course_id
         LEFT JOIN clo_results r ON r.clo_id=c.id AND r.class_section_id=:cs
         LEFT JOIN clo_assessment_plans p ON p.clo_id=c.id AND p.semester_id=:s

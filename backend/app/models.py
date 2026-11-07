@@ -1,4 +1,4 @@
-"""Ánh xạ ORM cho 49 bảng của assessment_db (xem database/01_schema.sql).
+"""Ánh xạ ORM cho 57 bảng của assessment_db (xem database/01_schema.sql).
 
 Ràng buộc CHECK/UNIQUE được khai báo trong DDL; ORM chỉ khai báo cột, khóa và quan hệ cần dùng.
 """

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { PageHelp } from '../components/Help'
-import { Bar } from 'react-chartjs-2'
+import { AttainmentChart } from '../components/ChartKit'
 import { api, fmtPct } from '../api'
 import { C } from '../charts'
 import { Achieved, ActionButton, Card, Field, Loading, Modal, Stat } from '../components/ui'
@@ -35,10 +35,7 @@ export default function PloSummary() {
           <Stat label="Kết luận" value={s.program_result.n_evaluated ? (s.program_result.is_achieved ? 'Đạt' : 'Không đạt') : '—'} tone={s.program_result.is_achieved ? 'green' : 'red'} />
         </div>
         {measured.length > 0 && <Card title="Tỷ lệ đạt các CĐR được đo so với chỉ tiêu">
-          <div className="chart"><Bar data={{ labels: measured.map(p => `CĐR ${p.plo_code}`), datasets: [
-            { label: 'Tỷ lệ đạt (%)', data: measured.map(p => p.achieved_pct), backgroundColor: measured.map(p => p.is_achieved ? C.green : C.red), borderRadius: 4 },
-            { label: 'Chỉ tiêu (%)', data: measured.map(p => p.target_pct), backgroundColor: C.grayA, borderColor: C.gray, borderWidth: 1, borderRadius: 4 }] }}
-            options={{ maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }} /></div>
+          <AttainmentChart xTitle="Chuẩn đầu ra của chương trình (PLO)" items={measured.map(p => ({ label: `CĐR ${p.plo_code}`, k: p.n_achieved, n: p.n_evaluated, target: Number(p.target_pct) }))} />
         </Card>}
         <Card title={`Kết quả đo lường các CĐR – năm học ${year}`}>
           <table className="tbl"><thead><tr><th>CĐR</th><th>Nội dung</th><th>Số KH đo</th><th>SV đạt</th><th>SV đánh giá</th><th>Tỷ lệ</th><th>Chỉ tiêu</th><th>Kết quả</th><th /></tr></thead>
@@ -56,7 +53,7 @@ export default function PloSummary() {
 function Narr({ plo, year, onClose, onSaved }) {
   const [f, setF] = useState({ analysis: plo.analysis || '', improvement_actions: plo.improvement_actions || '', improvement_results: plo.improvement_results || '', evidence_tools: plo.evidence_tools || '' })
   const L = [['analysis', 'Đánh giá kết quả của số liệu tổng hợp'], ['improvement_actions', 'Những hành động cải tiến'], ['improvement_results', 'Kết quả của các cải tiến đã thực hiện'], ['evidence_tools', 'Công cụ đánh giá']]
-  return <Modal title={`CĐR ${plo.plo_code} – năm học ${year} (BM2)`} onClose={onClose} wide>
+  return <Modal title={`CĐR ${plo.plo_code} – năm học ${year}`} onClose={onClose} wide>
     <div className="alert">Tổng hợp dữ liệu: {plo.data_summary}</div>
     <div className="grid2">{L.map(([k, l]) => <Field key={k} label={l}><textarea rows={4} value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value })} /></Field>)}</div>
     <div className="row"><span className="grow" /><ActionButton className="btn primary" okMsg="Đã lưu" onRun={async () => { await api.put(`/api/reports/plo-results/${plo.plo_id}/${year}`, f); onSaved() }}>Lưu</ActionButton></div>

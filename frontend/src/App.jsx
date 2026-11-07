@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { auth } from './api'
+import { MENUS } from './menus'
 import { openMoodle } from './moodle'
 import Login from './pages/Login'
 import Sections from './pages/Sections'
@@ -19,13 +20,9 @@ import CourseList from './pages/CourseList'
 import { ProgramDetail, ProgramList } from './pages/Programs'
 import Remedial from './pages/Remedial'
 import Guide from './components/Help'
+import Home from './pages/Home'
 
 // Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
-const MENUS = {
-  lecturer: [['/', 'Môn học của tôi', ['/courses', '/sections', '/exams']], ['/questions', 'Ngân hàng câu hỏi'], ['/programs', 'Chương trình đào tạo'], ['/huong-dan', 'Hướng dẫn sử dụng']],
-  admin: [['/programs', 'Chương trình đào tạo'], ['/courses', 'Học phần'], ['/sections', 'Lớp học phần', ['/exams']], ['/questions', 'Ngân hàng câu hỏi'],
-    ['/pi-plans', 'Kế hoạch đo chỉ báo (PI)'], ['/plo-summary', 'Kết quả chương trình (PLO)'], ['/system', 'Kết nối Moodle'], ['/huong-dan', 'Hướng dẫn sử dụng']],
-}
 const ROLE_VI = { admin: 'Bộ môn / Quản trị', lecturer: 'Giảng viên' }
 
 function useMoodleUrl() {
@@ -60,7 +57,7 @@ function UserMenu({ user, moodle }) {
 function Shell({ user, children }) {
   const moodle = useMoodleUrl()
   const loc = useLocation()
-  const active = ([to, , also]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
+  const active = ([to, , also = []]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
   return (
     <div className="app">
 
@@ -68,7 +65,10 @@ function Shell({ user, children }) {
         <div className="topbar-in">
           <NavLink to="/" className="brand"><span className="logo">UTE</span><span><b>Đánh giá chuẩn đầu ra</b><small>Hỗ trợ giảng viên và Bộ môn</small></span></NavLink>
           <nav className="mainnav" aria-label="Chức năng">
-            {MENUS[user.role].map(m => <NavLink key={m[0]} to={m[0]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}
+            {MENUS[user.role].map(([g, items]) => <div className="navgroup" key={g} role="group" aria-label={g}>
+              <span className="navcap">{g}</span>
+              <div className="navitems">{items.map(m => <NavLink key={m[0]} to={m[0]} title={m[3]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}</div>
+            </div>)}
           </nav>
           <div className="topbar-r">
             <UserMenu user={user} moodle={moodle} />
@@ -90,7 +90,7 @@ export default function App() {
   }
   const admin = user.role === 'admin'
   return <Shell user={user}><Routes>
-    <Route path="/" element={admin ? <Navigate to="/programs" replace /> : <MyCourses />} />
+    <Route path="/" element={<Home />} />
     <Route path="/courses" element={admin ? <CourseList /> : <MyCourses />} />
     <Route path="/courses/:id" element={<CourseHome />} />
     <Route path="/programs" element={<ProgramList />} />

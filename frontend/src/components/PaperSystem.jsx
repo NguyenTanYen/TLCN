@@ -162,7 +162,7 @@ function Sheet({ e, st, reload }) {
   </div>
 }
 
-function CameraPane({ onShot, last, autoSave, setAutoSave }) {
+function CameraPane({ onShot, last }) {
   const vref = useRef(null), sref = useRef(null)
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false), [ready, setReady] = useState(false)
   useEffect(() => {
@@ -185,7 +185,7 @@ function CameraPane({ onShot, last, autoSave, setAutoSave }) {
       <div className="cam-box"><video ref={vref} playsInline muted /><div className="cam-guide" /></div>
       <div className="row gap wrap mt">
         <button className="btn primary" disabled={!ready || busy} onClick={shoot}>{busy ? 'Đang chấm…' : '📸 Chụp & chấm'}</button>
-        <label className="small"><input type="checkbox" checked={autoSave} onChange={x => setAutoSave(x.target.checked)} /> Tự lưu khi phiếu đọc chắc chắn (không có cảnh báo)</label>
+        <span className="muted small">Mỗi lần chụp: đọc, chấm và lưu ngay. Phiếu sai MSSV/mã đề nằm ở danh sách "Cần xử lý" bên dưới.</span>
       </div>
       <p className="muted small">Đặt phiếu phẳng, vừa khung, đủ 4 ô định vị ở góc và đủ sáng rồi bấm chụp. Kết quả hiện ngay; phiếu cần xem lại được giữ trong danh sách bên dưới. Quét lại cùng MSSV sẽ thay phiếu cũ.</p>
     </>}
@@ -195,88 +195,100 @@ function CameraPane({ onShot, last, autoSave, setAutoSave }) {
 
 function Scan({ e, st, reload }) {
   const toast = useToast()
-  const [res, setRes] = useState(null)
-  const [sheets, setSheets] = useState([])
-  const [cur, setCur] = useState(0)
-  const keys = useMemo(() => Object.fromEntries(st.versions.map(v => [v.version_code, Object.fromEntries(v.questions.map(q => [String(q.position), q]))])), [st.versions])
+  const list = useApi(`/api/exams/${e.id}/scan/sheets`, [e.id])
   const [cam, setCam] = useState(false)
-  const [autoSave, setAutoSave] = useState(false)
   const [last, setLast] = useState(null)
-  const upload = async (files, { append = false } = {}) => {
+  const [errs, setErrs] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [filter, setFilter] = useState('review')
+  const [cur, setCur] = useState(null)        // chi tiết phiếu đang soát (kèm ảnh)
+  const [edit, setEdit] = useState(null)      // bản sửa chưa lưu
+  const keys = useMemo(() => Object.fromEntries(st.versions.map(v => [v.version_code, Object.fromEntries(v.questions.map(q => [String(q.position), q]))])), [st.versions])
+  const d = list.data
+  const refresh = () => { list.reload(); reload() }
+  const upload = async files => {
     const fd = new FormData(); [...files].forEach(f => fd.append('files', f))
-    const r = await authFetch(`/api/exams/${e.id}/scan`, { method: 'POST', body: fd })
-    const d = await r.json()
-    if (!r.ok) throw new Error(d.detail || `Lỗi ${r.status}`)
-    const good = d.sheets.filter(x => !x.error)
-    if (append) {   // chụp liên tục: cộng dồn; quét lại cùng MSSV thì thay phiếu cũ
-      setRes(p => ({ ...d, sheets: [...(p?.sheets || []).filter(x => !x.error), ...d.sheets] }))
-      setSheets(p => { const codes = new Set(good.map(x => x.student_code).filter(c => c && !String(c).includes('?')))
-        const next = [...p.filter(x => !codes.has(x.student_code)), ...good]; setCur(next.length - 1); return next })
-    } else { setRes(d); setSheets(good); setCur(0) }
-    return d
+    const r = await authFetch(`/api/exams/${e.id}/scan/save`, { method: 'POST', body: fd })
+    const j = await r.json()
+    if (!r.ok) throw new Error(j.detail || `Lỗi ${r.status}`)
+    setErrs(j.sheets.filter(x => x.error))
+    refresh()
+    return j
   }
-  const score = s => { const k = keys[s.version_code]; if (!k) return null; return Object.entries(s.answers).reduce((a, [p, l]) => a + (k[p] && l === k[p].answer ? k[p].points : 0), 0) }
-  const upd = (i, patch) => setSheets(x => x.map((y, k) => k === i ? { ...y, ...patch } : y))
-  const s = sheets[cur]
-  const ok = s => keys[s.version_code] && s.student_code && !String(s.student_code).includes('?')
-  const commitSheets = list => api.post(`/api/exams/${e.id}/scan/commit`, { sheets: list.map(x => ({ student_code: x.student_code, version_code: x.version_code, answers: x.answers, source_name: x.source_name })) })
-  const shot = async f => {   // camera: chụp xong là đọc và chấm ngay
-    const d = await upload([f], { append: true })
-    const x = d.sheets[0]
-    if (!x || x.error) { setLast({ bad: true, text: x?.error || 'Không đọc được phiếu – chụp lại thẳng, đủ 4 góc, đủ sáng' }); return }
-    const sc = score(x), good = ok(x) && !x.issues.length
-    if (autoSave && good) {
-      try { await commitSheets([x]); setSheets(p => p.filter(y => y.source_name !== x.source_name)); reload()
-        setLast({ text: `✔ Đã chấm & lưu: ${x.student_code} – ${x.full_name || ''} · ${sc ?? '—'}/${x.raw_max ?? '—'} điểm` }) }
-      catch (err) { setLast({ bad: true, text: err.message }) }
-    } else setLast({ bad: !good, text: `${good ? '✔ Đã chấm' : '⚠ Cần xem lại'}: ${x.student_code || '?'} – ${x.full_name || 'không có trong lớp'} · ${sc ?? '—'}/${x.raw_max ?? '—'} điểm${x.issues.length ? ' · ' + x.issues.slice(0, 2).join('; ') : ''}` })
+  const bulk = async files => {
+    setBusy(true)
+    try { const j = await upload(files); toast(`Đã chấm & lưu ${j.saved} phiếu${j.review ? `, ${j.review} phiếu cần xử lý` : ''}${j.errors ? `, ${j.errors} ảnh không đọc được` : ''}`, j.review || j.errors ? 'amber' : 'green')
+      if (j.review) setFilter('review') } catch (x) { toast(x.message, 'red') } finally { setBusy(false) }
+  }
+  const shot = async f => {   // camera: chụp xong là đọc, chấm và lưu ngay
+    try {
+      const j = await upload([f]); const x = j.sheets[0]
+      if (!x || x.error) { setLast({ bad: true, text: x?.error || 'Không đọc được phiếu – chụp lại thẳng, đủ 4 góc, đủ sáng' }); return }
+      setLast(x.status === 'saved' ? { text: `✔ Đã chấm & lưu: ${x.student_code} – ${x.full_name || ''} · ${x.score ?? '—'}/${x.raw_max ?? '—'} điểm` }
+        : { bad: true, text: `⚠ Đã lưu, cần xử lý sau: ${x.student_code || '?'} · ${x.issues[0] || ''}` })
+    } catch (err) { setLast({ bad: true, text: err.message }) }
+  }
+  const open = async id => { setCur(null); setEdit(null); const r = await api.get(`/api/exams/${e.id}/scan/sheets/${id}`); setCur(r); setEdit({ student_code: r.student_code, version_code: r.version_code, answers: r.answers }) }
+  const rows = (d?.sheets || []).filter(x => filter === 'all' || x.status === 'review')
+  const score = () => { const k = keys[edit?.version_code]; if (!k || !edit) return null; return Object.entries(edit.answers).reduce((a, [p, l]) => a + (k[p] && l === k[p].answer ? k[p].points : 0), 0) }
+  const save = async () => {
+    try { const r = await api.patch(`/api/exams/${e.id}/scan/sheets/${cur.id}`, edit)
+      toast(r.status === 'saved' ? 'Đã chấm & lưu vào kết quả lớp' : `Chưa hợp lệ: ${r.issues.join('; ')}`, r.status === 'saved' ? 'green' : 'amber')
+      refresh(); r.status === 'saved' ? (setCur(null), setEdit(null)) : open(cur.id) } catch (x) { toast(x.message, 'red') }
   }
   return <>
     <div className="row gap wrap">
-      <FileButton className="btn primary" accept="image/*,.pdf" label="⬆ Tải ảnh phiếu / PDF đã quét" onPick={f => upload([f]).catch(x => toast(x.message, 'red'))} />
+      <FileButton className="btn primary" accept="image/*,.pdf" label="⬆ Tải ảnh phiếu / PDF đã quét" onPick={f => bulk([f])} />
       <label className="btn">📷 Chụp bằng điện thoại / chọn nhiều ảnh
-        <input type="file" accept="image/*,.pdf" capture="environment" multiple hidden onChange={ev => { const f = [...ev.target.files]; ev.target.value = ''; f.length && upload(f).catch(x => toast(x.message, 'red')) }} /></label>
+        <input type="file" accept="image/*,.pdf" capture="environment" multiple hidden onChange={ev => { const f = [...ev.target.files]; ev.target.value = ''; f.length && bulk(f) }} /></label>
       <button className="btn primary" onClick={() => setCam(c => !c)}>{cam ? '✕ Đóng camera' : '🎥 Quét bằng camera & chấm ngay'}</button>
-      <span className="muted small">Ảnh JPG/PNG hoặc PDF nhiều trang (máy quét); chụp thẳng, đủ 4 góc phiếu, đủ sáng.</span>
+      <span className="muted small">Quét là chấm và lưu ngay. Ảnh JPG/PNG hoặc PDF nhiều trang; chụp thẳng, đủ 4 góc phiếu, đủ sáng.</span>
+      {busy && <span className="muted small">Đang đọc phiếu…</span>}
     </div>
-    {cam && <CameraPane onShot={shot} last={last} autoSave={autoSave} setAutoSave={setAutoSave} />}
-    {res && <>
-      <div className="stats mt"><Stat label="Phiếu đọc được" value={sheets.length} tone="green" />
-        <Stat label="Phiếu lỗi" value={res.sheets.filter(x => x.error).length} tone={res.sheets.some(x => x.error) ? 'red' : ''} />
-        <Stat label="Cần xem lại" value={sheets.filter(x => x.issues.length || !ok(x)).length} tone="amber" />
-        <Stat label="Đã chấm trước đó" value={st.n_scanned} /></div>
-      {res.sheets.filter(x => x.error).map((x, i) => <div key={i} className="alert red small">{x.source_name}: {x.error}</div>)}
-      {sheets.length > 0 && <>
-        <table className="tbl compact"><thead><tr><th>#</th><th>Tệp</th><th>MSSV</th><th>Họ tên</th><th>Mã đề</th><th className="num-c">Điểm</th><th>Ghi chú</th></tr></thead>
-          <tbody>{sheets.map((x, i) => <tr key={i} className={`click ${i === cur ? 'sel' : ''}`} onClick={() => setCur(i)}><td>{i + 1}</td><td className="small">{x.source_name}</td>
-            <td className={ok(x) ? '' : 'bad-t'}>{x.student_code || '?'}</td><td>{x.full_name || <span className="bad-t">không có trong lớp</span>}</td><td>{x.version_code}</td>
-            <td className="num-c">{score(x) ?? '—'}/{x.raw_max ?? '—'}</td><td className="small">{x.issues.length ? <span className="bad-t">{x.issues.slice(0, 2).join('; ')}{x.issues.length > 2 ? '…' : ''}</span> : <span className="ok-t">OK</span>}</td></tr>)}</tbody></table>
-        {s && <div className="scan-grid mt">
-          <img src={s.image} alt={`Phiếu ${s.source_name}`} />
-          <div>
-            <div className="row gap wrap">
-              <Field label="MSSV"><input value={s.student_code} onChange={x => upd(cur, { student_code: x.target.value.trim() })} /></Field>
-              <Field label="Mã đề"><select value={s.version_code} onChange={x => upd(cur, { version_code: x.target.value })}>
-                {!keys[s.version_code] && <option value={s.version_code}>{s.version_code || '?'} (không hợp lệ)</option>}{Object.keys(keys).map(c => <option key={c}>{c}</option>)}</select></Field>
-              <Stat label="Điểm (thô)" value={score(s) ?? '—'} sub={`độ tin cậy ${Math.round(s.confidence * 100)}%`} />
-            </div>
-            {s.issues.length > 0 && <div className="alert amber small">{s.issues.map((t, i) => <div key={i}>{t}</div>)}</div>}
-            <div className="ans-cells">{Object.keys(s.answers).sort((a, b) => a - b).map(p => { const k = keys[s.version_code]?.[p]; const v = s.answers[p]
-              return <label key={p}><span className="small">{p}.</span><input value={v} maxLength={2} title={k ? `Đáp án: ${k.answer}` : ''}
-                className={`${v.length > 1 || !v ? 'warn' : ''} ${k && v && v !== k.answer ? 'wrong' : ''}`}
-                onChange={x => upd(cur, { answers: { ...s.answers, [p]: x.target.value.toUpperCase().replace(/[^A-F]/g, '') } })} /></label> })}</div>
-            <p className="muted small">Ô vàng: bỏ trống hoặc tô nhiều ô (tính sai); chữ đỏ: khác đáp án. Sửa trực tiếp nếu máy đọc nhầm.</p>
-            <div className="row gap"><button className="btn sm" disabled={cur === 0} onClick={() => setCur(cur - 1)}>‹ Phiếu trước</button>
-              <button className="btn sm" disabled={cur >= sheets.length - 1} onClick={() => setCur(cur + 1)}>Phiếu sau ›</button>
-              <button className="btn sm ghost" onClick={() => { setSheets(x => x.filter((_, k) => k !== cur)); setCur(Math.max(0, cur - 1)) }}>Bỏ phiếu này</button></div>
+    {cam && <CameraPane onShot={shot} last={last} />}
+    {errs.map((x, i) => <div key={i} className="alert red small mt">{x.source_name}: {x.error}</div>)}
+    {list.loading && !d ? <Loading /> : d && <>
+      <div className="stats mt"><Stat label="Đã chấm vào kết quả lớp" value={d.n_saved} tone="green" />
+        <Stat label="Cần xử lý (MSSV / mã đề)" value={d.n_review} tone={d.n_review ? 'amber' : ''} />
+        <Stat label="SV chưa có phiếu" value={d.n_absent_if_finish} sub="sẽ tính vắng khi hoàn tất" /></div>
+      <div className="tabs mt"><button className={filter === 'review' ? 'on' : ''} onClick={() => setFilter('review')}>Cần xử lý ({d.n_review})</button>
+        <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>Tất cả phiếu ({d.sheets.length})</button></div>
+      {rows.length === 0 ? <p className="muted mt">{filter === 'review' ? 'Không còn phiếu nào cần xử lý.' : 'Chưa quét phiếu nào.'}</p> :
+        <table className="tbl compact mt"><thead><tr><th>Tệp</th><th>MSSV đọc được</th><th>Họ tên</th><th>Mã đề</th><th className="num-c">Điểm</th><th>Trạng thái</th></tr></thead>
+          <tbody>{rows.map(x => <tr key={x.id} className={`click ${cur?.id === x.id ? 'sel' : ''}`} onClick={() => open(x.id)}>
+            <td className="small">{x.source_name}</td><td className={x.status === 'review' ? 'bad-t' : ''}>{x.student_code || '?'}</td>
+            <td>{x.full_name || <span className="bad-t">không có trong lớp</span>}</td><td>{x.version_code || '?'}</td>
+            <td className="num-c">{x.score ?? '—'}/{x.raw_max ?? '—'}</td>
+            <td className="small">{x.status === 'saved' ? <span className="ok-t">Đã chấm</span> : <span className="bad-t">{x.issues[0] || 'Cần xử lý'}</span>}</td></tr>)}</tbody></table>}
+      {cur && edit && <div className="scan-grid mt">
+        <img src={cur.image} alt={`Phiếu ${cur.source_name}`} />
+        <div>
+          <div className="row gap wrap">
+            <Field label="MSSV"><input list="roster-dl" value={edit.student_code} onChange={x => setEdit({ ...edit, student_code: x.target.value.trim() })} /></Field>
+            <Field label="Mã đề"><select value={edit.version_code} onChange={x => setEdit({ ...edit, version_code: x.target.value })}>
+              {!keys[edit.version_code] && <option value={edit.version_code}>{edit.version_code || '?'} (không hợp lệ)</option>}{Object.keys(keys).map(c => <option key={c}>{c}</option>)}</select></Field>
+            <Stat label="Điểm (thô)" value={score() ?? '—'} sub={`độ tin cậy ${Math.round(cur.confidence * 100)}%`} />
           </div>
-        </div>}
-        <div className="row gap mt"><span className="grow" />
-          <ActionButton className="btn primary" disabled={!sheets.length || sheets.some(x => !ok(x))} title={sheets.some(x => !ok(x)) ? 'Còn phiếu sai MSSV/mã đề' : ''}
-            okMsg={r => `Đã lưu ${r.saved} bài${r.absent ? `, ${r.absent} SV vắng` : ''}${r.analysis ? ' – đã phân tích' : ''}`}
-            onRun={async () => { const r = await commitSheets(sheets); reload(); setRes(null); setSheets([]); setLast(null); return r }}>
-            Lưu kết quả {sheets.length} phiếu &amp; phân tích</ActionButton></div>
-      </>}
+          <datalist id="roster-dl">{d.roster.map(r => <option key={r.student_code} value={r.student_code}>{r.full_name}</option>)}</datalist>
+          {cur.issues.length > 0 && <div className="alert amber small">{cur.issues.map((t, i) => <div key={i}>{t}</div>)}</div>}
+          {cur.suggest?.length > 0 && <div className="row gap wrap small">Gợi ý MSSV gần đúng: {cur.suggest.map(g =>
+            <button key={g.student_code} className="btn sm" onClick={() => setEdit({ ...edit, student_code: g.student_code })}>{g.student_code} – {g.full_name}</button>)}</div>}
+          <div className="ans-cells">{Object.keys(edit.answers).sort((a, b) => a - b).map(p => { const k = keys[edit.version_code]?.[p]; const v = edit.answers[p]
+            return <label key={p}><span className="small">{p}.</span><input value={v} maxLength={2} title={k ? `Đáp án: ${k.answer}` : ''}
+              className={`${v.length > 1 || !v ? 'warn' : ''} ${k && v && v !== k.answer ? 'wrong' : ''}`}
+              onChange={x => setEdit({ ...edit, answers: { ...edit.answers, [p]: x.target.value.toUpperCase().replace(/[^A-F]/g, '') } })} /></label> })}</div>
+          <p className="muted small">Ô vàng: bỏ trống hoặc tô nhiều ô (tính sai); chữ đỏ: khác đáp án. Sửa trực tiếp nếu máy đọc nhầm; MSSV phải thuộc lớp thì phiếu mới được chấm vào kết quả.</p>
+          <div className="row gap"><button className="btn primary sm" onClick={save}>Lưu sửa &amp; chấm lại</button>
+            <ActionButton className="btn sm ghost" confirm="Xóa phiếu này? Nếu đã chấm vào kết quả lớp thì kết quả đó cũng bị gỡ." okMsg={() => 'Đã xóa phiếu'}
+              onRun={async () => { await api.del(`/api/exams/${e.id}/scan/sheets/${cur.id}`); setCur(null); setEdit(null); refresh(); return {} }}>Xóa phiếu</ActionButton>
+            <button className="btn sm ghost" onClick={() => { setCur(null); setEdit(null) }}>Đóng</button></div>
+        </div>
+      </div>}
+      <div className="row gap mt"><span className="grow" />
+        <ActionButton className="btn primary" disabled={!d.n_saved} confirm={d.n_review ? `Còn ${d.n_review} phiếu chưa xử lý (không tính vào kết quả). Vẫn hoàn tất?` : undefined}
+          okMsg={r => `Đã hoàn tất: ${r.saved} bài${r.absent ? `, ${r.absent} SV vắng` : ''}${r.analysis ? ' – đã phân tích' : ''}`}
+          onRun={async () => { const r = await api.post(`/api/exams/${e.id}/scan/finish`, {}); refresh(); return r }}>
+          Hoàn tất: tính vắng &amp; phân tích</ActionButton></div>
     </>}
   </>
 }

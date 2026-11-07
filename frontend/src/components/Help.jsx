@@ -38,7 +38,7 @@ export const GLOSSARY = [
 
 const STEPS = {
   lecturer: [
-    ['Chọn môn và lớp', 'Vào "Môn học của tôi", bấm tên môn để xem đề cương, hoặc bấm "Mở lớp" để làm việc với một lớp học phần.'],
+    ['Chọn môn và lớp', 'Vào "Môn học của tôi", bấm tên môn để xem đề cương, hoặc bấm vào một lớp học phần để làm việc với lớp đó.'],
     ['Soạn câu hỏi', 'Vào "Ngân hàng câu hỏi" để thêm câu hỏi, hoặc nhập nhiều câu từ file. Mỗi câu cần chọn chương, mức độ nhận thức và CLO.'],
     ['Tạo bài kiểm tra', 'Bấm "Tạo bài kiểm tra" ở trang môn hoặc trang lớp. Chọn hình thức (trực tuyến, trên giấy, nhập điểm), để hệ thống chọn câu theo ma trận đề hoặc tự chọn câu, rồi lưu.'],
     ['Đưa bài cho sinh viên', 'Bài trực tuyến: bấm "Tạo bài trắc nghiệm trên Moodle". Bài giấy: sinh mã đề, in đề và phiếu trả lời. Nếu tạo ở trang môn, bạn chọn giao cho lớp nào ở bước này.'],

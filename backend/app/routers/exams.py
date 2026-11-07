@@ -27,6 +27,7 @@ def exam_dict(db: Session, e: Exam) -> dict:
             "is_template": cs is None, "source_exam_id": e.source_exam_id,
             "counts_for_clo": e.counts_for_clo, "parent_exam_id": e.parent_exam_id, "target_students": e.target_students,
             "moodle_course_id": cs.moodle_course_id if cs else None,
+            "rubric_id": db.execute(text("SELECT rubric_id FROM exam_rubrics WHERE exam_id=:e"), {"e": e.id}).scalar(),
             "course_id": course.id, "course_code": course.course_code, "course_name": course.course_name,
             "semester": cs.semester.name if cs else None,
             "deployments": deployments(db, e.id) if cs is None else None,

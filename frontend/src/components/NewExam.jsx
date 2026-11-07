@@ -6,6 +6,7 @@ import { ActionButton, Badge, Field, Modal } from './ui'
 import { useApi } from '../hooks'
 import Blueprint from './Blueprint'
 import { ManualExamForm } from './ManualExam'
+import { RubricExamForm } from './Rubric'
 
 export const TYPE_VI = { online: 'Trực tuyến (Moodle)', paper: 'Trên giấy', manual: 'Nhập điểm' }
 
@@ -16,6 +17,8 @@ const CHOICES = [
     desc: 'Hệ thống sinh mã đề, in đề và phiếu trả lời, chấm phiếu bằng ảnh quét hoặc ảnh chụp điện thoại (hoặc dùng Moodle Offline Quiz).' },
   { k: 'manual', icon: '✍', title: 'Nhập điểm', sub: 'Tự luận, thực hành, đồ án',
     desc: 'Khai báo các câu/ý chấm điểm gắn CLO rồi nhập điểm tay hoặc từ Excel – cho bài làm ngoài hệ thống.' },
+  { k: 'rubric', icon: '📋', title: 'Chấm theo rubric', sub: 'Đồ án, báo cáo, thực hành',
+    desc: 'Chấm bằng bảng tiêu chí có sẵn: chọn mức (Tốt, Khá, Đạt…) cho từng tiêu chí, hệ thống tự tính điểm và mức đạt chuẩn đầu ra.' },
 ]
 
 export function ExamTypeChooser({ onPick, onClose, note, children }) {
@@ -44,6 +47,8 @@ export function NewExamFlow({ cs, course, sections, start = 'choose', onClose })
       {sections.map(x => <option key={x.id} value={x.id}>Lớp {x.section_code} ({x.semester})</option>)}
       <option value="all">Nhiều lớp – đề dùng chung, chọn lớp khi xuất</option></select></Field>}
   </ExamTypeChooser>
+  if (step === 'rubric') return sec ? <RubricExamForm cs={sec} onClose={onClose} />
+    : <Modal title="Chấm theo rubric" onClose={onClose}><div className="alert amber">Bài chấm theo rubric là bài của một lớp. Hãy quay lại và chọn một lớp học phần cụ thể (không chọn "đề dùng chung").</div></Modal>
   if (step === 'manual') return <ManualExamForm cs={sec} courseId={course?.id} sections={sections} onClose={onClose} />
   return <CreateExam cs={sec} course={course} type={step} onClose={onClose} />
 }
@@ -99,7 +104,7 @@ function CreateExam({ cs, course, type, onClose }) {
         <p className="muted small">Hình thức: <b>{TYPE_VI[f.exam_type]}</b></p>
         <div className="grid3">
           <Field label="Tên bài kiểm tra"><input value={f.exam_title} onChange={e => setF({ ...f, exam_title: e.target.value })} placeholder="VD: Thi cuối kỳ" /></Field>
-          <Field label="Bài KT lấy minh chứng (BM6a)" hint="Bài cuối kỳ hay bài quá trình theo kế hoạch đánh giá CLO"><select value={f.assessment_type} onChange={e => setF({ ...f, assessment_type: e.target.value })}>
+          <Field label="Loại đánh giá của bài" hint="Bài cuối kỳ hay bài quá trình theo kế hoạch đánh giá CLO"><select value={f.assessment_type} onChange={e => setF({ ...f, assessment_type: e.target.value })}>
             <option value="process">Quá trình</option><option value="final">Cuối kỳ</option></select></Field>
           <Field label="Thang điểm"><input type="number" value={f.max_score} onChange={e => setF({ ...f, max_score: e.target.value })} /></Field>
           <Field label="Ngày kiểm tra"><input type="date" value={f.exam_date} onChange={e => setF({ ...f, exam_date: e.target.value })} /></Field>
