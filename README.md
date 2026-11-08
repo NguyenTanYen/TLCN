@@ -129,3 +129,9 @@ Nội dung CLO, câu hỏi, danh sách sinh viên và bài làm của môn DBMS3
 - **Biểu đồ theo chuẩn**: tỷ lệ đạt CLO có khoảng tin cậy 95% (Wilson) và vạch chỉ tiêu; phổ điểm dạng cột liền; biểu đồ độ khó – độ phân biệt có vùng lý tưởng.
 - **Vòng cải tiến**: hành động cải tiến cho CLO chưa đạt, xu hướng CLO qua các học kỳ, cảnh báo cỡ mẫu nhỏ.
 - **Học liệu theo lớp** (làm lại bởi nhánh QuocThi): lấy PDF từ khóa học Moodle của lớp, gợi ý trang cần đọc cho câu sinh viên làm sai.
+
+### Tải học liệu từ hệ thống (nhánh Tanyen)
+Tab **Học liệu** của lớp có nút **Tải học liệu lên** (chọn PDF + các lớp cùng môn, hệ thống tự đăng lên khóa Moodle của từng lớp
+bằng `local_clo_add_resource` rồi đồng bộ và nạp), **Dùng cho lớp khác** ở từng học liệu và **Sao chép từ lớp khác** (lấy toàn bộ
+học liệu của lớp cũ sang lớp mới). Moodle phải nhận được tệp lớn: `docker/moodle/Dockerfile` nâng `post_max_size`/`upload_max_filesize`
+lên 256 MB (cần dựng lại ảnh Moodle). Từ điển thuật ngữ Việt–Anh theo môn: `backend/app/services/rag/synonyms/<mã môn>.txt`.

@@ -11,14 +11,14 @@ Phân quyền: GV phụ trách lớp đồng bộ / chọn / bỏ chọn / nạp
 from dataclasses import asdict
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import check_section_access, lecturer_only, require
 from ..models import SectionMaterial, User
-from ..services.rag import index, moodle_files, search, sync
+from ..services.rag import index, moodle_files, publish, search, sync
 
 router = APIRouter(prefix="/api/class-sections", tags=["Học liệu (RAG)"])
 
@@ -33,6 +33,38 @@ class MoodlePickIn(BaseModel):
     content_hash: str = Field(pattern=r"^[0-9a-f]{40}$")
     material_type: Literal["slide", "reference"] = "slide"
     title: Optional[str] = Field(default=None, max_length=255)
+
+
+class CopyMaterialIn(BaseModel):
+    class_section_ids: list[int] = Field(min_length=1, max_length=30)
+
+
+def _targets(db: Session, u: User, cs_id: int, ids: list[int]):
+    """Các lớp nhận học liệu: cùng môn với lớp nguồn, GV phụ trách (không kể lớp nguồn)."""
+    src = check_section_access(db, u, cs_id)
+    out = []
+    for i in dict.fromkeys(ids):
+        if i == cs_id:
+            continue
+        cs = check_section_access(db, u, i)
+        if cs.course_id != src.course_id:
+            raise HTTPException(422, f"Lớp {cs.section_code} không cùng môn học")
+        out.append(cs)
+    return src, out
+
+
+def _run(db: Session, targets, fn) -> list[dict]:
+    res = []
+    for cs in targets:
+        r = {"class_section_id": cs.id, "section_code": cs.section_code, "ok": False, "message": "", "material_id": None}
+        try:
+            out = fn(cs)
+            r.update(ok=True, message=out["note"], material_id=out["material_id"])
+        except publish.PublishError as ex:
+            db.rollback()
+            r["message"] = str(ex)
+        res.append(r)
+    return res
 
 
 def _material(m: SectionMaterial) -> dict:
@@ -158,3 +190,63 @@ def update_material(cs_id: int, material_id: int, body: MaterialPatchIn, db: Ses
     db.commit()
     db.refresh(m)
     return _material(m)
+
+
+@router.post("/{cs_id}/materials/upload")
+async def upload_material(cs_id: int, file: UploadFile = File(...), title: str = Form(""),
+                          material_type: Literal["slide", "reference"] = Form("slide"),
+                          class_section_ids: str = Form(""), week: int = Form(0),
+                          db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
+    """GV tải PDF học liệu lên hệ thống và chọn các lớp cùng môn (kể cả lớp này) sẽ nhận: tệp được đăng lên khóa Moodle
+    của từng lớp, đồng bộ thành học liệu và nạp ở nền. class_section_ids: danh sách id cách nhau dấu phẩy; bỏ trống = chỉ lớp này."""
+    ids = [int(x) for x in class_section_ids.replace(" ", "").split(",") if x.isdigit()]
+    src, others = _targets(db, u, cs_id, ids)
+    targets = [src] + others
+    data = await file.read(index.MAX_BYTES + 1)
+    name = (file.filename or "hoc_lieu.pdf").replace("\\", "/").rsplit("/", 1)[-1]
+    try:
+        publish.check_pdf(data)
+    except publish.PublishError as ex:
+        raise HTTPException(422, str(ex))
+    ttl = (title.strip() or name.rsplit(".", 1)[0])[:255]
+    return {"results": _run(db, targets, lambda cs: publish.push_to_class(db, cs, data, name, ttl, material_type, max(0, week), u.id))}
+
+
+@router.post("/{cs_id}/materials/{material_id}/copy")
+def copy_material(cs_id: int, material_id: int, body: CopyMaterialIn, db: Session = Depends(get_db),
+                  u: User = Depends(lecturer_only)):
+    """Dùng một học liệu của lớp này cho các lớp khác cùng môn (đăng tệp lên khóa Moodle của từng lớp)."""
+    _, targets = _targets(db, u, cs_id, body.class_section_ids)
+    m = db.get(SectionMaterial, material_id)
+    if not m or m.class_section_id != cs_id or m.status in ("excluded", "missing") or m.source != "moodle":
+        raise HTTPException(404, "Không tìm thấy học liệu đang dùng của lớp này")
+    try:
+        data = publish.fetch_bytes(m)
+    except publish.PublishError as ex:
+        raise HTTPException(422, str(ex))
+    name, title, mtype = m.file_name, m.title, m.material_type
+    return {"results": _run(db, targets, lambda cs: publish.push_to_class(db, cs, data, name, title, mtype, 0, u.id))}
+
+
+@router.post("/{cs_id}/materials/copy-from/{src_id}")
+def copy_from_section(cs_id: int, src_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
+    """Lớp mới: sao chép TOÀN BỘ học liệu đang dùng của một lớp cùng môn (vd học kỳ trước) sang lớp này."""
+    dst, srcs = _targets(db, u, cs_id, [src_id])
+    if not srcs:
+        raise HTTPException(422, "Chọn một lớp khác để sao chép học liệu")
+    items = db.query(SectionMaterial).filter(SectionMaterial.class_section_id == src_id, SectionMaterial.source == "moodle",
+                                             SectionMaterial.status.in_(("ready", "pending", "indexing"))).all()
+    if not items:
+        raise HTTPException(404, "Lớp nguồn chưa có học liệu nào đang dùng")
+    res = []
+    for m in items:
+        r = {"title": m.title, "ok": False, "message": ""}
+        try:
+            data = publish.fetch_bytes(m)
+            out = publish.push_to_class(db, dst, data, m.file_name, m.title, m.material_type, 0, u.id)
+            r.update(ok=True, message=out["note"])
+        except publish.PublishError as ex:
+            db.rollback()
+            r["message"] = str(ex)
+        res.append(r)
+    return {"results": res}

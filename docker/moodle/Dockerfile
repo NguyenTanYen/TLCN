@@ -6,7 +6,7 @@ ARG MOODLE_BRANCH=MOODLE_405_STABLE
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
  && git clone --depth 1 -b ${MOODLE_BRANCH} https://github.com/moodle/moodle.git /var/www/html \
  && mkdir -p /var/www/moodledata && chown -R www-data:www-data /var/www/html /var/www/moodledata \
- && echo "max_input_vars = 5000" > /usr/local/etc/php/conf.d/99-moodle.ini
+ && printf "max_input_vars = 5000\npost_max_size = 256M\nupload_max_filesize = 256M\nmemory_limit = 1024M\nmax_execution_time = 600\n" > /usr/local/etc/php/conf.d/99-moodle.ini
 COPY entrypoint.sh /usr/local/bin/moodle-entrypoint.sh
 RUN chmod +x /usr/local/bin/moodle-entrypoint.sh
 ENTRYPOINT ["moodle-entrypoint.sh"]

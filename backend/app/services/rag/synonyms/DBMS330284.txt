@@ -1,0 +1,95 @@
+# Hệ quản trị cơ sở dữ liệu (DBMS330284) – nhóm cách nói tương đương (Việt – Anh – viết tắt), ngăn bằng "|".
+# Thuật ngữ chuẩn của giáo trình CSDL (Database System Concepts): kiến trúc, SQL/T-SQL, giao tác, điều khiển đồng thời,
+# chỉ mục, tối ưu truy vấn, bảo mật, sao lưu và phục hồi. Chỉ cần thêm dòng khi gặp từ mới; có hiệu lực ngay.
+
+# kiến trúc, mô hình
+hệ quản trị cơ sở dữ liệu | database management system | dbms
+cơ sở dữ liệu quan hệ | relational database
+lược đồ | schema
+quan hệ | relation
+bộ | tuple
+thuộc tính | attribute
+khóa chính | primary key
+khóa ngoại | foreign key
+ràng buộc toàn vẹn | integrity constraint
+ràng buộc | constraint
+toàn vẹn tham chiếu | referential integrity
+
+# SQL và T-SQL
+ngôn ngữ định nghĩa dữ liệu | data definition language | ddl
+ngôn ngữ thao tác dữ liệu | data manipulation language | dml
+truy vấn | query
+truy vấn con | subquery | nested subquery
+phép nối | join
+nhóm | group by
+tập hợp | aggregate
+hàm tổng hợp | aggregate function
+khung nhìn | view
+thủ tục lưu trữ | stored procedure | procedure
+thủ tục | procedure
+hàm | function
+con trỏ | cursor
+vòng lặp | loop | while
+biến | variable
+xử lý lỗi | exception handling | error handling
+bắt lỗi | catch | exception
+trigger | bộ kích hoạt | kích hoạt
+cấp quyền | grant
+quyền | privilege | authorization
+thu hồi quyền | revoke
+vai trò | role
+người dùng | user
+phân quyền | authorization
+
+# giao tác và điều khiển đồng thời
+giao tác | transaction
+tính nguyên tử | atomicity
+tính nhất quán | consistency
+tính cô lập | isolation
+tính bền vững | durability
+cam kết | commit
+hoàn tác | rollback | abort
+khả tuần tự | serializability | serializable
+lịch thao tác | schedule
+đồng thời | concurrent | concurrency
+điều khiển đồng thời | concurrency control
+khóa | lock | locking
+khóa chia sẻ | shared lock
+khóa độc quyền | exclusive lock
+khóa hai pha | two-phase locking | 2pl
+bế tắc | deadlock
+mức cô lập | isolation level
+đọc dữ liệu chưa commit | dirty read
+đọc không lặp lại | non-repeatable read | nonrepeatable read
+đọc bóng ma | phantom read | phantom
+cô lập ảnh chụp | snapshot isolation
+dấu thời gian | timestamp
+
+# chỉ mục và tối ưu truy vấn
+chỉ mục | index
+chỉ mục cụm | clustered index | primary index
+chỉ mục không cụm | nonclustered index | secondary index
+cây b+ | b+-tree | b+ tree
+chỉ mục băm | hash index
+chỉ mục phủ | covering index
+chi phí | cost
+thống kê | statistics
+kế hoạch thực thi | execution plan | query plan
+tối ưu truy vấn | query optimization
+tối ưu hóa truy vấn | query optimization
+quét bảng | table scan | full scan | sequential scan
+tìm kiếm theo chỉ mục | index seek | index scan
+phép chọn | selection
+phép chiếu | projection
+
+# sao lưu và phục hồi
+sao lưu | backup
+phục hồi | recovery | restore
+sao lưu đầy đủ | full backup
+sao lưu vi sai | differential backup
+sao lưu nhật ký | log backup
+nhật ký giao tác | transaction log | log
+điểm kiểm tra | checkpoint
+phục hồi theo thời điểm | point-in-time recovery
+mô hình phục hồi | recovery model
+sự cố | failure
