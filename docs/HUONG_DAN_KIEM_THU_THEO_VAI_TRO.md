@@ -9,7 +9,7 @@ Máy này: hệ thống tại **http://localhost:8000**, Moodle 4.5 tại **http
 | Sinh viên | **Chỉ Moodle** | `22130001` … `22130040` / `Sv@123456` |
 | Quản trị Moodle | Moodle | tài khoản admin Moodle của bạn |
 
-Dữ liệu demo đáng chú ý (do bước 4 tạo):
+Dữ liệu demo đáng chú ý (do `scripts\tao_du_lieu_demo.bat` tạo):
 
 - Lớp `DBMS330284_01`, 40 SV. Có bài *Thi cuối kỳ (Moodle)* (Quiz 20 câu, 38 bài làm) và bài giấy *Kiểm tra quá trình* (Offline Quiz 2 mã đề, 38 phiếu). Lớp `DBMS330284_02` có bài nhập điểm.
 - SV vắng: 2 SV. SV chọn đại: `22130017`, `22130018`. SV để hết giờ: `22130006`, `22130023`.
@@ -19,9 +19,9 @@ Dữ liệu demo đáng chú ý (do bước 4 tạo):
 ## 0. Chuẩn bị
 
 1. XAMPP Control Panel → **Start** Apache và MySQL.
-2. Bấm đúp `5_CHAY_HE_THONG.bat` và giữ cửa sổ mở.
+2. Bấm đúp `scripts\chay.bat` và giữ cửa sổ mở.
 3. Dùng **hai cửa sổ trình duyệt**: cửa sổ thường cho hệ thống, cửa sổ **ẩn danh** cho Moodle. Hai phiên đăng nhập sẽ không lẫn nhau.
-4. Muốn bắt đầu lại từ dữ liệu sạch: chạy `2_KHOI_TAO_CSDL.bat` rồi `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat`.
+4. Muốn bắt đầu lại từ dữ liệu sạch: chạy `scripts\cai_dat.bat` rồi `scripts\tao_du_lieu_demo.bat`.
 
 Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì phần sau dùng dữ liệu phần trước tạo ra. Mỗi dòng có ô ☐ để đánh dấu đạt/không đạt.
 
@@ -178,13 +178,13 @@ npx playwright test --ui
 - Bỏ các flow cần Moodle: `npm run khong-moodle`.
 - Xem báo cáo sau khi chạy: `npm run bao-cao`.
 
-### D2. Kiểm thử API và Analysis Engine (pytest, khoảng 110 ca): `6_CHAY_KIEM_THU.bat`
+### D2. Kiểm thử API và Analysis Engine (pytest, khoảng 110 ca): `scripts\kiem_thu.bat`
 
 - **Dựng lại `assessment_db`** và tạo CSDL `moodle_sim` riêng (không đụng Moodle thật).
 - Xuất bảng kết quả `docs\kiem_thu\KET_QUA_KIEM_THU.xlsx`.
-- **Chạy xong phải chạy lại `2_KHOI_TAO_CSDL.bat` và `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat`** để có lại dữ liệu demo.
+- **Chạy xong phải chạy lại `scripts\cai_dat.bat` và `scripts\tao_du_lieu_demo.bat`** để có lại dữ liệu demo.
 - Vì vậy hãy chạy D2 **sau cùng**, khi đã test tay xong.
 
-### D3. Tính lại độc lập các độ đo: `tools\KIEM_TRA_DO_LUONG.bat`
+### D3. Tính lại độc lập các độ đo: `python tools\kiem_tra_do_luong.py`
 
 Tính lại p, DI, CLO, BM6b, PI, PLO, CTĐT từ dữ liệu bài làm và so với số liệu của hệ thống. Mong đợi: **0 sai lệch**. Không sửa dữ liệu.

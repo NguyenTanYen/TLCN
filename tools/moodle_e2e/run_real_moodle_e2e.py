@@ -107,7 +107,7 @@ def paper_on_moodle(db, info, php):
         print("\n(Bỏ qua bài thi giấy: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
         return None
     if not moodle.offlinequiz_available():
-        print("\n(Bỏ qua bài thi giấy: Moodle chưa cài plugin Offline Quiz – chạy 3_CAI_GIAO_DIEN_MOODLE.bat)")
+        print("\n(Bỏ qua bài thi giấy: Moodle chưa cài plugin Offline Quiz – chạy scripts/cai_dat.bat)")
         return None
     exam = db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
     print(f"\n== Bài thi giấy #{exam.id}: tạo Offline Quiz 2 mã đề trên Moodle (Web Service)")

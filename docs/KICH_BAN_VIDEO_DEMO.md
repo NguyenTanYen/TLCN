@@ -6,7 +6,7 @@ Mỗi cảnh ghi rõ *bấm gì* và *nói gì*. Thời lượng chỉ là gợi
 ## 0. Chuẩn bị (trước khi quay)
 
 1. Bật MariaDB (`E:\TLCN_MoiTruong\1_BAT_MARIADB.bat`) và Apache/Moodle (`E:\hoc\xampp\apache_start.bat`).
-2. Nếu dữ liệu đã bị kiểm thử làm thay đổi: chạy lại `4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat`.
+2. Nếu dữ liệu đã bị kiểm thử làm thay đổi: chạy lại `scripts\tao_du_lieu_demo.bat`.
 3. Chạy script bổ sung dữ liệu cho video (chạy lại không tạo trùng):
    ```
    .venv\Scripts\python tools\demo\chuan_bi_video.py
@@ -15,14 +15,14 @@ Mỗi cảnh ghi rõ *bấm gì* và *nói gì*. Thời lượng chỉ là gợi
    - Bài thi cuối kỳ (Moodle) đã phân tích: `/exams/2`.
    - Bài giấy để demo chấm phiếu: `/exams/4`. Ảnh phiếu đã tô của 8 SV nằm ở `demo_video\phieu_da_to\`.
    - Bài ôn tập giao cho 2 SV (22130017, 22130018), đã có Quiz trên Moodle: `/exams/5`.
-4. Chạy hệ thống: `5_CHAY_HE_THONG.bat` → http://localhost:8000.
+4. Chạy hệ thống: `scripts\chay.bat` → http://localhost:8000.
 5. Mở sẵn 2 cửa sổ trình duyệt: **(A)** hệ thống, **(B)** cửa sổ ẩn danh cho Moodle của sinh viên (http://localhost:8081/moodle45).
 6. Tài khoản:
    - Bộ môn: `admin` / `Admin@123`.
    - Giảng viên: `gv.son` / `Gv@123456`.
    - Sinh viên (Moodle): `22130017`, `22130040` / `Sv@123456`.
 
-> Lưu ý: cảnh 5 (chấm phiếu) và cảnh 3 ghi dữ liệu thật vào CSDL. Muốn quay lại từ đầu thì làm lại bước 2–3.
+> Lưu ý: cảnh 5 (chấm phiếu) và cảnh 3 ghi dữ liệu thật vào CSDL. Muốn quay lại từ đầu thì chạy lại `scripts\cai_dat.bat` và `scripts\tao_du_lieu_demo.bat`.
 
 ---
 

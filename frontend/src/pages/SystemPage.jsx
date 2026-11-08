@@ -23,7 +23,7 @@ export default function SystemPage() {
       {w && <Card title="Web Service & đăng nhập một lần (plugin local_clo)">
         <table className="tbl"><tbody>
           <tr><td>Địa chỉ Moodle</td><td><code>{w.moodle_url || '—'}</code></td><td>{w.ws_ok ? <Badge tone="green">Kết nối được</Badge> : w.ws_configured ? <Badge tone="red">Lỗi</Badge> : <Badge tone="amber">Chưa cấu hình</Badge>}</td></tr>
-          <tr><td>Dịch vụ</td><td colSpan="2">{w.site ? <>{w.site.sitename} · Moodle {w.site.release} · <code>{w.site.functions.join(', ')}</code></> : (w.error || 'Chạy 3_CAI_GIAO_DIEN_MOODLE.bat để cấu hình')}</td></tr>
+          <tr><td>Dịch vụ</td><td colSpan="2">{w.site ? <>{w.site.sitename} · Moodle {w.site.release} · <code>{w.site.functions.join(', ')}</code></> : (w.error || 'Chạy scripts/cai_dat.bat để cấu hình')}</td></tr>
           <tr><td>SSO từ nút “Phân tích CĐR”</td><td /><td>{w.sso_configured ? <Badge tone="green">Đã cấu hình</Badge> : <Badge tone="amber">Chưa cấu hình</Badge>}</td></tr>
         </tbody></table>
       </Card>}

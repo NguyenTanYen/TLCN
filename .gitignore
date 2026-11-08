@@ -1,4 +1,4 @@
-# ===== Môi trường & thư viện cài trên từng máy (tạo lại bằng 1_CAI_DAT_PYTHON.bat / npm install) =====
+# ===== Môi trường & thư viện cài trên từng máy (tạo lại bằng scripts/cai_dat.bat / npm install) =====
 .venv/
 venv/
 node_modules/
@@ -15,7 +15,7 @@ htmlcov/
 *.tmp
 *.temp
 *.bak
-# 3_CAI_GIAO_DIEN_MOODLE.bat giải nén plugin Offline Quiz từ tệp .zip (chỉ giữ tệp zip trong Git)
+# scripts/cai_dat.bat giải nén plugin Offline Quiz từ tệp .zip (chỉ giữ tệp zip trong Git)
 moodle/mod/offlinequiz/
 # Kiểm thử E2E với Moodle thật: đề XML, phiếu quét, kết quả đối chiếu
 tools/moodle_e2e/out/
@@ -28,9 +28,9 @@ docs/diagrams/fig/
 docs/diagrams/schema.json
 backend/demo_phieu_tra_loi.csv
 
-# ===== Bí mật và cấu hình riêng từng máy (mẫu: backend/cau_hinh.env.example, 0_CAU_HINH_MAY.example.bat) =====
+# ===== Bí mật và cấu hình riêng từng máy (mẫu: backend/cau_hinh.env.example, scripts/cau_hinh_may.example.bat) =====
 backend/cau_hinh.env
-0_CAU_HINH_MAY.bat
+scripts/cau_hinh_may.bat
 backend/.env
 .env
 backend/.jwt_secret

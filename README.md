@@ -8,7 +8,7 @@ BM6a–6d (CĐR môn học, cả BM6c riêng từng bài kiểm tra) và BM2a–
 
 Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và xem kết quả phân tích trên **Moodle**. Hai hệ thống nối với nhau qua plugin Moodle `local_clo` (nút *Phân tích CĐR* đăng nhập một lần, Web Service tạo Quiz / Offline Quiz và nhận kết quả) và cầu nối CSDL chỉ đọc để kéo bài làm – xem `HUONG_DAN_CAI_DAT.md`.
 
-> **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp `.bat` 0–8). Sau khi cập nhật bản 15/10 cần chạy lại **1_CAI_DAT_PYTHON.bat**
+> **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp trong `scripts\`). Sau khi cập nhật bản 15/10 cần chạy lại **scripts\cai_dat.bat**
 > (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.4.0 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu; giới hạn Quiz phụ đạo cho SV được giao), sau đó vào Moodle → Quản trị trang để nâng cấp.
 > Bài trực tuyến đã đồng bộ trước bản thời gian làm bài: bấm **Đồng bộ lại** để lấy thời điểm trả lời từng câu.
 
@@ -42,11 +42,12 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `database/00_moodle_subset_for_test.sql` | 22 bảng Moodle 4.4 (từ install.xml) – chỉ dùng cho kiểm thử tự động |
 | `backend/` | FastAPI + SQLAlchemy 2 + Pandas (Analysis Engine), xuất Excel/Word |
 | `frontend/` | React 19 + Vite + Chart.js |
+| `scripts/` | Tệp `.bat` chạy trên Windows: `cai_dat`, `chay`, `tao_du_lieu_demo`, `kiem_thu` |
 | `tools/moodle_e2e/` | Kiểm thử đầu-cuối với **Moodle 4.5 thật** |
 | `docker-compose.yml`, `docker/` | MySQL 8.0 + Moodle 4.5 + hệ thống |
 | `moodle/theme/ute/` | Giao diện Moodle "UTE – Khảo thí & CĐR" (kế thừa Boost) |
 | `database/heidisql/` | Tệp SQL chạy trực tiếp trong HeidiSQL (MariaDB 10.4+) |
-| `.gitignore`, `.gitattributes`, `backend/cau_hinh.env.example`, `0_CAU_HINH_MAY.example.bat` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu; đường dẫn Moodle/PHP riêng từng máy khai báo trong `0_CAU_HINH_MAY.bat` (nếu cần); tệp `.bat` luôn được lấy về với xuống dòng CRLF; `8_CAP_NHAT_TU_GITHUB.bat` lấy bản mới từ GitHub về, `7_DON_DEP_GIT.bat` đẩy lên |
+| `.gitignore`, `.gitattributes`, `backend/cau_hinh.env.example`, `scripts/cau_hinh_may.example.bat` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu; đường dẫn Moodle/PHP riêng từng máy khai báo trong `scripts/cau_hinh_may.bat` (nếu cần) |
 
 ## Chạy bằng Docker
 
