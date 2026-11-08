@@ -19,7 +19,7 @@ ETHICS = ("Các bài tập ở nhà và dự án phải được thực hiện t
 
 
 def build(s: dict) -> bytes:
-    F = fonts(); R, B, I = F["serif"], F["serifB"], F["serifI"]
+    F = fonts(); R, B = F["serif"], F["serifB"]
     BI = R + "BI"
     d = s.get("doc") or {}
     mk = lambda n, **k: ParagraphStyle(n, fontName=k.pop("fontName", R), fontSize=k.pop("fontSize", 11), leading=k.pop("leading", 14.5), **k)

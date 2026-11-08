@@ -175,7 +175,7 @@ def test_paper_sync_maps_groups_to_versions():
 
 
 def test_paper_reverse_shuffle_per_group():
-    ok = q(f"""SELECT SUM(r.is_correct), COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+    ok = q("""SELECT SUM(r.is_correct), COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
                WHERE a.exam_id=1 AND a.status='finished' AND r.response_status='answered'""")[0]
     assert ok[1] > 300 and 0 < int(ok[0]) < ok[1]
 

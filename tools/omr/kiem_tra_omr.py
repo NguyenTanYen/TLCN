@@ -38,7 +38,7 @@ for name,f in conds.items():
     ok_s=ok_v=ok_a=tot=err=0; t=time.time()
     for g,fi in zip(base,fills):
         try: r=omr.read_sheet(f(g),o)
-        except Exception as e: err+=1; continue
+        except Exception: err+=1; continue
         ok_s+=r["student_code"]==fi["student"]; ok_v+=r["version_code"]==fi["version"]
         ok_a+=sum(r["answers"][q]==fi["answers"][q] for q in range(1,41)); tot+=40
     print(f"{name}\t{ok_s}/{N}\t{ok_v}/{N}\t{ok_a}/{N*40}\terr={err}\t{(time.time()-t)/N*1000:.0f}ms")

@@ -68,7 +68,7 @@ def run_pytest(out_json: Path, junit: Path) -> int:
 
 
 def all_routes() -> list[dict]:
-    from app.main import app  # noqa: F401
+    import app.main  # noqa: F401
     from app.routers import (analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync,
                              question_io, questions, remedial, reports, sync)
     out = []
