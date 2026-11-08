@@ -22,7 +22,7 @@ export default function SectionDetail() {
   const cs = secs.data?.find(x => String(x.id) === id)
   const exams = useApi(`/api/class-sections/${id}/exams`)
   const students = useApi(`/api/class-sections/${id}/students`)
-  const [tab, setTab] = useState('exams')
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get('tab') === 'materials' ? 'materials' : 'exams'))
   const [creating, setCreating] = useState(false)
   const toast = useToast()
   const nav = useNavigate()

@@ -365,6 +365,19 @@ def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = N
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
             .filter(ClassSection.id == cs_id).scalar())
     scored = section_index(db, cs_id).score(query, k, synonyms.for_course(code), msm)
+    from . import semantic                                       # tìm theo nghĩa: trộn với BM25 bằng RRF (suggest.fuse)
+    from .suggest import fuse
+    try:
+        dense = semantic.dense_top(db, cs_id, query, max(k, 10))
+    except Exception:
+        log.exception("Tìm theo nghĩa lỗi – chỉ dùng BM25")
+        dense = []
+    if dense:
+        by_bm25 = {pid: (s, m) for pid, s, m in scored}
+        by_cos = dict(dense)
+        order = fuse([([pid for pid, _, _ in scored], 1.0), ([pid for pid, _ in dense], 1.0)])[:k]
+        scored = [(pid, by_bm25[pid][0] if pid in by_bm25 else by_cos[pid], by_bm25[pid][1] if pid in by_bm25 else [])
+                  for pid in order]
     if not scored:
         return []
     rows = {p.id: (p, pg, m) for p, pg, m in

@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Histogram, ItemScatter } from '../components/ChartKit'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -11,6 +11,7 @@ import PaperSystem from '../components/PaperSystem'
 import { useApi } from '../hooks'
 import { MatrixTable } from '../components/Blueprint'
 import Timing from '../components/Timing'
+import { openMoodle } from '../moodle'
 import ExamTemplate from '../components/ExamTemplate'
 import { DeployDialog, TYPE_VI } from '../components/NewExam'
 
@@ -169,7 +170,7 @@ function Collect({ e, reload, onDone }) {
 // Bước 4 – kết quả: đường đi CLO → BM6 trước, sau đó điểm, câu hỏi, từng SV, thời gian làm bài
 function Results({ e, view, setView, reload }) {
   const analyzed = e.status === 'Analyzed'
-  const views = [['clo', 'Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['students', 'Kết quả sinh viên'],
+  const views = [['clo', 'Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['review', 'Gợi ý ôn từ học liệu'], ['students', 'Kết quả sinh viên'],
     e.exam_type === 'online' && ['timing', 'Thời gian làm bài']].filter(Boolean)
   const can = k => analyzed || (k === 'timing' && e.status === 'Synced')
   return <>
@@ -184,6 +185,7 @@ function Results({ e, view, setView, reload }) {
       {view === 'clo' && <CloTrace e={e} reload={reload} />}
       {view === 'overview' && <Overview id={e.id} />}
       {view === 'items' && <Items id={e.id} manual={e.exam_type === 'manual'} />}
+      {view === 'review' && <MaterialReview e={e} />}
       {view === 'students' && <Students id={e.id} cs={e.class_section_id} />}
       {view === 'timing' && <Timing examId={e.id} sectionCode={e.section_code} />}
     </>}
@@ -310,6 +312,31 @@ function PaperMoodle({ e, reload }) {
       {e.last_synced_at && <p className="muted mt">Lần đồng bộ gần nhất: {e.last_synced_at.replace('T', ' ')}</p>}
     </Card>
   </>
+}
+
+// Gợi ý ôn tập từ học liệu (RAG): với TỪNG câu của bài, các trang giáo trình của lớp mà SV làm sai nên đọc lại. Đây chính
+// là nội dung SV thấy trên trang kết quả Moodle – giảng viên xem trước, trước khi công bố.
+function MaterialReview({ e }) {
+  const sg = useApi(`/api/exams/${e.id}/material-suggestions`, [e.status])
+  const openPage = (url) => { const at = (url || '').indexOf('/pluginfile.php/'); if (at >= 0) openMoodle(url.slice(at)) }
+  const rows = sg.data || []
+  const any = rows.some(r => r.pages.length)
+  const retried = useRef(false)
+  useEffect(() => {                       // chỉ mục tìm kiếm của lớp dựng ở nền sau khi máy chủ khởi động: thử lại một lần
+    if (sg.data && !any && !retried.current) { retried.current = true; const t = setTimeout(() => sg.reload(), 4000); return () => clearTimeout(t) }
+  }, [sg.data, any]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <Card title="Gợi ý ôn từ học liệu cho từng câu">
+    <p className="muted small mt0">Sinh viên làm sai câu nào sẽ được gợi ý đọc lại các trang giáo trình / slide của lớp ở cột bên phải (hệ thống tìm trong học liệu đã nạp của lớp
+      theo nội dung câu hỏi và đáp án đúng). Kiểm tra trước khi công bố kết quả; chưa ưng thì sửa từ điển thuật ngữ của môn hoặc bổ sung học liệu.</p>
+    <Loading {...sg} />
+    {sg.data && !any && <div className="alert">Chưa có gợi ý nào. Lớp cần có học liệu ở trạng thái "Đã nạp" – mở lớp, tab <Link to={`/sections/${e.class_section_id}?tab=materials`}>Học liệu</Link> để tải giáo trình lên.</div>}
+    {any && <table className="tbl"><thead><tr><th className="num-c">Câu</th><th>Nội dung</th><th className="num-c">SV sai</th><th>Trang nên đọc lại</th></tr></thead>
+      <tbody>{rows.map(r => <tr key={r.question_id}><td className="num-c">{r.question_no}</td><td className="small">{r.content}</td>
+        <td className="num-c">{r.n_wrong}</td>
+        <td className="small">{r.pages.length ? r.pages.map((p, i) => <div key={i}>
+          <a href="#" onClick={ev => { ev.preventDefault(); openPage(p.url) }}>{p.material_title} – trang {p.page_no} ↗</a>
+          {p.title && <span className="muted"> · {p.title}</span>}</div>) : <span className="muted">Không có trang phù hợp</span>}</td></tr>)}</tbody></table>}
+  </Card>
 }
 
 function Overview({ id }) {

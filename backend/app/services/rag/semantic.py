@@ -110,6 +110,56 @@ def related(query: str, embeddings: list[bytes | None], threshold: float | None 
     return s is None or max(s) >= threshold
 
 
+_dense_cache: dict = {}        # cs_id -> (khóa, id đoạn, ma trận vector đã chuẩn hóa)
+
+
+def _matrix(db: Session, cs_id: int):
+    """Ma trận vector đoạn của lớp (chỉ học liệu 'ready' đã tính bằng model hiện tại), nhớ tạm theo khóa học liệu."""
+    from sqlalchemy.orm import undefer
+    name = model_name()
+    mats = db.query(SectionMaterial.id, SectionMaterial.indexed_at).filter(
+        SectionMaterial.class_section_id == cs_id, SectionMaterial.status == "ready",
+        SectionMaterial.embed_model == name).order_by(SectionMaterial.id).all()
+    key = (name, tuple((i, str(t)) for i, t in mats))
+    got = _dense_cache.get(cs_id)
+    if got and got[0] == key:
+        return got[1], got[2]
+    if not mats:
+        return [], None
+    rows = (db.query(MaterialPassage.id, MaterialPassage.embedding)
+            .filter(MaterialPassage.material_id.in_([i for i, _ in mats]), MaterialPassage.embedding.isnot(None))
+            .order_by(MaterialPassage.id).all())
+    db.rollback()
+    if not rows:
+        return [], None
+    ids = [r[0] for r in rows]
+    mat = np.stack([unpack(r[1]) for r in rows])
+    _dense_cache[cs_id] = (key, ids, mat)
+    return ids, mat
+
+
+def dense_top(db: Session, cs_id: int, query: str, k: int = 30, margin: float | None = None) -> list[tuple[int, float]]:
+    """k đoạn của lớp GẦN NGHĨA nhất với câu hỏi (cos MiniLM đa ngôn ngữ) – tìm được cả khi câu hỏi tiếng Việt không có
+    từ nào trùng với giáo trình tiếng Anh. Rỗng khi: cổng tắt, câu tiếng Việt không dấu, lớp chưa có vector, hoặc đoạn
+    gần nhất cũng dưới RAG_MIN_SIMILARITY (tài liệu không nói về câu hỏi). Giữ đoạn có cos ≥ tốt nhất − margin."""
+    from .search import looks_english, plain
+    if not query.strip() or (plain(query) and not looks_english(query)) or not enabled():
+        return []
+    ids, mat = _matrix(db, cs_id)
+    if mat is None:
+        return []
+    q = encode([query])
+    if q is None or q.shape[1] != mat.shape[1]:
+        return []
+    cos = mat @ q[0]
+    order = np.argsort(-cos)[:k]
+    top = float(cos[order[0]])
+    if top < settings.rag_min_similarity:
+        return []
+    margin = settings.rag_page_margin if margin is None else margin
+    return [(ids[i], float(cos[i])) for i in order if cos[i] >= top - margin]
+
+
 def embed_missing(db: Session, cs_id: int) -> int:
     """Tính vector cho các học liệu 'ready' của lớp chưa có vector (hoặc tính bằng model khác). Trả về số đoạn đã tính.
 
