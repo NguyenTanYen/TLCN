@@ -89,3 +89,33 @@ def test_overview_theo_chuong_va_loc_chuong(client, gv, remedial):
                         json={"student_ids": ch["student_ids"][:3], "exam_ids": [], "similar_per_question": 0,
                               "include_wrong": True, "outline_ids": [ch["outline_id"]]})
         assert r.status_code in (201, 400, 422), r.text
+
+
+def test_restrict_thanh_cong_va_loi_moodle(client, gv, remedial, monkeypatch):
+    from app.services import lms
+    old = _q("SELECT moodle_user_id FROM students WHERE id=:s", s=remedial["sid"])[0][0]
+    cs_old = _q("SELECT moodle_course_id FROM class_sections WHERE id=:c", c=remedial["cs"])[0][0]
+    with engine.begin() as c:
+        c.execute(text("UPDATE students SET moodle_user_id=987654 WHERE id=:s"), {"s": remedial["sid"]})
+        c.execute(text("UPDATE class_sections SET moodle_course_id=7 WHERE id=:c"), {"c": remedial["cs"]})
+        c.execute(text("UPDATE exams SET moodle_quiz_id=321 WHERE id=:e"), {"e": remedial["exam"]})
+    seen = {}
+
+    def ok(course, quiz, name, users, cmid=0):
+        seen.update(course=course, quiz=quiz, users=users)
+        return {"group": name, "users": len(users)}
+
+    def fail(*a, **k):
+        raise lms.MoodleWSError("Moodle từ chối")
+
+    try:
+        monkeypatch.setattr(lms, "restrict_users", ok)
+        r = client.post(f"/api/exams/{remedial['exam']}/moodle/restrict", headers=gv)
+        assert r.status_code == 200 and seen == {"course": 7, "quiz": 321, "users": [987654]}
+        monkeypatch.setattr(lms, "restrict_users", fail)
+        assert client.post(f"/api/exams/{remedial['exam']}/moodle/restrict", headers=gv).status_code == 502
+    finally:
+        with engine.begin() as c:
+            c.execute(text("UPDATE students SET moodle_user_id=:m WHERE id=:s"), {"m": old, "s": remedial["sid"]})
+            c.execute(text("UPDATE class_sections SET moodle_course_id=:m WHERE id=:c"), {"m": cs_old, "c": remedial["cs"]})
+            c.execute(text("UPDATE exams SET moodle_quiz_id=NULL WHERE id=:e"), {"e": remedial["exam"]})

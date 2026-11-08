@@ -96,7 +96,7 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Kiểm thử
 
 ```bash
-python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 307 ca + độ phủ 147/148 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
+python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 308 ca + độ phủ 148/148 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
 cd backend && python -m pytest tests -q        # ~300 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), thời gian làm bài & cảnh báo, nâng cấp CSDL
 python ../tools/omr/kiem_tra_omr.py          # độ bền bộ chấm phiếu: 6 điều kiện ảnh × 30 phiếu, 7 kiểu tô
 python tests/ui_screens.py                     # Playwright: chụp 47 màn hình, bắt lỗi console

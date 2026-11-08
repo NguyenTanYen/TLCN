@@ -257,7 +257,7 @@ def verify(exam_id, quiz_id, spec, grademethod):
         for a in spec["attempts"]:
             by_user.setdefault(a["username"], []).append(a["answers"])
         spec_last = {u: by_user[u][n - 1] for u, n in att_no.values()}
-        pos = {(r[0], r[1]): r[2] for r in q(f"""SELECT s.student_code, r.question_id, o.position - 1 FROM item_level_results r
+        pos = {(r[0], r[1]): r[2] for r in q("""SELECT s.student_code, r.question_id, o.position - 1 FROM item_level_results r
                   JOIN exam_attempts a ON a.id=r.attempt_id JOIN students s ON s.id=a.student_id
                   LEFT JOIN question_options o ON o.id=r.selected_option_id WHERE a.exam_id=:e AND a.status='finished'""", e=exam_id)}
         spec_bad = [(u, k) for u, ans in spec_last.items() for k, v in ans.items() if pos.get((u, int(k[3:]))) != v]

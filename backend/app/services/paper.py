@@ -315,7 +315,7 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
         bubble(b["x"], b["y"], b["code"], 7.2)
     if not L["version"]:
         _dots(c, S, 10, X0 + 22, X0 + 60, 59.6)
-    top, dxd, dyd = L["top"], L["dx_digit"], L["dy_digit"]
+    top, dxd = L["top"], L["dx_digit"]
     c.setStrokeColor(black); c.setLineWidth(0.6)
     c.rect(ID_X0 * MM, _y(L["id_bottom"]), (X1 - ID_X0) * MM, (L["id_bottom"] - top) * MM, stroke=1, fill=0)
     c.setFont(SB, 9); c.drawString((ID_X0 + 2) * MM, _y(top + 4), "MSSV:")
@@ -479,7 +479,6 @@ def exam_pdf(exam: Exam, version: dict, p: PaperOptions, semester_name: str = ""
     fs = p.font_size if ncol == 1 else min(p.font_size, 10.5)
     st_q = ParagraphStyle("q", fontName=F["serif"], fontSize=fs, leading=fs * 1.28, spaceBefore=fs * 0.45)
     st_o = ParagraphStyle("o", fontName=F["serif"], fontSize=fs, leading=fs * 1.22)
-    st_h = ParagraphStyle("h", fontName=F["serifB"], fontSize=10.5, leading=13, alignment=1)
     st_hl = ParagraphStyle("hl", fontName=F["serif"], fontSize=10, leading=13, alignment=1)
 
     def header(c, doc):
