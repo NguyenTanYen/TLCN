@@ -138,7 +138,25 @@ def _matrix(db: Session, cs_id: int):
     return ids, mat
 
 
-def dense_top(db: Session, cs_id: int, query: str, k: int = 30, margin: float | None = None) -> list[tuple[int, float]]:
+def dense_info(db: Session, cs_id: int, query: str) -> dict:
+    """Chẩn đoán tìm theo nghĩa cho một câu hỏi: cổng bật chưa, số đoạn đã có vector, cos cao nhất và các ngưỡng đang dùng
+    (để giảng viên / Bộ môn thấy vì sao không ra kết quả và chỉnh ngưỡng theo số đo thật)."""
+    out = {"enabled": bool(enabled()), "model": model_name(), "vectors": 0, "top_cos": None,
+           "gate_threshold": settings.rag_min_similarity, "search_threshold": settings.rag_search_similarity}
+    if not out["enabled"]:
+        return out
+    ids, mat = _matrix(db, cs_id)
+    out["vectors"] = len(ids)
+    if mat is None or not query.strip():
+        return out
+    q = encode([query])
+    if q is not None and q.shape[1] == mat.shape[1]:
+        out["top_cos"] = round(float(np.max(mat @ q[0])), 3)
+    return out
+
+
+def dense_top(db: Session, cs_id: int, query: str, k: int = 30, margin: float | None = None,
+              floor: float | None = None) -> list[tuple[int, float]]:
     """k đoạn của lớp GẦN NGHĨA nhất với câu hỏi (cos MiniLM đa ngôn ngữ) – tìm được cả khi câu hỏi tiếng Việt không có
     từ nào trùng với giáo trình tiếng Anh. Rỗng khi: cổng tắt, câu tiếng Việt không dấu, lớp chưa có vector, hoặc đoạn
     gần nhất cũng dưới RAG_MIN_SIMILARITY (tài liệu không nói về câu hỏi). Giữ đoạn có cos ≥ tốt nhất − margin."""
@@ -154,7 +172,7 @@ def dense_top(db: Session, cs_id: int, query: str, k: int = 30, margin: float | 
     cos = mat @ q[0]
     order = np.argsort(-cos)[:k]
     top = float(cos[order[0]])
-    if top < settings.rag_min_similarity:
+    if top < (settings.rag_min_similarity if floor is None else floor):
         return []
     margin = settings.rag_page_margin if margin is None else margin
     return [(ids[i], float(cos[i])) for i in order if cos[i] >= top - margin]

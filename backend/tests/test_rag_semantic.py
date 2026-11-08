@@ -219,3 +219,22 @@ def test_dense_search_silent_when_nothing_is_close_or_gate_off(fake_dense, monke
     monkeypatch.setattr(semantic, "enabled", lambda: False)
     assert semantic.dense_top(db, cs, "Hoàn nguyên sự cố bằng cách nào?") == []
     assert semantic.dense_top(db, cs, "hoan nguyen su co bang cach nao") == []        # tiếng Việt không dấu: bỏ qua
+
+
+def test_semantic_info_reports_vectors_and_closest_cosine(client, gv, fake_dense):
+    mid, cs, ids, db = fake_dense
+    r = client.get(f"/api/class-sections/{cs}/materials/semantic-info", headers=gv, params={"q": "Hoàn nguyên sự cố bằng cách nào?"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["enabled"] and d["vectors"] >= 2 and d["top_cos"] >= 0.9
+    assert d["search_threshold"] < d["gate_threshold"]
+
+
+def test_search_box_uses_looser_floor_than_gate(fake_dense):
+    mid, cs, ids, db = fake_dense
+    db.execute(text("UPDATE material_passages SET embedding = :e WHERE id = :i"), {"e": _vec(0.5, 1, 0), "i": ids[0]})   # cos ≈ 0,45
+    db.commit()
+    semantic._dense_cache.clear()
+    q = "Hoàn nguyên sự cố bằng cách nào?"
+    assert semantic.dense_top(db, cs, q) == []                       # dưới cổng 0,55: không gợi ý cho SV
+    assert [p for p, _ in semantic.dense_top(db, cs, q, floor=0.40)][:1] == [ids[0]]   # nhưng ô tìm của GV vẫn trả

@@ -79,10 +79,6 @@ export default function SectionMaterials({ cs, canEdit }) {
       okMsg={r => `Đã đồng bộ: ${r.added.length} tệp mới, ${r.replaced.length} tệp thay đổi, ${r.missing.length} tệp không còn trên Moodle`}
       onRun={async () => { const r = await api.post(`/api/class-sections/${id}/materials/sync`); list.reload(); return r }}>
       {syncing ? 'Đang đồng bộ…' : 'Đồng bộ từ Moodle'}</ActionButton></div>}>
-      <p className="muted small mt0">Các tệp PDF sinh viên xem được trong khóa học Moodle #{cs.moodle_course_id} được tự lấy làm học liệu.
-        Bạn cũng có thể <b>tải PDF lên ngay tại đây</b> – hệ thống tự đăng lên Moodle cho các lớp bạn chọn.
-        Khi SV làm sai một câu, trang kết quả trên Moodle gợi ý các <b>trang</b> học liệu nên đọc lại.
-        {canEdit && ' Bỏ chọn tệp không phải học liệu (đề cũ, đáp án…) – lần đồng bộ sau không lấy lại.'}</p>
       <Loading {...list} />
       {list.data && !shown.length ? <div className="empty"><p>Chưa có học liệu.</p>
         <p className="muted small">{canEdit ? 'Bấm "Tải học liệu lên" để đưa PDF vào lớp (và các lớp cùng môn), hoặc "Sao chép từ lớp khác"; cũng có thể tải lên khóa Moodle rồi bấm "Đồng bộ từ Moodle".' : 'Giảng viên phụ trách sẽ tải slide / giáo trình PDF lên.'}</p></div>
@@ -145,7 +141,11 @@ function MaterialSearch({ id }) {
     e.preventDefault()
     if (!q.trim()) return
     setBusy(true)
-    try { setRes({ q: q.trim(), hits: await api.get(`/api/class-sections/${id}/materials/search?k=8&q=${encodeURIComponent(q.trim())}`) }) }
+    try {
+      const hits = await api.get(`/api/class-sections/${id}/materials/search?k=8&q=${encodeURIComponent(q.trim())}`)
+      const info = hits.length ? null : await api.get(`/api/class-sections/${id}/materials/semantic-info?q=${encodeURIComponent(q.trim())}`).catch(() => null)
+      setRes({ q: q.trim(), hits, info })
+    }
     catch (er) { toast(er.message, 'red') } finally { setBusy(false) }
   }
   return <Card title="Thử tìm trong học liệu">
@@ -155,7 +155,9 @@ function MaterialSearch({ id }) {
       <button className="btn primary" disabled={busy || !q.trim()}>{busy ? 'Đang tìm…' : 'Tìm'}</button>
     </form>
     {res && (!res.hits.length ? <p className="muted">Không tìm thấy đoạn nào khớp "{res.q}". Nếu giáo trình bằng tiếng Anh, hãy thử thêm từ khóa tiếng Anh
-        (ví dụ "database", "transaction") hoặc nhờ Bộ môn bổ sung cách gọi tương đương vào từ điển thuật ngữ của môn.</p>
+        (ví dụ "database", "transaction") hoặc nhờ Bộ môn bổ sung cách gọi tương đương vào từ điển thuật ngữ của môn.
+        {res.info && <span className="small"><br />Tìm theo nghĩa: {!res.info.enabled ? 'chưa bật (máy chủ chưa có model)' : !res.info.vectors ? 'chưa có vector nào – giáo trình đang được xử lý, thử lại sau vài phút'
+          : `${res.info.vectors} đoạn đã có vector; độ gần nghĩa cao nhất ${res.info.top_cos ?? '—'} (cần ≥ ${res.info.search_threshold})`}.</span>}</p>
       : <ol className="mb0">{res.hits.map(h => <li key={h.passage_id} className="mt0" style={{ marginBottom: 10 }}>
         <div><b>{h.moodle_file_url ? <a href="#" onClick={e => { e.preventDefault(); openFile(h.moodle_file_url, h.page_no) }}>{h.material_title} – trang {h.page_no} ↗</a>
           : `${h.material_title} – trang ${h.page_no}`}</b>{h.breadcrumb && <span className="muted"> · {h.breadcrumb}</span>}

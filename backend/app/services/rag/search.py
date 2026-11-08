@@ -359,7 +359,7 @@ def warm(db: Session, cs_id: int) -> None:
     section_index(db, cs_id, wait=True)
 
 
-def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = None) -> list[Hit]:
+def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = None, floor: float | None = None) -> list[Hit]:
     """k đoạn học liệu của lớp khớp nhất với query (BM25 + từ điển đồng nghĩa của môn)."""
     from . import synonyms                                       # synonyms dùng bộ tách từ của module này
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
@@ -368,7 +368,7 @@ def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = N
     from . import semantic                                       # tìm theo nghĩa: trộn với BM25 bằng RRF (suggest.fuse)
     from .suggest import fuse
     try:
-        dense = semantic.dense_top(db, cs_id, query, max(k, 10))
+        dense = semantic.dense_top(db, cs_id, query, max(k, 10), floor=floor)
     except Exception:
         log.exception("Tìm theo nghĩa lỗi – chỉ dùng BM25")
         dense = []

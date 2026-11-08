@@ -94,7 +94,18 @@ def search_materials(cs_id: int, q: str = Query(min_length=1, max_length=2000), 
                      db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
     """Tìm đoạn trong học liệu đã nạp của lớp (BM25) – để GV / Bộ môn thử truy vấn, dựng bộ câu hỏi chuẩn."""
     check_section_access(db, u, cs_id)
-    return [asdict(h) for h in search.search(db, cs_id, q, k)]
+    from ..config import settings
+    from ..services.rag import semantic
+    return [asdict(h) for h in search.search(db, cs_id, q, k, floor=settings.rag_search_similarity)]
+
+
+@router.get("/{cs_id}/materials/semantic-info")
+def semantic_info(cs_id: int, q: str = Query("", max_length=2000), db: Session = Depends(get_db),
+                  u: User = Depends(require("admin", "lecturer"))):
+    """Chẩn đoán tìm theo nghĩa của lớp: bật chưa, số đoạn có vector, độ gần nghĩa cao nhất với câu q, các ngưỡng."""
+    from ..services.rag import semantic
+    check_section_access(db, u, cs_id)
+    return semantic.dense_info(db, cs_id, q)
 
 
 @router.post("/{cs_id}/materials/sync")
