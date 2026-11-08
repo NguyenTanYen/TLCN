@@ -111,6 +111,8 @@ export default function SectionMaterials({ cs, canEdit }) {
       </table>}
     </Card>
 
+    {shown.some(m => m.status === 'ready') && <MaterialSearch id={id} />}
+
     {(others.length > 0 || excluded.length > 0) && <Card title="Tệp khác trong khóa học Moodle">
       <table className="tbl">
         <thead><tr><th>Tệp</th><th>Hoạt động</th><th>Ghi chú</th>{canEdit && <th />}</tr></thead>
@@ -127,7 +129,6 @@ export default function SectionMaterials({ cs, canEdit }) {
       </table>
     </Card>}
 
-    {shown.some(m => m.status === 'ready') && <MaterialSearch id={id} />}
     {dlg?.kind === 'upload' && <UploadDialog cs={cs} onClose={() => setDlg(null)} onDone={() => list.reload()} />}
     {dlg?.kind === 'share' && <ShareDialog cs={cs} m={dlg.m} onClose={() => setDlg(null)} />}
     {dlg?.kind === 'copyfrom' && <CopyFromDialog cs={cs} onClose={() => setDlg(null)} onDone={() => list.reload()} />}
@@ -150,10 +151,11 @@ function MaterialSearch({ id }) {
   return <Card title="Thử tìm trong học liệu">
     <form className="row gap" onSubmit={run}>
       <input style={{ flex: 1 }} value={q} onChange={e => setQ(e.target.value)} maxLength={2000} aria-label="Nội dung cần tìm"
-        placeholder="Gõ câu hỏi hoặc từ khóa, ví dụ: recovery model nào cho phép phục hồi về một thời điểm" />
+        placeholder="Gõ câu hỏi hoặc từ khóa, ví dụ: khóa hai pha, chỉ mục B+, phục hồi sau sự cố" />
       <button className="btn primary" disabled={busy || !q.trim()}>{busy ? 'Đang tìm…' : 'Tìm'}</button>
     </form>
-    {res && (!res.hits.length ? <p className="muted">Không tìm thấy đoạn nào khớp "{res.q}".</p>
+    {res && (!res.hits.length ? <p className="muted">Không tìm thấy đoạn nào khớp "{res.q}". Nếu giáo trình bằng tiếng Anh, hãy thử thêm từ khóa tiếng Anh
+        (ví dụ "database", "transaction") hoặc nhờ Bộ môn bổ sung cách gọi tương đương vào từ điển thuật ngữ của môn.</p>
       : <ol className="mb0">{res.hits.map(h => <li key={h.passage_id} className="mt0" style={{ marginBottom: 10 }}>
         <div><b>{h.moodle_file_url ? <a href="#" onClick={e => { e.preventDefault(); openFile(h.moodle_file_url, h.page_no) }}>{h.material_title} – trang {h.page_no} ↗</a>
           : `${h.material_title} – trang ${h.page_no}`}</b>{h.breadcrumb && <span className="muted"> · {h.breadcrumb}</span>}

@@ -93,3 +93,51 @@ nhật ký giao tác | transaction log | log
 phục hồi theo thời điểm | point-in-time recovery
 mô hình phục hồi | recovery model
 sự cố | failure
+
+# khái niệm chung và mô hình dữ liệu
+cơ sở dữ liệu | database
+mô hình dữ liệu | data model
+mô hình thực thể liên kết | entity-relationship | er
+thực thể | entity
+liên kết | relationship
+bản số | cardinality
+thực thể yếu | weak entity
+chuyên biệt hóa | specialization
+tổng quát hóa | generalization
+khóa ứng viên | candidate key
+siêu khóa | superkey
+
+# đại số quan hệ, SQL bổ sung
+đại số quan hệ | relational algebra
+phép hợp | union
+phép giao | intersection
+phép trừ | set difference
+tích đề-các | cartesian product
+phép nối ngoài | outer join
+giá trị null | null
+sắp xếp | sorting | order by
+gộp nhóm | group by
+điều kiện nhóm | having
+
+# thiết kế, chuẩn hóa
+chuẩn hóa | normalization
+dạng chuẩn | normal form
+phụ thuộc hàm | functional dependency
+phân rã | decomposition
+dư thừa | redundancy
+bao đóng | closure
+
+# lưu trữ, xử lý, mở rộng
+lưu trữ | storage
+tổ chức tệp | file organization
+bộ đệm | buffer
+bảng băm | hash
+phân vùng | partitioning
+sao chép dữ liệu | replication
+kho dữ liệu | data warehouse
+khai phá dữ liệu | data mining
+cơ sở dữ liệu phân tán | distributed database
+cơ sở dữ liệu song song | parallel database
+nosql | nosql
+đa phiên bản | multiversion
+ghi nhật ký trước | write-ahead logging | wal
