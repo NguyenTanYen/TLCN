@@ -14,9 +14,9 @@ router = APIRouter(prefix="/api", tags=["Đồng bộ ngân hàng câu hỏi v�
 
 class SyncIn(BaseModel):
     moodle_course_id: int
-    push: list[int] = []          # question_bank.id cần đẩy lên Moodle
-    pull: list[int] = []          # question_bank.id cần cập nhật từ bản mới trên Moodle
-    import_new: list[int] = []    # mdl_question.id soạn trên Moodle cần nhập về
+    push: list[int] = []
+    pull: list[int] = []
+    import_new: list[int] = []
 
 
 def _targets(db: Session, u: User, course_id: int) -> list[dict]:

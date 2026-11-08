@@ -9,30 +9,26 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=("cau_hinh.env", ".env"), env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = "mysql+pymysql://root:@127.0.0.1:3306/assessment_db?charset=utf8mb4"
-    database_admin_url: str = ""        # tài khoản quản trị CSDL (tools/tao_tai_khoan_csdl.py ghi lại) – chỉ dùng cho kịch bản dữ liệu minh họa
-    moodle_db_name: str = "moodle"      # schema CSDL Moodle trên cùng MySQL server
-    moodle_prefix: str = "mdl_"         # tiền tố bảng Moodle
+    database_admin_url: str = ""
+    moodle_db_name: str = "moodle"
+    moodle_prefix: str = "mdl_"
     jwt_secret: str = "doi-khoa-bi-mat-nay-khi-trien-khai-that-2025"
     jwt_expire_minutes: int = 8 * 60
-    default_pass_threshold: float = 60.0   # % điểm tối đa để SV đạt CLO (BM6c)
-    default_clo_target: float = 70.0       # % SV đạt để CLO đạt
+    default_pass_threshold: float = 60.0
+    default_clo_target: float = 70.0
     frontend_dist: str = "../frontend/dist"
-    # Kết nối hai chiều với Moodle (ghi bằng Web Service chính thức; đọc bài làm vẫn qua cầu nối CSDL chỉ đọc)
-    moodle_url: str = ""                # ví dụ http://localhost/moodle
-    moodle_ws_token: str = ""           # token dịch vụ "local_clo" (tạo bởi local/clo/cli/setup.php)
-    moodle_new_user_password: str = "Sv@123456"   # mật khẩu ban đầu cho tài khoản Moodle do hệ thống tự tạo (GV/SV đổi sau; ĐỔI khi triển khai thật)
-    moodle_sso_secret: str = ""         # khóa dùng chung để kiểm tra vé đăng nhập một lần từ nút "Phân tích CĐR"
-    rag_sync_minutes: int = 30          # chu kỳ tự đồng bộ + nạp học liệu từ Moodle (phút); 0 = tắt
-    # cổng ngữ nghĩa của gợi ý học liệu (cần requirements-semantic.txt; rỗng hoặc chưa cài = tắt, chỉ dùng BM25)
+    moodle_url: str = ""
+    moodle_ws_token: str = ""
+    moodle_new_user_password: str = "Sv@123456"
+    moodle_sso_secret: str = ""
+    rag_sync_minutes: int = 30
     rag_embed_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    rag_page_margin: float = 0.15       # bỏ trang gợi ý có cos thấp hơn trang gần câu hỏi nhất quá mức này
-    rag_search_similarity: float = 0.40  # ô "Thử tìm" (câu GV tự gõ, có thể tiếng Việt – giáo trình tiếng Anh): cos thấp nhất để tính là gần nghĩa
-    rag_min_similarity: float = 0.55    # cos cao nhất (câu hỏi, đoạn ứng viên) dưới mức này → không gợi ý (evaluate --semantic)
-    # mô tả hình trong học liệu bằng VLM chạy cục bộ qua Ollama (services/rag/vlm.py); Ollama không chạy / chưa có
-    # model / RAG_VLM_MODEL rỗng → bỏ qua, đoạn hình chỉ có chữ đọc được trong PDF
+    rag_page_margin: float = 0.15
+    rag_search_similarity: float = 0.40
+    rag_min_similarity: float = 0.55
     rag_vlm_model: str = "qwen2.5vl:3b"
     rag_vlm_url: str = "http://127.0.0.1:11434"
-    demo_mode: bool = False             # True: trang đăng nhập hiện nút điền nhanh tài khoản minh họa (bước 4 tự bật)
+    demo_mode: bool = False
 
     @property
     def app_db_name(self) -> str:
@@ -43,8 +39,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Khóa ký JWT: nếu chưa đặt JWT_SECRET riêng (hoặc còn giá trị mẫu), tự sinh khóa ngẫu nhiên 256 bit một lần
-# và lưu ở backend/.jwt_secret (không nằm trong bộ mã nguồn phát hành) – tránh dùng khóa mặc định công khai.
 _KEY_FILE = Path(__file__).resolve().parents[1] / ".jwt_secret"
 if "doi-khoa-bi-mat" in settings.jwt_secret or len(settings.jwt_secret) < 32:
     if _KEY_FILE.exists() and len(_KEY_FILE.read_text().strip()) >= 32:

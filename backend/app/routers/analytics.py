@@ -25,8 +25,7 @@ def rows(db, sql, **p):
 
 
 def classify(p, di):
-    """Phân loại câu hỏi theo DI (Ebel & Frisbie, 1991: ≥0,30 tốt; 0,20–0,29 chấp nhận được; <0,20 cần xem lại) và độ khó p
-    (khoảng lý tưởng 0,30–0,70; ở đây chỉ gắn nhãn quá dễ khi p > 0,85 và quá khó khi p < 0,25 để tránh báo quá tay)."""
+    """Phân loại câu hỏi theo DI (Ebel & Frisbie, 1991: ≥0,30 tốt; 0,20–0,29 chấp nhận được; <0,20 cần xem lại) và độ khó p (khoảng lý tưởng 0,30–0,70; ở đây chỉ gắn nhãn quá dễ khi p > 0,85 và quá khó khi p < 0,25 để tránh báo quá tay)."""
     if p is None:
         return "Chưa đủ dữ liệu"
     p, di = float(p), (None if di is None else float(di))
@@ -71,8 +70,7 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
 
 @router.get("/exams/{exam_id}/material-suggestions")
 def material_suggestions(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Xem trước gợi ý học liệu (RAG) cho TỪNG câu của bài KT – GV kiểm tra trước khi công bố kết quả cho SV.
-    SV làm sai câu nào thì nhận các trang của câu đó (kèm kết quả gửi về Moodle)."""
+    """Xem trước gợi ý học liệu (RAG) cho TỪNG câu của bài KT – GV kiểm tra trước khi công bố kết quả cho SV."""
     e = get_exam_for(db, u, exam_id)
     eqs = db.query(ExamQuestion).filter_by(exam_id=exam_id).order_by(ExamQuestion.order_index).all()
     n_wrong: dict[int, int] = {}
@@ -96,7 +94,6 @@ def item_stats(exam_id: int, u: User = Depends(require("admin", "lecturer")), db
         FROM exam_questions eq JOIN question_bank q ON q.id=eq.question_id
         LEFT JOIN item_statistics st ON st.exam_id=eq.exam_id AND st.question_id=eq.question_id
         WHERE eq.exam_id=:e ORDER BY eq.order_index""", e=exam_id)
-    # phân bố lựa chọn: đủ mọi phương án (kể cả không ai chọn) + bỏ trống
     dist = rows(db, """
         SELECT o.question_id, o.opt_label AS label, o.is_correct,
                (SELECT COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
@@ -192,7 +189,6 @@ def clo_narrative(cs_id: int, clo_id: int, body: NarrativeIn, u: User = Depends(
     return {"ok": True}
 
 
-# ------------------------------------------------------------------ thời gian làm bài, cảnh báo lượt làm bất thường (Moodle Quiz)
 def _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share):
     return {"min_sec_per_q": min_sec_per_q, "rapid_sec": rapid_sec, "rapid_share": rapid_share, "idle_min": idle_min, "idle_share": idle_share}
 

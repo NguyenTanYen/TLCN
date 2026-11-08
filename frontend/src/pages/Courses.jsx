@@ -1,4 +1,3 @@
-// UC-12: Khai báo học phần – môn học, lớp học phần, đề cương (chương), CLO và ánh xạ CLO–PLO.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, auth } from '../api'
@@ -100,10 +99,10 @@ export function Outlines({ c, onSaved }) {
   const [paste, setPaste] = useState('')
   const next = Math.max(0, ...c.outlines.map(o => o.chapter_number)) + 1
   const [nw, setNw] = useState({ chapter_number: next, chapter_name: '' })
-  const [detail, setDetail] = useState(null)      // góp ý F1: nội dung, số tiết, CLO của chương
+  const [detail, setDetail] = useState(null)
   const enter = e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.closest('tr').querySelector('button.enter-save')?.click() } }
-  useEffect(() => setNw({ chapter_number: next, chapter_name: '' }), [c.id, c.outlines.length])  // eslint-disable-line
-  const addMany = async () => {   // mỗi dòng một chương: "3. Tên chương" hoặc "Tên chương"
+  useEffect(() => setNw({ chapter_number: next, chapter_name: '' }), [c.id, c.outlines.length])
+  const addMany = async () => {
     let n = next, added = 0
     for (const line of paste.split('\n').map(x => x.trim()).filter(Boolean)) {
       const m = /^(?:chương\s*)?(\d+)\s*[.:)\-–]\s*(.+)$/i.exec(line)
@@ -152,7 +151,6 @@ export function CloForm({ c, clo, onClose, onSaved }) {
   const bloom = useApi('/api/bloom-levels').data
   const [f, setF] = useState({ clo_code: clo.clo_code || `CLO${c.clos.length + 1}`, description: clo.description || '', bloom_level_id: clo.bloom_level_id || '',
     pis: Object.fromEntries((clo.pis || []).map(p => [p.pi_id, p.level])) })
-  // góp ý F2a: CLO ánh xạ tới PI (PI thuộc PLO); ma trận CLO – PLO được hệ thống suy ra từ PI
   const body = () => ({ clo_code: f.clo_code, description: f.description, bloom_level_id: f.bloom_level_id ? Number(f.bloom_level_id) : null,
     pis: Object.entries(f.pis).map(([pi_id, level]) => ({ pi_id: Number(pi_id), level })), plos: [] })
   const legacy = !clo.pis?.length && clo.plos?.length
@@ -203,10 +201,10 @@ export function SectionForm({ s, onClose, onSaved }) {
   const lecs = useApi('/api/lecturers').data
   const courses = useApi('/api/courses').data
   const [f, setF] = useState({ course_id: s.course_id, semester_id: s.semester_id || '', lecturer_id: s.lecturer_id || '', section_code: s.section_code || '' })
-  useEffect(() => { if (!f.semester_id && sems?.length) setF(x => ({ ...x, semester_id: sems[0].id })) }, [sems])  // eslint-disable-line
-  useEffect(() => {   // lớp đã có: tìm id giảng viên theo tên
+  useEffect(() => { if (!f.semester_id && sems?.length) setF(x => ({ ...x, semester_id: sems[0].id })) }, [sems])
+  useEffect(() => {
     if (s.id && !f.lecturer_id && lecs) { const l = lecs.find(x => x.full_name === s.lecturer); if (l) setF(x => ({ ...x, lecturer_id: l.id })) }
-  }, [lecs])  // eslint-disable-line
+  }, [lecs])
   const body = () => ({ ...f, course_id: Number(f.course_id), semester_id: Number(f.semester_id), lecturer_id: Number(f.lecturer_id) })
   return <Modal title={s.id ? `Sửa lớp ${s.section_code}` : 'Thêm lớp học phần'} onClose={onClose}>
     <Field label="Môn học"><CourseSelect courses={courses} value={f.course_id} onChange={v => setF({ ...f, course_id: v })} /></Field>

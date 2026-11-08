@@ -1,9 +1,4 @@
-"""Kiểm tra độ bền của bộ chấm phiếu (OMR) của hệ thống trên ảnh phiếu tổng hợp.
-
-Chạy:  python tools/omr/kiem_tra_omr.py   (từ thư mục HeThong, đã cài thư viện của backend)
-Phần 1: 30 phiếu 40 câu (2/3/4 phương án), MSSV 8 chữ số, 4 mã đề – qua 6 điều kiện ảnh.
-Phần 2: 20 phiếu × 40 câu với các kiểu tô khác nhau (bút chì nhạt, tô không kín, vết tẩy, gạch chéo ô cũ, tô 2 ô, bỏ trống).
-"""
+"""Kiểm tra độ bền của bộ chấm phiếu (OMR) của hệ thống trên ảnh phiếu tổng hợp."""
 import random, sys, time
 from pathlib import Path
 import numpy as np, cv2, fitz

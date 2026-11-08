@@ -1,37 +1,4 @@
-"""Nạp học liệu: tải tệp từ Moodle → đọc PDF (ingest) → chia đoạn (chunk) → lưu trang / đoạn (store).
-
-Tải qua webservice/pluginfile.php bằng token của dịch vụ local_clo (đã bật "tải tệp"), không đọc thẳng thư mục
-moodledata – backend chạy ở máy khác Moodle vẫn dùng được. Tệp được tải THEO TỪNG KHÚC xuống tệp tạm (PyMuPDF đọc từ
-đĩa – tệp 100 MB không nằm trọn trong RAM) và được kiểm ngay trong lúc tải:
-  - không vượt MAX_BYTES (không tin kích thước Moodle báo – cắt ngay khi vượt);
-  - SHA-1 nội dung phải đúng content_hash (Moodle đặt contenthash = SHA-1 nội dung) – tải nhầm / hỏng giữa đường là
-    phát hiện được;
-  - bắt đầu bằng "%PDF".
-
-MỘT LUỒNG NẠP RIÊNG cho cả tiến trình (enqueue): API chỉ xếp lớp vào hàng đợi rồi trả lời ngay, mỗi lúc chỉ nạp MỘT
-tệp (RAM có trần). Việc đọc PDF + chia đoạn (nặng CPU, giáo trình 371 trang mất ~1,5 phút) chạy trong TIẾN TRÌNH CON
-(parse_isolated): đọc ở luồng thì giữ GIL – đo được request nhẹ của API bị trễ thêm p95 ≈ 25 ms, có lúc 200 ms. Tiến
-trình con còn cách ly sự cố: hết RAM bị hệ điều hành kill thì chỉ tiến trình con chết (tệp → 'failed'), server vẫn
-sống; quá PARSE_TIMEOUT thì bị dừng.
-
-Mỗi học liệu đi qua ba giao dịch NGẮN, không giữ khóa trong lúc tải và đọc PDF:
-  1. giữ chỗ: 'pending' → 'indexing' + claimed_at (UPDATE có điều kiện – nhiều luồng / nhiều tiến trình cùng lúc thì
-     chỉ một bên giữ được). Giữ chỗ CÓ HẠN, có NHỊP (heartbeat): trong lúc tải / đọc, cứ HEARTBEAT_S giây gia hạn
-     claimed_at một lần; tiến trình nạp chết thì sau CLAIM_TTL (vài phút) bên khác nạp lại – không có bước "khởi động
-     thì reset" (tiến trình vừa khởi động không biết tiến trình khác còn đang nạp hay không). Gia hạn thất bại (bên khác
-     đã giữ chỗ lại) → dừng ngay;
-  2. tải + đọc + chia đoạn, không ghi CSDL;
-  3. ghi kết quả – CHỈ khi học liệu vẫn đang 'indexing' với ĐÚNG lần giữ chỗ của mình: trong lúc nạp mà đồng bộ đánh
-     dấu 'missing', GV bỏ chọn ('excluded'), có phiên bản mới (bản ghi bị xóa) hoặc quá hạn và bên khác đã giữ chỗ lại
-     thì bỏ kết quả. Kiểm tra (SELECT ... FOR UPDATE) và ghi trang / đoạn nằm trong CÙNG một giao dịch. QUY ƯỚC cho
-     giai đoạn sau: dữ liệu ngoài MySQL (vector, ảnh trang) chỉ được ghi SAU khi giao dịch này commit, khóa theo id
-     đoạn – không ghi trước rồi mới kiểm, để bên mất quyền không để lại dữ liệu mồ côi.
-Lỗi kết nối Moodle → trả về 'pending' (lần đồng bộ sau thử lại); lỗi ở chính tệp (không phải PDF, sai SHA-1, PDF hỏng,
-không có chữ) → 'failed' kèm lý do, GV nạp lại bằng tay. Một tệp lỗi không chặn các tệp khác.
-
-Đồng bộ định kỳ (run_all) giữ khóa tên của MySQL (GET_LOCK): chạy nhiều worker uvicorn thì mỗi lúc cũng chỉ một vòng
-đồng bộ chạy, các worker khác bỏ lượt.
-"""
+"""Nạp học liệu: tải tệp từ Moodle → đọc PDF (ingest) → chia đoạn (chunk) → lưu trang / đoạn (store)."""
 from __future__ import annotations
 
 import hashlib
@@ -58,14 +25,14 @@ from .ingest import read_pdf
 
 log = logging.getLogger(__name__)
 
-MAX_BYTES = 100 * 1024 * 1024      # tệp lớn hơn thì không nạp (giáo trình scan vài trăm MB)
-CLAIM_TTL = timedelta(minutes=5)   # không gia hạn giữ chỗ quá lâu = tiến trình nạp đã chết → cho nạp lại
-HEARTBEAT_S = 60.0                 # nhịp gia hạn giữ chỗ trong lúc tải / đọc (phải nhỏ hơn nhiều so với CLAIM_TTL)
-PARSE_TIMEOUT = 15 * 60            # giây: đọc một PDF quá lâu (tệp lỗi làm treo bộ đọc) → dừng tiến trình con, 'failed'
-TMP_MAX_AGE = 60 * 60              # giây: tệp tạm cũ hơn = sót lại sau khi tiến trình bị kill → xóa
-SYNC_LOCK = "clo_rag_sync_all"     # khóa tên (GET_LOCK) của vòng đồng bộ định kỳ
+MAX_BYTES = 100 * 1024 * 1024
+CLAIM_TTL = timedelta(minutes=5)
+HEARTBEAT_S = 60.0
+PARSE_TIMEOUT = 15 * 60
+TMP_MAX_AGE = 60 * 60
+SYNC_LOCK = "clo_rag_sync_all"
 
-Fetcher = Callable[[SectionMaterial], "bytes | str"]   # nội dung PDF, hoặc đường dẫn tệp tạm (nơi gọi xóa)
+Fetcher = Callable[[SectionMaterial], "bytes | str"]
 
 
 class MaterialError(ValueError):
@@ -83,8 +50,7 @@ def tmp_dir() -> str:
 
 
 def clean_tmp(max_age: float = TMP_MAX_AGE) -> int:
-    """Xóa tệp tạm sót lại (tiến trình bị kill – SIGKILL / hết RAM – thì finally không chạy). Chỉ xóa tệp CŨ: worker
-    khác đang tải dở thì tệp còn mới."""
+    """Xóa tệp tạm sót lại (tiến trình bị kill – SIGKILL / hết RAM – thì finally không chạy)."""
     n, now = 0, time.time()
     for f in os.scandir(tmp_dir()):
         try:
@@ -92,7 +58,7 @@ def clean_tmp(max_age: float = TMP_MAX_AGE) -> int:
                 os.unlink(f.path)
                 n += 1
         except OSError:
-            pass                              # đang được mở (Windows) / vừa bị worker khác xóa
+            pass
     return n
 
 
@@ -106,7 +72,7 @@ def download_url(m: SectionMaterial) -> str:
 
 
 def fetch(m: SectionMaterial, beat: Callable[[], None] = lambda: None) -> str:
-    """Tải tệp về một tệp tạm, kiểm trong lúc tải; trả về đường dẫn (nơi gọi xóa sau khi đọc). beat: gia hạn giữ chỗ."""
+    """Tải tệp về một tệp tạm, kiểm trong lúc tải; trả về đường dẫn (nơi gọi xóa sau khi đọc)."""
     if m.file_size and m.file_size > MAX_BYTES:
         raise MaterialError(f"Tệp quá lớn ({m.file_size // 1048576} MB, tối đa {MAX_BYTES // 1048576} MB)")
     url = download_url(m)
@@ -135,7 +101,7 @@ def fetch(m: SectionMaterial, beat: Callable[[], None] = lambda: None) -> str:
 def parse(src: bytes | str):
     try:
         pages = read_pdf(src)
-    except Exception as ex:                                   # PDF hỏng, có mật khẩu...
+    except Exception as ex:
         raise MaterialError(f"Không đọc được PDF: {ex}") from ex
     passages = build_passages(pages)
     if not passages:
@@ -144,8 +110,7 @@ def parse(src: bytes | str):
 
 
 def _child(src: bytes | str, conn) -> None:
-    """Chạy trong tiến trình con: đọc + chia đoạn, gửi kết quả qua pipe. Trang gửi về không kèm khối chữ / hình / bảng
-    (store chỉ cần thông tin trang) cho gọn."""
+    """Chạy trong tiến trình con: đọc + chia đoạn, gửi kết quả qua pipe."""
     try:
         pages, passages = parse(src)
         for p in pages:
@@ -157,20 +122,19 @@ def _child(src: bytes | str, conn) -> None:
         msg = ("crash", f"{type(ex).__name__}: {ex}")
     try:
         conn.send(msg)
-    except OSError:                                           # tiến trình cha đã thôi chờ (mất giữ chỗ / quá giờ)
+    except OSError:
         pass
     finally:
         conn.close()
 
 
 def parse_isolated(src: bytes | str, beat: Callable[[], None] = lambda: None, target=_child):
-    """parse() trong tiến trình con (spawn – an toàn khi tiến trình cha có nhiều luồng). Trong lúc chờ: gia hạn giữ
-    chỗ (beat), canh tiến trình con chết đột ngột và quá PARSE_TIMEOUT."""
+    """parse() trong tiến trình con (spawn – an toàn khi tiến trình cha có nhiều luồng)."""
     ctx = multiprocessing.get_context("spawn")
     recv, send = ctx.Pipe(duplex=False)
     proc = ctx.Process(target=target, args=(src, send), name="rag-parse", daemon=True)
     proc.start()
-    send.close()                                              # chỉ con giữ đầu ghi: con chết thì recv báo hết dữ liệu
+    send.close()
     deadline = time.monotonic() + PARSE_TIMEOUT
     try:
         while not recv.poll(min(HEARTBEAT_S, 5.0)):
@@ -201,7 +165,7 @@ def _claimable():
 
 
 def _claim(db: Session, material_id: int) -> datetime | None:
-    stamp = datetime.now().replace(microsecond=0)              # cột DATETIME lưu tới giây
+    stamp = datetime.now().replace(microsecond=0)
     n = (db.query(SectionMaterial).filter(SectionMaterial.id == material_id, _claimable())
          .update({"status": "indexing", "claimed_at": stamp}, synchronize_session=False))
     db.commit()
@@ -209,14 +173,12 @@ def _claim(db: Session, material_id: int) -> datetime | None:
 
 
 def _still_mine(db: Session, material_id: int, stamp: datetime) -> SectionMaterial | None:
-    # populate_existing: đối tượng đã nạp trong phiên (claimed_at lúc giữ chỗ) phải được GHI ĐÈ bằng dòng vừa khóa –
-    # nếu không, sau khi beat() commit, SQLAlchemy trả lại bản cũ trong phiên và so nhầm lần giữ chỗ
     m = db.query(SectionMaterial).filter_by(id=material_id).with_for_update().populate_existing().first()
     return m if m and m.status == "indexing" and m.claimed_at == stamp else None
 
 
 def index_material(db: Session, material_id: int, fetcher: Fetcher | None = None) -> str | None:
-    """Nạp một học liệu đang chờ. Trả về trạng thái sau khi nạp, None nếu không phải việc của lần gọi này."""
+    """Nạp một học liệu đang chờ."""
     stamp = _claim(db, material_id)
     if not stamp:
         return None
@@ -227,10 +189,8 @@ def index_material(db: Session, material_id: int, fetcher: Fetcher | None = None
         if time.monotonic() - claim["at"] < HEARTBEAT_S:
             return
         new = datetime.now().replace(microsecond=0)
-        if new <= claim["stamp"]:                             # cột lưu tới giây: chưa sang giây mới thì chưa cần gia hạn
+        if new <= claim["stamp"]:
             return
-        # phiên RIÊNG, sống một câu lệnh: commit của nhịp không làm hết hạn / lệch đối tượng trong phiên nạp (lỗi
-        # claimed_at cũ ở _still_mine từng do dùng chung phiên)
         with Session(bind=db.get_bind()) as s:
             n = s.execute(update(SectionMaterial)
                           .where(SectionMaterial.id == material_id, SectionMaterial.status == "indexing",
@@ -242,8 +202,8 @@ def index_material(db: Session, material_id: int, fetcher: Fetcher | None = None
         claim.update(stamp=new, at=time.monotonic())
 
     m = db.get(SectionMaterial, material_id)
-    db.expunge(m)            # giữ bản đọc được (fetch cần url / hash) rồi KẾT THÚC giao dịch đọc: suốt lúc tải / đọc PDF
-    db.rollback()            # không giữ giao dịch mở, không chiếm kết nối của pool (beat() mở-commit giao dịch ngắn riêng)
+    db.expunge(m)
+    db.rollback()
     status, error, result = "failed", None, None
     try:
         src = fetcher(m) if fetcher else fetch(m, beat)
@@ -255,20 +215,20 @@ def index_material(db: Session, material_id: int, fetcher: Fetcher | None = None
     except _LostClaim:
         db.rollback()
         return None
-    except lms.MoodleWSError as ex:                           # Moodle không trả lời được: để lần sau thử lại
+    except lms.MoodleWSError as ex:
         status, error = "pending", str(ex)[:1000]
     except MaterialError as ex:
         error = str(ex)[:1000]
-    except Exception as ex:                                   # lỗi ngoài dự kiến của bộ đọc / chia đoạn
+    except Exception as ex:
         log.exception("Nạp học liệu %s lỗi", material_id)
         error = f"Lỗi khi nạp: {type(ex).__name__}: {ex}"[:1000]
-    db.rollback()                                             # bỏ ảnh chụp cũ, đọc lại bản ghi mới nhất
+    db.rollback()
     m = _still_mine(db, material_id, claim["stamp"])
-    if not m:                                                 # đã bị đồng bộ / GV đổi / bên khác giữ lại trong lúc nạp
+    if not m:
         db.rollback()
         return None
     if result:
-        sheets = {p.no for p in result[0] if p.sheet}         # đọc ở tiến trình con nên log của ingest không tới đây
+        sheets = {p.no for p in result[0] if p.sheet}
         if sheets:
             log.info("Học liệu %s (%s): bản in handout – %d/%d trang, %d slide", m.id, m.file_name, len(sheets),
                      len({p.no for p in result[0]}), sum(1 for p in result[0] if p.sheet))
@@ -295,9 +255,7 @@ def index_pending(db: Session, cs_id: int, fetcher: Fetcher | None = None) -> di
 
 
 def run_section(cs_id: int) -> None:
-    """Nạp các tệp chờ của một lớp – phiên CSDL riêng – rồi dựng sẵn chỉ mục tìm kiếm của lớp (dựng khi GHI: lần tìm
-    sau không phải dựng) và tính vector cho cổng ngữ nghĩa (sau khi đoạn đã commit; cổng tắt thì bỏ qua). Cuối cùng VLM
-    mô tả hình (chậm – gợi ý đã dùng được trước đó); có hình được mô tả thì dựng lại chỉ mục và tính lại vector."""
+    """Nạp các tệp chờ của một lớp – phiên CSDL riêng – rồi dựng sẵn chỉ mục tìm kiếm của lớp (dựng khi GHI: lần tìm sau không phải dựng) và tính vector cho cổng ngữ nghĩa (sau khi đoạn đã commit; cổng tắt thì bỏ qua)."""
     db = SessionLocal()
     try:
         index_pending(db, cs_id)
@@ -313,7 +271,6 @@ def run_section(cs_id: int) -> None:
         db.close()
 
 
-# ------------------------------------------------------------------ hàng đợi: một luồng nạp cho cả tiến trình
 _jobs: "queue.Queue[int]" = queue.Queue()
 _waiting: set[int] = set()
 _guard = threading.Lock()
@@ -325,7 +282,7 @@ def _work() -> None:
     while True:
         cs_id = _jobs.get()
         with _guard:
-            _waiting.discard(cs_id)       # bỏ khỏi danh sách TRƯỚC khi nạp: tệp mới thêm trong lúc nạp → xếp lại được
+            _waiting.discard(cs_id)
         run_section(cs_id)
 
 
@@ -343,8 +300,7 @@ def enqueue(cs_id: int) -> None:
 
 
 def run_all() -> bool:
-    """Đồng bộ học liệu của mọi lớp có gắn khóa học Moodle rồi xếp vào hàng đợi nạp (chạy định kỳ).
-    Trả về False nếu worker khác đang chạy vòng này (khóa tên giữ trên MỘT kết nối riêng suốt vòng)."""
+    """Đồng bộ học liệu của mọi lớp có gắn khóa học Moodle rồi xếp vào hàng đợi nạp (chạy định kỳ)."""
     with engine.connect() as lock:
         if not lock.execute(text("SELECT GET_LOCK(:n, 0)"), {"n": SYNC_LOCK}).scalar():
             return False

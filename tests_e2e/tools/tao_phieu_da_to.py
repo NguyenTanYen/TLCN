@@ -1,16 +1,11 @@
-"""Tạo ảnh phiếu trả lời ĐÃ TÔ cho một bài thi giấy (dùng trong kịch bản GV8 – tải phiếu quét lên để hệ thống chấm).
-
-Dùng chính bộ vẽ phiếu của hệ thống (services/paper.py) nên bố cục khớp với phiếu in ra từ bài thi.
-Chạy:  .venv\\Scripts\\python tests_e2e\\tools\\tao_phieu_da_to.py <exam_id> <mssv> <tệp_png_ra> [đáp_án_tô]
-       đáp_án_tô mặc định "A" cho mọi câu; mã đề = mã đề đầu tiên của bài.
-"""
+"""Tạo ảnh phiếu trả lời ĐÃ TÔ cho một bài thi giấy (dùng trong kịch bản GV8 – tải phiếu quét lên để hệ thống chấm)."""
 import os
 import sys
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND))
-os.chdir(BACKEND)                      # cấu hình backend đọc cau_hinh.env theo thư mục hiện tại
+os.chdir(BACKEND)
 
 import fitz  # noqa: E402
 from app.database import SessionLocal  # noqa: E402

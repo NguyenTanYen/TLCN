@@ -68,7 +68,7 @@ def test_loi_moodle_khong_lam_hong_viec_tao_lop(client, admin, monkeypatch):
 
 
 def test_nut_tao_khoa_hoc_ghi_danh_sv_va_luu_mdl_user_id(client, admin, monkeypatch, fake):
-    monkeypatch.setattr(settings, "moodle_ws_token", "")           # tạo lớp trước, chưa nối Moodle
+    monkeypatch.setattr(settings, "moodle_ws_token", "")
     r = _new_section(client, admin, "TKH_AUTO_04")
     monkeypatch.setattr(settings, "moodle_ws_token", "token-gia-lap")
     sel = text("SELECT id FROM students ORDER BY id DESC LIMIT 3")
@@ -88,7 +88,7 @@ def test_nut_tao_khoa_hoc_ghi_danh_sv_va_luu_mdl_user_id(client, admin, monkeypa
             n = c.execute(text("SELECT COUNT(*) FROM students WHERE id IN :s AND moodle_user_id IS NOT NULL").bindparams(
                 bindparam("s", expanding=True)), {"s": sids}).scalar()
         assert n == 3
-        assert client.post(f"/api/class-sections/{r['id']}/moodle-provision", headers=admin).status_code == 200   # gọi lại vẫn ổn
+        assert client.post(f"/api/class-sections/{r['id']}/moodle-provision", headers=admin).status_code == 200
     finally:
         with engine.begin() as c:
             for sid, mid in old.items():

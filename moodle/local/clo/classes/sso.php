@@ -3,13 +3,7 @@ namespace local_clo;
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Phát hành vé đăng nhập một lần (JWT HS256, hiệu lực 120 giây) để giảng viên chuyển từ Moodle
- * sang hệ thống phân tích CĐR mà không phải đăng nhập lại. Khóa bí mật dùng chung được lưu ở
- * local_clo/ssosecret (Moodle) và MOODLE_SSO_SECRET (hệ thống phân tích).
- */
 class sso {
-    /** Thời hạn của vé (giây). */
     const TTL = 120;
 
     public static function b64url(string $s): string {
@@ -24,7 +18,6 @@ class sso {
         return $secret;
     }
 
-    /** Vai trò mà hệ thống phân tích sẽ cấp: admin (quản trị Moodle) hoặc teacher. */
     public static function role_for(\stdClass $user): string {
         return is_siteadmin($user) ? 'admin' : 'teacher';
     }
@@ -52,10 +45,6 @@ class sso {
         return "$head.$body.$sig";
     }
 
-    /**
-     * Kiểm tra vé (JWT HS256) do hệ thống phân tích cấp để đăng nhập Moodle theo chiều ngược lại.
-     * @return array các claim đã xác thực; ném moodle_exception nếu vé sai/hết hạn/đã dùng.
-     */
     public static function verify_incoming(string $token, string $secret): array {
         $parts = explode('.', $token);
         if (count($parts) !== 3) {

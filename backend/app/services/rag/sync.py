@@ -1,17 +1,4 @@
-"""Đồng bộ học liệu của lớp học phần từ khóa học Moodle của lớp – TỰ ĐỘNG, GV không phải tick từng tệp.
-
-Mỗi lần đồng bộ, với các tệp PDF SV đang xem được (moodle_files.list_course_files):
-  - tệp mới → thêm, trạng thái 'pending' (chờ tải và nạp). Loại học liệu mặc định: File → slide, Thư mục → tài liệu
-    tham khảo (GV sửa được); tên mặc định: tên hoạt động File, hoặc tên tệp trong Thư mục;
-  - tệp đã có (cùng nội dung): cập nhật tên tệp, liên kết pluginfile (liên kết CHỨA tên tệp – đổi tên mà không cập nhật
-    thì liên kết cũ hỏng), thời điểm sửa; cập nhật tên hiển thị nếu GV chưa tự đặt tên (title_custom);
-  - tệp GV đã BỎ CHỌN ('excluded') không bị lấy lại; hoạt động File chỉ có một tệp nên phiên bản mới của tệp đã bỏ
-    chọn cũng giữ nguyên bỏ chọn;
-  - hoạt động File có tệp nội dung khác (GV tải PHIÊN BẢN MỚI) → bỏ bản cũ (xóa luôn trang / đoạn đã nạp), thêm bản mới;
-  - tệp không còn SV xem được (bị xóa, ẩn, giới hạn lại, xóa khỏi Thư mục) → 'missing': không dùng để gợi ý nữa nhưng
-    GIỮ trang / đoạn đã nạp – hiện lại thì khôi phục ngay, không phải nạp lại.
-Học liệu GV tải trực tiếp lên hệ thống (source 'upload') không bị đụng tới.
-"""
+"""Đồng bộ học liệu của lớp học phần từ khóa học Moodle của lớp – TỰ ĐỘNG, GV không phải tick từng tệp."""
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -33,11 +20,7 @@ def new_material(cs_id: int, f: dict, material_type: str, title: str | None, use
 
 
 def delete_indexed(db: Session, material_id: int) -> None:
-    """Xóa trang + đoạn đã nạp của một học liệu – xóa đoạn TƯỜNG MINH rồi mới xóa trang (như store.save_document), không
-    phụ thuộc ràng buộc ON DELETE CASCADE của CSDL. Đây cũng là MỘT chỗ duy nhất phải gọi thêm khi có chỉ mục nằm ngoài
-    MySQL (vector embedding, bộ nhớ đệm mô tả hình của VLM...): CASCADE ở tầng CSDL không báo cho code Python biết đoạn nào
-    đã bị xóa, nên dữ liệu đi kèm bên ngoài sẽ thành rác nếu chỉ trông vào CASCADE."""
-    # TODO(giai đoạn embedding): xóa vector của các đoạn này trước khi xóa đoạn
+    """Xóa trang + đoạn đã nạp của một học liệu – xóa đoạn TƯỜNG MINH rồi mới xóa trang (như store.save_document), không phụ thuộc ràng buộc ON DELETE CASCADE của CSDL."""
     db.query(MaterialPassage).filter_by(material_id=material_id).delete()
     db.query(MaterialPage).filter_by(material_id=material_id).delete()
 
@@ -72,12 +55,12 @@ def sync_section(db: Session, cs: ClassSection, user_id: int | None = None) -> d
         if f:
             if _refresh(m, f):
                 out["updated"].append(m.file_name)
-            if m.status == "missing":                     # tệp hiện lại: dùng lại phần đã nạp nếu có
+            if m.status == "missing":
                 m.status = "ready" if m.n_pages else "pending"
                 out["restored"].append(m.file_name)
         elif m.status == "excluded":
             continue
-        elif m.moodle_cmid in resource_cmids:             # hoạt động File vẫn còn nhưng tệp đã khác: phiên bản mới
+        elif m.moodle_cmid in resource_cmids:
             out["replaced"].append(m.file_name)
             delete_indexed(db, m.id)
             db.delete(m)
@@ -88,7 +71,7 @@ def sync_section(db: Session, cs: ClassSection, user_id: int | None = None) -> d
         if f["content_hash"] in have:
             continue
         if f["module"] == "resource" and f["cmid"] in excluded_resources:
-            continue                                      # phiên bản mới của tệp GV đã bỏ chọn: vẫn bỏ chọn
+            continue
         db.add(new_material(cs.id, f, "slide" if f["module"] == "resource" else "reference", None, user_id))
         out["added"].append(f["file_name"])
     db.commit()

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 
-// Tải dữ liệu từ API kèm trạng thái loading/error và hàm tải lại.
-// Khi đường dẫn đổi: xóa dữ liệu cũ ngay và bỏ qua phản hồi đến muộn của yêu cầu trước (tránh hiển thị nhầm lớp/bài KT).
 export function useApi(path, deps = []) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -22,7 +20,6 @@ export function useApi(path, deps = []) {
   return { data, error, loading, reload: load, setData }
 }
 
-// Năm học mặc định = năm học của lớp HP mới nhất (không cố định trong mã nguồn)
 export function useDefaultYear() {
   const sems = useApi('/api/semesters').data
   const secs = useApi('/api/class-sections').data
@@ -35,7 +32,6 @@ export function useDefaultYear() {
   return { sems, years, year, setYear, latestSemesterId: secs?.[0]?.semester_id || sems?.[0]?.id }
 }
 
-// CTĐT đang làm việc (Bộ môn chọn một lần, các trang PI/PLO/BM2 dùng chung) – nhớ trong trình duyệt
 export function useProgram() {
   const progs = useApi('/api/programs').data
   const [pid, setPidState] = useState(() => Number(localStorage.getItem('tlcn_program')) || null)

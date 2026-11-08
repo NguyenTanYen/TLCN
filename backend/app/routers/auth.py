@@ -1,7 +1,4 @@
-"""Xác thực: đăng nhập tài khoản của hệ thống và đăng nhập một lần (SSO) từ nút "Phân tích CĐR" trên Moodle.
-
-Hệ thống chỉ dành cho giảng viên / bộ môn. Sinh viên làm bài và xem kết quả phân tích trên Moodle.
-"""
+"""Xác thực: đăng nhập tài khoản của hệ thống và đăng nhập một lần (SSO) từ nút "Phân tích CĐR" trên Moodle."""
 import html
 import json
 import os
@@ -51,8 +48,7 @@ def me(u: User = Depends(current_user)):
     return user_info(u)
 
 
-# ---------------------------------------------------------------- SSO từ Moodle
-_used_jti: dict[str, int] = {}   # chống dùng lại vé (vé chỉ sống 120 giây)
+_used_jti: dict[str, int] = {}
 
 
 class SSOError(Exception):
@@ -84,7 +80,7 @@ def verify_moodle_ticket(token: str) -> dict:
 
 
 def sso_user(db: Session, claims: dict) -> User:
-    """Tìm/khởi tạo tài khoản ứng với người dùng Moodle. Không bao giờ cấp quyền cao hơn vai trò Moodle xác nhận."""
+    """Tìm/khởi tạo tài khoản ứng với người dùng Moodle."""
     u = db.query(User).filter_by(username=claims["sub"]).first()
     if u:
         if not u.is_active:
@@ -101,7 +97,7 @@ def sso_user(db: Session, claims: dict) -> User:
                        "(mã giảng viên phải trùng tên đăng nhập hoặc mã số trên Moodle)")
     email = (claims.get("email") or "").strip() or None
     if email and db.query(User).filter_by(email=email).first():
-        email = None   # email đã thuộc tài khoản khác: không gán trùng (ràng buộc duy nhất)
+        email = None
     u = User(username=claims["sub"], password_hash=hash_password(os.urandom(24).hex()), full_name=lec.full_name,
              email=email, role="lecturer")
     db.add(u); db.flush()
@@ -136,7 +132,7 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
         if u.role == "lecturer" and u.lecturer:
             q = q.filter_by(lecturer_id=u.lecturer.id)
         cs = q.first()
-        if not cs:   # lớp HP cùng mã với khóa học Moodle (shortname/idnumber) nhưng chưa gắn -> gắn luôn
+        if not cs:
             from ..services import moodle as _m
             code = db.execute(text(f"SELECT shortname, idnumber FROM {_m._t('course')} WHERE id=:c"), {"c": int(claims["courseid"])}).first() \
                 if _m.moodle_available() else None
@@ -150,7 +146,7 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
                     cs = cands[0]; cs.moodle_course_id = int(claims["courseid"]); db.commit()
         if cs:
             target = f"/sections/{cs.id}"
-        else:   # khóa học chưa có lớp HP: mở danh sách khóa học Moodle để đưa vào hệ thống
+        else:
             target = f"/?moodle={int(claims['courseid'])}"
     js = lambda v: json.dumps(v).replace("</", "<\\/")  # noqa: E731 – an toàn khi nhúng vào <script>
     script = ("<script>localStorage.setItem('tlcn_token'," + json.dumps(t["access_token"]) + ");"
@@ -159,12 +155,9 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
     return _page("Đang chuyển tới hệ thống phân tích CĐR…", f"Xin chào {u.full_name}.", script)
 
 
-# ---------------------------------------------------------------- SSO sang Moodle (chiều ngược lại)
 @router.post("/moodle-ticket")
 def moodle_ticket(next: str = Body("/", embed=True), u: User = Depends(current_user)):
-    """Vé đăng nhập một lần (120 giây) để mở Moodle bằng đúng tài khoản đang dùng ở hệ thống này.
-    Moodle (local/clo/sso_in.php) kiểm tra vé rồi đăng nhập tài khoản Moodle cùng tên đăng nhập, thay phiên cũ nếu có.
-    Chưa cấu hình khóa dùng chung thì trả về địa chỉ Moodle thường (không SSO)."""
+    """Vé đăng nhập một lần (120 giây) để mở Moodle bằng đúng tài khoản đang dùng ở hệ thống này."""
     base = (settings.moodle_url or "").rstrip("/")
     if not base:
         raise HTTPException(409, "Hệ thống chưa cấu hình địa chỉ Moodle")

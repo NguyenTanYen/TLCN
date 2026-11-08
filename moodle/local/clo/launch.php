@@ -1,5 +1,4 @@
 <?php
-// Nút "Phân tích CĐR": kiểm tra quyền giảng viên rồi chuyển sang hệ thống phân tích kèm vé SSO.
 require_once(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 
@@ -16,7 +15,6 @@ $PAGE->set_context($courseid ? context_course::instance($courseid) : context_sys
 if (!local_clo_can_launch($courseid ?: null)) {
     throw new required_capability_exception($PAGE->context, 'local/clo:launch', 'nopermissions', '');
 }
-// Kiểm tra hệ thống phân tích có đang chạy không để báo lỗi dễ hiểu thay vì trang trắng của trình duyệt.
 $app = parse_url(local_clo_appurl());
 $host = $app['host'] ?? 'localhost';
 $port = $app['port'] ?? ((($app['scheme'] ?? 'http') === 'https') ? 443 : 80);

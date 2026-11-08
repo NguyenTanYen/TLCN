@@ -1,11 +1,4 @@
-"""Đề thi giấy do HỆ THỐNG sinh và chấm (không cần Moodle) – góp ý 15/10, tham khảo cách làm của TNMaker:
-
-* Sinh nhiều mã đề: xáo trộn thứ tự câu và thứ tự phương án (mỗi câu 2–6 phương án tùy câu) → exam_versions,
-  exam_version_questions, exam_version_options (Reverse Shuffle khi chấm).
-* Xuất đề in (PDF, Word) một cột hoặc chia 2 cột trên một mặt giấy để tiết kiệm giấy; xuất đáp án từng mã đề.
-* Phiếu trả lời theo mẫu phiếu dùng chung nhiều mã đề của trường, thêm 4 ô định vị ở 4 góc, khung tô MSSV và ô tô mã đề
-  để chấm bằng ảnh; cùng một bộ tọa độ (sheet_layout) dùng để VẼ phiếu và để ĐỌC phiếu (services/omr.py).
-"""
+"""Đề thi giấy do HỆ THỐNG sinh và chấm (không cần Moodle) – góp ý 15/10, tham khảo cách làm của TNMaker."""
 from __future__ import annotations
 
 import html
@@ -23,7 +16,7 @@ from ..models import Exam, ExamVersion, ExamVersionOption, ExamVersionQuestion
 
 LABELS = "ABCDEFGHIJ"
 FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
-MM = 72 / 25.4            # 1 mm = 2.8346 pt
+MM = 72 / 25.4
 PAGE_W, PAGE_H = 210.0, 297.0
 
 
@@ -31,7 +24,6 @@ class PaperError(ValueError):
     pass
 
 
-# ------------------------------------------------------------------ phông chữ (Times New Roman nếu máy có, nếu không DejaVu Serif)
 _FONTS: dict | None = None
 
 
@@ -51,12 +43,11 @@ def fonts() -> dict:
             for k, p in files.items():
                 pdfmetrics.registerFont(TTFont(name + k, str(p)))
             addMapping(name, 0, 0, name); addMapping(name, 1, 0, name + "B"); addMapping(name, 0, 1, name + "I"); addMapping(name, 1, 1, name + "BI")
-            # chữ không chân: Arial như mẫu phiếu của trường nếu máy có, nếu không DejaVu Sans
             sans, sfiles = ("ARIAL", (win / "arial.ttf", win / "arialbd.ttf")) if (win / "arial.ttf").exists() and (win / "arialbd.ttf").exists() \
                 else ("DJSANS", (FONT_DIR / "DejaVuSans.ttf", FONT_DIR / "DejaVuSans-Bold.ttf"))
             pdfmetrics.registerFont(TTFont(sans, str(sfiles[0])))
             pdfmetrics.registerFont(TTFont(sans + "B", str(sfiles[1])))
-            pdfmetrics.registerFont(TTFont("DJSYM", str(FONT_DIR / "DejaVuSans.ttf")))     # ký hiệu ✓ ✗ (Arial không có)
+            pdfmetrics.registerFont(TTFont("DJSYM", str(FONT_DIR / "DejaVuSans.ttf")))
             _FONTS = {"serif": name, "serifB": name + "B", "serifI": name + "I", "sans": sans, "sansB": sans + "B", "sym": "DJSYM"}
             return _FONTS
     raise PaperError("Không tìm thấy phông chữ tiếng Việt để xuất PDF")
@@ -74,7 +65,6 @@ def para(s: str) -> str:
     return html.escape(plain(s)).replace("\n", "<br/>")
 
 
-# ------------------------------------------------------------------ mã đề
 def generate_versions(db: Session, exam: Exam, n_versions: int, shuffle_questions: bool = True, shuffle_options: bool = True,
                       seed: int | None = None, first_code: int = 1) -> list[dict]:
     if exam.exam_type != "paper":
@@ -136,35 +126,31 @@ def versions_data(db: Session, exam: Exam) -> list[dict]:
     return [{"id": v.id, "version_code": v.version_code, "questions": version_view(db, v.id)} for v in exam.versions]
 
 
-# ------------------------------------------------------------------ bố cục phiếu trả lời (đơn vị mm, gốc tọa độ góc trên-trái)
-# Theo mẫu phiếu trả lời dùng chung nhiều mã đề của trường (góp ý 24/10): tiêu đề – môn – họ tên, lớp, ngày thi – mã đề –
-# I. TRẮC NGHIỆM LỰA CHỌN (bảng "Câu | PHƯƠNG ÁN TRẢ LỜI", hàng sọc, mọi hàng cùng số phương án) – II. CÂU ĐIỀN / TỰ LUẬN –
-# điểm, chữ ký. Phần thêm để máy đọc: 4 ô định vị ở góc, khung tô MSSV, mã đề dạng ô tô, vạch nhận chiều ở mép trên.
 @dataclass
 class SheetOptions:
     title: str = "PHIẾU TRẢ LỜI"
     school: str = "TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH"
-    subtitle: str = ""                      # VD: LẬP TRÌNH PYTHON (IPPA233277)
+    subtitle: str = ""
     exam_title: str = ""
-    footer: str = ""                        # chân trang, VD: IPPA233277 – Lớp IPPA233277_01
+    footer: str = ""
     n_questions: int = 40
-    options_per_question: list[int] = field(default_factory=list)   # số phương án của từng câu (2–7); rỗng = 4
+    options_per_question: list[int] = field(default_factory=list)
     student_digits: int = 8
     version_digits: int = 2
     version_codes: list[str] = field(default_factory=list)
-    essay_lines: int = 0                    # số hàng ở phần II (câu điền / tự luận)
+    essay_lines: int = 0
     note: str = ("Tô kín ô chữ cái của phương án chọn (bút chì 2B hoặc bút mực đen); chỉ chọn trong các phương án có ở đề. "
                  "Muốn đổi đáp án: tẩy sạch hoặc gạch chéo ô cũ rồi tô ô mới.")
 
 
-FID = 7.0                                  # cạnh ô định vị (mm)
-FID_POS = [(10.0, 10.0), (PAGE_W - 10.0 - FID, 10.0), (PAGE_W - 10.0 - FID, PAGE_H - 10.0 - FID), (10.0, PAGE_H - 10.0 - FID)]   # TL, TR, BR, BL
-ORIENT_BAR = (PAGE_W / 2 - 12, 10.5, 24.0, 3.0)   # vạch đen giữa mép trên (x, y, rộng, cao) – nhận ra phiếu chụp lộn ngược
+FID = 7.0
+FID_POS = [(10.0, 10.0), (PAGE_W - 10.0 - FID, 10.0), (PAGE_W - 10.0 - FID, PAGE_H - 10.0 - FID), (10.0, PAGE_H - 10.0 - FID)]
+ORIENT_BAR = (PAGE_W / 2 - 12, 10.5, 24.0, 3.0)
 R_BUBBLE = 2.15
-X0, X1 = 14.0, PAGE_W - 14.0               # lề trái/phải của nội dung
-ID_X0 = 146.0                              # khung MSSV ở góc phải phần đầu phiếu
+X0, X1 = 14.0, PAGE_W - 14.0
+ID_X0 = 146.0
 ROW_H, II_ROW_H = 6.2, 8.0
-CONTENT_END = PAGE_H - 26.0                # nội dung kết thúc trên dòng "Điểm" và 2 ô định vị dưới
+CONTENT_END = PAGE_H - 26.0
 
 
 def fid_centers() -> list[tuple[float, float]]:
@@ -179,31 +165,28 @@ def sheet_layout(o: SheetOptions) -> dict:
     max_opt = max(opts)
     if max_opt > 7:
         raise PaperError("Phiếu trả lời hỗ trợ tối đa 7 phương án mỗi câu")
-    # khung MSSV: hàng ô viết số + lưới tô 0–9 mỗi cột
     dx_digit, dy_digit = min(5.2, (X1 - ID_X0 - 4) / max(o.student_digits, 1)), 4.4
     sx = ID_X0 + 2 + dx_digit / 2
     top = 40.0
     student = [{"col": c, "value": v, "x": sx + c * dx_digit, "y": top + 12.5 + v * dy_digit}
                for c in range(o.student_digits) for v in range(10)]
     id_bottom = top + 12.5 + 9 * dy_digit + 3.5
-    # mã đề: một hàng ô tô, mỗi ô là một mã đề (thay cho "Mã đề (khoanh)" của mẫu)
     codes = o.version_codes or []
     vstep = min(9.0, 40.0 / max(len(codes) - 1, 1))
     version = [{"col": 0, "value": k, "code": code, "x": X0 + 30.0 + k * vstep, "y": 58.6} for k, code in enumerate(codes)]
-    # I. Trắc nghiệm lựa chọn: 1–3 bảng cột, mọi hàng cùng số ô (= số phương án nhiều nhất)
     ncols = 1 if n <= 10 else 2 if n <= 24 else 3
     gap = 5.0
     col_w = (X1 - X0 - gap * (ncols - 1)) / ncols
     rows_per_col = math.ceil(n / ncols)
-    a_top = id_bottom + 9                       # đầu bảng (dưới tiêu đề "I. ...")
-    ii_h = (6 + 9 + 7 + o.essay_lines * II_ROW_H) if o.essay_lines else 0      # khoảng cách + tiêu đề + đầu bảng + các hàng
+    a_top = id_bottom + 9
+    ii_h = (6 + 9 + 7 + o.essay_lines * II_ROW_H) if o.essay_lines else 0
     bottom_limit = CONTENT_END - ii_h
     dy = min(ROW_H, (bottom_limit - a_top - 5) / max(rows_per_col, 1))
-    first_row = a_top + 5 + dy / 2              # tâm hàng đầu (ngay dưới dòng tiêu đề bảng)
+    first_row = a_top + 5 + dy / 2
     if dy < 4.6:
         raise PaperError("Quá nhiều câu cho một phiếu A4 – giảm số câu, số phương án hoặc số câu ở phần II")
     dx_opt = min(9.5, (col_w - 16) / max_opt)
-    off = 13 + ((col_w - 13) - dx_opt * max_opt) / 2      # các ô nằm giữa phần "PHƯƠNG ÁN TRẢ LỜI" như mẫu
+    off = 13 + ((col_w - 13) - dx_opt * max_opt) / 2
     answers = []
     for i in range(n):
         c, r = divmod(i, rows_per_col)
@@ -218,14 +201,12 @@ def sheet_layout(o: SheetOptions) -> dict:
             "r": R_BUBBLE, "fids": fid_centers()}
 
 
-# Bố cục phiếu bản cũ (MSSV bên trái, mã đề là các cột chữ số): vẫn đọc được các phiếu đã in trước khi đổi sang mẫu trường
 def sheet_layout_legacy(o: SheetOptions) -> dict:
     n = o.n_questions
     if not 1 <= n <= 120:
         raise PaperError("Phiếu trả lời hỗ trợ 1–120 câu")
     opts = (o.options_per_question or [4] * n)[:n] + [4] * max(0, n - len(o.options_per_question or []))
     max_opt = max(opts)
-    # khối định danh: MSSV + mã đề
     top = 58.0
     dx_digit, dy_digit = 5.2, 4.6
     sx = 16.0
@@ -239,7 +220,6 @@ def sheet_layout_legacy(o: SheetOptions) -> dict:
         for v in range(10):
             version.append({"col": c, "value": v, "x": vx + c * dx_digit, "y": top + 9.5 + v * dy_digit})
     id_bottom = top + 9.5 + 9 * dy_digit + 6
-    # vùng trả lời
     ncols = 4 if max_opt <= 4 else 3
     if n <= 10:
         ncols = 1
@@ -288,8 +268,7 @@ def sheet_options_for(db: Session, exam: Exam, **kw) -> SheetOptions:
     return o
 
 
-# ------------------------------------------------------------------ vẽ phiếu trả lời
-def _y(v: float) -> float:            # mm từ trên xuống -> pt từ dưới lên
+def _y(v: float) -> float:
     return (PAGE_H - v) * MM
 
 
@@ -300,11 +279,11 @@ def _dots(c, font, size, x0: float, x1: float, y: float) -> None:
 
 
 def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None:
-    """Vẽ một phiếu lên canvas ReportLab. prefill (chỉ dùng cho dữ liệu thử): {'student': '2213...', 'version': '01', 'answers': {1:'A'}}."""
+    """Vẽ một phiếu lên canvas ReportLab."""
     from reportlab.lib.colors import Color, black
     F = fonts()
     S, SB = F["sans"], F["sansB"]
-    ink = Color(0.25, 0.25, 0.25)              # chữ trong ô tô (đậm như mẫu nhưng vẫn nhạt hơn vết tô)
+    ink = Color(0.25, 0.25, 0.25)
     rule = Color(0.55, 0.55, 0.55)
     zebra = Color(0.945, 0.945, 0.945)
     r = L["r"]
@@ -320,7 +299,6 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
         c.setFillColor(ink); c.setFont(S, size); c.drawCentredString(x * MM, _y(y + size * 0.13), label)
         c.setFillColor(black)
 
-    # ---- đầu phiếu
     c.setFont(SB, 16); c.drawCentredString(PAGE_W / 2 * MM, _y(23), o.title)
     if o.subtitle:
         c.setFont(SB, 11); c.drawCentredString(PAGE_W / 2 * MM, _y(29.5), o.subtitle[:80])
@@ -337,7 +315,6 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
         bubble(b["x"], b["y"], b["code"], 7.2)
     if not L["version"]:
         _dots(c, S, 10, X0 + 22, X0 + 60, 59.6)
-    # khung MSSV (viết số vào hàng ô rồi tô từng cột)
     top, dxd, dyd = L["top"], L["dx_digit"], L["dy_digit"]
     c.setStrokeColor(black); c.setLineWidth(0.6)
     c.rect(ID_X0 * MM, _y(L["id_bottom"]), (X1 - ID_X0) * MM, (L["id_bottom"] - top) * MM, stroke=1, fill=0)
@@ -347,7 +324,6 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
         c.setLineWidth(0.5); c.rect((L["sx"] - dxd / 2 + k * dxd + 0.3) * MM, _y(top + 10.2), (dxd - 0.6) * MM, 4.6 * MM, stroke=1, fill=0)
     for b in L["student"]:
         bubble(b["x"], b["y"], str(b["value"]), 6.6)
-    # hướng dẫn (như dòng chữ nhỏ của mẫu)
     from reportlab.platypus import Paragraph
     from reportlab.lib.styles import ParagraphStyle
     st = ParagraphStyle("n", fontName=S, fontSize=8.6, leading=10.4)
@@ -364,12 +340,11 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
     c.setFont(S, 8.6); c.drawString(X0 * MM, _y(yy + 4), "Tô đúng:")
     c.circle((X0 + 17) * MM, _y(yy + 3), (r - 0.2) * MM, stroke=0, fill=1)
     c.drawString((X0 + 24) * MM, _y(yy + 4), "Tô sai:")
-    for k, mark in enumerate(("✓", "✗", "•", "")):          # ô cuối: khoanh vòng ngoài chữ cái – máy không đọc được
+    for k, mark in enumerate(("✓", "✗", "•", "")):
         cx = X0 + 38 + k * 7
         c.setStrokeColor(ink); c.setLineWidth(0.55); c.circle(cx * MM, _y(yy + 3), (r - 0.2) * MM, stroke=1, fill=0)
         c.setFont(F["sym"], 7.5); c.drawCentredString(cx * MM, _y(yy + 4), mark)
     c.setLineWidth(0.9); c.circle((X0 + 59) * MM, _y(yy + 3), (r + 0.9) * MM, stroke=1, fill=0)
-    # ---- I. Trắc nghiệm lựa chọn
     a_top, dy, col_w, gap = L["a_top"], L["dy"], L["col_w"], L["gap"]
     c.setFont(SB, 10.5); c.drawString(X0 * MM, _y(a_top - 2), "I. TRẮC NGHIỆM LỰA CHỌN")
     by_q = {}
@@ -382,7 +357,7 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
             continue
         y_end = by_q[qs[-1]][0]["y"] + dy / 2
         c.setFillColor(zebra); c.rect(x0 * MM, _y(a_top + 5), col_w * MM, 5 * MM, stroke=0, fill=1)
-        for k, q in enumerate(qs):                 # hàng sọc như mẫu
+        for k, q in enumerate(qs):
             if k % 2:
                 yq = by_q[q][0]["y"]
                 c.rect(x0 * MM, _y(yq + dy / 2), col_w * MM, dy * MM, stroke=0, fill=1)
@@ -397,7 +372,6 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
             c.setFillColor(black); c.setFont(SB, 9); c.drawString((x0 + 2.5) * MM, _y(bs[0]["y"] + 1.1), f"{q:02d}")
             for b in bs:
                 bubble(b["x"], b["y"], b["label"])
-    # ---- II. Câu điền / tự luận
     if o.essay_lines:
         y0 = L["ii_top"]
         c.setFillColor(black); c.setFont(SB, 10.5); c.drawString(X0 * MM, _y(y0 + 2), "II. CÂU ĐIỀN / TỰ LUẬN")
@@ -422,7 +396,7 @@ def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None
             c.setFillColor(rule)
             _dots(c, S, 8, xs[-1] + 2, X1 - 3, yr + 3.4); _dots(c, S, 8, xs[-1] + 2, X1 - 3, yr + 7.2)
             c.setFillColor(black)
-    yb = CONTENT_END + 5.5                  # dòng điểm/chữ ký cố định, phía trên 2 ô định vị dưới
+    yb = CONTENT_END + 5.5
     c.setFont(S, 9.5)
     c.drawString(X0 * MM, _y(yb), "Điểm (giảng viên ghi): ....................")
     c.drawString((X0 + 66) * MM, _y(yb), "Sinh viên ký: " + "." * 50)
@@ -463,18 +437,17 @@ def sheet_png(o: SheetOptions, zoom: float = 1.4) -> bytes:
     return doc[0].get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
 
 
-# ------------------------------------------------------------------ đề in (PDF/Word) 1 hoặc 2 cột
 @dataclass
 class PaperOptions:
-    columns: int = 1                      # 1 = để nguyên; 2 = chia đôi mặt giấy
+    columns: int = 1
     font_size: float = 11.5
     school: str = "TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH"
     faculty: str = "KHOA CÔNG NGHỆ THÔNG TIN"
-    exam_name: str = ""                   # VD ĐỀ THI CUỐI KỲ HỌC KỲ I NĂM HỌC 2025-2026
-    duration: str = ""                    # VD 60 phút
+    exam_name: str = ""
+    duration: str = ""
     notes: str = "Sinh viên không được sử dụng tài liệu. Làm bài trên phiếu trả lời."
     show_points: bool = False
-    option_layout: str = "auto"           # auto | 1 (mỗi dòng 1 phương án) | 2 | 4
+    option_layout: str = "auto"
 
 
 def _option_cols(opts: list[dict], mode: str, width_pt: float, font: str, size: float) -> int:

@@ -1,9 +1,4 @@
-"""Đề thi giấy sinh & chấm ngay trên hệ thống (song song với Moodle Offline Quiz) – góp ý 15/10.
-
-GV xem trước toàn bộ đề từng mã đề và phiếu trả lời NGAY trên hệ thống (một cột hoặc chia hai cột), chỉnh lời dặn,
-tiêu đề, cỡ chữ, số chữ số MSSV… rồi mới xuất PDF/Word để in. Sau khi thi: tải ảnh quét hoặc ảnh chụp điện thoại
-phiếu trả lời → hệ thống nhận diện, GV soát/sửa → lưu kết quả và phân tích như mọi bài KT.
-"""
+"""Đề thi giấy sinh & chấm ngay trên hệ thống (song song với Moodle Offline Quiz) – góp ý 15/10."""
 import io
 import json
 import zipfile
@@ -48,7 +43,7 @@ class SheetResult(BaseModel):
 
 class CommitIn(BaseModel):
     sheets: list[SheetResult] = Field(min_length=1)
-    mark_absent: bool = True          # SV trong danh sách lớp không có phiếu -> vắng
+    mark_absent: bool = True
     analyze: bool = True
 
 
@@ -146,7 +141,7 @@ def save_settings(exam_id: int, body: SettingsIn, u: User = Depends(lecturer_onl
         raise HTTPException(409, "Đã chấm phiếu theo bố cục cũ – không đổi số chữ số MSSV/mã đề hoặc số dòng tự luận được")
     st["paper"] = {k: v for k, v in body.paper.items() if k in {f.name for f in fields(paper.PaperOptions)}}
     st["sheet"] = new_sheet
-    _paper_opts(e, st["paper"]); _sheet_opts(db, e, st["sheet"])          # kiểm tra hợp lệ
+    _paper_opts(e, st["paper"]); _sheet_opts(db, e, st["sheet"])
     e.paper_settings = json.dumps(st, ensure_ascii=False)
     db.commit()
     return {"ok": True}
@@ -233,7 +228,6 @@ def package(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: S
     return Response(buf.getvalue(), media_type="application/zip", headers=attachment(f"DeThiGiay_{e.class_section.section_code}_bai_{e.id}.zip"))
 
 
-# ------------------------------------------------------------------ chấm phiếu
 async def _read_files(db: Session, e: Exam, files: list[UploadFile]) -> tuple[list, dict]:
     """Đọc các tệp ảnh/PDF -> danh sách kết quả từng trang (đã đối chiếu danh sách lớp, chấm thử) + các mã đề."""
     vs = {v["version_code"]: v for v in paper.versions_data(db, e)}
@@ -265,7 +259,7 @@ async def _read_files(db: Session, e: Exam, files: list[UploadFile]) -> tuple[li
             if r["student_code"] not in roster:
                 r["issues"].insert(0, f"MSSV '{r['student_code']}' không có trong danh sách lớp")
             r.update({"source_name": name, "full_name": roster.get(r["student_code"])})
-            if v:   # chấm thử để GV xem điểm ngay
+            if v:
                 ans = {q["position"]: q["answer"] for q in v["questions"]}
                 pts = {q["position"]: q["points"] for q in v["questions"]}
                 r["score"] = round(sum(pts[p] for p, a in r["answers"].items() if p in ans and a == ans[p]), 2)
@@ -278,7 +272,7 @@ async def _read_files(db: Session, e: Exam, files: list[UploadFile]) -> tuple[li
 @router.post("/exams/{exam_id}/scan")
 async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only),
                db: Session = Depends(get_db)):
-    """Nhận diện phiếu từ ảnh quét / ảnh chụp (JPG, PNG) hoặc PDF nhiều trang. Chưa ghi CSDL – GV soát rồi lưu (scan/commit)."""
+    """Nhận diện phiếu từ ảnh quét / ảnh chụp (JPG, PNG) hoặc PDF nhiều trang."""
     e = _paper(db, u, exam_id)
     if e.moodle_offlinequiz_id:
         raise HTTPException(409, "Bài dùng Moodle Offline Quiz – tải phiếu lên Moodle để chấm")
@@ -286,7 +280,6 @@ async def scan(exam_id: int, files: list[UploadFile] = File(...), u: User = Depe
     return {"sheets": out, "n_questions": _sheet_opts(db, e).n_questions, "versions": list(vs)}
 
 
-# ---------------------------------------------------------------- Quét là chấm & lưu ngay (phiếu sai MSSV/mã đề chờ GV xử lý)
 def _roster_ids(db: Session, e: Exam) -> dict:
     return {r[0]: (r[1], r[2]) for r in db.execute(text("""SELECT s.student_code, s.id, s.full_name FROM enrollments en JOIN students s ON s.id=en.student_id
                                                            WHERE en.class_section_id=:cs"""), {"cs": e.class_section_id})}
@@ -353,7 +346,7 @@ def _apply_sheet(db: Session, e: Exam, sid: int, vs: dict, roster: dict, vid: di
     probs = _problems(code, vcode, vs, roster)
     v = vs.get(vcode)
     score, raw_max = _score(v, answers)
-    if row["attempt_id"]:   # phiếu từng được ghi: gỡ kết quả cũ (có thể đã đổi SV hoặc đáp án)
+    if row["attempt_id"]:
         db.execute(text("DELETE FROM exam_attempts WHERE id=:a"), {"a": row["attempt_id"]})
     aid, status = None, "review"
     if not probs:
@@ -378,8 +371,7 @@ def _sheet_row(r, roster: dict) -> dict:
 
 @router.post("/exams/{exam_id}/scan/save")
 async def scan_save(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Quét là chấm & lưu ngay: phiếu có MSSV thuộc lớp và mã đề hợp lệ được chấm vào kết quả lớp luôn; phiếu còn lỗi được lưu ở
-    danh sách "cần xử lý" để giảng viên sửa MSSV/mã đề/đáp án sau (xem scan/sheets). Phân tích chạy khi bấm Hoàn tất (scan/finish)."""
+    """Quét là chấm & lưu ngay: phiếu có MSSV thuộc lớp và mã đề hợp lệ được chấm vào kết quả lớp luôn; phiếu còn lỗi được lưu ở danh sách "cần xử lý" để giảng viên sửa MSSV/mã đề/đáp án sau (xem scan/sheets)."""
     e = _paper(db, u, exam_id)
     if e.moodle_offlinequiz_id:
         raise HTTPException(409, "Bài dùng Moodle Offline Quiz – tải phiếu lên Moodle để chấm")
@@ -479,7 +471,7 @@ class FinishIn(BaseModel):
 
 @router.post("/exams/{exam_id}/scan/finish")
 def scan_finish(exam_id: int, body: FinishIn = FinishIn(), u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Hoàn tất đợt chấm: SV trong lớp chưa có bài -> vắng, rồi chạy phân tích CĐR. Còn phiếu cần xử lý thì báo để GV biết (vẫn hoàn tất được)."""
+    """Hoàn tất đợt chấm: SV trong lớp chưa có bài -> vắng, rồi chạy phân tích CĐR."""
     e = _paper(db, u, exam_id)
     roster = _roster_ids(db, e)
     n_abs = 0
@@ -515,9 +507,9 @@ def scan_commit(exam_id: int, body: CommitIn, u: User = Depends(lecturer_only), 
         raise HTTPException(422, "; ".join(errs[:10]))
     seen = {}
     for s in body.sheets:
-        seen[s.student_code] = s                    # quét lại nhiều lần: lấy phiếu sau cùng
+        seen[s.student_code] = s
     run = db.execute(text("INSERT INTO sync_runs (exam_id, kind) VALUES (:e, 'scan')"), {"e": exam_id}).lastrowid
-    for code in seen:                               # chấm bổ sung theo đợt: chỉ thay kết quả của SV có phiếu trong đợt này
+    for code in seen:
         db.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e AND student_id=:s"), {"e": exam_id, "s": roster[code]})
     n_abs = 0
     for code, s in seen.items():

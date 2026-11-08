@@ -1,11 +1,8 @@
-// Biểu đồ dùng chung theo quy ước trình bày khoa học: trục có tên và đơn vị, ghi cỡ mẫu n, chỉ tiêu là vạch riêng,
-// tỷ lệ kèm khoảng tin cậy Wilson 95%, bảng màu an toàn cho người mù màu (Okabe–Ito) và không dựa vào màu đơn thuần.
 import { Bar, Scatter } from 'react-chartjs-2'
 import '../charts'
 
 export const OK = { ok: '#0072B2', no: '#D55E00', warn: '#E69F00', neutral: '#56B4E9', ink: '#344054', target: '#101828' }
 
-/** Khoảng tin cậy Wilson cho tỷ lệ k/n (%, 95%). */
 export function wilson(k, n, z = 1.96) {
   if (!n) return [0, 0]
   const p = k / n, z2 = z * z, d = 1 + z2 / n
@@ -16,7 +13,6 @@ export function wilson(k, n, z = 1.96) {
 const grid = { color: 'rgba(16,24,40,.08)' }
 const axisTitle = text => ({ display: true, text, color: OK.ink, font: { weight: '600' } })
 
-// vạch chỉ tiêu (đoạn ngang đen trên từng cột) và khoảng tin cậy (râu), vẽ sau khi vẽ cột
 const overlay = {
   id: 'overlay',
   afterDatasetsDraw(chart, _a, opts) {
@@ -52,13 +48,11 @@ export function Legend({ items }) {
     <i className={`lg ${kind || 'box'}`} style={{ '--c': OK[k] || k }} />{label}</li>)}</ul>
 }
 
-/** Tỷ lệ đạt theo nhóm (CLO, PLO…). items: [{label, k, n, target}] – k = số đạt, n = số được đánh giá. */
 export function AttainmentChart({ items, xTitle, yTitle = 'Tỷ lệ sinh viên đạt (%)', height = 300 }) {
   const pct = items.map(i => i.n ? 100 * i.k / i.n : 0)
   const reached = items.map((i, j) => i.n && pct[j] + 1e-9 >= i.target)
   const data = { labels: items.map(i => i.label), datasets: [{ label: 'Tỷ lệ đạt', data: pct.map(v => Math.round(v * 100) / 100),
     backgroundColor: reached.map(r => r ? OK.ok : OK.no), maxBarThickness: 64,
-    // họa tiết gạch chéo cho cột chưa đạt để không chỉ dựa vào màu
     borderColor: reached.map(r => r ? OK.ok : OK.no), borderWidth: 1 }] }
   const options = { maintainAspectRatio: false, animation: false,
     layout: { padding: { top: 22 } },
@@ -75,7 +69,6 @@ export function AttainmentChart({ items, xTitle, yTitle = 'Tỷ lệ sinh viên 
   </figure>
 }
 
-/** Phổ điểm: cột liền nhau (histogram), trục có tên và đơn vị. */
 export function Histogram({ labels, counts, xTitle = 'Khoảng điểm', yTitle = 'Số sinh viên', height = 260 }) {
   const n = counts.reduce((a, b) => a + b, 0)
   return <figure className="chart-fig">
@@ -90,7 +83,6 @@ const CLS = (p, di) => di == null ? 'none' : di < 0 ? 'neg' : di < 0.2 ? 'low' :
 const CLS_STYLE = { neg: [OK.no, 'triangle', 'DI âm – kiểm tra đáp án'], low: [OK.warn, 'rectRot', 'DI thấp (< 0,2)'], easy: [OK.neutral, 'rect', 'Quá dễ (p > 0,85)'],
   hard: [OK.neutral, 'crossRot', 'Quá khó (p < 0,25)'], good: [OK.ok, 'circle', 'Tốt'], none: ['#98a2b3', 'circle', 'Chưa đủ dữ liệu'] }
 
-// vùng chuẩn: p ∈ [0,25; 0,85], DI ≥ 0,3 (tốt), DI = 0,2 (ngưỡng chấp nhận)
 const zones = {
   id: 'zones',
   beforeDatasetsDraw(chart) {
@@ -106,7 +98,6 @@ const zones = {
   },
 }
 
-/** Phân tích câu hỏi: mỗi câu là một điểm (độ khó p, độ phân biệt DI), tô theo phân loại, kèm vùng chuẩn. data: [{order_index, p_value, di_value}] */
 export function ItemScatter({ data, height = 360 }) {
   const pts = data.filter(d => d.p_value != null && d.di_value != null)
   const groups = Object.keys(CLS_STYLE).map(k => ({ k, rows: pts.filter(d => CLS(Number(d.p_value), Number(d.di_value)) === k) })).filter(g => g.rows.length)

@@ -31,12 +31,9 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     st = client.get(f"/api/exams/{eid}/paper", headers=gv).json()
     assert st["mode"] == "system" and [v["version_code"] for v in st["versions"]] == ["01", "02", "03"]
     v1, v2 = st["versions"][0], st["versions"][1]
-    # mã đề 02: cùng bộ câu, thứ tự khác; mỗi câu đúng một đáp án; nhãn in liên tục A, B, …
     assert {q["question_id"] for q in v1["questions"]} == {q["question_id"] for q in v2["questions"]}
     assert all(q["answer"] and [o["label"] for o in q["options"]] == list("ABCDEF"[:len(q["options"])]) for q in v2["questions"])
-    # Moodle Offline Quiz bị chặn khi đã dùng chế độ hệ thống
     assert client.post(f"/api/exams/{eid}/moodle/create-offlinequiz", headers=gv, json={"moodle_course_id": 1}).status_code == 409
-    # tùy chọn in: chia 2 cột, đổi cỡ chữ; xuất PDF (đủ 3 mã đề) và Word
     assert client.put(f"/api/exams/{eid}/paper/settings", headers=gv, json={"paper": {"columns": 2, "font_size": 11, "duration": "30 phút"},
                                                                           "sheet": {"student_digits": 8, "essay_lines": 0}}).status_code == 200
     pdf = client.get(f"/api/exams/{eid}/paper/exam.pdf", headers=gv)
@@ -55,7 +52,6 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     z = zipfile.ZipFile(io.BytesIO(client.get(f"/api/exams/{eid}/paper/package.zip", headers=gv).content))
     assert {"phieu_tra_loi.pdf", "dap_an.pdf", "de_ma_01.pdf", "de_ma_03.docx"} <= set(z.namelist())
 
-    # SV làm bài: tô phiếu (in thật ra PDF -> ảnh), một số chụp nghiêng bằng điện thoại
     studs = [r[0] for r in _q("""SELECT s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id
                                  WHERE e.class_section_id=1 ORDER BY s.student_code LIMIT 6""")]
     rng = random.Random(2)
@@ -63,7 +59,7 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     for i, code in enumerate(studs):
         v = st["versions"][i % 3]
         ans = {q["position"]: (q["answer"] if rng.random() < 0.7 else rng.choice([o["label"] for o in q["options"]])) for q in v["questions"]}
-        ans[1] = ""                                                      # bỏ trống câu 1
+        ans[1] = ""
         fills.append({"student": code, "version": v["version_code"], "answers": ans})
         truth[code] = sum(1 for q in v["questions"] if ans[q["position"]] == q["answer"])
     from app.database import SessionLocal
@@ -76,7 +72,7 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     for k, page in enumerate(filled):
         pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), colorspace=fitz.csGRAY)
         img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width).copy()
-        if k % 2:      # ảnh chụp nghiêng
+        if k % 2:
             h, w = img.shape
             M = cv2.getRotationMatrix2D((w / 2, h / 2), 5, 0.9)
             img = cv2.warpAffine(img, M, (w, h), borderValue=120)
@@ -87,7 +83,6 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     assert len(sheets) == 6 and all("error" not in s for s in sheets)
     assert [s["student_code"] for s in sheets] == studs
     assert all(s["score"] == truth[s["student_code"]] for s in sheets)
-    # GV sửa một phiếu trên màn hình soát (đổi đáp án câu 1) rồi lưu
     s0 = sheets[0]
     v0 = next(v for v in st["versions"] if v["version_code"] == s0["version_code"])
     s0["answers"]["1"] = v0["questions"][0]["answer"]
@@ -99,8 +94,8 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
                      WHERE a.exam_id=:e AND a.status='finished'""", e=eid))
     assert float(tot[studs[0]]) == truth[studs[0]] + 1 and all(float(tot[c]) == truth[c] for c in studs[1:])
     assert client.get(f"/api/exams/{eid}", headers=gv).json()["status"] == "Analyzed"
-    assert client.delete(f"/api/exams/{eid}/paper/versions", headers=gv).status_code == 409   # đã có kết quả
-    with engine.begin() as c:     # dọn: bài thử không ảnh hưởng kiểm thử khác (bài làm phải xóa trước – fk_att_exam RESTRICT)
+    assert client.delete(f"/api/exams/{eid}/paper/versions", headers=gv).status_code == 409
+    with engine.begin() as c:
         c.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": eid})
         c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})
     from app.services import results
@@ -122,8 +117,8 @@ def test_omr_crossed_out_and_scribbles():
     for q, l in [(1, "A"), (2, "B"), (3, "C"), (4, "D"), (5, "A"), (5, "C")]:
         fill(q, l)
     x, y = pos[(1, "C")]
-    cv2.line(g, (x - r, y - r), (x + r, y + r), 30, 2); cv2.line(g, (x - r, y + r), (x + r, y - r), 30, 2)   # gạch bỏ C, chọn A
-    for (fx, fy) in P.fid_centers():                                            # nét bút chạy qua cả 4 ô định vị
+    cv2.line(g, (x - r, y - r), (x + r, y + r), 30, 2); cv2.line(g, (x - r, y + r), (x + r, y - r), 30, 2)
+    for (fx, fy) in P.fid_centers():
         cx, cy = int(fx * s), int(fy * s)
         cv2.line(g, (cx - 60, cy - 25), (cx + 60, cy + 30), 20, 3)
     res = omr.read_sheet(g, o)
@@ -157,10 +152,10 @@ def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
                                  WHERE e.class_section_id=1 ORDER BY s.student_code LIMIT 4""")]
     v = st["versions"][0]
     right = {q["position"]: q["answer"] for q in v["questions"]}
-    fills = [{"student": studs[0], "version": "01", "answers": right},                  # hợp lệ, đúng hết
-             {"student": studs[1], "version": "01", "answers": {**right, 1: ""}},         # hợp lệ, bỏ trống câu 1
-             {"student": "99999999", "version": "01", "answers": right},                  # MSSV không thuộc lớp
-             {"student": studs[2][:-1], "version": "01", "answers": right}]               # MSSV thiếu 1 chữ số (gần đúng studs[2])
+    fills = [{"student": studs[0], "version": "01", "answers": right},
+             {"student": studs[1], "version": "01", "answers": {**right, 1: ""}},
+             {"student": "99999999", "version": "01", "answers": right},
+             {"student": studs[2][:-1], "version": "01", "answers": right}]
     db = SessionLocal()
     o = P.sheet_options_for(db, db.get(Exam, eid), student_digits=8, essay_lines=0)
     db.close()
@@ -175,7 +170,6 @@ def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["saved"] == 2 and d["review"] == 2 and d["errors"] == 0
-    # phiếu hợp lệ đã chấm vào kết quả lớp ngay (không cần bấm lưu)
     tot = dict(_q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
                      WHERE a.exam_id=:e AND a.status='finished'""", e=eid))
     assert float(tot[studs[0]]) == 6 and float(tot[studs[1]]) == 5 and len(tot) == 2
@@ -184,15 +178,13 @@ def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
     bad_out = next(s for s in lst["sheets"] if s["student_code"] == "99999999")
     short = next(s for s in lst["sheets"] if s["status"] == "review" and s["student_code"] != "99999999")
     assert any("không có trong danh sách lớp" in t or "chưa đủ" in t for t in bad_out["issues"])
-    assert studs[2] in [x["student_code"] for x in short["suggest"]]              # gợi ý MSSV gần đúng
+    assert studs[2] in [x["student_code"] for x in short["suggest"]]
     detail = client.get(f"/api/exams/{eid}/scan/sheets/{short['id']}", headers=gv).json()
     assert detail["image"].startswith("data:image/jpeg") and len(detail["answers"]) == 6
-    # GV sửa MSSV theo gợi ý -> chấm vào kết quả lớp; phiếu MSSV lạ -> bỏ
     assert client.patch(f"/api/exams/{eid}/scan/sheets/{short['id']}", headers=gv, json={"student_code": "12345678"}).json()["status"] == "review"
     fx = client.patch(f"/api/exams/{eid}/scan/sheets/{short['id']}", headers=gv, json={"student_code": studs[2]}).json()
     assert fx["status"] == "saved" and not fx["issues"]
     assert client.delete(f"/api/exams/{eid}/scan/sheets/{bad_out['id']}", headers=gv).json() == {"deleted": bad_out["id"]}
-    # đổi đáp án câu 1 của SV đầu rồi chấm lại; quét lại cùng SV thì phiếu cũ bị thay
     ok0 = next(s for s in lst["sheets"] if s["student_code"] == studs[1])
     assert client.patch(f"/api/exams/{eid}/scan/sheets/{ok0['id']}", headers=gv, json={"answers": {**{str(k): a for k, a in right.items()}}}).json()["status"] == "saved"
     tot = dict(_q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
@@ -200,11 +192,11 @@ def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
     assert float(tot[studs[1]]) == 6 and studs[2] in tot and len(tot) == 3
     again = client.post(f"/api/exams/{eid}/scan/save", headers=gv, files=files[:1]).json()
     assert again["saved"] == 1
-    assert client.get(f"/api/exams/{eid}/scan/sheets", headers=gv).json()["n_saved"] == 3        # 3 SV (phiếu cũ của SV đầu bị thay)
+    assert client.get(f"/api/exams/{eid}/scan/sheets", headers=gv).json()["n_saved"] == 3
     fin = client.post(f"/api/exams/{eid}/scan/finish", headers=gv, json={}).json()
     assert fin["saved"] == 3 and fin["review"] == 0 and fin["absent"] > 0 and fin["analysis"]["n_students"] == 3
     assert client.get(f"/api/exams/{eid}", headers=gv).json()["status"] == "Analyzed"
-    with engine.begin() as c:     # bài làm phải xóa trước – fk_att_exam RESTRICT
+    with engine.begin() as c:
         c.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": eid})
         c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})
     from app.services import results

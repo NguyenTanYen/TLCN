@@ -1,5 +1,4 @@
-"""Hủy câu sau khi bài KT đã phân tích → minh chứng CLO được tính lại ngay (không chờ GV bấm "Phân tích lại").
-Băm đồng bộ câu hỏi Moodle không bị trùng khi ghép chuỗi phương án."""
+"""Hủy câu sau khi bài KT đã phân tích → minh chứng CLO được tính lại ngay (không chờ GV bấm "Phân tích lại")."""
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -32,13 +31,13 @@ def test_cancel_question_reanalyzes_exam(client, gv):
     try:
         r = client.patch(f"/api/questions/{qid}/cancel", headers=gv, json={"reason": "Phúc khảo: đề sai"})
         assert r.status_code == 200 and exam_id in r.json()["reanalyzed_exams"] and r.json()["reanalyze_failed"] == []
-        db.rollback()                                    # kết thúc giao dịch cũ (REPEATABLE READ) để đọc số mới
-        assert _score_max(db, exam_id) < before          # câu đã Hủy không còn tính vào điểm tối đa CLO
-    finally:                                             # trả dữ liệu demo về như cũ cho các test sau
+        db.rollback()
+        assert _score_max(db, exam_id) < before
+    finally:
         db.execute(text("UPDATE question_bank SET is_cancelled = 0, cancel_reason = NULL WHERE id = :q"), {"q": qid})
         db.commit()
         results.analyze_exam(db, exam_id)
-        db.rollback()                                    # kết thúc giao dịch cũ (REPEATABLE READ) để đọc số mới
+        db.rollback()
         assert _score_max(db, exam_id) == before
         db.close()
 
@@ -53,7 +52,7 @@ def test_cancel_question_isolates_reanalyze_failure(client, gv, monkeypatch):
     monkeypatch.setattr(results, "analyze_exam", boom)
     try:
         r = client.patch(f"/api/questions/{qid}/cancel", headers=gv, json={"reason": "Phúc khảo: đề sai"})
-        assert r.status_code == 200                      # API không sập
+        assert r.status_code == 200
         assert r.json()["reanalyze_failed"] == [exam_id] and r.json()["reanalyzed_exams"] == []
         db.rollback()
         assert db.execute(text("SELECT is_cancelled FROM question_bank WHERE id=:q"), {"q": qid}).scalar() == 1
@@ -68,4 +67,4 @@ def test_sync_hash_has_no_concatenation_collision():
     a = qsync._fingerprint("Câu hỏi", [("12", True), ("3", False)])
     b = qsync._fingerprint("Câu hỏi", [("1", True), ("23", False)])
     assert a != b
-    assert qsync._fingerprint("Câu hỏi", [("12", True), ("3", False)]) == a   # ổn định
+    assert qsync._fingerprint("Câu hỏi", [("12", True), ("3", False)]) == a

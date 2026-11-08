@@ -1,28 +1,4 @@
-"""Nâng cấp CSDL assessment_db đã cài từ phiên bản trước (chạy tự động mỗi khi hệ thống khởi động, an toàn khi chạy lại).
-
-- question_bank.bloom_level_id cho phép NULL: câu nhập hàng loạt ở trạng thái "chưa gán" (gán CLO/Bloom sau bằng file).
-- exams.moodle_offlinequiz_id: bài thi giấy do Moodle (Offline Quiz) sinh đề, nhận diện phiếu và chấm.
-- exam_attempts: moodle_attempt_id duy nhất theo từng bài KT (id lượt Quiz và id kết quả Offline Quiz có thể trùng nhau).
-- students.student_code VARCHAR(100): khớp độ dài mã số (idnumber/username) của Moodle.
-- Tạo lại exam_version_questions, exam_version_options nếu thiếu (bản thử nghiệm từng bỏ 2 bảng này).
-- assessment_assignments: cho phép phân công "Tất cả thầy/cô có hướng dẫn" (TLCN, KLTN) – khóa chính id, lecturer_id NULL,
-  cột all_supervisors; bổ sung 2 dòng phân công TLCN/KLTN của dữ liệu tham chiếu.
-- Quản lý theo CTĐT (bản 15/10): thông tin CTĐT, trình độ năng lực PLO/PI, cấu trúc + mô tả học phần, học kỳ/khối kiến thức
-  của học phần trong CTĐT, mức đáp ứng PI của học phần; nạp CTĐT CNTT 2026 và KTDL 2026 (database/04_ctdt_2026.sql).
-- Bài KT nhập điểm (exam_type = manual, câu/ý chấm tay question_type = manual, response_status = graded), chấm phiếu
-  trên hệ thống (source = scan), chọn bài gộp minh chứng CLO (counts_for_clo), bài phụ đạo (parent_exam_id, target_students).
-- Đề của môn: exams.class_section_id cho phép NULL, thêm course_id và source_exam_id (bài giao/sao từ đề nào).
-- clo_pi_mapping (góp ý F2a): CLO → PI → PLO; dữ liệu cũ được sinh CLO → PI từ ma trận CLO – PLO đang có.
-- Đề cương chi tiết có phiên bản (góp ý F1): course_syllabi, syllabus_references, syllabus_assessments,
-  syllabus_assessment_clos, outline_clos; nội dung, số tiết và hoạt động dạy học của từng chương (course_outlines).
-- question_moodle_links (góp ý F3): trạng thái đồng bộ câu hỏi theo từng khóa học Moodle, phát hiện câu bị sửa ở cả hai bên.
-- Học liệu của lớp học phần cho gợi ý đọc (RAG): section_materials, material_pages, material_passages; vector của đoạn
-  cho cổng ngữ nghĩa (material_passages.embedding, section_materials.embed_model); model VLM đã mô tả hình
-  (section_materials.vlm_model).
-- exam_attempts.fk_att_exam: ON DELETE RESTRICT (trước là CASCADE) – CSDL không cho xóa bài KT đã có kết quả thi,
-  kể cả khi xóa bằng SQL trực tiếp hay script; muốn xóa phải xóa exam_attempts tường minh trước.
-- Cài lại cầu nối đọc Moodle (view + sp_sync_exam) cho khớp phiên bản mã nguồn.
-"""
+"""Nâng cấp CSDL assessment_db đã cài từ phiên bản trước (chạy tự động mỗi khi hệ thống khởi động, an toàn khi chạy lại)."""
 from sqlalchemy import text
 
 from .database import engine
@@ -84,7 +60,6 @@ NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", 
               "scan_sheets", "improvement_actions", "rubrics", "rubric_criteria", "rubric_levels", "exam_rubrics",
               "exam_rubric_items", "rubric_grades", "section_materials", "material_pages", "material_passages")
 
-# (bảng, tên ràng buộc CHECK, biểu thức mới, chuỗi nhận biết bản mới trong biểu thức đang có)
 NEW_CHECKS = [
     ("question_bank", "ck_qb_type", "question_type IN ('multichoice','manual')", "manual"),
     ("exams", "ck_exam_type", "exam_type IN ('online','paper','manual')", "manual"),
@@ -117,14 +92,11 @@ def _upgrade_clo_pi(c, done: list) -> None:
 
 
 def _upgrade_new_tables(c, done: list) -> None:
-    """Bảng mới: đồng bộ câu hỏi theo khóa Moodle (F3), đề cương có phiên bản (F1; cột mới của course_outlines ở NEW_COLUMNS),
-    học liệu của lớp học phần cho gợi ý đọc (RAG)."""
+    """Bảng mới: đồng bộ câu hỏi theo khóa Moodle (F3), đề cương có phiên bản (F1; cột mới của course_outlines ở NEW_COLUMNS), học liệu của lớp học phần cho gợi ý đọc (RAG)."""
     for t in NEW_TABLES:
         if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t"), {"t": t}).scalar():
             c.execute(text(_ddl(t)))
             done.append(f"bảng {t}")
-    # học liệu: trạng thái 'indexing' (đang nạp), 'excluded' (GV bỏ chọn), 'missing' (tệp không còn trên Moodle), cột
-    # title_custom – cho bảng tạo từ bản trước (chạy SAU khi bảng chắc chắn đã có)
     cur = _check_clause(c, "section_materials", "ck_sm_status")
     if cur is not None and "indexing" not in cur:
         c.execute(text("ALTER TABLE section_materials DROP CONSTRAINT ck_sm_status"))
@@ -161,7 +133,6 @@ def _upgrade_v3(c, done: list) -> None:
                              AND TABLE_NAME='exams' AND CONSTRAINT_NAME='fk_exam_parent'""")).scalar():
         c.execute(text("ALTER TABLE exams ADD CONSTRAINT fk_exam_parent FOREIGN KEY (parent_exam_id) REFERENCES exams(id) ON DELETE SET NULL"))
         done.append("exams.fk_exam_parent")
-    # đề của môn: bài KT chưa giao lớp HP (class_section_id NULL, course_id = môn) – giao cho các lớp khi xuất
     if _col(c, "exams", "class_section_id") == "NO":
         c.execute(text("ALTER TABLE exams MODIFY class_section_id INT NULL COMMENT 'Lớp HP của bài KT; NULL = đề của môn chưa giao lớp (course_id)'"))
         done.append("exams.class_section_id NULL")

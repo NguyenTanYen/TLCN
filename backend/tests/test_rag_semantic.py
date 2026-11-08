@@ -40,18 +40,18 @@ def test_english_question_goes_through_the_gate_unaccented_vietnamese_does_not(f
     assert not semantic.related("Which HTML tag creates a hyperlink?", [far], 0.55)
     assert not semantic.related("What is a view in SQL?", [far], 0.55)
     assert semantic.related("Nut nao trong HDFS luu tru cac khoi du lieu?", [far], 0.55)
-    assert semantic.related("Menh de where va group by dung de lam gi?", [far], 0.55)    # từ khóa SQL không phải tiếng Anh
-    assert semantic.related("Define a primary key", [far], 0.55)                          # không nhận ra: như cũ, không chặn
+    assert semantic.related("Menh de where va group by dung de lam gi?", [far], 0.55)
+    assert semantic.related("Define a primary key", [far], 0.55)
 
 
 def test_related_never_blocks_when_it_cannot_judge(fake_encoder, monkeypatch):
     far = _vec(0, 1, 0)
-    assert semantic.related("Câu hỏi có dấu", [], 0.55)                       # không có ứng viên
-    assert semantic.related("Câu hỏi có dấu", [far, None], 0.55)              # có đoạn chưa tính vector
-    assert semantic.related("Câu hỏi có dấu", [semantic.pack(np.ones(5, np.float32))], 0.55)  # vector model khác
-    assert semantic.related("cau hoi khong dau ve recovery model", [far], 0.55)  # MiniLM kém với chữ không dấu
-    assert fake_encoder == [["Câu hỏi có dấu"]]                               # chỉ nạp model khi thật sự phải so
-    monkeypatch.setattr(semantic, "encode", lambda texts: None)                 # cổng tắt (chưa cài thư viện)
+    assert semantic.related("Câu hỏi có dấu", [], 0.55)
+    assert semantic.related("Câu hỏi có dấu", [far, None], 0.55)
+    assert semantic.related("Câu hỏi có dấu", [semantic.pack(np.ones(5, np.float32))], 0.55)
+    assert semantic.related("cau hoi khong dau ve recovery model", [far], 0.55)
+    assert fake_encoder == [["Câu hỏi có dấu"]]
+    monkeypatch.setattr(semantic, "encode", lambda texts: None)
     assert semantic.related("Câu hỏi có dấu", [far], 0.55)
 
 
@@ -103,15 +103,15 @@ def test_embed_missing_stores_vectors_once(material):
         assert semantic.embed_missing(db, cs) >= 2
         rows = db.execute(text("SELECT id, seq, body, embedding FROM material_passages WHERE material_id = :m "
                                "ORDER BY seq"), {"m": mid}).fetchall()
-        assert [r[:3] for r in rows] == [tuple(r) for r in before]               # cập nhật hàng loạt theo khóa chính:
-        want = semantic.encode([search._doc_text(t, t, None, b, None) for t, b in      # mỗi đoạn đúng vector của nó
+        assert [r[:3] for r in rows] == [tuple(r) for r in before]
+        want = semantic.encode([search._doc_text(t, t, None, b, None) for t, b in
                                 db.execute(text("SELECT title, body FROM material_passages WHERE material_id = :m "
                                                 "ORDER BY seq"), {"m": mid})])
         for r, w in zip(rows, want):
             assert len(r[3]) == 768 and np.allclose(semantic.unpack(r[3]), w, atol=1e-2)
         assert db.get(SectionMaterial, mid).embed_model == semantic.model_name()
         db.rollback()
-        assert semantic.embed_missing(db, cs) == 0                              # đã có vector: không tính lại
+        assert semantic.embed_missing(db, cs) == 0
     finally:
         db.close()
 
@@ -122,14 +122,14 @@ def test_embed_missing_drops_result_when_material_reindexed_meanwhile(material, 
     real = semantic.encode
 
     def encode_while_reindexed(texts):
-        with SessionLocal() as other:                                           # bên khác nạp lại trong lúc tính
+        with SessionLocal() as other:
             other.execute(text("UPDATE section_materials SET indexed_at = :t WHERE id = :m"),
                           {"t": datetime.now() + timedelta(seconds=5), "m": mid})
             other.commit()
         return real(texts)
     db = SessionLocal()
     try:
-        semantic.embed_missing(db, cs)                                          # các học liệu khác của lớp: tính trước
+        semantic.embed_missing(db, cs)
         db.execute(text("UPDATE section_materials SET embed_model = NULL WHERE id = :m"), {"m": mid})
         db.execute(text("UPDATE material_passages SET embedding = NULL WHERE material_id = :m"), {"m": mid})
         db.commit()
@@ -146,7 +146,7 @@ def test_embed_missing_tolerates_passages_deleted_meanwhile(material, monkeypatc
     real = semantic.encode
 
     def encode_while_deleted(texts):
-        with SessionLocal() as other:                                           # nạp lại: đoạn cũ bị xóa, ghi lại
+        with SessionLocal() as other:
             other.execute(text("DELETE FROM material_passages WHERE material_id = :m AND seq = 2"), {"m": mid})
             other.execute(text("UPDATE section_materials SET indexed_at = :t WHERE id = :m"),
                           {"t": datetime.now() + timedelta(seconds=5), "m": mid})
@@ -158,7 +158,7 @@ def test_embed_missing_tolerates_passages_deleted_meanwhile(material, monkeypatc
         db.execute(text("UPDATE section_materials SET embed_model = NULL WHERE id = :m"), {"m": mid})
         db.commit()
         monkeypatch.setattr(semantic, "encode", encode_while_deleted)
-        assert semantic.embed_missing(db, cs) == 0                              # không ném lỗi, bỏ kết quả
+        assert semantic.embed_missing(db, cs) == 0
         assert db.get(SectionMaterial, mid).embed_model is None
     finally:
         db.close()
@@ -176,8 +176,8 @@ def test_unrelated_question_gets_no_pages_related_one_does(material):
         off = Question(content="Mô hình nào dự báo thời tiết cho một thời điểm cụ thể trong ngày?",
                        options=[QuestionOption(content="Mô hình khí tượng số", is_correct=True),
                                 QuestionOption(content="Mô hình hồi quy", is_correct=False)])
-        assert suggest.rank_passages(search.section_index(db, cs), off.content, ["Mô hình khí tượng số"])  # BM25 có
-        assert suggest.for_question(db, cs, off) == []                          # ... nhưng cổng chặn
+        assert suggest.rank_passages(search.section_index(db, cs), off.content, ["Mô hình khí tượng số"])
+        assert suggest.for_question(db, cs, off) == []
     finally:
         db.close()
 
@@ -203,11 +203,11 @@ def fake_dense(material, monkeypatch):
 
 def test_dense_search_finds_vietnamese_question_without_shared_words(fake_dense):
     mid, cs, ids, db = fake_dense
-    q = "Hoàn nguyên sự cố bằng cách nào?"                       # không từ nào trùng với đoạn: BM25 không ra gì
+    q = "Hoàn nguyên sự cố bằng cách nào?"
     assert search.section_index(db, cs).score(q, 5) == []
     hits = [h for h in search.search(db, cs, q, 5) if h.material_id == mid]
-    assert hits and hits[0].passage_id == ids[0]                  # đoạn gần nghĩa lên đầu
-    assert ids[1] not in [h.passage_id for h in hits]             # đoạn xa (cos 0,10) bị bỏ
+    assert hits and hits[0].passage_id == ids[0]
+    assert ids[1] not in [h.passage_id for h in hits]
 
 
 def test_dense_search_silent_when_nothing_is_close_or_gate_off(fake_dense, monkeypatch):
@@ -215,10 +215,10 @@ def test_dense_search_silent_when_nothing_is_close_or_gate_off(fake_dense, monke
     db.execute(text("UPDATE material_passages SET embedding = :e WHERE material_id = :m"), {"e": _vec(0, 1, 0), "m": mid})
     db.commit()
     semantic._dense_cache.clear()
-    assert semantic.dense_top(db, cs, "Hoàn nguyên sự cố bằng cách nào?") == []      # cos 0 < ngưỡng: không nói về câu hỏi
+    assert semantic.dense_top(db, cs, "Hoàn nguyên sự cố bằng cách nào?") == []
     monkeypatch.setattr(semantic, "enabled", lambda: False)
     assert semantic.dense_top(db, cs, "Hoàn nguyên sự cố bằng cách nào?") == []
-    assert semantic.dense_top(db, cs, "hoan nguyen su co bang cach nao") == []        # tiếng Việt không dấu: bỏ qua
+    assert semantic.dense_top(db, cs, "hoan nguyen su co bang cach nao") == []
 
 
 def test_semantic_info_reports_vectors_and_closest_cosine(client, gv, fake_dense):
@@ -232,9 +232,9 @@ def test_semantic_info_reports_vectors_and_closest_cosine(client, gv, fake_dense
 
 def test_search_box_uses_looser_floor_than_gate(fake_dense):
     mid, cs, ids, db = fake_dense
-    db.execute(text("UPDATE material_passages SET embedding = :e WHERE id = :i"), {"e": _vec(0.5, 1, 0), "i": ids[0]})   # cos ≈ 0,45
+    db.execute(text("UPDATE material_passages SET embedding = :e WHERE id = :i"), {"e": _vec(0.5, 1, 0), "i": ids[0]})
     db.commit()
     semantic._dense_cache.clear()
     q = "Hoàn nguyên sự cố bằng cách nào?"
-    assert semantic.dense_top(db, cs, q) == []                       # dưới cổng 0,55: không gợi ý cho SV
-    assert [p for p, _ in semantic.dense_top(db, cs, q, floor=0.40)][:1] == [ids[0]]   # nhưng ô tìm của GV vẫn trả
+    assert semantic.dense_top(db, cs, q) == []
+    assert [p for p, _ in semantic.dense_top(db, cs, q, floor=0.40)][:1] == [ids[0]]

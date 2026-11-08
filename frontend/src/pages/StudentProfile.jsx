@@ -3,8 +3,6 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Badge, Card, Loading, Stat } from '../components/ui'
 import { useApi } from '../hooks'
 
-// Hồ sơ một SV: sinh viên được đánh giá bằng ĐIỂM và kết quả theo từng chương. Hệ thống KHÔNG đánh giá CLO riêng cho từng SV
-// (CLO chỉ được kết luận cho cả lớp ở trang Kết quả chuẩn đầu ra, BM6). Phần chính: điểm từng bài, chương cần ôn, chi tiết từng câu.
 const RES = { correct: ['Đúng', 'ans-ok', '✓'], wrong: ['Sai', 'ans-bad', '✗'], blank: ['Bỏ trống', 'ans-blank', '–'] }
 
 export default function StudentProfile() {

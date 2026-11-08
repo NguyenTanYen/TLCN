@@ -1,9 +1,4 @@
-"""Đưa học liệu lên lớp học phần: GV tải PDF lên hệ thống (hoặc sao chép từ lớp khác cùng môn) → hệ thống ĐĂNG tệp lên
-khóa học Moodle của từng lớp được chọn (plugin local_clo_add_resource) → đồng bộ lại để tệp thành học liệu → nạp ở nền.
-
-Moodle luôn là nơi chứa tệp: SV mở đúng trang học liệu bằng phiên Moodle của mình, và việc tải lên bằng tay trên Moodle
-(rồi bấm "Đồng bộ từ Moodle") vẫn dùng được song song.
-"""
+"""Đưa học liệu lên lớp học phần: GV tải PDF lên hệ thống (hoặc sao chép từ lớp khác cùng môn) → hệ thống ĐĂNG tệp lên khóa học Moodle của từng lớp được chọn (plugin local_clo_add_resource) → đồng bộ lại để tệp thành học liệu → nạp ở nền."""
 from __future__ import annotations
 
 import hashlib
@@ -30,7 +25,7 @@ def check_pdf(data: bytes) -> None:
 
 def push_to_class(db: Session, cs: ClassSection, data: bytes, filename: str, title: str, material_type: str,
                   week: int, user_id: int | None) -> dict:
-    """Đăng một PDF lên khóa Moodle của lớp rồi biến nó thành học liệu của lớp. Trả {material_id, created, note}."""
+    """Đăng một PDF lên khóa Moodle của lớp rồi biến nó thành học liệu của lớp."""
     if not cs.moodle_course_id:
         raise PublishError("Lớp chưa gắn khóa học Moodle")
     if not lms.configured():

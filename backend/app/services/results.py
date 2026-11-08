@@ -1,5 +1,4 @@
-"""Chạy Analysis Engine trên CSDL: ghi item_statistics, attempt_clo_results, lộ trình học,
-clo_results (BM6b), pi_results (BM3c) và plo_results (BM2)."""
+"""Chạy Analysis Engine trên CSDL: ghi item_statistics, attempt_clo_results, lộ trình học, clo_results (BM6b), pi_results (BM3c) và plo_results (BM2)."""
 from __future__ import annotations
 
 import pandas as pd
@@ -60,7 +59,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
         if not mapping.empty:
             mapping["weight"] = mapping.weight.astype(float)
 
-        # 1) Độ khó, độ phân biệt
         stats = analysis.item_statistics(items)
         db.execute(text("DELETE FROM item_statistics WHERE exam_id = :e"), {"e": exam_id})
         for r in stats.itertuples():
@@ -69,7 +67,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
                        {"e": exam_id, "q": r.question_id, "n": r.n_students, "p": r.p_value,
                         "d": None if pd.isna(r.di_value) else r.di_value})
 
-        # 2) Minh chứng CLO từng SV (bỏ câu đã Hủy)
         valid = items[~items.is_cancelled.astype(bool)] if not items.empty else items
         clo = analysis.attempt_clo_scores(valid, mapping, thr, settings.default_pass_threshold)
         db.execute(text("""DELETE r FROM attempt_clo_results r JOIN exam_attempts a ON a.id = r.attempt_id
@@ -80,7 +77,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
                        {"a": r.attempt_id, "c": r.clo_id, "se": round(r.score_earned, 2), "sm": round(r.score_max, 2),
                         "sp": r.score_pct, "ok": bool(r.is_achieved)})
 
-        # 3) Lộ trình học cá nhân
         db.execute(text("""DELETE p FROM personalized_learning_paths p JOIN exam_attempts a ON a.id = p.attempt_id
                            WHERE a.exam_id = :e"""), {"e": exam_id})
         clo_names = dict(db.execute(text("SELECT id, clo_code FROM clos")).fetchall())
@@ -91,7 +87,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
             for att, g in clo.groupby("attempt_id"):
                 lost = lost_all[lost_all.attempt_id == att].groupby(["clo_id", "outline_id"], dropna=False, as_index=False).lost_points.sum()
                 recs = analysis.learning_path(g, lost, thr, settings.default_pass_threshold)
-                # SV được đánh giá bằng điểm; gợi ý ôn tập nói theo CHƯƠNG, không nêu kết quả CLO riêng của từng SV
                 chapters = list(dict.fromkeys(ch_names.get(rec["outline_id"], "nội dung chưa gắn chương") for rec in recs))
                 summary = (f"Còn yếu ở {len(chapters)} chương/nội dung (điểm dưới mức yêu cầu) – nên ôn lại theo thứ tự gợi ý bên dưới."
                            if recs else "Điểm các nội dung của bài đều đạt mức yêu cầu.")
@@ -114,14 +109,13 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
 
         db.execute(text("UPDATE exams SET status = 'Analyzed' WHERE id = :e"), {"e": exam_id})
         db.commit()
-        # 4) Tổng hợp các tầng
         recompute_class_section(db, cs_id)
         n_att = int(items.attempt_id.nunique()) if not items.empty else 0
         db.execute(text("UPDATE sync_runs SET status='success', finished_at=NOW(), n_attempts=:n WHERE id=:r"),
                    {"n": n_att, "r": run_id})
         db.commit()
         return {"exam_id": exam_id, "n_students": n_att, "n_questions": len(stats), "n_clo_rows": len(clo)}
-    except Exception as exc:  # ghi nhật ký lỗi rồi ném lại
+    except Exception as exc:
         db.rollback()
         db.execute(text("UPDATE sync_runs SET status='failed', finished_at=NOW(), message=:m WHERE id=:r"),
                    {"m": str(exc)[:1000], "r": run_id})
@@ -130,8 +124,7 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
 
 
 def recompute_class_section(db: Session, cs_id: int) -> None:
-    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d).
-    Chỉ gộp các bài GV chọn làm minh chứng (counts_for_clo = 1; bài phụ đạo mặc định không gộp)."""
+    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d)."""
     thr, tgt, ev = clo_thresholds(db, cs_id)
     rows = _df(db, """
         SELECT r.clo_id, e.assessment_type, COUNT(*) AS n_eval, SUM(r.is_achieved) AS n_ok
@@ -170,11 +163,11 @@ def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: i
     years = set()
     for p in plans.itertuples():
         clo_ids = [r[0] for r in db.execute(text("SELECT clo_id FROM pi_plan_clos WHERE plan_id=:p"), {"p": p.id})]
-        if not clo_ids:  # mặc định: các CLO của môn gắn với chính PI này (CLO → PI, góp ý F2a)
+        if not clo_ids:
             clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_pi_mapping m ON m.clo_id = c.id
                                                         WHERE c.course_id = :c AND m.pi_id = :pi"""),
                                                 {"c": p.course_id, "pi": p.pi_id})]
-        if not clo_ids:  # chưa có CLO → PI: các CLO của môn có đóng góp cho PLO của PI
+        if not clo_ids:
             clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_plo_mapping m ON m.clo_id = c.id
                                                         WHERE c.course_id = :c AND m.plo_id = :plo"""),
                                                 {"c": p.course_id, "plo": p.plo_id})]
@@ -226,14 +219,13 @@ def recompute_plo(db: Session, plo_id: int, academic_year: str) -> None:
 
 
 def reanalyze_course(db: Session, course_id: int, semester_id: int | None = None) -> int:
-    """Kế hoạch CLO (ngưỡng/chỉ tiêu/loại minh chứng) thay đổi → phân tích lại các bài KT đã phân tích
-    của môn trong học kỳ để kết quả CLO–PI–PLO nhất quán với kế hoạch mới."""
+    """Kế hoạch CLO (ngưỡng/chỉ tiêu/loại minh chứng) thay đổi → phân tích lại các bài KT đã phân tích của môn trong học kỳ để kết quả CLO–PI–PLO nhất quán với kế hoạch mới."""
     ids = [r[0] for r in db.execute(text("""SELECT e.id FROM exams e JOIN class_sections cs ON cs.id = e.class_section_id
                                              WHERE cs.course_id = :c AND (:s IS NULL OR cs.semester_id = :s)
                                                AND e.status = 'Analyzed' ORDER BY e.id"""), {"c": course_id, "s": semester_id})]
     for exam_id in ids:
         analyze_exam(db, exam_id)
-    if not ids:  # chưa có bài KT nào: vẫn cập nhật chỉ tiêu ở các lớp HP
+    if not ids:
         for (cs_id,) in db.execute(text("SELECT id FROM class_sections WHERE course_id=:c AND (:s IS NULL OR semester_id=:s)"),
                                    {"c": course_id, "s": semester_id}).fetchall():
             recompute_class_section(db, cs_id)

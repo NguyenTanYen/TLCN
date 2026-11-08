@@ -1,20 +1,4 @@
-"""Bước 7: đo chất lượng tìm học liệu trên bộ câu hỏi chuẩn (eval/rag_gold.json).
-
-    python -m app.services.rag.evaluate <thư mục PDF> [eval/rag_gold.json] [--detail] [--semantic 0.5,0.55,0.59] [--vlm]
-
-Thư mục PDF chứa các tệp trong "corpus" của bộ câu hỏi (học liệu không đưa vào kho mã). Mỗi câu hỏi có các TRANG đúng
-(gán theo trang, không theo id đoạn – chia đoạn thay đổi thì bộ câu hỏi vẫn dùng được). Một kết quả "đúng" khi đoạn
-trả về nằm trên một trang đúng.
-
-Chỉ số (trên các câu CÓ đáp án trong tài liệu):
-  Hit@k – tỷ lệ câu có ít nhất một đoạn đúng trong k kết quả đầu;  MRR – trung bình 1 / hạng của đoạn đúng đầu tiên
-  (trong 10 kết quả đầu, không có thì 0);  nDCG@10 – các trang đúng có được xếp sớm không (mỗi trang đúng chỉ tính
-  một lần ở đoạn đầu tiên của nó – trang nhiều đoạn không được cộng dồn; chuẩn hóa theo cách xếp lý tưởng).
-Câu KHÔNG có đáp án (negative): "gợi ý sai" – tỷ lệ câu vẫn trả về kết quả (hệ thống đáng lẽ không gợi ý gì).
---vlm: đoạn hình kèm mô tả của VLM (vlm.py; mô tả lưu đệm cạnh PDF) – chạy cả có và không có để so.
---semantic: thêm các dòng "gợi ý theo trang" có cổng ngữ nghĩa (semantic.py) ở từng ngưỡng cos (cần sentence-transformers;
-vector của các đoạn lưu đệm cạnh PDF).
-"""
+"""Bước 7: đo chất lượng tìm học liệu trên bộ câu hỏi chuẩn (eval/rag_gold.json)."""
 from __future__ import annotations
 
 import argparse
@@ -46,8 +30,7 @@ class Doc:
 
 
 def load_corpus(pdf_dir: Path, files: list[str], vlm: bool = False) -> tuple[list[Doc], Index]:
-    """Đọc + chia đoạn các PDF (lưu đệm theo cỡ / thời điểm sửa tệp – chạy lại không phải đọc PDF). vlm: thêm mô tả
-    hình của VLM (describe_corpus) vào văn bản các đoạn hình – như sau vlm.describe_missing."""
+    """Đọc + chia đoạn các PDF (lưu đệm theo cỡ / thời điểm sửa tệp – chạy lại không phải đọc PDF)."""
     cache_path = pdf_dir / CACHE
     try:
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -75,8 +58,7 @@ def load_corpus(pdf_dir: Path, files: list[str], vlm: bool = False) -> tuple[lis
 
 
 def describe_corpus(pdf_dir: Path, files: list[str], cache: dict) -> dict[str, dict[str, str]]:
-    """Mô tả VLM của các đoạn hình: {tệp: {thứ tự đoạn: mô tả}} – lưu đệm cạnh PDF theo model + tham số gọi + phiên bản tệp (mỗi
-    tệp xong là ghi lại – dừng giữa chừng chạy lại không mất phần đã làm)."""
+    """Mô tả VLM của các đoạn hình: {tệp: {thứ tự đoạn: mô tả}} – lưu đệm cạnh PDF theo model + tham số gọi + phiên bản tệp (mỗi tệp xong là ghi lại – dừng giữa chừng chạy lại không mất phần đã làm)."""
     from . import vlm
     from .ingest import render_regions
     path = pdf_dir / f".rag_eval_vlm_{''.join(c if c.isalnum() else '_' for c in vlm.model_name())}.json"
@@ -122,7 +104,7 @@ def ndcg(pages: list[tuple[str, int]], rel: set[tuple[str, int]], k: int = 10) -
 
 def run(questions: list[dict], docs: list[Doc], ix: Index, mode: str = "stem+answer", synonyms=None,
         msm: str | None = None, k: int = 10) -> dict:
-    per: dict[str, list[tuple[int | None, float]]] = {}             # loại câu → [(hạng đoạn đúng đầu tiên, nDCG)]
+    per: dict[str, list[tuple[int | None, float]]] = {}
     neg, detail = [], []
     for q in questions:
         res = ix.score(query_text(q, mode), k, synonyms, msm)
@@ -164,12 +146,7 @@ def embeddings(pdf_dir: Path, docs: list[Doc], questions: list[dict]) -> tuple[n
 def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None,
                 wrong_weight: float | None = None, gate: tuple | None = None, margin: float | None = None,
                 floor: float | None = None) -> dict:
-    """Bước 8 – gợi ý theo TRANG cho từng cặp (câu, phương án SAI sinh viên chọn). wrong_weight None: không dùng
-    truy vấn phương án sai. gate = (vector đoạn, vector câu hỏi, ngưỡng, lọc từng đoạn?): theo câu – như
-    semantic.related, không đoạn ứng viên nào đạt ngưỡng thì không gợi ý; từng đoạn – bỏ đoạn dưới ngưỡng (đã thử, bỏ).
-    margin / floor (cần gate): bỏ trang có cos thấp hơn trang gần nhất quá margin / thấp hơn floor (suggest.close_pages).
-    Chỉ số theo trang: Hit@1, Hit@3 (số trang gợi ý), MRR; P@3 – tỷ lệ trang ĐÚNG trong các trang được gợi ý (tối đa 3;
-    bị chặn hết thì 0) – trang thừa làm giảm P@3; "trang/câu" – số trang trung bình được gợi ý."""
+    """Bước 8 – gợi ý theo TRANG cho từng cặp (câu, phương án SAI sinh viên chọn)."""
     from . import suggest
     ranks, neg, prec, shown = [], [], [], []
     for q in questions:
@@ -185,7 +162,7 @@ def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None
                 cos = {i: float(D[i] @ Q[q["id"]]) for i in ranked}
                 if per_passage:
                     ranked = [i for i in ranked if cos[i] >= thr]
-                elif ranked and (not plain(qt := suggest.query_text(q["stem"], correct)) or looks_english(qt)) and max(cos.values()) < thr:   # như semantic.related
+                elif ranked and (not plain(qt := suggest.query_text(q["stem"], correct)) or looks_english(qt)) and max(cos.values()) < thr:
                     ranked = []
             page_of = lambda i: (docs[i].file, docs[i].page)
             pages = [pg for pg, _ in suggest.pages_of(ranked, page_of)]
@@ -208,7 +185,7 @@ def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None
             "wrong": sum(neg) / len(neg) if neg else 0.0}
 
 
-SUGGEST_VARIANTS = [                         # "bỏ từ khuôn mẫu của đề" đã thử: không đổi chỉ số → bỏ (xem suggest.py)
+SUGGEST_VARIANTS = [
     ("thân câu + đáp án", {}),
     ("+ RRF phương án sai ×1", {"wrong_weight": 1.0}),
     ("+ RRF phương án sai ×0,5", {"wrong_weight": 0.5}),

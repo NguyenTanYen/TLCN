@@ -1,25 +1,4 @@
-"""Mô tả HÌNH trong học liệu bằng VLM chạy cục bộ (Ollama, mặc định qwen2.5vl:3b) – điền material_passages.vlm_desc.
-
-Vì sao cần: slide vẽ theo kiểu THẺ / KHỐI (hộp bo góc có nền, sơ đồ ô + mũi tên) bị bộ đọc PDF coi là HÌNH; chữ trong
-hình vẫn được giữ (thân đoạn hình) nhưng là các mảnh rời theo thứ tự vẽ, trộn giữa các thẻ ("1 CẤU TRÚC 2 ĐẶC TÍNH DỮ
-LIỆU Hệ thống, database..."), không có ý nghĩa của bố cục (cột nào so với cột nào, mũi tên đi đâu); trang scan / ảnh
-chụp thì không có chữ nào. VLM NHÌN vùng hình và viết vài câu mô tả – đoạn hình tìm được theo ý ("so sánh static
-capture và incremental capture") chứ không chỉ theo từ rời, và cổng ngữ nghĩa có câu đầy đủ để so.
-
-Chạy ở luồng nạp, SAU khi đoạn đã commit và đã có chỉ mục + vector (gợi ý dùng được ngay, mô tả hình đến sau – VLM
-chậm, vài giây mỗi hình trên GPU laptop): mỗi học liệu 'ready' chưa mô tả (vlm_model NULL / model khác) → tải lại PDF
-từ Moodle → cắt ảnh từng vùng hình → hỏi VLM → ghi mô tả trong giao dịch NGẮN, CHỈ khi học liệu chưa bị nạp lại
-(indexed_at không đổi – cùng quy ước với semantic.embed_missing). Đoạn được mô tả thì xóa vector và embed_model của học
-liệu để semantic.embed_missing tính lại; vlm_model đổi → khóa chỉ mục tìm kiếm của lớp đổi → chỉ mục dựng lại.
-
-Gửi kèm VLM phần chữ bộ đọc PDF đã lấy được trong hình: model nhỏ đọc chữ tiếng Việt có dấu trong ảnh hay sai – có
-chữ gốc thì mô tả dùng đúng thuật ngữ; VLM chỉ phải hiểu BỐ CỤC.
-
-Tùy chọn, không chặn: RAG_VLM_MODEL rỗng, Ollama không chạy hoặc chưa tải model → bỏ qua (đoạn hình chỉ có chữ của
-PDF). Lỗi giữa chừng (Ollama tắt, quá giờ) → bỏ dở học liệu đó, không ghi gì, lần nạp / đồng bộ sau làm lại. Ollama
-TỪ CHỐI riêng một hình (trả lỗi HTTP, vd. "token repeat limit reached" khi model lặp chữ mãi) → bỏ qua hình đó (chỉ có
-chữ PDF), các hình khác vẫn ghi – không để một hình chặn cả học liệu ở mọi lần đồng bộ.
-"""
+"""Mô tả HÌNH trong học liệu bằng VLM chạy cục bộ (Ollama, mặc định qwen2.5vl:3b) – điền material_passages.vlm_desc."""
 from __future__ import annotations
 
 import base64
@@ -35,13 +14,11 @@ from ...models import ClassSection, Course, MaterialPage, MaterialPassage, Secti
 
 log = logging.getLogger(__name__)
 
-TIMEOUT_S = 180.0         # một hình: lần gọi đầu phải nạp model vào GPU (~10–20 s), sau đó vài giây
-MAX_FIGURES = 300         # học liệu nhiều hình hơn: chỉ mô tả ngần này hình đầu (giáo trình scan vài trăm trang)
-MAX_DESC = 1500           # ký tự mô tả tối đa lưu lại
-PDF_TEXT_MAX = 600        # ký tự chữ-trong-hình gửi kèm
-NUM_PREDICT = 320         # token trả lời tối đa (~5 câu)
-# repeat_penalty: model 3B đôi khi lặp một cụm mãi (hình nhiều ô giống nhau) → Ollama hủy câu trả lời; 1.1 đủ chặn mà
-# vẫn trả lời tiếng Việt (1.15 đã bắt đầu trả lời tiếng Anh). evaluate.describe_corpus lưu đệm theo OPTIONS.
+TIMEOUT_S = 180.0
+MAX_FIGURES = 300
+MAX_DESC = 1500
+PDF_TEXT_MAX = 600
+NUM_PREDICT = 320
 OPTIONS = {"temperature": 0, "num_predict": NUM_PREDICT, "repeat_penalty": 1.1}
 
 PROMPT = """Ảnh là một hình cắt từ {where} của môn "{course}"{crumb}.
@@ -78,8 +55,7 @@ def available() -> bool:
 
 
 def describe(png: bytes, prompt: str) -> str:
-    """Hỏi VLM về một ảnh. Ollama từ chối ảnh này (HTTP 4xx/5xx) → "" (bỏ qua hình); lỗi kết nối / quá giờ →
-    httpx.TransportError (nơi gọi bỏ dở học liệu, lần sau làm lại)."""
+    """Hỏi VLM về một ảnh."""
     r = httpx.post(_url("/api/chat"), timeout=TIMEOUT_S, json={
         "model": model_name(), "stream": False, "keep_alive": "10m",
         "options": OPTIONS,
@@ -100,8 +76,7 @@ def prompt_for(course: str, slide: bool, breadcrumb: str, body: str) -> str:
 
 
 def describe_missing(db: Session, cs_id: int, fetcher=None) -> int:
-    """Mô tả hình cho các học liệu 'ready' của lớp chưa mô tả (hoặc mô tả bằng model khác). Trả về số đoạn hình đã mô tả.
-    fetcher(m) → đường dẫn / nội dung PDF (mặc định tải từ Moodle như lúc nạp)."""
+    """Mô tả hình cho các học liệu 'ready' của lớp chưa mô tả (hoặc mô tả bằng model khác)."""
     if not model_name():
         return 0
     name = model_name()
@@ -135,15 +110,15 @@ def describe_missing(db: Session, cs_id: int, fetcher=None) -> int:
                 pngs = render_regions(src, [(pg, tuple(bbs[0])) for _, pg, bbs, _, _ in figs])
                 for (pid, _, _, crumb, body), png in zip(figs, pngs):
                     d = describe(png, prompt_for(course, m.material_type == "slide", crumb, body))
-                    if d:                                    # hình bị Ollama từ chối: giữ nguyên đoạn + vector
+                    if d:
                         descs.append((pid, d))
-            except Exception as ex:                          # Moodle / Ollama lỗi, quá giờ: bỏ dở, lần sau làm lại
+            except Exception as ex:
                 log.warning("Mô tả hình học liệu %s (%s) dừng: %s: %s", m.id, m.file_name, type(ex).__name__, ex)
                 return total
             finally:
                 if isinstance(src, str):
                     os.unlink(src)
-        if descs:    # executemany trên connection – đoạn bị xóa (nạp lại trong lúc mô tả) thì trượt, kiểm ngay dưới
+        if descs:
             db.connection().execute(
                 update(MaterialPassage).where(MaterialPassage.id == bindparam("b_id"))
                 .values(vlm_desc=bindparam("b_desc"), embedding=None),
@@ -155,6 +130,6 @@ def describe_missing(db: Session, cs_id: int, fetcher=None) -> int:
             db.commit()
             total += len(descs)
             log.info("Đã mô tả %d hình của học liệu %s (%s)", len(descs), m.id, m.file_name)
-        else:                                                # đã bị nạp lại / bỏ chọn trong lúc mô tả: bỏ kết quả
+        else:
             db.rollback()
     return total

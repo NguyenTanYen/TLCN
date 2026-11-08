@@ -1,9 +1,4 @@
 <?php
-// DEMO bài thi giấy: đưa các ảnh phiếu trả lời "đã quét" vào hàng đợi nhận diện của Offline Quiz – giống hệt thao tác
-// giảng viên bấm "Tải lên" ảnh quét trên trang Offline Quiz (report.php?mode=rimport). Việc nhận diện MSSV, mã đề,
-// các ô đánh dấu và chấm điểm vẫn do chính plugin Offline Quiz thực hiện (hệ thống gọi local_clo_process_scans).
-//   php moodle_enqueue_scans.php --moodle=D:\xampp\htdocs\moodle --oq=<offlinequizid> <anh1.png> <anh2.png> ...
-// In ra JSON {queueid, files}.
 define('CLI_SCRIPT', true);
 $opts = getopt('', ['moodle:', 'oq:'], $rest);
 require($opts['moodle'] . '/config.php');

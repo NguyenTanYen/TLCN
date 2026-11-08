@@ -10,7 +10,6 @@ import { openMoodle, useMoodleBase } from '../moodle'
 
 const ASSESS_VI = { process: 'Quá trình', final: 'Cuối kỳ' }
 
-// Nút "bước tiếp theo" của một bài kiểm tra theo trạng thái (góp ý 21/10: nhìn vào là biết phải làm gì)
 const nextStep = e => e.status === 'Analyzed' ? ['Xem kết quả', 'btn sm']
   : e.status === 'Draft' ? [{ online: 'Tạo bài trắc nghiệm trên Moodle', paper: 'In đề & chấm phiếu', manual: 'Nhập điểm' }[e.exam_type] || 'Mở', 'btn sm primary']
   : e.status === 'Synced' ? ['Phân tích', 'btn sm primary']
@@ -53,7 +52,6 @@ export default function SectionDetail() {
       </div>
       <PageHelp id="section"><p>Đây là trang làm việc của một lớp học phần. Đi lần lượt các bước: đưa <b>học liệu</b> lên → <b>tạo bài kiểm tra</b> → <b>lấy bài làm và phân tích</b> → xem <b>kết quả chuẩn đầu ra của lớp</b> → <b>ôn tập</b> cho sinh viên còn yếu.</p>
       <p>Cột "Bước tiếp theo" trong bảng cho biết việc nên làm tiếp với từng bài kiểm tra. Thẻ <b>Học liệu</b> (đầu tiên) là nơi tải PDF lên cho lớp và các lớp cùng môn, đồng thời cho biết tệp PDF nào của khóa học Moodle được dùng để gợi ý trang cần đọc khi sinh viên làm sai.</p></PageHelp>
-      {/* luồng công việc của lớp: tạo bài → thu bài & phân tích → kết quả CĐR → ôn tập */}
       <Flow steps={[
         { label: 'Học liệu', sub: 'Tải slide / giáo trình lên cho lớp', on: tab === 'materials', onClick: () => setTab('materials') },
         !isAdmin && { label: 'Tạo bài kiểm tra', sub: 'Trực tuyến, trên giấy hoặc nhập điểm', done: ex.length > 0, onClick: () => setCreating(true) },

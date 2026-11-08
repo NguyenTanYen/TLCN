@@ -1,4 +1,3 @@
-// [đường dẫn, tên, [đường dẫn con cùng nhóm], mô tả ngắn (hiện khi rê chuột và ở trang Tổng quan)]
 export const MENUS = {
   lecturer: [
     ['Bắt đầu', [['/', 'Tổng quan', [], 'Việc cần làm tiếp theo và đường tắt tới từng chức năng']]],

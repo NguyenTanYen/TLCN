@@ -1,5 +1,4 @@
-"""Gom khối chữ thành đoạn chữ / đoạn hình (app.services.rag.chunk). Không cần CSDL:
-chạy riêng được bằng  pytest --noconftest tests/test_rag_chunk.py"""
+"""Gom khối chữ thành đoạn chữ / đoạn hình (app.services.rag.chunk)."""
 import os
 
 import pymupdf
@@ -30,7 +29,7 @@ def test_slide_bullets_become_one_passage_with_title():
     assert p.body == "• Xác định duy nhất mỗi dòng • Không được trùng • Không được NULL"
     assert p.text.startswith("Khóa chính\n") and len(p.bboxes) == 3
     x0, y0, x1, y1 = p.bbox
-    assert y0 < 130 < 210 < y1                       # khung bao cả 3 gạch đầu dòng
+    assert y0 < 130 < 210 < y1
 
 
 def test_heading_mid_page_and_carried_to_next_page():
@@ -54,16 +53,16 @@ def test_long_block_split_by_sentence_with_overlap():
     pg.insert_textbox(pymupdf.Rect(50, 50, 550, 800), " ".join(sents), fontsize=10, fontfile=FONT, fontname="dv")
     ps = _passages(doc)
     assert len(ps) >= 2 and all(len(p.body) <= chunk.MAX for p in ps)
-    for a, b in zip(ps, ps[1:]):                     # chồng lấn: câu cuối đoạn trước = câu đầu đoạn sau
+    for a, b in zip(ps, ps[1:]):
         assert chunk.sentences(a.body)[-1] == chunk.sentences(b.body)[0]
     joined = " ".join(p.body for p in ps)
-    assert all(s in joined for s in sents)          # không mất câu nào
+    assert all(s in joined for s in sents)
 
 
 def test_vector_diagram_becomes_figure_with_labels_and_caption():
     doc = pymupdf.open()
     pg = doc.new_page(width=720, height=540)
-    pg.draw_rect(pg.rect, color=None, fill=(0.95, 0.95, 1))   # nền slide phủ cả trang – không được nuốt sơ đồ
+    pg.draw_rect(pg.rect, color=None, fill=(0.95, 0.95, 1))
     _t(pg, (40, 60), "Ví dụ: sơ đồ ER", 28)
     for x, name in ((100, "SINHVIEN"), (420, "LOP")):
         pg.draw_rect(pymupdf.Rect(x, 150, x + 160, 230))
@@ -80,7 +79,7 @@ def test_vector_diagram_becomes_figure_with_labels_and_caption():
     assert f.title == "Ví dụ: sơ đồ ER" and f.caption == "Hình 3.2: Sơ đồ ER quản lý sinh viên"
     assert "SINHVIEN" in f.body and "LOP" in f.body and f.vlm_desc == ""
     assert [t.body for t in texts] == ["Mỗi sinh viên thuộc đúng một lớp, một lớp có nhiều sinh viên."]
-    assert "SINHVIEN" not in texts[0].text           # nhãn sơ đồ không bị lặp ở đoạn chữ
+    assert "SINHVIEN" not in texts[0].text
 
 
 def test_embedded_image_with_caption():
@@ -138,34 +137,34 @@ def test_table_becomes_markdown_passage_not_figure():
     t = ps[1]
     assert t.caption == "Bảng 2.1: Thuộc tính của bảng SINHVIEN" and t.vlm_desc == ""
     assert "|MaSV|CHAR(8)|PRIMARY KEY|" in t.body and t.body.startswith("|Cột|Kiểu|Ràng buộc|")
-    assert "PRIMARY KEY" not in ps[0].body           # chữ trong bảng không lặp ở đoạn chữ
+    assert "PRIMARY KEY" not in ps[0].body
 
 
 def test_running_header_kept_as_context_footer_dropped_mid_page_repeat_kept():
     doc = pymupdf.open()
     for i, title in enumerate(["Lược đồ quan hệ", "Thực thể", "Mối kết hợp", "Bản số"], 1):
         pg = doc.new_page(width=720, height=540)
-        _t(pg, (500, 25), "Chương 2: Thiết kế CSDL", 10)      # đầu trang lặp ở mọi slide của chương
+        _t(pg, (500, 25), "Chương 2: Thiết kế CSDL", 10)
         _t(pg, (40, 90), title, 28)
         _t(pg, (60, 160), f"Nội dung slide {title.lower()} trình bày khái niệm và ví dụ.", 18)
-        _t(pg, (60, 260), "Ví dụ minh họa", 18)              # lặp giữa trang → là nội dung, giữ lại
+        _t(pg, (60, 260), "Ví dụ minh họa", 18)
         _t(pg, (40, 525), f"Khoa CNTT – Cơ sở dữ liệu   {i}", 10)
     ps = _passages(doc)
     assert len(ps) == 4
     assert [p.breadcrumb for p in ps][:2] == ["Chương 2: Thiết kế CSDL > Lược đồ quan hệ", "Chương 2: Thiết kế CSDL > Thực thể"]
     assert all("Chương 2" not in p.body and "Khoa CNTT" not in p.text for p in ps)
     assert all("Ví dụ minh họa" in p.body for p in ps)
-    assert ps[0].text.startswith("Chương 2: Thiết kế CSDL > Lược đồ quan hệ\n")   # tìm "thiết kế CSDL" vẫn thấy
+    assert ps[0].text.startswith("Chương 2: Thiết kế CSDL > Lược đồ quan hệ\n")
 
 
 def test_bold_headings_levels_and_breadcrumb():
     doc = pymupdf.open()
     pg = doc.new_page()
     _b(pg, (50, 60), "Chương 3. Ràng buộc toàn vẹn", 16)
-    _b(pg, (50, 100), "3.1 Khóa chính")                   # in đậm, CÙNG cỡ chữ thân bài
+    _b(pg, (50, 100), "3.1 Khóa chính")
     _b(pg, (50, 130), "3.1.1 Định nghĩa")
     _t(pg, (50, 160), "Khóa chính là tập thuộc tính xác định duy nhất một bộ trong quan hệ.", 11)
-    _b(pg, (50, 190), "Lưu ý: khóa chính không được NULL.")   # câu in đậm nhấn mạnh → không phải đề mục
+    _b(pg, (50, 190), "Lưu ý: khóa chính không được NULL.")
     _b(pg, (50, 230), "3.2 Khóa ngoại")
     _t(pg, (50, 260), "Khóa ngoại là tập thuộc tính tham chiếu tới khóa chính của quan hệ khác.", 11)
     ps = _passages(doc)
@@ -186,7 +185,7 @@ def test_code_block_never_split_nor_mixed_with_prose():
     _t(pg, (50, 260), "Kết quả trả về danh sách sinh viên kèm tên lớp tương ứng của từng khoa.", 11)
     ps = _passages(doc)
     code = [p for p in ps if p.code]
-    assert len(code) == 1 and len(code[0].body) > chunk.MAX       # dài hơn MAX nhưng không bị cắt
+    assert len(code) == 1 and len(code[0].body) > chunk.MAX
     assert all(line in code[0].body for line in sql)
     assert all("SELECT" not in p.body for p in ps if not p.code)
 
@@ -199,19 +198,17 @@ def test_sentence_split_respects_abbreviations_and_identifiers():
                                   "VD. bảng SINHVIEN có khóa MaSV!"]
 
 
-# ---- feedback lần 2: mỗi test tái hiện đúng một lỗi đã xác nhận ----
-
 def test_sql_pasted_in_normal_font_is_code_and_not_split():
     doc = pymupdf.open()
     pg = doc.new_page()
-    sql = " ".join(f"SELECT a{i}, b{i} FROM T{i} WHERE c{i} = {i};" for i in range(30))   # Arial-like, không monospace
+    sql = " ".join(f"SELECT a{i}, b{i} FROM T{i} WHERE c{i} = {i};" for i in range(30))
     pg.insert_textbox(pymupdf.Rect(50, 50, 550, 500), sql, fontsize=10, fontfile=FONT, fontname="dv")
     _t(pg, (50, 600), "Mệnh đề WHERE dùng để lọc các dòng thỏa điều kiện, còn FROM chỉ ra bảng nguồn được JOIN.", 11)
     ps = _passages(doc)
     code = [p for p in ps if p.code]
-    assert len(code) == 1 and " ".join(code[0].body.split()) == sql   # nguyên vẹn (giữ xuống dòng), không cắt dù > MAX
+    assert len(code) == 1 and " ".join(code[0].body.split()) == sql
     prose = [p for p in ps if not p.code]
-    assert len(prose) == 1 and prose[0].body.startswith("Mệnh đề WHERE")   # câu giảng giải nhắc từ khóa ≠ code
+    assert len(prose) == 1 and prose[0].body.startswith("Mệnh đề WHERE")
 
 
 def test_looks_like_code_python_and_prose():
@@ -227,7 +224,7 @@ def test_slide_title_same_size_as_chapter_does_not_drop_chapter():
               ("Ví dụ minh họa", "Ví dụ thực thể SINHVIEN có các thuộc tính MaSV, HoTen."),
               ("Chương 3: Chuẩn hóa", "Mở đầu chương về chuẩn hóa."),
               ("Dạng chuẩn 1", "Mọi thuộc tính đều nguyên tố.")]
-    for title, body in slides:                     # mọi tiêu đề CÙNG cỡ 28
+    for title, body in slides:
         pg = doc.new_page(width=720, height=540)
         _t(pg, (40, 90), title, 28); _t(pg, (60, 160), body, 18)
     assert [p.breadcrumb for p in _passages(doc)] == [
@@ -256,31 +253,29 @@ def test_glued_abbreviations_not_split():
 
 
 def test_hard_split_long_sentence_without_punctuation():
-    words = [f"từ{i}" for i in range(220)]           # ~1300 ký tự, không có dấu câu
+    words = [f"từ{i}" for i in range(220)]
     parts = chunk._split_long(" ".join(words))
     assert len(parts) >= 2 and all(len(x) <= chunk.MAX for x in parts)
-    for a, b in zip(parts, parts[1:]):               # chồng lấn đúng OVERLAP_WORDS từ
+    for a, b in zip(parts, parts[1:]):
         assert a.split()[-chunk.OVERLAP_WORDS:] == b.split()[:chunk.OVERLAP_WORDS]
-    assert set(" ".join(parts).split()) == set(words)  # không mất từ nào
+    assert set(" ".join(parts).split()) == set(words)
 
-
-# ---- feedback lần 3 ----
 
 def test_single_word_longer_than_max_is_sliced():
     url = "https://example.com/" + "a" * 1500
     parts = chunk._split_long(f"xem {url} để biết thêm")
     assert all(len(x) <= chunk.MAX for x in parts)
-    assert "".join(x.replace(" ", "") for x in parts).count("a") >= 1500   # không mất ký tự nào của chuỗi dài
+    assert "".join(x.replace(" ", "") for x in parts).count("a") >= 1500
 
 
 def test_code_detection_needs_strong_keyword_and_ignores_comments():
     en = "Use NOT NULL AND UNIQUE ON the column AS required IN most cases OR SET a default value."
-    assert not ingest.looks_like_code(en)            # toàn từ khóa "yếu" → câu tiếng Anh, không phải code
+    assert not ingest.looks_like_code(en)
     sql = ("-- Lấy danh sách sinh viên thuộc lớp đang chọn để hiển thị\n"
            "SELECT sv.MaSV, sv.HoTen FROM SINHVIEN sv\n"
            "-- Chỉ lấy những sinh viên còn đang học, bỏ qua đã nghỉ\n"
            "WHERE sv.TrangThai = 1;")
-    assert ingest.looks_like_code(sql)               # comment tiếng Việt có dấu không làm mất nhận diện
+    assert ingest.looks_like_code(sql)
 
 
 def test_sql_with_vietnamese_comments_in_pdf_stays_one_code_passage():
@@ -313,7 +308,6 @@ def test_long_table_split_by_rows_with_header_repeated():
     assert all(p.caption == "Bảng 1.1: Danh sách lớp" for p in ps)
     body_rows = [ln for p in ps for ln in p.body.split("\n")[2:]]
     assert len(body_rows) == 40 and body_rows[0].startswith("|0|") and body_rows[-1].startswith("|39|")
-    # khung tô của phần thứ 2 chỉ phủ các hàng của nó (nằm dưới phần 1), không phủ cả bảng
     assert ps[1].bboxes[1][1] > ps[0].bboxes[-1][1]
 
 
@@ -325,25 +319,23 @@ def test_overlong_table_row_keeps_header_in_every_piece():
     parts = chunk._table_parts(md, rows)
     assert len(parts) >= 3
     assert all(len(x) <= chunk.MAX and x.startswith(head) for x, _ in parts)
-    assert all(bbs[0] == rows[0] for _, bbs in parts)   # khung header luôn đi kèm
+    assert all(bbs[0] == rows[0] for _, bbs in parts)
     assert any("|MaSV|" in x for x, _ in parts) and any("|HoTen|" in x for x, _ in parts)
 
-
-# ---- feedback lần 4 ----
 
 def test_single_overlong_row_split_into_wellformed_rows():
     head = "|Thuộc tính|Mô tả|Kiểu|\n|---|---|---|"
     long_desc = " ".join(["ghi chú dài về ràng buộc"] * 80)
-    md = head + f"\n|GhiChu|{long_desc}|TEXT|"         # bảng CHỈ 1 hàng dữ liệu (trước đây không cắt gì)
+    md = head + f"\n|GhiChu|{long_desc}|TEXT|"
     parts = chunk._table_parts(md, [(0, 0, 9, 9), (0, 10, 9, 19)])
     assert len(parts) >= 2
     rows = []
     for x, bbs in parts:
         assert len(x) <= chunk.MAX and x.startswith(head) and bbs == [(0, 0, 9, 9), (0, 10, 9, 19)]
         rows += [chunk._cells(row) for row in x.split("\n")[2:]]
-    assert all(len(c) == 3 for c in rows)                                     # cấu trúc 3 cột còn nguyên
+    assert all(len(c) == 3 for c in rows)
     assert rows[0][0] == "GhiChu" and rows[0][2] == "TEXT" and not rows[0][1].startswith(chunk.CONT_LEAD)
-    for c in rows[1:]:                                   # hàng con sau: đánh dấu là phần tiếp theo của cùng bản ghi
+    for c in rows[1:]:
         assert c[0] == "GhiChu" + chunk.CONT_MARK and c[2] == "TEXT" + chunk.CONT_MARK
         assert c[1].startswith(chunk.CONT_LEAD)
     joined = " ".join(c[1].removeprefix(chunk.CONT_LEAD) for c in rows)
@@ -357,7 +349,7 @@ def test_code_heavy_slides_do_not_turn_bullets_into_headings():
         _t(pg, (40, 60), f"Truy vấn {i}", 28)
         for k in range(3):
             _t(pg, (60, 110 + 30 * k), f"Gạch đầu dòng số {k} giải thích ý chính", 18)
-        for k in range(8):                                   # nhiều code chữ nhỏ hơn thân bài
+        for k in range(8):
             pg.insert_text((60, 220 + 18 * k), f"SELECT a{k}, b{k} FROM T{k} WHERE c{k} = {k};", fontsize=14, fontname="cour")
     ps = _passages(doc)
     assert [p.breadcrumb for p in ps if not p.code] == [f"Truy vấn {i}" for i in range(4)]
@@ -365,11 +357,11 @@ def test_code_heavy_slides_do_not_turn_bullets_into_headings():
 
 
 def test_overlap_when_last_sentence_is_long():
-    long_s = "Câu dài " + " ".join(f"từ{i}" for i in range(70)) + "."     # > MAX/3 ký tự
+    long_s = "Câu dài " + " ".join(f"từ{i}" for i in range(70)) + "."
     text = " ".join([long_s, long_s.replace("từ", "chữ"), long_s.replace("từ", "ý")])
     parts = chunk._split_long(text)
     assert len(parts) >= 2 and all(len(x) <= chunk.MAX for x in parts)
-    for a, b in zip(parts, parts[1:]):                     # phần sau mở đầu bằng đuôi của phần trước
+    for a, b in zip(parts, parts[1:]):
         head = b.split()[:5]
         assert " ".join(head) in a and 50 <= len(chunk._tail(a, chunk.OVERLAP_CHARS))
 
@@ -409,18 +401,16 @@ def test_colon_and_question_headings_kept():
     assert [p.breadcrumb for p in _passages(doc)] == ["Ví dụ:", "Câu hỏi thảo luận?"]
 
 
-# ---- feedback bước 3 ----
-
 def test_autofit_slide_titles_stay_siblings():
     doc = pymupdf.open()
     _t(doc.new_page(width=720, height=540), (40, 70), "Chương 3: Ràng buộc", 40)
     for title, size in [("Khóa chính", 40), ("Khóa ngoại và ràng buộc tham chiếu", 36),
-                        ("Ràng buộc kiểm tra CHECK trên cột", 32)]:     # PowerPoint tự thu nhỏ tiêu đề dài
+                        ("Ràng buộc kiểm tra CHECK trên cột", 32)]:
         pg = doc.new_page(width=720, height=540)
         _t(pg, (40, 70), title, size)
         for k in range(3):
             _t(pg, (60, 150 + 30 * k), f"Ý chính số {k} của slide này", 20)
-        _t(pg, (60, 300), "Ví dụ", 26)                                      # đề mục phụ trong slide
+        _t(pg, (60, 300), "Ví dụ", 26)
         _t(pg, (60, 340), "Một ví dụ minh họa cho slide.", 20)
     crumbs = [p.breadcrumb for p in _passages(doc)]
     assert crumbs == ["Chương 3: Ràng buộc",
@@ -433,15 +423,15 @@ def test_autofit_slide_titles_stay_siblings():
 
 def test_noisy_heading_sizes_do_not_nest_endlessly():
     doc = pymupdf.open()
-    pg = doc.new_page()                                      # trang dọc (giáo trình), không đánh số
+    pg = doc.new_page()
     y = 60
-    for i, size in enumerate([18, 17.6, 16, 15, 14, 13.4]):  # cỡ lẻ do PDF + nhiều cỡ tiêu đề
+    for i, size in enumerate([18, 17.6, 16, 15, 14, 13.4]):
         _t(pg, (50, y), f"Đề mục {i}", size)
         _t(pg, (50, y + 25), f"Nội dung của đề mục số {i} trình bày một ý.", 10)
         y += 60
     ps = _passages(doc)
     assert max(p.level for p in ps) <= chunk.SIZE_DEPTH
-    assert ps[1].breadcrumb == "Đề mục 1"                   # 18 và 17,6 làm tròn cùng 18 → ngang hàng
+    assert ps[1].breadcrumb == "Đề mục 1"
 
 
 def test_table_cell_with_backslash_and_pipes():
@@ -482,8 +472,6 @@ def test_hard_split_fuzz_bounds_and_coverage():
         assert {w[i:i + lim] for w in words for i in range(0, len(w), lim)} <= got
 
 
-# ---- feedback: code giữ xuống dòng + thụt lề; từ viết tắt không phân biệt hoa thường ----
-
 PY_CODE = ["def tinh_diem(ds):",
            "    tong = 0",
            "    for x in ds:",
@@ -494,9 +482,9 @@ PY_CODE = ["def tinh_diem(ds):",
 def test_python_code_keeps_newlines_and_indentation_from_x_offset():
     doc = pymupdf.open()
     pg = doc.new_page()
-    for i, line in enumerate(PY_CODE):          # PDF không lưu khoảng trắng đầu dòng: dòng được đặt lùi bằng tọa độ x
+    for i, line in enumerate(PY_CODE):
         indent = len(line) - len(line.lstrip())
-        pg.insert_text((50 + indent * 6.0, 60 + 14 * i), line.lstrip(), fontsize=10, fontname="cour")  # Courier 10: 6 pt/ký tự
+        pg.insert_text((50 + indent * 6.0, 60 + 14 * i), line.lstrip(), fontsize=10, fontname="cour")
     ps = _passages(doc)
     assert len(ps) == 1 and ps[0].code
     assert ps[0].body == "\n".join(PY_CODE)
@@ -505,7 +493,7 @@ def test_python_code_keeps_newlines_and_indentation_from_x_offset():
 def test_python_code_with_literal_leading_spaces():
     doc = pymupdf.open()
     pg = doc.new_page()
-    for i, line in enumerate(PY_CODE):          # PDF có lưu khoảng trắng đầu dòng
+    for i, line in enumerate(PY_CODE):
         pg.insert_text((50, 60 + 14 * i), line, fontsize=10, fontname="cour")
     assert _passages(doc)[0].body == "\n".join(PY_CODE)
 
@@ -516,17 +504,15 @@ def test_prose_line_breaks_still_joined():
     pg.insert_textbox(pymupdf.Rect(50, 50, 250, 200), "Khóa ngoại là tập thuộc tính tham chiếu tới khóa chính của bảng khác.",
                       fontsize=11, fontfile=FONT, fontname="dv")
     ps = _passages(doc)
-    assert ps[0].body == "Khóa ngoại là tập thuộc tính tham chiếu tới khóa chính của bảng khác."   # xuống dòng do khổ giấy bị nối
+    assert ps[0].body == "Khóa ngoại là tập thuộc tính tham chiếu tới khóa chính của bảng khác."
 
 
 def test_abbreviations_case_insensitive():
     for s in ["Do Ths. Nguyễn dạy. Câu sau.", "Do Ts. Lê dạy. Câu sau.", "Do pgs. Trần dạy. Câu sau."]:
         assert len(chunk.sentences(s)) == 2, s
-    assert chunk.sentences("Xem cột a. Câu sau.") == ["Xem cột a.", "Câu sau."]   # chữ cái thường đơn vẫn hết câu
+    assert chunk.sentences("Xem cột a. Câu sau.") == ["Xem cột a.", "Câu sau."]
     assert chunk.sentences("Pi xấp xỉ 3.14. Tải http://a.com/b.pdf. Hết.") == ["Pi xấp xỉ 3.14.", "Tải http://a.com/b.pdf.", "Hết."]
 
-
-# ---- review bước 3: câu vắt trang ----
 
 def _textbook(first_page_end: str, second_page_start: str, landscape=False):
     doc = pymupdf.open()
@@ -543,8 +529,8 @@ def _textbook(first_page_end: str, second_page_start: str, landscape=False):
 def test_sentence_split_across_pages_is_completed():
     ps = _textbook("Quá trình chuẩn hóa CSDL nhằm mục đích", "loại bỏ dư thừa dữ liệu và đảm bảo toàn vẹn.")
     assert (ps[0].page, ps[0].body) == (1, "Quá trình chuẩn hóa CSDL nhằm mục đích loại bỏ dư thừa dữ liệu và đảm bảo toàn vẹn.")
-    assert all(b[3] <= 842 for b in ps[0].bboxes) and len(ps[0].bboxes) == 1   # khung tô vẫn chỉ trên trang 1
-    assert ps[1].page == 2 and ps[1].body.startswith("loại bỏ dư thừa")       # trang 2 giữ nguyên
+    assert all(b[3] <= 842 for b in ps[0].bboxes) and len(ps[0].bboxes) == 1
+    assert ps[1].page == 2 and ps[1].body.startswith("loại bỏ dư thừa")
 
 
 def test_no_continuation_when_page_ends_with_full_sentence_or_next_starts_capital():
@@ -576,14 +562,11 @@ def test_more_connectors_and_known_limit():
     assert ps[0].body.endswith("thực thi trên Linux kernel phiên bản 6.0.")
     ps = _textbook("Hệ điều hành sử dụng", "Windows Server để chạy SQL Server.")
     assert ps[0].body.endswith("sử dụng Windows Server để chạy SQL Server.")
-    ps = _textbook("• Giao diện người dùng", "Phần này trình bày kiến trúc.")      # "người dùng" là danh từ → không nối
+    ps = _textbook("• Giao diện người dùng", "Phần này trình bày kiến trúc.")
     assert ps[0].body == "• Giao diện người dùng"
-    # giới hạn đã biết: dừng ở danh từ thường + trang sau mở đầu chữ hoa → không nhận ra (luật không phủ được)
     ps = _textbook("Mô hình ER biểu diễn thực thể", "Student và Course trong hệ thống.")
     assert ps[0].body == "Mô hình ER biểu diễn thực thể"
 
-
-# ---- lỗi tìm thấy khi chạy thử 8 PDF thật (slide BDES233877, giáo trình, bài báo, CTĐT) ----
 
 def test_missing_space_rebuilt_from_character_gaps():
     doc = pymupdf.open()
@@ -591,7 +574,7 @@ def test_missing_space_rebuilt_from_character_gaps():
     _t(pg, (40, 60), "Mục tiêu", 28)
     w = pymupdf.Font(fontfile=FONT).text_length("• Tìm hiểu về", fontsize=20)
     _t(pg, (60, 150), "• Tìm hiểu về", 20)
-    _t(pg, (60 + w + 4.6, 150), "Apache Hadoop", 20)      # PowerPoint: không có ký tự dấu cách, chỉ có khoảng trống
+    _t(pg, (60 + w + 4.6, 150), "Apache Hadoop", 20)
     assert "về Apache Hadoop" in _passages(doc)[0].body
 
 
@@ -601,7 +584,7 @@ def test_rotated_margin_stamp_ignored():
     _t(pg, (50, 80), "1 INTRODUCTION", 16)
     _t(pg, (50, 110), "Documents are visually rich structures that convey information.", 10)
     pg.insert_text((20, 700), "arXiv:2407.01449v6 [cs.IR] 28 Feb 2025", fontsize=16, fontfile=FONT, fontname="dv",
-                   rotate=90)                              # dấu arXiv dọc lề trái
+                   rotate=90)
     ps = _passages(doc)
     assert all("arXiv" not in p.text for p in ps) and ps[0].breadcrumb == "1 INTRODUCTION"
 
@@ -610,9 +593,9 @@ def test_book_page_heads_varying_by_chapter_and_parity_removed():
     doc = pymupdf.open()
     for i in range(8):
         pg = doc.new_page()
-        n = i + 51                                         # số trang in lệch số thứ tự tệp 50
+        n = i + 51
         chap = "3 NoSQL Database" if i < 4 else "4 Hadoop Tools"
-        head = f"{chap} {n}" if i % 2 == 0 else f"{n} Big Data Concepts"   # trang chẵn / lẻ khác nhau
+        head = f"{chap} {n}" if i % 2 == 0 else f"{n} Big Data Concepts"
         _t(pg, (50, 40), head, 9)
         _t(pg, (50, 120), f"Nội dung trang {n} trình bày một khái niệm của dữ liệu lớn.", 11)
     _t(doc[0], (50, 820), "Contents x", 9)
@@ -638,9 +621,9 @@ def test_slide_title_on_template_banner_and_logo_are_not_figures():
     titles = ["MỤC TIÊU", "GIỚI THIỆU", "KIẾN TRÚC HADOOP", "HDFS"]
     for title in titles:
         pg = doc.new_page(width=720, height=540)
-        pg.draw_rect(pymupdf.Rect(0, 20, 720, 85), color=None, fill=(0.1, 0.3, 0.6))   # banner của mẫu slide
-        _t(pg, (40, 65), title, 28)                                                    # tiêu đề nằm TRÊN banner
-        pg.insert_image(pymupdf.Rect(640, 470, 700, 520), pixmap=pix)                  # logo trường ở mọi slide
+        pg.draw_rect(pymupdf.Rect(0, 20, 720, 85), color=None, fill=(0.1, 0.3, 0.6))
+        _t(pg, (40, 65), title, 28)
+        pg.insert_image(pymupdf.Rect(640, 470, 700, 520), pixmap=pix)
         _t(pg, (60, 160), f"Nội dung chính của phần {title.lower()} được trình bày ở đây.", 18)
     ps = _passages(doc)
     assert [p.kind for p in ps] == ["text"] * 4
@@ -650,7 +633,7 @@ def test_slide_title_on_template_banner_and_logo_are_not_figures():
 def test_text_box_with_fill_is_not_a_figure():
     doc = pymupdf.open()
     pg = doc.new_page(width=720, height=540)
-    pg.draw_rect(pymupdf.Rect(36, 50, 330, 100), color=None, fill=(0.9, 0.9, 0.2))     # hộp chữ có nền
+    pg.draw_rect(pymupdf.Rect(36, 50, 330, 100), color=None, fill=(0.9, 0.9, 0.2))
     _t(pg, (40, 90), "Kiến trúc Hadoop", 34)
     _t(pg, (60, 160), "Hadoop gồm HDFS và MapReduce.", 18)
     ps = _passages(doc)
@@ -663,10 +646,10 @@ def test_target_cut_only_at_sentence_end():
     a = "Hadoop bao gồm hai thành phần chính là hệ thống tệp phân tán HDFS và công cụ xử lý MapReduce " * 3
     b = "kết nối với nhau để đảm bảo khả năng chịu lỗi và khả năng mở rộng của cụm máy."
     c = "• MapReduce xử lý dữ liệu song song trên toàn bộ cụm máy tính của hệ thống."
-    for y, s in ((60, a.strip()), (160, b), (260, c)):     # PowerPoint tách MỘT câu thành hai khối
+    for y, s in ((60, a.strip()), (160, b), (260, c)):
         pg.insert_textbox(pymupdf.Rect(50, y, 550, y + 90), s, fontsize=11, fontfile=FONT, fontname="dv")
     ps = _passages(doc)
-    assert all(p.body.rstrip().endswith(".") for p in ps)  # không đoạn nào bị cắt giữa câu
+    assert all(p.body.rstrip().endswith(".") for p in ps)
     assert b in ps[0].body
 
 
@@ -693,7 +676,7 @@ def test_section_of_new_chapter_drops_old_chapter():
     pg = doc.new_page()
     _b(pg, (50, 60), "Chapter 1 Refresher", 16)
     _t(pg, (50, 90), "This chapter reviews big data basics.", 11)
-    _b(pg, (50, 140), "2.1 Cluster Computing")                      # trang mở đầu Chương 2 không nhận được
+    _b(pg, (50, 140), "2.1 Cluster Computing")
     _t(pg, (50, 170), "A cluster is a group of computers working together.", 11)
     assert [p.breadcrumb for p in _passages(doc)] == ["Chapter 1 Refresher", "2.1 Cluster Computing"]
 
@@ -702,17 +685,15 @@ def test_large_bullet_line_is_not_heading():
     doc = pymupdf.open()
     pg = doc.new_page(width=720, height=540)
     _t(pg, (40, 60), "Volume (Scale)", 32)
-    _t(pg, (60, 130), "– 44x increase from 2009 to 2020", 24)      # gạch đầu dòng cỡ chữ lớn hơn thân bài
+    _t(pg, (60, 130), "– 44x increase from 2009 to 2020", 24)
     _t(pg, (60, 180), "Data volume is increasing exponentially across every industry.", 18)
     _t(pg, (60, 220), "Most of the data is generated by machines and sensors.", 18)
     assert [p.breadcrumb for p in _passages(doc)] == ["Volume (Scale)"]
 
 
-# ---- review đợt PDF thật: các heuristic không được bỏ nhầm nội dung thật ----
-
 def test_repeated_diagram_in_middle_of_slides_is_kept():
     doc = pymupdf.open()
-    for i in range(8):                                     # sơ đồ HDFS giữa slide, giảng từng bước qua 6/8 slide
+    for i in range(8):
         pg = doc.new_page(width=720, height=540)
         _t(pg, (40, 60), f"Kiến trúc HDFS - bước {i}", 28)
         if i < 6:
@@ -731,7 +712,7 @@ def test_footnotes_numbered_in_step_with_pages_are_kept():
     for i, topic in enumerate(topics):
         pg = doc.new_page()
         _t(pg, (50, 100), f"Nội dung trang {i + 1} có một chú thích cuối trang.", 11)
-        _t(pg, (50, 800), f"{i + 1} Xem thêm tài liệu về {topic}.", 8)   # số chú thích tăng cùng nhịp số trang
+        _t(pg, (50, 800), f"{i + 1} Xem thêm tài liệu về {topic}.", 8)
     kept = [b.text for p in ingest.read_pdf(doc.tobytes()) for b in p.blocks if "Xem thêm" in b.text]
     assert len(kept) == 5
 
@@ -741,7 +722,7 @@ def test_letter_spaced_title_not_broken_into_letters():
     pg = doc.new_page()
     font = pymupdf.Font(fontfile=FONT)
     x = 50.0
-    for ch in "HADOOP CLUSTER":                          # chữ giãn 0,2 em, không có ký tự dấu cách
+    for ch in "HADOOP CLUSTER":
         if ch != " ":
             _t(pg, (x, 100), ch, 20)
         x += font.text_length(ch, fontsize=20) + 0.2 * 20
@@ -753,7 +734,7 @@ def test_numbered_bold_heading_with_trailing_period():
     pg = doc.new_page()
     _b(pg, (50, 60), "1. Kiến trúc Hadoop.")
     _t(pg, (50, 90), "Hadoop gồm HDFS và MapReduce chạy trên cụm máy.", 11)
-    _b(pg, (50, 130), "Lưu ý: khóa chính không được NULL.")      # câu nhấn mạnh in đậm vẫn KHÔNG là đề mục
+    _b(pg, (50, 130), "Lưu ý: khóa chính không được NULL.")
     _b(pg, (50, 170), "2. Hệ sinh thái")
     _t(pg, (50, 200), "Hệ sinh thái gồm Hive, Pig, HBase.", 11)
     ps = _passages(doc)
@@ -761,14 +742,12 @@ def test_numbered_bold_heading_with_trailing_period():
     assert "Lưu ý: khóa chính không được NULL." in ps[0].body
 
 
-# ---- review: cỡ chữ thân bài theo từng slide, code font thường, chữ có dấu trong ô bảng ----
-
 TITLES = ["Kiến trúc Hadoop", "Thành phần Hadoop", "Lưu trữ Hadoop", "Xử lý Hadoop", "Mở rộng Hadoop"]
 
 
 def test_big_note_on_picture_slide_is_not_heading():
     doc = pymupdf.open()
-    for i in range(10):                                    # 8 slide chữ dày cỡ 16 + 2 slide toàn hình, ghi chú cỡ 28
+    for i in range(10):
         pg = doc.new_page(width=720, height=540)
         _t(pg, (40, 60), TITLES[i % 5], 32)
         if i < 8:
@@ -783,7 +762,7 @@ def test_big_note_on_picture_slide_is_not_heading():
 
 def test_sub_heading_on_dense_slide_kept_when_most_slides_use_big_font():
     doc = pymupdf.open()
-    for i in range(10):                                    # 6 slide chữ to cỡ 24 + 4 slide chữ dày cỡ 14, đề mục phụ cỡ 20
+    for i in range(10):
         pg = doc.new_page(width=720, height=540)
         _t(pg, (40, 60), TITLES[i % 5], 32)
         if i < 6:
@@ -806,7 +785,7 @@ def test_python_pasted_in_proportional_font_keeps_indent_levels():
     pg = doc.new_page()
     _t(pg, (50, 40), "Ví dụ hàm tính điểm trung bình các bài đạt:", 11)
     space = pymupdf.Font(fontfile=FONT).text_length(" ", fontsize=11)
-    for i, line in enumerate(PY_LINES):                    # font THƯỜNG, dòng lùi vào bằng tọa độ x
+    for i, line in enumerate(PY_LINES):
         indent = len(line) - len(line.lstrip())
         _t(pg, (50 + indent * space, 70 + 15 * i), line.lstrip(), 11)
     code = [p for p in _passages(doc) if p.code]
@@ -819,7 +798,7 @@ def test_table_cells_with_tall_diacritics_and_descenders_keep_all_chars():
     rows = [["Mã", "Tên"], ["Ễ1", "QUẢN LÝ ĐỀ THI"], ["gy2", "jeopardy ghép"]]
     for r, row in enumerate(rows):
         for c, s in enumerate(row):
-            rc = pymupdf.Rect(60 + 200 * c, 100 + 22 * r, 260 + 200 * c, 122 + 22 * r)   # hàng thấp, sát chữ
+            rc = pymupdf.Rect(60 + 200 * c, 100 + 22 * r, 260 + 200 * c, 122 + 22 * r)
             pg.draw_rect(rc)
             _t(pg, (rc.x0 + 4, rc.y0 + 16), s, 14)
     md = ingest.read_pdf(doc.tobytes())[0].tables[0].markdown
@@ -833,7 +812,7 @@ def test_font_size_noise_does_not_make_agenda_line_a_slide_title():
         _b(pg, (40, 40), "NỘI DUNG" if i == 0 else TITLES[i], 20)
         items = ["1. Giới thiệu Hadoop", "2. Quá trình phát triển", "3. Kiến trúc Hadoop"]
         for k, s in enumerate(items if i == 0 else [f"Ý {k} của slide {i} trình bày một nội dung." for k in range(3)]):
-            _t(pg, (60, 90 + 36 * k), s, 20.1 if k == 1 else 20)   # nhiễu cỡ chữ 0,1 pt ở dòng thứ hai
+            _t(pg, (60, 90 + 36 * k), s, 20.1 if k == 1 else 20)
     crumbs = [p.breadcrumb for p in _passages(doc)]
     assert crumbs == ["NỘI DUNG", TITLES[1], TITLES[2]]
 
@@ -843,8 +822,7 @@ PARTS = ["MỞ ĐẦU", "BẢN CHẤT ETL", "ĐỘ PHỨC TẠP", "YÊU CẦU", 
 
 
 def _handout(n_slides: int, frame=True) -> pymupdf.Document:
-    """Bản in handout kiểu "Microsoft Print to PDF": trang A4 dọc, 2 slide / trang, mỗi slide trong khung viền 16:9;
-    ngoài khung là ngày in, số trang, số slide."""
+    """Bản in handout kiểu "Microsoft Print to PDF": trang A4 dọc, 2 slide / trang, mỗi slide trong khung viền 16:9; ngoài khung là ngày in, số trang, số slide."""
     doc = pymupdf.open()
     boxes = [pymupdf.Rect(66, 89, 546, 359), pymupdf.Rect(66, 433, 546, 703)]
     for k in range(n_slides):
@@ -855,11 +833,11 @@ def _handout(n_slides: int, frame=True) -> pymupdf.Document:
         r = boxes[k % 2]
         if frame:
             pg.draw_rect(r, color=(0, 0, 0), width=0.96)
-        _t(pg, (r.x0 + 4, r.y1 + 12), str(k + 1), 8)                     # số slide dưới khung
-        _t(pg, (r.x0 + 23, r.y0 + 12), "TIẾT 1 • " + PARTS[k], 5)            # dòng nhỏ TRÊN tiêu đề
+        _t(pg, (r.x0 + 4, r.y1 + 12), str(k + 1), 8)
+        _t(pg, (r.x0 + 23, r.y0 + 12), "TIẾT 1 • " + PARTS[k], 5)
         _t(pg, (r.x0 + 23, r.y0 + 40), f"Tiêu đề slide {k + 1}", 16)
         _t(pg, (r.x0 + 23, r.y0 + 90), f"Nội dung của slide {k + 1} giải thích khái niệm số {k + 1}.", 10)
-        for j in range(3):                                                 # sơ đồ nhỏ: 3 ô nối bằng mũi tên
+        for j in range(3):
             pg.draw_rect(pymupdf.Rect(r.x0 + 30 + 140 * j, r.y0 + 150, r.x0 + 130 + 140 * j, r.y0 + 200), color=(0, 0, 1))
             if j:
                 pg.draw_line((r.x0 - 10 + 140 * j, r.y0 + 175), (r.x0 + 30 + 140 * j, r.y0 + 175), color=(0, 0, 1))
@@ -871,17 +849,16 @@ def test_handout_slides_split_into_sub_pages_with_titles_and_page_coordinates():
     pages = ingest.read_pdf(doc.tobytes())
     slides = [p for p in pages if p.sheet]
     assert [(p.no, p.offset[1]) for p in slides] == [(1, 89.0), (1, 433.0), (2, 89.0), (2, 433.0), (3, 89.0),
-                                                     (3, 433.0), (4, 89.0)]   # tờ cuối chỉ 1 slide
+                                                     (3, 433.0), (4, 89.0)]
     assert all((p.width, p.height, p.sheet) == (480.0, 270.0, (612.0, 792.0)) for p in slides)
     ps = chunk.build_passages(pages)
     text = [p for p in ps if p.kind == "text"]
     assert [p.breadcrumb for p in text] == [f"Tiêu đề slide {k}" for k in range(1, 8)]
-    # dòng nhỏ nằm TRÊN tiêu đề thuộc về slide của nó, không phải slide trước
     assert text[1].body == "TIẾT 1 • BẢN CHẤT ETL Nội dung của slide 2 giải thích khái niệm số 2."
-    assert not any("9/16/2026" in p.body for p in ps)                     # ngày in ngoài khung bị lọc
+    assert not any("9/16/2026" in p.body for p in ps)
     figs = [p for p in ps if p.kind == "figure"]
-    assert len(figs) == 7 and figs[1].breadcrumb == "Tiêu đề slide 2"     # khung slide không bị coi là hình
-    x0, y0, x1, y1 = figs[1].bbox                                          # khung tô ở tọa độ TRANG THẬT (slide dưới)
+    assert len(figs) == 7 and figs[1].breadcrumb == "Tiêu đề slide 2"
+    x0, y0, x1, y1 = figs[1].bbox
     assert figs[1].page == 1 and 90 < x0 < 100 and 580 < y0 < y1 < 640
 
 
@@ -891,22 +868,21 @@ def test_framed_box_not_repeated_on_pages_is_not_a_handout():
         pg = doc.new_page(width=612, height=792)
         _t(pg, (72, 80), f"Chương {i + 1}. Nội dung", 16)
         _t(pg, (72, 120), "Đoạn văn của giáo trình trình bày khái niệm.", 11)
-    doc[1].draw_rect(pymupdf.Rect(72, 300, 540, 560), color=(0, 0, 0))       # một hộp viền tỷ lệ 16:9 ở MỘT trang
+    doc[1].draw_rect(pymupdf.Rect(72, 300, 540, 560), color=(0, 0, 0))
     _t(doc[1], (80, 330), "Ghi nhớ: khóa chính không được trùng.", 11)
     pages = ingest.read_pdf(doc.tobytes())
     assert len(pages) == 3 and not any(p.sheet for p in pages)
 
 
 def test_mixed_file_only_handout_pages_are_split_in_both_directions():
-    """Tệp gộp: handout chiếm phần lớn + vài trang bài tập A4 không khung → trang A4 giữ nguyên;
-    handout chiếm phần NHỎ sau nhiều slide thường → phần handout vẫn được nhận."""
+    """Tệp gộp: handout chiếm phần lớn + vài trang bài tập A4 không khung → trang A4 giữ nguyên; handout chiếm phần NHỎ sau nhiều slide thường → phần handout vẫn được nhận."""
     def a4(doc, k):
         pg = doc.new_page(width=612, height=792)
         _t(pg, (72, 80), f"Bài tập {['khóa', 'chuẩn hóa', 'truy vấn'][k - 1]}", 16)
         _t(pg, (72, 120), f"Cho lược đồ quan hệ R{k}, hãy xác định khóa chính và khóa ngoại.", 11)
 
-    doc = _handout(12)                                   # 6 tờ handout ...
-    for k in range(1, 4):                                # ... + 3 trang bài tập A4
+    doc = _handout(12)
+    for k in range(1, 4):
         a4(doc, k)
     pages = ingest.read_pdf(doc.tobytes())
     assert [p.no for p in pages if p.sheet] == [n for n in range(1, 7) for _ in range(2)]
@@ -915,11 +891,11 @@ def test_mixed_file_only_handout_pages_are_split_in_both_directions():
     assert [b.text for b in tail[0].blocks][0] == "Bài tập khóa"
 
     doc = pymupdf.open()
-    for k in range(8):                                   # 8 slide thường ...
+    for k in range(8):
         pg = doc.new_page(width=720, height=540)
         _t(pg, (40, 60), f"Slide thường {k}", 28)
         _t(pg, (60, 140), f"Nội dung slide thường số {k}.", 18)
-    doc.insert_pdf(_handout(6))                          # ... + 3 tờ handout (27% số trang)
+    doc.insert_pdf(_handout(6))
     pages = ingest.read_pdf(doc.tobytes())
     assert [p.no for p in pages if p.sheet] == [9, 9, 10, 10, 11, 11]
     ps = chunk.build_passages(pages)
@@ -927,44 +903,43 @@ def test_mixed_file_only_handout_pages_are_split_in_both_directions():
 
 
 def test_repeated_table_or_page_border_is_not_a_handout_frame():
-    """Giáo trình: bảng lớn tỷ lệ ngang cùng chỗ trên nhiều trang, và slide có viền trang trí bao gần hết trang –
-    không phải khung handout, chữ ngoài bảng / viền vẫn giữ nguyên."""
+    """Giáo trình: bảng lớn tỷ lệ ngang cùng chỗ trên nhiều trang, và slide có viền trang trí bao gần hết trang – không phải khung handout, chữ ngoài bảng / viền vẫn giữ nguyên."""
     doc = pymupdf.open()
     for i in range(4):
         pg = doc.new_page(width=612, height=792)
         _t(pg, (72, 70), f"Bảng tra cứu {['A', 'B', 'C', 'D'][i]}", 16)
-        x0, y0, cw, rh = 72, 100, 117, 36.5                               # bảng 468 × 292 pt: tỷ lệ 1,6 như slide
+        x0, y0, cw, rh = 72, 100, 117, 36.5
         for r in range(8):
             for c in range(4):
                 rc = pymupdf.Rect(x0 + cw * c, y0 + rh * r, x0 + cw * (c + 1), y0 + rh * (r + 1))
                 pg.draw_rect(rc)
                 _t(pg, (rc.x0 + 4, rc.y0 + 20), f"ô {r}{c}", 10)
-        pg.draw_rect(pymupdf.Rect(x0, y0, x0 + 4 * cw, y0 + 8 * rh), width=2)   # viền ngoài bảng: 1 hình chữ nhật
+        pg.draw_rect(pymupdf.Rect(x0, y0, x0 + 4 * cw, y0 + 8 * rh), width=2)
         _t(pg, (72, 420), "Ghi chú dưới bảng giải thích ý nghĩa các cột.", 11)
-    assert all(ingest._frame_candidates(pg, pg.get_drawings()) for pg in doc)   # đúng là ứng viên khung ...
+    assert all(ingest._frame_candidates(pg, pg.get_drawings()) for pg in doc)
     pages = ingest.read_pdf(doc.tobytes())
-    assert len(pages) == 4 and not any(p.sheet for p in pages)          # ... nhưng trùng viền bảng → không tách
+    assert len(pages) == 4 and not any(p.sheet for p in pages)
     assert pages[0].tables and pages[0].blocks[-1].text == "Ghi chú dưới bảng giải thích ý nghĩa các cột."
 
     doc = pymupdf.open()
     for i in range(4):
         pg = doc.new_page(width=720, height=540)
-        pg.draw_rect(pymupdf.Rect(20, 20, 700, 520), color=(0, 0, 0.5), width=3)  # viền mẫu slide: 87% trang
+        pg.draw_rect(pymupdf.Rect(20, 20, 700, 520), color=(0, 0, 0.5), width=3)
         _t(pg, (40, 70), f"Tiêu đề {['một', 'hai', 'ba', 'bốn'][i]}", 28)
         _t(pg, (60, 140), "Nội dung slide có viền trang trí.", 18)
     assert not any(p.sheet for p in ingest.read_pdf(doc.tobytes()))
 
-    doc = pymupdf.open()                       # slide in cả trang ngang, tùy chọn "Frame slides": viền 69% trang
+    doc = pymupdf.open()
     for i in range(4):
         pg = doc.new_page(width=842, height=595)
         pg.draw_rect(pymupdf.Rect(30, 40, 812, 480), width=0.7)
         _t(pg, (60, 90), f"Tiêu đề {['một', 'hai', 'ba', 'bốn'][i]}", 24)
         _t(pg, (70, 150), "Nội dung slide in cả trang có viền.", 16)
     pages = ingest.read_pdf(doc.tobytes())
-    assert not any(p.sheet or p.figures for p in pages)               # không tách, viền không thành hình
+    assert not any(p.sheet or p.figures for p in pages)
     assert [p.title for p in chunk.build_passages(pages)] == ["Tiêu đề một", "Tiêu đề hai", "Tiêu đề ba", "Tiêu đề bốn"]
 
-    doc = pymupdf.open()                       # bảng lớn kéo dài nhiều trang ngang: viền 67% trang, tỷ lệ 1,73 như slide
+    doc = pymupdf.open()
     for i in range(4):
         pg = doc.new_page(width=842, height=595)
         _t(pg, (40, 40), f"Bảng {i + 1} (tiếp theo)", 14)
@@ -978,4 +953,4 @@ def test_repeated_table_or_page_border_is_not_a_handout_frame():
     assert all(ingest._frame_candidates(pg, pg.get_drawings(), whole=True) for pg in doc)
     pages = ingest.read_pdf(doc.tobytes())
     assert len(pages) == 4 and all(len(p.tables) == 1 and not p.sheet and not p.figures for p in pages)
-    assert "ô 00" in pages[3].tables[0].markdown and "ô 104" in pages[3].tables[0].markdown      # đủ ô đầu – cuối
+    assert "ô 00" in pages[3].tables[0].markdown and "ô 104" in pages[3].tables[0].markdown

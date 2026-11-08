@@ -1,6 +1,4 @@
 <?php
-// UC-05 trên Moodle: sinh viên xem kết quả phân tích năng lực theo CLO (radar so với ngưỡng θk),
-// nhận định và các chương cần ôn. Giảng viên xem được kết quả của cả lớp.
 require_once(__DIR__ . '/../../config.php');
 require_once(__DIR__ . '/lib.php');
 
@@ -24,12 +22,11 @@ $PAGE->navbar->add(get_string('results', 'local_clo'), new moodle_url('/local/cl
 
 $exams = $DB->get_records('local_clo_exam', ['courseid' => $course->id], 'timecreated DESC, id DESC');
 
-/** Khối kết quả của một SV cho một bài kiểm tra. */
 function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
-    if (!$exam->published) {                               // E1 – GV chưa công bố
+    if (!$exam->published) {
         return html_writer::div(get_string('reserved', 'local_clo'), 'alert alert-warning mb-0');
     }
-    if (!$res || $res->status === 'absent') {              // E2 – không đủ bằng chứng
+    if (!$res || $res->status === 'absent') {
         return html_writer::div(get_string('insufficient', 'local_clo'), 'alert alert-secondary mb-0');
     }
     $d = json_decode($res->data ?? '{}') ?: new stdClass();
@@ -37,7 +34,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     $o .= html_writer::start_div('local-clo-head');
     $o .= html_writer::div(html_writer::span(format_float($res->score, 2), 'local-clo-score') .
         html_writer::span(' / ' . format_float($res->maxscore, 0), 'local-clo-max'), 'local-clo-scorebox');
-    $o .= html_writer::div(get_string('reference', 'local_clo'), 'local-clo-sub');   // điểm là kết quả của SV; không đánh giá CLO riêng cho từng SV
+    $o .= html_writer::div(get_string('reference', 'local_clo'), 'local-clo-sub');
     $o .= html_writer::end_div();
     if (!empty($d->summary)) {
         $o .= html_writer::tag('h4', get_string('summary', 'local_clo'), ['class' => 'h6 mt-3']);
@@ -47,7 +44,6 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $o .= html_writer::tag('h4', get_string('studyplan', 'local_clo'), ['class' => 'h6 mt-3']);
         $li = '';
         foreach ($d->items as $it) {
-            // gợi ý ôn tập theo chương
             $chap = !empty($it->chapter) ? get_string('chapter', 'local_clo', s($it->chapter)) : get_string('chapterunknown', 'local_clo');
             $li .= html_writer::tag('li', html_writer::tag('strong', $chap) . ' ' .
                 html_writer::span(get_string('gap', 'local_clo', format_float($it->gap, 1)), 'badge bg-warning text-dark'));
@@ -56,8 +52,6 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
     }
-    // Gợi ý đọc (RAG): mỗi câu làm sai → các trang học liệu của lớp nên đọc lại. Gom theo TRANG (nhiều câu sai thường
-    // cùng trỏ về một trang): trang liên quan nhiều câu xếp trước, kèm số các câu đó.
     $pages = local_clo_reading_pages($d->materials ?? []);
     if ($pages) {
         $o .= html_writer::tag('h4', get_string('readings', 'local_clo'), ['class' => 'h6 mt-3']);
@@ -65,7 +59,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $li = '';
         foreach ($pages as $p) {
             $line = local_clo_reading_line($p);
-            $qs = count($p->questions) > 1 ? 'readings_questions_many' : 'readings_questions';   // số nhiều (en)
+            $qs = count($p->questions) > 1 ? 'readings_questions_many' : 'readings_questions';
             $line .= ' ' . html_writer::span(get_string($qs, 'local_clo', implode(', ', $p->questions)),
                 'badge bg-light text-dark');
             $li .= html_writer::tag('li', $line);
@@ -88,9 +82,8 @@ if (!$exams) {
 }
 
 if ($canall && !$userid) {
-    // Giảng viên: tổng quan từng bài kiểm tra.
     foreach ($exams as $exam) {
-        $namesql = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;   // đủ các trường họ tên cho fullname()
+        $namesql = \core_user\fields::for_name()->get_sql('u', false, '', '', false)->selects;
         $rows = $DB->get_records_sql("SELECT r.*, u.username, $namesql
                                         FROM {local_clo_result} r JOIN {user} u ON u.id = r.userid
                                        WHERE r.cloexamid = ? ORDER BY u.username", [$exam->id]);
@@ -117,7 +110,7 @@ if ($canall && !$userid) {
 } else {
     if ($userid != $USER->id) {
         $u = core_user::get_user($userid, '*', MUST_EXIST);
-        if (!is_enrolled($context, $u)) {          // chỉ xem SV thuộc khóa học này
+        if (!is_enrolled($context, $u)) {
             throw new moodle_exception('notenrolledprofile');
         }
         echo html_writer::tag('p', html_writer::link(new moodle_url('/local/clo/results.php', ['id' => $course->id]), '← ' .
@@ -126,7 +119,7 @@ if ($canall && !$userid) {
     foreach ($exams as $exam) {
         $res = $DB->get_record('local_clo_result', ['cloexamid' => $exam->id, 'userid' => $userid]);
         if ($canall) {
-            $exam = clone($exam); $exam->published = 1;   // GV luôn xem được để rà soát trước khi công bố
+            $exam = clone($exam); $exam->published = 1;
         }
         echo html_writer::start_div('card mb-4');
         echo html_writer::div(html_writer::tag('h3', format_string($exam->title), ['class' => 'h5 mb-0']), 'card-header');

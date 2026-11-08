@@ -1,12 +1,4 @@
-"""Kiểm thử đồng bộ ngân hàng câu hỏi HAI CHIỀU với Moodle THẬT (cần hệ thống đang chạy, Moodle có plugin local_clo ≥ 1.3).
-
-    python kiem_tra_dong_bo_cau_hoi.py http://localhost:8000 gv.son Gv@123456 <id môn học> <id khóa học Moodle>
-
-1. Tạo câu mới trên hệ thống  -> trạng thái only_system -> đẩy lên (Moodle tạo câu QB-n, phiên bản 1)
-2. Sửa câu trên hệ thống       -> system_newer           -> đẩy lên (Moodle tạo phiên bản 2)
-3. (tùy chọn) sửa câu trên Moodle bằng trình soạn câu hỏi rồi chạy lại: moodle_newer -> lấy về
-4. Câu GV soạn trên Moodle chưa có idnumber -> only_moodle -> lấy về (tạo câu mới + gắn QB-n trên Moodle)
-"""
+"""Kiểm thử đồng bộ ngân hàng câu hỏi HAI CHIỀU với Moodle THẬT (cần hệ thống đang chạy, Moodle có plugin local_clo ≥ 1.3)."""
 import sys
 
 import httpx

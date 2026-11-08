@@ -1,8 +1,4 @@
-"""Plugin pytest: ghi lại mọi endpoint API được gọi trong lúc kiểm thử (đường dẫn mẫu, phương thức, mã trả về, ca kiểm thử).
-
-Dùng: python -m pytest -p ghi_api tests   (thư mục chứa tệp này phải có trong PYTHONPATH)
-Kết quả ghi vào tệp chỉ định bởi biến môi trường GHI_API_OUT (mặc định ghi_api.json).
-"""
+"""Plugin pytest: ghi lại mọi endpoint API được gọi trong lúc kiểm thử (đường dẫn mẫu, phương thức, mã trả về, ca kiểm thử)."""
 import json
 import os
 

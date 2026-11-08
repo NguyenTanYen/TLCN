@@ -1,5 +1,4 @@
-"""Kiểm thử các ràng buộc an toàn & toàn vẹn bổ sung: phân quyền theo môn học và khóa học Moodle,
-áp dụng lại kế hoạch CLO, xử lý dữ liệu vào và lỗi HTTP chuẩn."""
+"""Kiểm thử các ràng buộc an toàn & toàn vẹn bổ sung: phân quyền theo môn học và khóa học Moodle, áp dụng lại kế hoạch CLO, xử lý dữ liệu vào và lỗi HTTP chuẩn."""
 from sqlalchemy import create_engine, text
 
 from app.config import settings
@@ -21,7 +20,6 @@ def ex(sql, **p):
 
 
 def test_course_level_access(client, gv, gv_other, admin):
-    # GV không dạy môn → không xem/thêm câu hỏi, không sửa kế hoạch CLO của môn đó
     assert client.get(f"/api/questions?course_id={COURSE}", headers=gv_other).status_code == 403
     assert client.get(f"/api/questions?course_id={COURSE}", headers=gv).status_code == 200
     assert client.get(f"/api/questions?course_id={COURSE}", headers=admin).status_code == 200
@@ -53,7 +51,6 @@ def test_admin_cannot_author_questions_or_exams(client, admin):
         r = getattr(client, method)(url, headers=admin, **({"json": body} if body is not None else {}))
         assert r.status_code == 403, (url, r.status_code, r.text)
         assert "giảng viên" in r.json()["detail"]
-    # vẫn xem và giám sát được
     assert client.get(f"/api/questions/{qid}", headers=admin).status_code == 200
     assert client.get("/api/exams/2", headers=admin).status_code == 200
     assert client.get("/api/class-sections/1/exams", headers=admin).status_code == 200
@@ -68,7 +65,7 @@ def test_clo_plan_change_reanalyzes(client, gv):
     r = client.put("/api/clo-plans", headers=gv, json={**body, "pass_threshold_pct": 0})
     assert r.status_code == 200 and r.json()["reanalyzed_exams"] >= 1
     n_eval, n_ok = q("SELECT n_evaluated, n_achieved FROM clo_results WHERE class_section_id=1 AND clo_id=:c", c=clo)[0]
-    assert n_ok == n_eval  # ngưỡng 0% → mọi SV đạt: kết quả đã được tính lại ngay
+    assert n_ok == n_eval
     assert client.put("/api/clo-plans", headers=gv, json=body).status_code == 200
     assert q("SELECT n_achieved FROM clo_results WHERE class_section_id=1 AND clo_id=:c", c=clo)[0][0] == before
 
@@ -81,10 +78,9 @@ def test_link_quiz_must_belong_to_teacher_course(client, gv):
         ex(f"""INSERT INTO `{M}`.mdl_quiz (id, course, name, intro, preferredbehaviour, password, subnet, browsersecurity)
                VALUES (901, 50, 'Quiz phụ', '', 'deferredfeedback', '', '', '-')""")
         r = client.patch(f"/api/exams/{e}/link-quiz", headers=gv, json={"moodle_quiz_id": 901})
-        assert r.status_code == 403, r.text  # gv.son chưa là giảng viên của khóa học Moodle 50
+        assert r.status_code == 403, r.text
         ex(f"INSERT INTO `{M}`.mdl_role_assignments (id, roleid, contextid, userid) VALUES (9001, 3, 70, 99)")
         assert client.patch(f"/api/exams/{e}/link-quiz", headers=gv, json={"moodle_quiz_id": 901}).status_code == 200
-        # lớp HP đã gắn khóa học 50: không được chuyển sang khóa khác
         assert client.patch("/api/class-sections/1/moodle-course", headers=gv, json={"moodle_course_id": 51}).status_code == 409
     finally:
         ex(f"DELETE FROM `{M}`.mdl_role_assignments WHERE id=9001")
@@ -93,7 +89,6 @@ def test_link_quiz_must_belong_to_teacher_course(client, gv):
 
 
 def test_question_edit_rules(client, gv):
-    # Câu thuộc đề đã gắn Moodle: được sửa CLO/Bloom, không được sửa nội dung
     qid = q("""SELECT eq.question_id FROM exam_questions eq JOIN exams e ON e.id=eq.exam_id
                WHERE e.moodle_quiz_id IS NOT NULL LIMIT 1""")[0][0]
     cur = client.get(f"/api/questions/{qid}", headers=gv).json()
@@ -114,13 +109,12 @@ def test_http_errors_and_inputs(client, gv, admin):
     assert client.post("/api/clos", headers=gv, json={"course_id": COURSE, "clo_code": "CLO9", "description": "GV không được thêm"}).status_code == 403
     r = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "x" * 300, "items": [{"question_id": 1, "points": 1}]})
     assert r.status_code == 422
-    # Tên tệp tải về: ASCII an toàn + filename* UTF-8
     cd = client.get("/api/reports/class-sections/1/bm6.xlsx", headers=gv).headers["content-disposition"]
     assert 'filename="BM6_' in cd and "filename*=UTF-8''" in cd
 
 
 def test_import_students_csv_semicolon(client, gv):
-    import unicodedata  # Excel lưu CSV theo Windows-1258: nguyên âm có mũ/móc + dấu thanh tổ hợp
+    import unicodedata
 
     def cp1258(t):
         out = b""
@@ -129,7 +123,7 @@ def test_import_students_csv_semicolon(client, gv):
                 out += ch.encode("cp1258")
             except UnicodeEncodeError:
                 d = unicodedata.normalize("NFD", ch)
-                for k in range(len(d), 0, -1):  # ghép phần đầu dài nhất mã hóa được, phần còn lại là dấu tổ hợp
+                for k in range(len(d), 0, -1):
                     try:
                         out += unicodedata.normalize("NFC", d[:k]).encode("cp1258") + d[k:].encode("cp1258"); break
                     except UnicodeEncodeError:
@@ -169,9 +163,7 @@ def test_assignment_all_supervisors(client, admin, gv, gv_other):
     assert len(tl) == 2 and all(r["all_supervisors"] and r["lecturer_id"] is None and r["lecturer"] == "Tất cả thầy/cô có hướng dẫn" for r in tl)
     sem, tlcn = tl[0]["semester_id"], tl[0]["course_id"]
     lec = q("SELECT id FROM lecturers ORDER BY id LIMIT 1")[0][0]
-    # GV bất kỳ được làm việc với môn giao cho tất cả GV hướng dẫn
     assert client.get(f"/api/questions?course_id={tlcn}", headers=gv_other).status_code == 200
-    # chỉ Bộ môn thêm/xóa; không chọn cả GV lẫn "tất cả"; không trùng
     body = {"semester_id": sem, "course_id": tlcn, "all_supervisors": True}
     assert client.post("/api/assignments", headers=gv, json=body).status_code == 403
     assert client.post("/api/assignments", headers=admin, json=body).status_code == 409

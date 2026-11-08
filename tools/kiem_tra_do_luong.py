@@ -1,5 +1,4 @@
-"""Kiểm tra độc lập các độ đo: tính lại từ dữ liệu bài làm gốc (item_level_results) theo đúng công thức
-trong báo cáo, KHÔNG dùng mã của hệ thống, rồi so với số liệu hệ thống đã lưu."""
+"""Kiểm tra độc lập các độ đo: tính lại từ dữ liệu bài làm gốc (item_level_results) theo đúng công thức trong báo cáo, KHÔNG dùng mã của hệ thống, rồi so với số liệu hệ thống đã lưu."""
 import math, sys
 from pathlib import Path
 import pandas as pd
@@ -23,7 +22,6 @@ qb = q("SELECT id, is_cancelled FROM question_bank")
 cm = q("SELECT question_id, clo_id, weight FROM question_clo_mapping")
 ex = q("SELECT e.id, e.class_section_id, e.assessment_type, e.status FROM exams e")
 
-# 1) Chấm lại từng câu: đúng ⇔ phương án chọn là phương án đúng; điểm = điểm câu nếu đúng
 m = ilr.merge(att[["id", "exam_id", "status"]], left_on="attempt_id", right_on="id").merge(eq, on=["exam_id", "question_id"])
 m = m.merge(opt.rename(columns={"id": "selected_option_id", "is_correct": "opt_correct"})[["selected_option_id", "opt_correct"]], on="selected_option_id", how="left")
 fin = m[m.status == "finished"].copy()
@@ -32,20 +30,16 @@ fin["re_score"] = fin.re_correct * fin.points
 n_checks += len(fin)
 wrong = fin[(fin.re_correct != fin.is_correct.astype(int)) | ((fin.re_score - fin.score_earned).abs() > 1e-9)]
 if len(wrong): bad.append(f"{len(wrong)} câu chấm lệch")
-# blank ⇔ không chọn
 bl = fin[(fin.response_status == "blank") != fin.selected_option_id.isna()]
 if len(bl): bad.append(f"{len(bl)} câu trạng thái bỏ trống không nhất quán")
-# tổng điểm từng lượt
 tot = fin.groupby("attempt_id").re_score.sum()
 for aid, s in tot.items():
     n_checks += 1; chk(f"tổng điểm lượt {aid}", s, att.set_index("id").total_score[aid])
 
-# Các bước 2–5 chỉ xét bài KT đã phân tích (bài vừa đồng bộ lại mà chưa phân tích thì chưa có số liệu để so)
 fin = fin[fin.exam_id.isin(set(ex[ex.status == "Analyzed"].id))]
 if fin.empty:
     print("Chưa có bài KT nào đã phân tích – không có gì để kiểm tra."); sys.exit(1)
 
-# 2) p, DI (Kelley 27%) – loại câu đã Hủy, chỉ lượt finished; xếp theo tổng điểm giảm dần, hòa theo id lượt
 st = q("SELECT exam_id, question_id, n_students, p_value, di_value FROM item_statistics")
 for eid, g in fin.groupby("exam_id"):
     cancelled = set(qb[qb.is_cancelled == 1].id)
@@ -61,7 +55,6 @@ for eid, g in fin.groupby("exam_id"):
         row = rows_.iloc[0]
         n_checks += 2; chk(f"p bài {eid} câu {qid}", round(p, 4), row.p_value, 1e-4); chk(f"DI bài {eid} câu {qid}", round(di, 4), row.di_value, 1e-4)
 
-# 3) Điểm CLO từng lượt: Σ w·điểm đạt / Σ w·điểm tối đa; đạt ⇔ ≥ ngưỡng% (so sánh ≥)
 plans = q("SELECT p.clo_id, p.pass_threshold_pct, p.target_pct, p.evidence_type, cs.id AS class_section_id FROM clo_assessment_plans p JOIN class_sections cs ON cs.semester_id=p.semester_id")
 acr = q("SELECT attempt_id, clo_id, score_earned, score_max, is_achieved FROM attempt_clo_results")
 fc = fin[~fin.question_id.isin(set(qb[qb.is_cancelled == 1].id))].merge(cm, on="question_id")
@@ -76,7 +69,6 @@ for _, r in agg.iterrows():
     chk(f"điểm CLO {r.clo_id} lượt {r.attempt_id}", r.w_earn, s.iloc[0].score_earned, 1e-6)
     if int(s.iloc[0].is_achieved) != r.ach: bad.append(f"đạt CLO {r.clo_id} lượt {r.attempt_id} lệch")
 
-# 4) BM6b: lấy các bài KT phù hợp loại minh chứng; Σ đạt / Σ đánh giá; đạt ⇔ tỷ lệ ≥ chỉ tiêu
 cr = q("SELECT class_section_id, clo_id, n_evaluated, n_achieved, achieved_pct, target_pct, is_achieved FROM clo_results")
 agg = agg.merge(ex[["id", "assessment_type"]].rename(columns={"id": "exam_id"}), on="exam_id")
 course_n = {}
@@ -95,7 +87,6 @@ for (cs, clo), g in agg.groupby(["class_section_id", "clo_id"]):
 for cs, (ne, na) in course_n.items():
     print(f"  CĐR môn học lớp {cs}: {na}/{ne} = {round(100*na/ne,2)}%")
 
-# 5) PI = Σ kết quả CLO minh chứng; PLO (năm học) = Σ PI; CTĐT = Σ PLO
 pi = q("""SELECT p.id plan_id, p.target_pct, pr.n_evaluated, pr.n_achieved, pr.achieved_pct, pr.is_achieved,
           GROUP_CONCAT(pc.clo_id) clos, p.course_id, p.semester_id, pi.plo_id, s.academic_year
           FROM pi_assessment_plans p JOIN performance_indicators pi ON pi.id=p.pi_id JOIN semesters s ON s.id=p.semester_id

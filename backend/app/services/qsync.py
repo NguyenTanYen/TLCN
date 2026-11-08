@@ -1,24 +1,4 @@
-"""Đồng bộ ngân hàng câu hỏi HAI CHIỀU giữa hệ thống và Moodle (góp ý 15/10).
-
-Khóa nối giữa hai bên: idnumber "QB-n" của câu trên Moodle = question_bank.id của hệ thống.
-* Chiều ĐỌC (Moodle → hệ thống): đọc bản mới nhất của mọi câu Nhiều lựa chọn (một đáp án) trong ngân hàng câu hỏi
-  của khóa học Moodle qua kết nối CSDL chỉ đọc (question_bank_entries → question_versions → question → question_answers).
-* Chiều GHI (hệ thống → Moodle): Web Service local_clo_sync_questions tạo câu mới hoặc PHIÊN BẢN MỚI (Moodle 4.x),
-  và gắn idnumber QB-n cho câu GV soạn trực tiếp trên Moodle sau khi hệ thống nhập câu đó về.
-
-So sánh từng câu cho ra trạng thái và hành động đề xuất:
-  synced        – hai bên giống nhau
-  only_system   – chưa có trên Moodle            → đẩy lên (tạo mới)
-  system_newer  – hệ thống đã sửa sau lần đồng bộ → đẩy lên (phiên bản mới trên Moodle)
-  moodle_newer  – Moodle có phiên bản mới         → kéo về (cập nhật câu bên hệ thống)
-  conflict      – hai bên đều khác và chưa từng nối phiên bản → GV chọn chiều
-  only_moodle   – câu soạn trên Moodle chưa có idnumber QB → kéo về (tạo câu mới, chưa gán CLO/Bloom) và gắn QB-n
-
-Góp ý F3: mỗi lần hai bên giống nhau, hệ thống lưu dấu vân tay nội dung vào question_moodle_links (theo từng khóa học
-Moodle). Lần sau so dấu vân tay đó với từng bên để biết chính xác bên nào đã sửa: chỉ hệ thống → system_newer, chỉ
-Moodle → moodle_newer, cả hai → conflict (không tự chọn chiều, tránh ghi đè mất bản sửa). Câu chưa có liên kết vẫn
-so như cũ theo id phiên bản Moodle đã nối.
-"""
+"""Đồng bộ ngân hàng câu hỏi HAI CHIỀU giữa hệ thống và Moodle (góp ý 15/10)."""
 from __future__ import annotations
 
 import hashlib
@@ -119,7 +99,6 @@ def compare(db: Session, course_id: int, moodle_course_id: int) -> dict:
                          "moodle_questionid": m["questionid"], "moodle_version": m["version"], "content": norm(m["questiontext"])[:200],
                          "moodle_content": norm(m["questiontext"])[:200], "n_options": len(m["answers"]),
                          "note": None if ok else "Câu nhiều đáp án đúng – hệ thống chỉ nhận câu một đáp án"})
-        # QB-n của môn khác / câu đã xóa: bỏ qua
     for qid, q in sysq.items():
         m = by_idn.get(qid)
         base = {"question_id": qid, "content": norm(q.content)[:200], "is_cancelled": q.is_cancelled,
@@ -134,9 +113,9 @@ def compare(db: Session, course_id: int, moodle_course_id: int) -> dict:
         if _same(q, m):
             st, act = "synced", None
             h = sys_hash(q)
-            if not link or link != (int(m["questionid"]), h):   # mốc mới cho lần so sau
+            if not link or link != (int(m["questionid"]), h):
                 _save_link(db, qid, moodle_course_id, m["questionid"], h); learned += 1
-        elif link:     # đã có mốc: so từng bên với lần giống nhau gần nhất
+        elif link:
             local, remote = sys_hash(q) != link[1], moodle_hash(m) != link[1]
             if local and not remote:
                 st, act = "system_newer", "push"
@@ -187,7 +166,7 @@ def _relink(db: Session, results: list[dict], moodle_course_id: int) -> None:
         qid = int(r["idnumber"][3:])
         db.execute(text("UPDATE question_bank SET moodle_question_id=:m WHERE id=:q"), {"m": r["questionid"], "q": qid})
         q = db.get(Question, qid)
-        if q:   # vừa đẩy lên / lấy về: hai bên giống nhau
+        if q:
             _save_link(db, qid, moodle_course_id, r["questionid"], sys_hash(q))
         ans = [a[0] for a in db.execute(text(f"SELECT id FROM {_t('question_answers')} WHERE question=:m ORDER BY id"), {"m": r["questionid"]})]
         opts = db.execute(text("SELECT id FROM question_options WHERE question_id=:q ORDER BY position"), {"q": qid}).scalars().all()
@@ -200,7 +179,7 @@ def _relink(db: Session, results: list[dict], moodle_course_id: int) -> None:
 
 
 def _set_options(db: Session, q: Question, answers: list[dict]) -> None:
-    q.options.clear(); db.flush()          # xóa phương án cũ trước (ràng buộc duy nhất question_id + position)
+    q.options.clear(); db.flush()
     for i, a in enumerate(answers):
         q.options.append(QuestionOption(position=i + 1, opt_label=LABELS[i], content=norm(a["text"]) if "<" in a["text"] else a["text"].strip(),
                                         is_correct=a["fraction"] > 0.5, moodle_answer_id=None))

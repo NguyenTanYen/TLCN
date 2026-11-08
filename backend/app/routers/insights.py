@@ -1,10 +1,4 @@
-"""UC-04 (mở rộng): giảng viên xem hồ sơ kết quả từng sinh viên và thống kê lớp theo bài kiểm tra.
-
-- Hồ sơ SV: điểm, mức đạt từng CLO (so với ngưỡng θ và trung bình lớp), chẩn đoán, các chương cần học lại
-  (lộ trình cá nhân hóa) và chi tiết từng câu trả lời – cho mọi bài KT đã phân tích của lớp học phần.
-- Thống kê lớp: chỉ số chung, tỷ lệ SV đạt từng CLO so với mục tiêu, chương cần ôn nhiều nhất, phân bố số CLO đạt,
-  kết quả theo mức Bloom, bản đồ nhiệt SV × CLO, danh sách SV cần hỗ trợ.
-"""
+"""UC-04 (mở rộng): giảng viên xem hồ sơ kết quả từng sinh viên và thống kê lớp theo bài kiểm tra."""
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,7 +20,6 @@ def _analyzed_exams(db, cs_id):
                 cs=cs_id)
 
 
-# ------------------------------------------------------------------ hồ sơ từng sinh viên
 @router.get("/class-sections/{cs_id}/students/{student_id}/profile")
 def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
     check_section_access(db, u, cs_id)
@@ -73,10 +66,9 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
                       "status": mine["status"], "score": mine["score"], "source": att["source"] if att else None,
                       "rank": rank, "n_finished": len(scores),
                       "class_mean": round(sum(scores) / len(scores) * float(ex["max_score"]) / _raw_max(db, ex["id"]), 2) if scores else None,
-                      **{k: v for k, v in mine["data"].items() if k != "clos"},     # không đánh giá từng SV theo CLO
+                      **{k: v for k, v in mine["data"].items() if k != "clos"},
                       "answers": answers})
 
-    # các chương cần học lại (gộp mọi bài KT; ưu tiên theo mức thiếu hụt lớn nhất)
     review: dict[str, dict] = {}
     for ex in exams:
         for it in ex.get("items") or []:
@@ -99,7 +91,6 @@ def _raw_max(db, exam_id):
     return float(db.execute(text("SELECT COALESCE(SUM(points),0) FROM exam_questions WHERE exam_id=:e"), {"e": exam_id}).scalar() or 1)
 
 
-# ------------------------------------------------------------------ thống kê lớp theo bài kiểm tra
 @router.get("/class-sections/{cs_id}/stats")
 def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(require("admin", "lecturer")),
                   db: Session = Depends(get_db)):
@@ -120,7 +111,6 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
     done = [r for r in res if r["status"] == "finished"]
     maxs = ex["max_score"]
 
-    # CLO: tỷ lệ SV đạt so với mục tiêu, điểm % trung bình, ngưỡng
     clo_meta = {r["clo_code"]: r for r in rows(db, """
         SELECT c.clo_code, c.description, COALESCE(p.pass_threshold_pct, :thr0) AS threshold,
                COALESCE(p.target_pct, co.clo_target_pct) AS target
@@ -138,7 +128,6 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
                      "avg_pct": round(sum(c["pct"] for c in vals) / len(vals), 2) if vals else None,
                      "threshold": float(m.get("threshold") or settings.default_pass_threshold), "target": float(m.get("target") or 0)})
 
-    # chương cần ôn: số SV có chương đó trong lộ trình, mức thiếu hụt trung bình
     chap: dict[str, dict] = {}
     for r in done:
         seen = set()
@@ -153,7 +142,6 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
                         "avg_gap": round(sum(c["gaps"]) / len(c["gaps"]), 2), "clos": sorted(c["clos"])}
                        for c in chap.values()), key=lambda c: (-c["n_students"], c["chapter"]))
 
-    # kết quả của từng SV theo CHƯƠNG (tỷ lệ điểm các câu thuộc chương) – không đánh giá CLO riêng cho từng SV
     chap_pct: dict[int, dict[str, list[float]]] = {}
     for r in db.execute(text("""
             SELECT a.student_id, o.chapter_number, o.chapter_name, SUM(r.score_earned) AS got, SUM(eq.points) AS mx
@@ -175,7 +163,6 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
     at_risk = sorted([h for h in heat if h["score"] < maxs / 2 or len(h["weak_chapters"]) >= 2],
                      key=lambda h: (h["score"], -len(h["weak_chapters"])))
 
-    # kết quả theo mức Bloom (tỷ lệ trả lời đúng)
     bloom = rows(db, """
         SELECT b.id, b.name_vi AS level, COUNT(DISTINCT r.question_id) AS n_items,
                ROUND(100*AVG(r.is_correct), 2) AS pct_correct
@@ -185,7 +172,6 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
     for b in bloom:
         b["pct_correct"] = float(b["pct_correct"] or 0)
 
-    # phân bố điểm (10 khoảng)
     bins = [0] * 10
     for r in done:
         bins[min(9, int(r["score"] / maxs * 10))] += 1

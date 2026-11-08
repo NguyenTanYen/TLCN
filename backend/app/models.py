@@ -1,7 +1,4 @@
-"""Ánh xạ ORM cho 57 bảng của assessment_db (xem database/01_schema.sql).
-
-Ràng buộc CHECK/UNIQUE được khai báo trong DDL; ORM chỉ khai báo cột, khóa và quan hệ cần dùng.
-"""
+"""Ánh xạ ORM cho 57 bảng của assessment_db (xem database/01_schema.sql)."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -13,8 +10,6 @@ from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, Forei
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
-
-# ---------------------------------------------------------------- A. Người dùng & tổ chức
 
 
 class User(Base):
@@ -60,8 +55,6 @@ class Semester(Base):
     name: Mapped[str] = mapped_column(String(50))
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
-
-# ---------------------------------------------------------------- B. CTĐT & CĐR CTĐT
 
 
 class Program(Base):
@@ -129,8 +122,6 @@ class PICourse(Base):
     pi_id: Mapped[int] = mapped_column(ForeignKey("performance_indicators.id"), primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), primary_key=True)
     level: Mapped[Optional[str]] = mapped_column(String(2))
-
-# ---------------------------------------------------------------- C. Học phần & CLO
 
 
 class Course(Base):
@@ -201,7 +192,6 @@ class CLOPIMapping(Base):
     pi: Mapped["PerformanceIndicator"] = relationship()
 
 
-# ---- Đề cương chi tiết có phiên bản (góp ý F1)
 outline_clos = Table("outline_clos", Base.metadata,
                      Column("outline_id", ForeignKey("course_outlines.id"), primary_key=True),
                      Column("clo_id", ForeignKey("clos.id"), primary_key=True))
@@ -254,8 +244,6 @@ class SyllabusAssessment(Base):
     sort_order: Mapped[int] = mapped_column(SmallInteger, default=1)
     clos: Mapped[list["CLO"]] = relationship(secondary="syllabus_assessment_clos", order_by="CLO.clo_code")
 
-# ---------------------------------------------------------------- D. Kế hoạch đo lường
-
 
 class CLOAssessmentPlan(Base):
     __tablename__ = "clo_assessment_plans"
@@ -303,8 +291,6 @@ class AssessmentAssignment(Base):
     all_supervisors: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[Optional[str]] = mapped_column(String(255))
 
-# ---------------------------------------------------------------- E. Lớp HP & ngân hàng câu hỏi
-
 
 class ClassSection(Base):
     __tablename__ = "class_sections"
@@ -333,7 +319,7 @@ class Question(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
     outline_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_outlines.id"))
-    bloom_level_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bloom_levels.id"))  # NULL = chưa gán (nhập hàng loạt)
+    bloom_level_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bloom_levels.id"))
     question_type: Mapped[str] = mapped_column(String(30), default="multichoice")
     content: Mapped[str] = mapped_column(Text)
     moodle_question_id: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -366,14 +352,12 @@ class QuestionCLO(Base):
     weight: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=1)
     clo: Mapped[CLO] = relationship()
 
-# ---------------------------------------------------------------- F. Đề thi
-
 
 class Exam(Base):
     __tablename__ = "exams"
     id: Mapped[int] = mapped_column(primary_key=True)
-    class_section_id: Mapped[Optional[int]] = mapped_column(ForeignKey("class_sections.id"))  # NULL = đề của môn chưa giao lớp
-    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))                # đề của môn
+    class_section_id: Mapped[Optional[int]] = mapped_column(ForeignKey("class_sections.id"))
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"))
     exam_title: Mapped[str] = mapped_column(String(255))
     assessment_type: Mapped[str] = mapped_column(String(10), default="final")
     exam_type: Mapped[str] = mapped_column(String(10), default="online")
@@ -381,15 +365,15 @@ class Exam(Base):
     duration_minutes: Mapped[Optional[int]] = mapped_column(SmallInteger)
     max_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=10)
     moodle_quiz_id: Mapped[Optional[int]] = mapped_column(BigInteger)
-    moodle_offlinequiz_id: Mapped[Optional[int]] = mapped_column(BigInteger)  # bài giấy: Offline Quiz chấm trên Moodle
+    moodle_offlinequiz_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(20), default="Draft")
     publish_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    counts_for_clo: Mapped[bool] = mapped_column(Boolean, default=True)    # gộp vào tổng hợp CLO của lớp
-    parent_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))  # bài phụ đạo
+    counts_for_clo: Mapped[bool] = mapped_column(Boolean, default=True)
+    parent_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))
     target_students: Mapped[Optional[str]] = mapped_column(Text)
-    paper_settings: Mapped[Optional[str]] = mapped_column(Text)            # JSON tùy chọn in đề / bố cục phiếu
-    source_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))  # giao/sao từ đề nào
+    paper_settings: Mapped[Optional[str]] = mapped_column(Text)
+    source_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))
     created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     class_section: Mapped[Optional[ClassSection]] = relationship()
@@ -432,8 +416,6 @@ class ExamVersionOption(Base):
     question_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     displayed_label: Mapped[str] = mapped_column(String(1), primary_key=True)
     option_id: Mapped[int] = mapped_column(ForeignKey("question_options.id"))
-
-# ---------------------------------------------------------------- G. Kết quả & báo cáo
 
 
 class ExamAttempt(Base):
@@ -566,17 +548,14 @@ class SyncRun(Base):
     message: Mapped[Optional[str]] = mapped_column(Text)
 
 
-# ---------------------------------------------------------------- H. Học liệu & gợi ý đọc (RAG)
-
-
 class SectionMaterial(Base):
     __tablename__ = "section_materials"
     id: Mapped[int] = mapped_column(primary_key=True)
     class_section_id: Mapped[int] = mapped_column(ForeignKey("class_sections.id"))
-    source: Mapped[str] = mapped_column(String(10), default="upload")          # moodle | upload
-    material_type: Mapped[str] = mapped_column(String(10), default="slide")    # slide | reference
+    source: Mapped[str] = mapped_column(String(10), default="upload")
+    material_type: Mapped[str] = mapped_column(String(10), default="slide")
     title: Mapped[str] = mapped_column(String(255))
-    title_custom: Mapped[bool] = mapped_column(Boolean, default=False)        # GV tự đặt tên → đồng bộ không ghi đè
+    title_custom: Mapped[bool] = mapped_column(Boolean, default=False)
     file_name: Mapped[str] = mapped_column(String(255))
     content_hash: Mapped[str] = mapped_column(String(40))
     file_size: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -584,15 +563,15 @@ class SectionMaterial(Base):
     moodle_cmid: Mapped[Optional[int]] = mapped_column(BigInteger)
     moodle_file_url: Mapped[Optional[str]] = mapped_column(String(1000))
     moodle_timemodified: Mapped[Optional[int]] = mapped_column(BigInteger)
-    status: Mapped[str] = mapped_column(String(10), default="pending")         # pending | indexing | ready | failed | excluded | missing
+    status: Mapped[str] = mapped_column(String(10), default="pending")
     error: Mapped[Optional[str]] = mapped_column(Text)
     n_pages: Mapped[Optional[int]] = mapped_column(Integer)
     added_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)            # bắt đầu nạp – quá hạn thì nạp lại
-    embed_model: Mapped[Optional[str]] = mapped_column(String(120))            # model đã tính vector các đoạn (cổng ngữ nghĩa)
-    vlm_model: Mapped[Optional[str]] = mapped_column(String(120))              # model VLM đã mô tả các hình (vlm.py)
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    embed_model: Mapped[Optional[str]] = mapped_column(String(120))
+    vlm_model: Mapped[Optional[str]] = mapped_column(String(120))
     pages: Mapped[list["MaterialPage"]] = relationship(order_by="MaterialPage.page_no", cascade="all, delete-orphan",
                                                        passive_deletes=True)
 
@@ -615,7 +594,7 @@ class MaterialPassage(Base):
     material_id: Mapped[int] = mapped_column(ForeignKey("section_materials.id"))
     page_id: Mapped[int] = mapped_column(ForeignKey("material_pages.id"))
     seq: Mapped[int] = mapped_column(Integer)
-    kind: Mapped[str] = mapped_column(String(8), default="text")               # text | table | figure
+    kind: Mapped[str] = mapped_column(String(8), default="text")
     title: Mapped[str] = mapped_column(String(255), default="")
     breadcrumb: Mapped[str] = mapped_column(String(1000), default="")
     level: Mapped[int] = mapped_column(SmallInteger, default=0)
@@ -623,6 +602,6 @@ class MaterialPassage(Base):
     body: Mapped[str] = mapped_column(Text)
     vlm_desc: Mapped[Optional[str]] = mapped_column(Text)
     is_code: Mapped[bool] = mapped_column(Boolean, default=False)
-    bboxes: Mapped[list] = mapped_column(JSON)                                 # [[x0,y0,x1,y1],...]
-    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, deferred=True)   # vector MiniLM float16 (semantic.py)
+    bboxes: Mapped[list] = mapped_column(JSON)
+    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, deferred=True)
     page: Mapped[MaterialPage] = relationship()

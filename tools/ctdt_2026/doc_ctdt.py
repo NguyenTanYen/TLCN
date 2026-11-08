@@ -1,15 +1,4 @@
-"""Đọc file PDF chương trình đào tạo (mẫu ĐH Công nghệ Kỹ thuật TP.HCM 2026) -> JSON + SQL nạp vào assessment_db.
-
-Lấy ra:
-  * thông tin chung (tên, mã ngành, số tín chỉ, số quyết định);
-  * PLO và PI (mục 7.3) kèm trình độ năng lực, phân loại CĐR chung / chuyên biệt;
-  * danh sách học phần (mục 9): mã, tên, tín chỉ tổng / LT / TH, học phần trước – tiên quyết, khối kiến thức, tự chọn;
-  * học kỳ trong kế hoạch giảng dạy và mức đáp ứng của từng học phần với từng PI (Phụ lục II);
-  * mô tả vắn tắt học phần và cấu trúc tín chỉ (Phụ lục I); các chương nếu phần mô tả liệt kê "Chương n: ...".
-
-Cách dùng:  python doc_ctdt.py CTDT_CNTT_2026.pdf CNTT-2026  CTDT_KTDL_2026.pdf KTDL-2026  > ../../database/04_ctdt_2026.sql
-(cần: pip install pdfplumber)
-"""
+"""Đọc file PDF chương trình đào tạo (mẫu ĐH Công nghệ Kỹ thuật TP.HCM 2026) -> JSON + SQL nạp vào assessment_db."""
 from __future__ import annotations
 
 import difflib
@@ -24,7 +13,6 @@ CODE = re.compile(r"^[A-Z]{3,5}\d{6}$")
 CODE_ANY = re.compile(r"[A-Z]{3,5}\d{6}")
 PI_RE = re.compile(r"^PI\s*(\d+)\.(\d+)\s*(.*)$", re.S)
 
-# Nội dung PLO lấy nguyên văn bảng 7.3 (ô bảng bị ngắt trang nên ghi tay để không mất chữ)
 PLO_TEXT = {
     "KTDL": {
         1: "Khả năng áp dụng các nguyên tắc toán học, thuật toán, cũng như khoa học để xác định giải pháp cho vấn đề trong công nghệ thông tin.",
@@ -45,7 +33,6 @@ PLO_TEXT = {
         7: "Khả năng áp dụng các công nghệ phù hợp để tạo ra các giải pháp về Công nghệ thông tin.",
     },
 }
-# Số quyết định được điền tay trên bản PDF (lớp chú thích) nên không đọc được từ phần chữ
 DECISION = {"CNTT": "3052/QĐ-ĐHCNKT ngày 14/8/2026", "KTDL": "3050/QĐ-ĐHCNKT ngày 14/8/2026"}
 GROUPS = {"Kiến thức": 1, "Kỹ năng": 2, "Mức tự chủ": 3}
 
@@ -80,7 +67,6 @@ def read_text(pdf) -> str:
     return "\n".join((p.extract_text(layout=False) or "") for p in pdf.pages)
 
 
-# ------------------------------------------------------------------ thông tin chung
 def general(text: str) -> dict:
     g = {}
     for key, pat in (("name", r"Tên chương trình đào tạo Tiếng Việt\s*:\s*(.+)"), ("name_en", r"Tên chương trình đào tạo Tiếng Anh\s*:\s*(.+)"),
@@ -98,7 +84,6 @@ def general(text: str) -> dict:
     return g
 
 
-# ------------------------------------------------------------------ PLO / PI
 def plos(tables, key: str):
     res, cur, group = {}, None, 1
     for page, rows in tables:
@@ -124,7 +109,6 @@ def plos(tables, key: str):
     return [res[k] for k in sorted(res)]
 
 
-# ------------------------------------------------------------------ học phần (mục 9)
 def courses(tables):
     out, order = {}, []
     block, sub, group, elective, last = None, None, None, False, None
@@ -157,7 +141,7 @@ def courses(tables):
                     group, elective = c0, True
                     last = None
                 elif not c0 and txt and not any(ch.isdigit() for ch in txt[:3]) and last and len(txt) < 30 and not re.search(r"chuyên ngành|Công Nghệ|Kiến thức|Sinh viên", txt, re.I):
-                    last["name"] += " " + txt           # phần tên học phần xuống dòng
+                    last["name"] += " " + txt
                 elif not c0 and txt.startswith("Kiến thức chuyên ngành"):
                     block, sub, group, elective, last = txt, None, None, False, None
                 elif not c0 and txt and re.search(r"chuyên ngành|Công Nghệ Phần Mềm", txt, re.I):
@@ -181,13 +165,12 @@ def courses(tables):
             if code not in out:
                 out[code] = c
                 order.append(code)
-            elif out[code]["elective"] and not c["elective"]:   # môn vừa ở nhóm tự chọn vừa bắt buộc: lấy dòng bắt buộc
+            elif out[code]["elective"] and not c["elective"]:
                 out[code].update({k: c[k] for k in ("block", "sub", "group", "elective")})
             last = out[code]
     return [out[k] for k in order], started
 
 
-# ------------------------------------------------------------------ Phụ lục II: học kỳ + mức đáp ứng PI
 def matrix(tables):
     res = {}
     for page, rows in tables:
@@ -214,7 +197,6 @@ def matrix(tables):
     return res
 
 
-# ------------------------------------------------------------------ mục 10: kế hoạch giảng dạy (học kỳ)
 def teaching_plan(text: str) -> dict:
     start = text.find("Kế hoạch giảng dạy")
     end = text.find("11.", start + 20)
@@ -230,7 +212,6 @@ def teaching_plan(text: str) -> dict:
     return out
 
 
-# ------------------------------------------------------------------ Phụ lục I: mô tả học phần
 def descriptions(text: str):
     start = text.find("MÔ TẢ VẮN TẮT NỘI DUNG")
     end = text.find("PHỤ LỤC II", start)
@@ -310,7 +291,6 @@ def parse(path: str, code: str) -> dict:
         m = mx.get(c["code"])
         c["semester"] = plan.get(c["code"]) or (m["semester"] if m else None)
         c["pi_levels"] = dict(m["pis"]) if m else {}
-    # học phần chỉ có trong ma trận (không có ở mục 9): mã gõ sai trong Phụ lục II -> ghép theo tên; còn lại thêm mới
     known = {c["code"] for c in cl}
     for k, m in mx.items():
         if k in known:
@@ -330,7 +310,6 @@ def parse(path: str, code: str) -> dict:
     return prog
 
 
-# ------------------------------------------------------------------ sinh SQL
 def q(v) -> str:
     if v is None:
         return "NULL"

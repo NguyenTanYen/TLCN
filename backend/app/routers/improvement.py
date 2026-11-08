@@ -1,5 +1,4 @@
-"""Vòng cải tiến (closing the loop): hành động cải tiến có người phụ trách, hạn, trạng thái và kết quả kiểm chứng;
-so sánh kết quả CLO của một học phần qua các học kỳ."""
+"""Vòng cải tiến (closing the loop): hành động cải tiến có người phụ trách, hạn, trạng thái và kết quả kiểm chứng; so sánh kết quả CLO của một học phần qua các học kỳ."""
 from datetime import date
 from typing import Optional
 

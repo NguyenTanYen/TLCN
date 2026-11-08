@@ -1,9 +1,4 @@
-"""Xuất đề cương chi tiết học phần ra tệp Word theo bố cục mẫu đề cương của trường (A4 đứng, Times New Roman 13):
-quốc hiệu – tiêu đề – 11 mục như trang Đề cương chi tiết – chữ ký Trưởng khoa / Trưởng bộ môn / Người biên soạn.
-
-Dữ liệu lấy đúng từ GET /api/courses/{cid}/syllabus (routers.programs.syllabus) nên Word và trang web luôn khớp nhau.
-Góp ý 23/10: "In" đề cương phải ra văn bản theo mẫu, không in nguyên trang web.
-"""
+"""Xuất đề cương chi tiết học phần ra tệp Word theo bố cục mẫu đề cương của trường (A4 đứng, Times New Roman 13): quốc hiệu – tiêu đề – 11 mục như trang Đề cương chi tiết – chữ ký Trưởng khoa / Trưởng bộ môn / Người biên soạn."""
 from __future__ import annotations
 
 import io
@@ -47,12 +42,11 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     st = doc.styles["Normal"]; st.font.name = FONT; st.font.size = Pt(13)
     st.element.rPr.rFonts.set(qn("w:eastAsia"), FONT)
 
-    # ---------------- Quốc hiệu, tên trường / khoa
     t = doc.add_table(rows=1, cols=2); t.autofit = False
     t.rows[0].cells[0].width, t.rows[0].cells[1].width = Cm(7.9), Cm(8.5)
     _cell(t.cell(0, 0), SCHOOL + "\n" + (faculty or "KHOA CÔNG NGHỆ THÔNG TIN").upper(), bold=True, size=10.5)
     _cell(t.cell(0, 1), "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc", bold=True, size=10.5)
-    for run in t.cell(0, 0).paragraphs[0].runs:              # tên trường chữ thường, tên khoa in đậm như mẫu văn bản
+    for run in t.cell(0, 0).paragraphs[0].runs:
         if run.text in SCHOOL.split("\n"):
             run.bold = False
     _p(doc, "")
@@ -64,7 +58,6 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
         status = "" if d.get("status") == "approved" else f" – {d.get('status_label', '')}, chưa có hiệu lực"
         _p(doc, f"Phiên bản {d.get('version_no')}{status}", italic=True, size=12, align=CENTER)
 
-    # ---------------- 1. Thông tin chung
     _h(doc, "1. Thông tin chung")
     cred = f"{s['credits']}"
     if s.get("credits_theory") is not None or s.get("credits_practice") is not None:
@@ -88,11 +81,9 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     for i, (k, v) in enumerate(info):
         _cell(t.cell(i, 0), k, bold=True, align=LEFT, size=12); _cell(t.cell(i, 1), v, align=LEFT, size=12)
 
-    # ---------------- 2–3
     _h(doc, "2. Mô tả vắn tắt học phần"); _text_or_dash(doc, s.get("description"))
     _h(doc, "3. Mục tiêu học phần"); _text_or_dash(doc, d.get("objectives"))
 
-    # ---------------- 4. CLO
     _h(doc, "4. Chuẩn đầu ra học phần (CLO)")
     clos = s.get("clos") or []
     if clos:
@@ -104,7 +95,6 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     else:
         _text_or_dash(doc, None)
 
-    # ---------------- 5. Ma trận học phần – PI
     _h(doc, "5. Học phần đáp ứng chỉ số PI của chương trình đào tạo")
     code_of = {c["id"]: c["clo_code"] for c in clos}
     any_pi = False
@@ -120,7 +110,6 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     if not any_pi:
         _text_or_dash(doc, None)
 
-    # ---------------- 6. Nội dung chi tiết
     _h(doc, "6. Nội dung chi tiết học phần")
     outs = s.get("outlines") or []
     if outs:
@@ -136,10 +125,8 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     else:
         _text_or_dash(doc, None)
 
-    # ---------------- 7
     _h(doc, "7. Phương pháp giảng dạy"); _text_or_dash(doc, d.get("teaching_methods"))
 
-    # ---------------- 8. Đánh giá học phần
     _h(doc, "8. Đánh giá học phần")
     ass = d.get("assessments") or []
     if ass:
@@ -151,7 +138,6 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     else:
         _text_or_dash(doc, None)
 
-    # ---------------- 9. Kế hoạch BM6a
     _h(doc, "9. Kế hoạch kiểm tra – đánh giá chuẩn đầu ra học phần")
     plans = [c for c in clos if c.get("plan")]
     if plans:
@@ -164,7 +150,6 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
     else:
         _p(doc, "Giảng viên phụ trách lập kế hoạch đánh giá CLO (BM6a) cho từng lớp học phần.", italic=True)
 
-    # ---------------- 10. Tài liệu
     _h(doc, "10. Tài liệu học tập")
     refs = d.get("references") or []
     for typ, label in (("main", "Giáo trình chính"), ("extra", "Tài liệu tham khảo")):
@@ -175,10 +160,8 @@ def render_syllabus_docx(s: dict, faculty: str | None = None) -> bytes:
         if not items:
             _p(doc, "—")
 
-    # ---------------- 11
     _h(doc, "11. Quy định của học phần"); _text_or_dash(doc, d.get("course_policy"))
 
-    # ---------------- Ngày ban hành, chữ ký
     when = datetime.fromisoformat(d["approved_at"]) if d.get("approved_at") else None
     date_line = (f"TP. Hồ Chí Minh, ngày {when.day:02d} tháng {when.month:02d} năm {when.year}" if when
                  else "TP. Hồ Chí Minh, ngày …… tháng …… năm ……")

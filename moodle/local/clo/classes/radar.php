@@ -3,10 +3,6 @@ namespace local_clo;
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Biểu đồ radar (SVG thuần, không cần JavaScript) so sánh mức đạt từng CLO của sinh viên
- * với ngưỡng kỳ vọng θk và trung bình lớp.
- */
 class radar {
     public static function svg(array $clos, int $size = 340): string {
         $n = count($clos);

@@ -33,10 +33,10 @@ def test_groups_parsed_and_single_phrase_lines_dropped(syn):
 
 
 def test_find_longest_match_left_to_right_any_tone_form(syn):
-    ws = _ws(unicodedata.normalize("NFD", "Thiết kế cơ sở dữ liệu quan hệ có khoá ngoại"))   # NFD + "khoá" kiểu cũ
+    ws = _ws(unicodedata.normalize("NFD", "Thiết kế cơ sở dữ liệu quan hệ có khoá ngoại"))
     found = [(ws[i:j], alts) for i, j, alts in syn.find(ws)]
-    assert found[0] == (_ws("cơ sở dữ liệu quan hệ"), [["relational", "database"]])          # dài nhất, không lấy
-    assert found[1] == (_ws("khóa ngoại"), [["foreign", "key"], ["fk"]])                     # cụm ngắn bên trong
+    assert found[0] == (_ws("cơ sở dữ liệu quan hệ"), [["relational", "database"]])
+    assert found[1] == (_ws("khóa ngoại"), [["foreign", "key"], ["fk"]])
     assert len(found) == 2
     assert [alts for _, _, alts in syn.find(_ws("FK"))] == [[["khoaS", "ngoaiJ"], ["foreign", "key"]]]
 
@@ -50,7 +50,6 @@ def test_expansion_weight_capped_to_share_of_original_and_one_concept(syn):
     q = analyze("fk", synonyms=syn)
     own = sum(_phrase_terms(["fk"], False).values())
     expanded = {t: w for t, w in q.terms.items() if t != "fk"}
-    # mỗi cách nói thêm vào (max, không cộng) tổng ≤ SYN_WEIGHT × trọng số từ gốc – "khóa ngoại" 4 từ không lấn "fk"
     alt = _phrase_terms(["khoaS", "ngoaiJ"], False)
     assert sum(expanded[t] for t in alt) == pytest.approx(SYN_WEIGHT * own)
     assert q.concepts == [frozenset({"fk"}) | frozenset(expanded)]
@@ -60,8 +59,8 @@ def test_bm25_finds_other_wording_but_ranks_typed_wording_first(syn):
     ix = Index.build([(1, "Foreign key tham chiếu tới primary key của bảng khác."),
                       (2, "Khóa ngoại tham chiếu tới khóa chính của bảng khác."),
                       (3, "Bảng lớp lưu thông tin lớp.")])
-    assert [i for i, _, _ in ix.score("khóa ngoại", 5)] == [2]                     # không từ điển: chỉ đúng chữ
-    assert [i for i, _, _ in ix.score("khóa ngoại", 5, syn)] == [2, 1]             # có từ điển: thêm cách nói khác
+    assert [i for i, _, _ in ix.score("khóa ngoại", 5)] == [2]
+    assert [i for i, _, _ in ix.score("khóa ngoại", 5, syn)] == [2, 1]
     assert [i for i, _, _ in ix.score("foreign key", 5, syn)] == [1, 2]
 
 
@@ -74,7 +73,7 @@ def test_msm_drops_passages_matching_too_few_concepts(syn):
     ix = Index.build([(1, "Khóa ngoại bảo đảm toàn vẹn tham chiếu giữa hai bảng."),
                       (2, "Mỗi bảng có một khóa chính."),
                       (3, "Toàn vẹn dữ liệu.")])
-    q = "toàn vẹn tham chiếu khóa ngoại"                      # 4 âm tiết + "khóa ngoại" (cả cụm đồng nghĩa = 1)
+    q = "toàn vẹn tham chiếu khóa ngoại"
     assert len(analyze(q, synonyms=syn).concepts) == 5
     assert {i for i, _, _ in ix.score(q, 5, syn)} == {1, 2, 3}
     assert [i for i, _, _ in ix.score(q, 5, syn, "2<70%")] == [1]
@@ -104,7 +103,7 @@ def test_evaluate_metrics_on_tiny_corpus():
     qs = [{"id": "1", "type": "lexical", "stem": "Khóa ngoại là gì?", "options": {"A": "tham chiếu"}, "answer": "A",
            "relevant": {"a.pdf": [1]}},
           {"id": "2", "type": "lexical", "stem": "Tính nguyên tố của giao tác", "options": {"A": "x"}, "answer": "A",
-           "relevant": {"b.pdf": [1]}},                                    # trang đúng không nằm trong kết quả
+           "relevant": {"b.pdf": [1]}},
           {"id": "3", "type": "negative", "stem": "Định luật Ohm", "options": {"A": "U = IR"}, "answer": "A",
            "relevant": {}}]
     r = evaluate.run(qs, docs, ix)
@@ -114,9 +113,9 @@ def test_evaluate_metrics_on_tiny_corpus():
 
 def test_ndcg_counts_each_relevant_page_once():
     a1, a2, b1 = ("a", 1), ("a", 2), ("b", 1)
-    assert evaluate.ndcg([a1, a2], {a1, a2}) == pytest.approx(1.0)                 # xếp lý tưởng
-    assert evaluate.ndcg([a1, a1, a1], {a1, a2}) == pytest.approx(1 / (1 + 1 / math.log2(3)))   # cùng trang: 1 lần
-    assert evaluate.ndcg([b1, a1], {a1}) == pytest.approx(1 / math.log2(3))        # trang đúng ở hạng 2
+    assert evaluate.ndcg([a1, a2], {a1, a2}) == pytest.approx(1.0)
+    assert evaluate.ndcg([a1, a1, a1], {a1, a2}) == pytest.approx(1 / (1 + 1 / math.log2(3)))
+    assert evaluate.ndcg([b1, a1], {a1}) == pytest.approx(1 / math.log2(3))
     assert evaluate.ndcg([b1], {a1}) == 0.0
 
 

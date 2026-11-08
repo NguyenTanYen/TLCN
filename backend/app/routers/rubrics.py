@@ -1,6 +1,4 @@
-"""Rubric chấm điểm theo tiêu chí: mỗi tiêu chí gắn một CLO, mỗi mức quy ra % điểm tối đa của tiêu chí.
-Bài chấm theo rubric là bài "nhập điểm": mỗi tiêu chí là một câu/ý, điểm = điểm tối đa × % của mức đã chọn,
-nên toàn bộ phân tích CLO/PI/PLO dùng lại nguyên vẹn."""
+"""Rubric chấm điểm theo tiêu chí: mỗi tiêu chí gắn một CLO, mỗi mức quy ra % điểm tối đa của tiêu chí."""
 from datetime import date
 from typing import Literal, Optional
 

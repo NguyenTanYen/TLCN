@@ -1,4 +1,3 @@
-// Tạo bài kiểm tra – dùng chung cho trang môn học (đề của môn, giao cho lớp HP khi xuất) và trang lớp HP (bài của lớp).
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -34,8 +33,6 @@ export function ExamTypeChooser({ onPick, onClose, note, children }) {
   </Modal>
 }
 
-// cs: tạo bài cho một lớp HP; course {id, code} + sections (các lớp HP của GV trong môn): từ trang môn – chọn lớp trước
-// (góp ý 21/10: mặc định là bài của một lớp; "đề dùng chung" cho nhiều lớp là lựa chọn riêng)
 export function NewExamFlow({ cs, course, sections, start = 'choose', onClose }) {
   const [step, setStep] = useState(start)
   const [target, setTarget] = useState(cs || !sections?.length ? 'all' : String(sections[0].id))
@@ -55,7 +52,6 @@ export function NewExamFlow({ cs, course, sections, start = 'choose', onClose })
 
 const STEPS = ['Thông tin bài', 'Chọn câu hỏi', 'Kiểm tra & lưu']
 
-// Soạn bài trắc nghiệm theo 3 bước: thông tin → chọn câu (sinh tự động hoặc tự chọn) → xem lại điểm từng câu, độ phủ CLO rồi lưu
 function CreateExam({ cs, course, type, onClose }) {
   const nav = useNavigate()
   const courseId = cs ? cs.course_id : course.id
@@ -63,8 +59,8 @@ function CreateExam({ cs, course, type, onClose }) {
   const bank = useApi(`/api/questions?course_id=${courseId}`)
   const [f, setF] = useState({ exam_title: '', exam_type: type || 'online', assessment_type: 'final', exam_date: '', duration_minutes: 45, max_score: 10 })
   const [step, setStep] = useState(0)
-  const [how, setHow] = useState(null)       // 'auto' | 'manual'
-  const [picked, setPicked] = useState({}) // question_id -> points
+  const [how, setHow] = useState(null)
+  const [picked, setPicked] = useState({})
   const [filter, setFilter] = useState('')
   const list = useMemo(() => (bank.data || []).filter(q => !q.is_cancelled && q.tagged !== false &&
     (!filter || q.clos.some(c => c.clo_code === filter) || q.chapter === filter)), [bank.data, filter])
@@ -80,7 +76,7 @@ function CreateExam({ cs, course, type, onClose }) {
   const infoOk = f.exam_title.trim().length >= 3 && Number(f.max_score) > 0
   const canGo = i => i === 0 || (i === 1 && infoOk) || (i === 2 && infoOk && n > 0)
   const chosen = (bank.data || []).filter(q => picked[q.id] !== undefined)
-  const spread = () => {   // chia đều thang điểm cho các câu (làm tròn 0,01; câu cuối nhận phần dư)
+  const spread = () => {
     const max = Number(f.max_score) || 10, each = Math.floor(max / n * 100) / 100, ids = Object.keys(picked)
     setPicked(Object.fromEntries(ids.map((id, i) => [id, i === ids.length - 1 ? Math.round((max - each * (n - 1)) * 100) / 100 : each])))
   }
@@ -174,7 +170,6 @@ function CreateExam({ cs, course, type, onClose }) {
   )
 }
 
-// Giao đề cho lớp HP (khi xuất): đề của môn → các lớp đã chọn; bài của một lớp → các lớp khác cùng môn.
 export function DeployDialog({ e, onClose, onDone }) {
   const nav = useNavigate()
   const secs = useApi('/api/class-sections').data

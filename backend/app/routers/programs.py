@@ -1,9 +1,4 @@
-"""Quản lý theo chương trình đào tạo: CTĐT → học phần (học kỳ, khối kiến thức, ma trận PI) → đề cương chi tiết.
-
-Bộ môn (admin) khai báo/chỉnh CTĐT, gán học phần vào CTĐT và ma trận học phần – PI; giảng viên chỉ xem.
-Đề cương chi tiết của một học phần tổng hợp: thông tin chung, mô tả, CTĐT chứa học phần (học kỳ, khối, tự chọn),
-học phần tiên quyết, CLO (Bloom, đóng góp PLO), PI mà học phần đáp ứng, các chương, kế hoạch đánh giá CLO, các lớp HP.
-"""
+"""Quản lý theo chương trình đào tạo: CTĐT → học phần (học kỳ, khối kiến thức, ma trận PI) → đề cương chi tiết."""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -157,11 +152,10 @@ def course_plos(cid: int, db: Session = Depends(get_db), _=Depends(current_user)
     """PLO dùng để ánh xạ CLO của học phần: PLO các CTĐT có học phần (CTĐT mới nhất trước)."""
     progs = rows(db, """SELECT p.id, p.code, p.name, p.cohort_year FROM programs p JOIN program_courses pc ON pc.program_id=p.id
                         WHERE pc.course_id=:c ORDER BY p.cohort_year IS NULL, p.cohort_year DESC, p.code""", c=cid)
-    if not progs:   # học phần chưa gán CTĐT: cho chọn PLO của mọi CTĐT
+    if not progs:
         progs = rows(db, "SELECT id, code, name, cohort_year FROM programs ORDER BY cohort_year IS NULL, cohort_year DESC, code")
     for p in progs:
         p["plos"] = rows(db, "SELECT id, plo_code, description, group_no FROM plos WHERE program_id=:p ORDER BY LENGTH(plo_code), plo_code", p=p["id"])
-        # góp ý F2a: CLO ánh xạ tới PI; kèm mức học phần đáp ứng PI theo ma trận CTĐT (pi_courses.level) để gợi ý
         pis = rows(db, """SELECT i.id, i.plo_id, i.pi_code, i.description, i.competency_level, pc.level AS course_level
                           FROM performance_indicators i JOIN plos l ON l.id=i.plo_id
                           LEFT JOIN pi_courses pc ON pc.pi_id=i.id AND pc.course_id=:c
@@ -173,8 +167,7 @@ def course_plos(cid: int, db: Session = Depends(get_db), _=Depends(current_user)
 
 @router.get("/courses/{cid}/syllabus")
 def syllabus(cid: int, version: Optional[int] = None, db: Session = Depends(get_db), u: User = Depends(current_user)):
-    """Đề cương chi tiết học phần (mọi tài khoản đều xem được – thông tin công khai trong trường).
-    Góp ý F1: kèm phiên bản đề cương (mặc định Bộ môn xem bản mới nhất, GV xem bản đang áp dụng) và bảng kiểm tra trước khi duyệt."""
+    """Đề cương chi tiết học phần (mọi tài khoản đều xem được – thông tin công khai trong trường)."""
     c = db.get(Course, cid)
     if not c:
         raise HTTPException(404, "Không tìm thấy học phần")
@@ -212,10 +205,10 @@ def syllabus(cid: int, version: Optional[int] = None, db: Session = Depends(get_
                          ORDER BY pr.code, LENGTH(pl.plo_code), pl.plo_code, i.pi_code""", c=cid)
     for x in clos:
         x["plos"] = [m for m in maps if m["clo_id"] == x["id"]]
-        x["pis"] = [m for m in pimaps if m["clo_id"] == x["id"]]      # góp ý F2a: CLO → PI
+        x["pis"] = [m for m in pimaps if m["clo_id"] == x["id"]]
         x["plan"] = next((p for p in plans if p["clo_id"] == x["id"]), None)
     covered = {m["pi_id"] for m in pimaps}
-    for p in programs:   # PI mà CTĐT giao cho học phần: đã có CLO đáp ứng chưa
+    for p in programs:
         for pi in p["pis"]:
             pi["clos"] = [m for m in pimaps if m["pi_id"] == pi["id"]]
             pi["covered"] = pi["id"] in covered

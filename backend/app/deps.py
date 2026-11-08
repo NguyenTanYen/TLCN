@@ -36,8 +36,7 @@ LECTURER_ONLY_MSG = ("Soạn câu hỏi, ra đề và chấm bài là việc c�
 
 
 def lecturer_only(user: User = Depends(current_user)) -> User:
-    """Thao tác nghiệp vụ của giảng viên (ngân hàng câu hỏi, ra đề, nhập điểm, chấm phiếu, bài ôn tập):
-    Bộ môn quản lý học phần/CLO/đề cương và xem kết quả, không tự soạn câu hỏi hay ra đề (góp ý 23/10)."""
+    """Thao tác nghiệp vụ của giảng viên (ngân hàng câu hỏi, ra đề, nhập điểm, chấm phiếu, bài ôn tập): Bộ môn quản lý học phần/CLO/đề cương và xem kết quả, không tự soạn câu hỏi hay ra đề (góp ý 23/10)."""
     if user.role != "lecturer":
         raise HTTPException(status.HTTP_403_FORBIDDEN, LECTURER_ONLY_MSG)
     return user
@@ -53,8 +52,7 @@ def check_section_access(db: Session, user: User, cs_id: int) -> ClassSection:
 
 
 def check_course_access(db: Session, user: User, course_id: int) -> None:
-    """Quản trị: mọi môn. Giảng viên: chỉ môn mình đang/đã dạy (có lớp HP) hoặc được phân công đánh giá
-    (kể cả môn giao cho "tất cả thầy/cô có hướng dẫn" như TLCN, KLTN)."""
+    """Quản trị: mọi môn."""
     from sqlalchemy import text
     if not db.execute(text("SELECT 1 FROM courses WHERE id=:c"), {"c": course_id}).scalar():
         raise HTTPException(404, "Không tìm thấy môn học")
@@ -69,8 +67,7 @@ def check_course_access(db: Session, user: User, course_id: int) -> None:
 
 
 def get_exam_for(db: Session, user: User, exam_id: int, allow_template: bool = False) -> Exam:
-    """Bài KT mà người dùng được thao tác. Đề của môn (chưa giao lớp HP) chỉ được xem/sửa/xóa/giao cho lớp –
-    các thao tác cần lớp (tạo Quiz, in đề, nhập điểm, đồng bộ…) bị chặn với thông báo hướng dẫn."""
+    """Bài KT mà người dùng được thao tác."""
     exam = db.get(Exam, exam_id)
     if not exam:
         raise HTTPException(404, "Không tìm thấy bài kiểm tra")
@@ -84,8 +81,7 @@ def get_exam_for(db: Session, user: User, exam_id: int, allow_template: bool = F
 
 
 def check_moodle_course(db: Session, user: User, cs: ClassSection, course_id: int) -> None:
-    """Khóa học Moodle gắn với lớp HP phải: tồn tại; chưa gắn lớp HP khác; trùng khóa học lớp đã gắn (nếu có);
-    và (với giảng viên) người dùng là giảng viên của khóa học đó trên Moodle."""
+    """Khóa học Moodle gắn với lớp HP phải: tồn tại; chưa gắn lớp HP khác; trùng khóa học lớp đã gắn (nếu có); và (với giảng viên) người dùng là giảng viên của khóa học đó trên Moodle."""
     from sqlalchemy import text
     from .services import moodle
     if cs.moodle_course_id and int(cs.moodle_course_id) != int(course_id):

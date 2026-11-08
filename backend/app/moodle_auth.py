@@ -1,9 +1,4 @@
-"""Xác thực bằng tài khoản Moodle (chỉ đọc bảng mdl_user).
-
-Moodle 4.5 lưu mật khẩu dạng SHA-512 crypt: $6$rounds=10000$<salt>$<hash> (hàm hash_internal_user_password).
-Module `crypt` của Python không có trên Windows nên thuật toán SHA-crypt (U. Drepper) được cài đặt thuần Python.
-Bản cũ của Moodle dùng bcrypt ($2y$) – hỗ trợ nếu cài gói `bcrypt`.
-"""
+"""Xác thực bằng tài khoản Moodle (chỉ đọc bảng mdl_user)."""
 from __future__ import annotations
 
 import hashlib
@@ -74,9 +69,9 @@ def verify_moodle_password(password: str, stored: str | None) -> bool:
         if stored.startswith("$6$"):
             return hmac.compare_digest(sha512_crypt(password, stored), stored)
         if stored.startswith(("$2y$", "$2a$", "$2b$")):
-            import bcrypt  # tùy chọn
+            import bcrypt
             return bcrypt.checkpw(password.encode(), stored.replace("$2y$", "$2b$", 1).encode())
-        if len(stored) == 32:  # MD5 rất cũ (không có salt site)
+        if len(stored) == 32:
             return hmac.compare_digest(hashlib.md5(password.encode()).hexdigest(), stored)
     except Exception:
         return False
@@ -91,4 +86,4 @@ def find_moodle_user(db, username: str):
                                     FROM {t} WHERE username = :u AND deleted = 0 AND suspended = 0"""),
                           {"u": username.strip().lower()}).mappings().first()
     except Exception:
-        return None  # chưa có CSDL Moodle hoặc không có quyền đọc
+        return None

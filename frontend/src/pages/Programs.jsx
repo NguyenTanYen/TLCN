@@ -1,4 +1,3 @@
-// Chương trình đào tạo: danh sách CTĐT → CĐR (PLO) và chỉ số PI, học phần theo học kỳ, ma trận học phần – PI.
 import { useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Link, useParams, useSearchParams } from 'react-router-dom'

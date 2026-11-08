@@ -15,7 +15,6 @@ def _sections(client, gv, course_id):
 
 def test_course_exam_create_and_blocked_actions(client, gv, gv_other):
     c = _course(client, gv)
-    # ma trận đề và sinh đề ở cấp môn
     pool = client.get(f"/api/courses/{c}/exam-blueprint/pool", headers=gv)
     assert pool.status_code == 200 and pool.json()["pool_size"] > 0
     gen = client.post(f"/api/courses/{c}/exam-blueprint", headers=gv, json={"n_questions": 10, "total_points": 10, "bloom_preset": "balanced"})
@@ -27,22 +26,18 @@ def test_course_exam_create_and_blocked_actions(client, gv, gv_other):
     assert r.status_code == 201, r.text
     e = r.json()
     assert e["is_template"] and e["class_section_id"] is None and e["course_id"] == c and e["deployments"] == []
-    # xuất hiện ở danh sách đề của môn, kèm các lớp của GV để giao
     lst = client.get(f"/api/courses/{c}/exams", headers=gv).json()
     assert any(x["id"] == e["id"] for x in lst["exams"])
     assert {s["section_code"] for s in lst["sections"]} >= {"DBMS330284_01", "DBMS330284_02"}
-    # thao tác cần lớp bị chặn với thông báo hướng dẫn chọn lớp; Moodle XML vẫn tải được
     for method, url, body in (("post", f"/api/exams/{e['id']}/moodle/create-quiz", {}), ("post", f"/api/exams/{e['id']}/sync", None),
                               ("get", f"/api/exams/{e['id']}/timing", None), ("get", f"/api/exams/{e['id']}/overview", None)):
         res = getattr(client, method)(url, headers=gv, **({"json": body} if body is not None else {}))
         assert res.status_code == 409 and "chưa giao cho lớp" in res.json()["detail"], (url, res.text)
     assert client.get(f"/api/exams/{e['id']}/moodle-xml", headers=gv).status_code == 200
     assert client.get(f"/api/exams/{e['id']}", headers=gv).json()["status"] == "Draft"
-    # GV không dạy môn: không thấy, không tạo được
     assert client.get(f"/api/exams/{e['id']}", headers=gv_other).status_code == 403
     assert client.get(f"/api/courses/{c}/exams", headers=gv_other).status_code == 403
     assert client.post("/api/exams", headers=gv_other, json={"course_id": c, "exam_title": "Không được", "items": items[:1]}).status_code == 403
-    # phải chọn đúng một trong lớp HP / môn học
     sec = _sections(client, gv, c)["DBMS330284_01"]
     assert client.post("/api/exams", headers=gv, json={"course_id": c, "class_section_id": sec, "exam_title": "Cả hai", "items": items[:1]}).status_code == 422
     assert client.post("/api/exams", headers=gv, json={"exam_title": "Không có", "items": items[:1]}).status_code == 422
@@ -61,15 +56,12 @@ def test_course_exam_deploy_to_sections(client, gv):
         b = client.get(f"/api/exams/{x['exam_id']}", headers=gv).json()
         assert b["section_code"] == code and b["source_exam_id"] == tpl["id"] and not b["is_template"]
         assert [q["question_id"] for q in b["questions"]] == list(range(1, 9)) and b["exam_type"] == "paper"
-    # bài của lớp làm được các thao tác cần lớp (VD sinh mã đề giấy)
     v = client.post(f"/api/exams/{copies['DBMS330284_02']['exam_id']}/paper/versions", headers=gv, json={"n_versions": 2})
     assert v.status_code in (200, 201), v.text
-    # giao lại cho lớp đã có: bỏ qua, không tạo bài trùng
     again = client.post(f"/api/exams/{tpl['id']}/copy", headers=gv, json={"class_section_ids": [secs["DBMS330284_01"]], "create_moodle": False}).json()
     assert again["copies"][0]["skipped"] and again["copies"][0]["exam_id"] == copies["DBMS330284_01"]["exam_id"]
     deps = client.get(f"/api/exams/{tpl['id']}", headers=gv).json()["deployments"]
     assert {d["section_code"] for d in deps} == {"DBMS330284_01", "DBMS330284_02"}
-    # xóa đề của môn: bài đã giao vẫn còn (source_exam_id về NULL)
     assert client.delete(f"/api/exams/{tpl['id']}", headers=gv).status_code == 200
     b = client.get(f"/api/exams/{copies['DBMS330284_01']['exam_id']}", headers=gv).json()
     assert b["source_exam_id"] is None
@@ -90,7 +82,7 @@ def test_course_manual_exam_deploy_and_grade(client, gv):
     tid = r.json()["id"]
     t = client.get(f"/api/exams/{tid}", headers=gv).json()
     assert t["is_template"] and t["exam_type"] == "manual" and len(t["questions"]) == 2
-    assert client.get(f"/api/exams/{tid}/grades", headers=gv).status_code == 409        # nhập điểm cần lớp
+    assert client.get(f"/api/exams/{tid}/grades", headers=gv).status_code == 409
     d = client.post(f"/api/exams/{tid}/copy", headers=gv, json={"class_section_ids": [secs["DBMS330284_02"]]}).json()["copies"][0]
     g = client.get(f"/api/exams/{d['exam_id']}/grades", headers=gv)
     assert g.status_code == 200 and len(g.json()["students"]) == 35
@@ -100,7 +92,7 @@ def test_course_manual_exam_deploy_and_grade(client, gv):
     assert s.status_code == 200, s.text
     with engine.connect() as cn:
         assert cn.execute(text("SELECT class_section_id, source_exam_id FROM exams WHERE id=:e"), {"e": d["exam_id"]}).one() == (secs["DBMS330284_02"], tid)
-    with engine.begin() as cn:   # dọn bài vừa thử để không ảnh hưởng các kiểm thử sau
+    with engine.begin() as cn:
         cn.execute(text("DELETE r FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id WHERE a.exam_id=:e"), {"e": d["exam_id"]})
         cn.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": d["exam_id"]})
     assert client.delete(f"/api/exams/{d['exam_id']}", headers=gv).status_code == 200
