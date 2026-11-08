@@ -86,7 +86,6 @@ def search_materials(cs_id: int, q: str = Query(min_length=1, max_length=2000), 
     """Tìm đoạn trong học liệu đã nạp của lớp (BM25) – để GV / Bộ môn thử truy vấn, dựng bộ câu hỏi chuẩn."""
     check_section_access(db, u, cs_id)
     from ..config import settings
-    from ..services.rag import semantic
     return [asdict(h) for h in search.search(db, cs_id, q, k, floor=settings.rag_search_similarity)]
 
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import check_course_access, check_section_access, current_user, require
-from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
+from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMapping, Course, Enrollment, PIAssessmentPlan,
                       PIPlanCLO, PLO, Program, Student, User)
 from ..services import outcomes, results
 from . import syllabi

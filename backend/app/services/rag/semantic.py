@@ -85,7 +85,6 @@ _dense_cache: dict = {}
 
 def _matrix(db: Session, cs_id: int):
     """Ma trận vector đoạn của lớp (chỉ học liệu 'ready' đã tính bằng model hiện tại), nhớ tạm theo khóa học liệu."""
-    from sqlalchemy.orm import undefer
     name = model_name()
     mats = db.query(SectionMaterial.id, SectionMaterial.indexed_at).filter(
         SectionMaterial.class_section_id == cs_id, SectionMaterial.status == "ready",
