@@ -79,7 +79,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
 
         db.execute(text("""DELETE p FROM personalized_learning_paths p JOIN exam_attempts a ON a.id = p.attempt_id
                            WHERE a.exam_id = :e"""), {"e": exam_id})
-        clo_names = dict(db.execute(text("SELECT id, clo_code FROM clos")).fetchall())
         ch_names = dict(db.execute(text("SELECT id, CONCAT('Chương ', chapter_number, ': ', chapter_name) FROM course_outlines")).fetchall())
         if not clo.empty:
             lost_all = valid.merge(mapping, on="question_id")

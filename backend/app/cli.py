@@ -1,12 +1,10 @@
 """Công cụ dòng lệnh: khởi tạo CSDL, tạo dữ liệu minh họa, mô phỏng bài làm."""
 from __future__ import annotations
 
-import csv
-import io
 import math
 import random
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 

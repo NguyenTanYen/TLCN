@@ -14,7 +14,7 @@ subgraph cluster_sys { label="Hệ thống phân tích CĐR (FastAPI + React) �
 subgraph cluster_db { label="MySQL / MariaDB (cùng một máy chủ)"; style="rounded,filled"; fillcolor="#FFFBF2"; color="#AA9966";
   mdb [label="moodle_db\nmdl_* · mdl_local_clo_*", shape=cylinder, fillcolor="#E6F4F4"];
   bridge [label="Cầu nối (chỉ đọc)\nv_mdl_* · sp_sync_exam", shape=component, fillcolor="#FDE9E7"];
-  adb [label="assessment_db\n39 bảng · 4 view", shape=cylinder, fillcolor="#FFF7D6"]; }
+  adb [label="assessment_db\n57 bảng · 10 view", shape=cylinder, fillcolor="#FFF7D6"]; }
 {rank=same; sv; gv; bm;}
 {rank=same; theme; spa;}
 {rank=same; quiz; plugin; routers;}

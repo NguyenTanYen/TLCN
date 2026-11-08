@@ -35,7 +35,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `moodle/local/clo` | Plugin Moodle: nút SSO, Web Service tạo Quiz / Offline Quiz, nhận kết quả, trang kết quả cho SV |
 | `moodle/mod/offlinequiz_v4.5.4.zip` | Plugin Offline Quiz (GPL v3, mã gốc): in đề + phiếu, nhận diện phiếu quét, chấm bài thi giấy |
 | `moodle/theme/ute` | Giao diện UTE LMS cho Moodle |
-| `database/01_schema.sql` | CSDL `assessment_db` – 57 bảng, 4 view (MySQL 8) |
+| `database/01_schema.sql` | CSDL `assessment_db` – 57 bảng, 10 view (MySQL 8) |
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
@@ -96,8 +96,8 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Kiểm thử
 
 ```bash
-python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 99 ca + độ phủ 133/133 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
-cd backend && python -m pytest tests -q        # 99 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), thời gian làm bài & cảnh báo, nâng cấp CSDL
+python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 307 ca + độ phủ 147/148 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
+cd backend && python -m pytest tests -q        # ~300 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), thời gian làm bài & cảnh báo, nâng cấp CSDL
 python ../tools/omr/kiem_tra_omr.py          # độ bền bộ chấm phiếu: 6 điều kiện ảnh × 30 phiếu, 7 kiểu tô
 python tests/ui_screens.py                     # Playwright: chụp 47 màn hình, bắt lỗi console
 python ../tools/moodle_e2e/run_real_moodle_e2e.py /duong/dan/moodle   # E2E với Moodle 4.5 thật

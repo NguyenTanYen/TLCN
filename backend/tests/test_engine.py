@@ -2,7 +2,6 @@
 import math
 
 import pandas as pd
-import pytest
 
 from app.services.analysis import aggregate, attempt_clo_scores, item_statistics, learning_path
 
