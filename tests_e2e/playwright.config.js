@@ -1,5 +1,5 @@
 // Cấu hình Playwright Test cho kiểm thử giao diện hệ thống phân tích CĐR (chạy trên hệ thống THẬT đang bật).
-// Chuẩn bị: bật MariaDB, Apache (Moodle), chạy 5_CHAY_HE_THONG.bat, đã chạy bước 4 (dữ liệu demo trên Moodle).
+// Chuẩn bị: bật MariaDB, Apache (Moodle), chạy scripts/chay.bat, đã chạy scripts/tao_du_lieu_demo.bat.
 // Chạy:  npx playwright test --ui                  (giao diện: chọn test, xem từng bước)
 //        npx playwright test --grep-invert @moodle  (bỏ các flow cần Moodle thật)
 const fs = require('fs')

@@ -1,7 +1,7 @@
 """Tạo tài khoản MySQL/MariaDB đặc quyền tối thiểu cho hệ thống phân tích CĐR và chuyển cấu hình sang tài khoản đó.
 
   clo_app: toàn quyền trên CSDL của hệ thống (assessment_db) + CHỈ SELECT trên CSDL Moodle.
-Chạy một lần (3_CAI_GIAO_DIEN_MOODLE.bat gọi tự động) bằng tài khoản quản trị đang ghi trong backend/cau_hinh.env;
+Chạy một lần (scripts/cai_dat.bat gọi tự động) bằng tài khoản quản trị đang ghi trong backend/cau_hinh.env;
 mật khẩu sinh ngẫu nhiên và được ghi lại vào DATABASE_URL. Chạy lại an toàn (đổi mật khẩu mới).
   python tools/tao_tai_khoan_csdl.py [đường_dẫn_cau_hinh.env]
 """

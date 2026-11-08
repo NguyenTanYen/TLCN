@@ -12,7 +12,7 @@ $url = local_clo_appurl() . '/api/auth/moodle-sso?token=' . rawurlencode(\local_
 cli_writeln('Dia chi he thong: ' . local_clo_appurl());
 $html = @file_get_contents($url, false, stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 10]]));
 if ($html === false) {
-    cli_writeln('KHONG KET NOI DUOC toi he thong phan tich - hay chay 5_CHAY_HE_THONG.bat');
+    cli_writeln('KHONG KET NOI DUOC toi he thong phan tich - hay chay scripts/chay.bat');
     exit(1);
 }
 $status = $http_response_header[0] ?? '';

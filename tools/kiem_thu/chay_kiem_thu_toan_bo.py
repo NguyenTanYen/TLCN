@@ -1,6 +1,6 @@
 """KIỂM THỬ TOÀN BỘ CHỨC NĂNG – chạy mọi ca kiểm thử tự động, đo độ phủ API và xuất bảng kết quả Excel.
 
-Chạy (từ thư mục HeThong, sau khi đã chạy 1_CAI_DAT_PYTHON.bat):
+Chạy (từ thư mục HeThong, sau khi đã chạy scripts/cai_dat.bat):
     .venv\\Scripts\\python tools\\kiem_thu\\chay_kiem_thu_toan_bo.py            (Windows)
     python tools/kiem_thu/chay_kiem_thu_toan_bo.py [--omr]                      (Linux)
 
@@ -10,7 +10,7 @@ Kết quả: docs/kiem_thu/KET_QUA_KIEM_THU.xlsx gồm
   3. Độ phủ API          – từng endpoint: nhóm, mô tả, đã gọi thành công chưa, bởi ca nào
   4. Kiểm thử giao diện  – danh sách ca kiểm thử thủ công trên giao diện và Moodle (điền khi trình diễn)
   5. Chấm phiếu (OMR)    – (khi có --omr) độ chính xác bộ chấm phiếu theo điều kiện ảnh và kiểu tô
-LƯU Ý: kiểm thử tự động DỰNG LẠI CSDL assessment_db (dữ liệu minh họa); chạy xong hãy chạy lại 4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat.
+LƯU Ý: kiểm thử tự động DỰNG LẠI CSDL assessment_db (dữ liệu minh họa); chạy xong hãy chạy lại scripts/tao_du_lieu_demo.bat.
 """
 from __future__ import annotations
 

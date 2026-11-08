@@ -1,6 +1,6 @@
 -- =============================================================
 -- Chạy trong HeidiSQL SAU KHI đã có CSDL Moodle moodle_db (tiền tố mdl_)
--- và đã cài plugin Offline Quiz (3_CAI_GIAO_DIEN_MOODLE.bat) để đọc bài thi giấy.
+-- và đã cài plugin Offline Quiz (scripts/cai_dat.bat) để đọc bài thi giấy.
 -- Cài 6 view + thủ tục sp_sync_exam đọc dữ liệu Moodle (chỉ đọc).
 -- Nếu CSDL Moodle có tên khác, thay 'moodle_db.' bằng tên đó.
 -- (Hệ thống tự cài lại phần này mỗi lần khởi động – kể cả khi Moodle chưa có Offline Quiz.)

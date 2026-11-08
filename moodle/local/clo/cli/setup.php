@@ -81,7 +81,7 @@ if (core_component::get_component_directory('mod_offlinequiz')) {
     }
     cli_writeln('Offline Quiz: ID_field=' . $options['oqidfield'] . ', ID_digits=' . $options['oqdigits'] . ', nhan tieng Viet da cai');
 } else {
-    cli_writeln('CANH BAO: chua cai mod_offlinequiz – chua dung duoc bai thi giay (3_CAI_GIAO_DIEN_MOODLE.bat se cai).');
+    cli_writeln('CANH BAO: chua cai mod_offlinequiz – chua dung duoc bai thi giay (scripts/cai_dat.bat se cai).');
 }
 
 // Theme cũ (phiên bản trước) từng thêm mục menu trỏ thẳng tới hệ thống – nay đã thay bằng nút có SSO.

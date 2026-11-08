@@ -46,7 +46,7 @@ export function MoodleCourses({ onImported }) {
     if (focus && mc.data) { const c = mc.data.find(x => x.moodle_course_id === focus); if (c && !c.section) setDlg(c) }
   }, [focus, mc.data])
   if (mc.error) return <div className="alert amber">Không đọc được danh sách khóa học trên Moodle: {mc.error}
-    {/Không có chức năng API/.test(mc.error) && ' – hệ thống đang chạy bản cũ: đóng cửa sổ hệ thống rồi chạy lại 5_CHAY_HE_THONG.bat.'}</div>
+    {/Không có chức năng API/.test(mc.error) && ' – hệ thống đang chạy bản cũ: đóng cửa sổ hệ thống rồi chạy lại scripts/chay.bat.'}</div>
   if (!pending.length) return null
   return <Card title={`Khóa học trên Moodle chưa có trong hệ thống (${pending.length})`} className="mb">
     <p className="muted small">{isAdmin ? 'Mọi khóa học trên Moodle chưa gắn lớp học phần.' : 'Các khóa học bạn là giảng viên trên Moodle nhưng chưa có lớp học phần tương ứng.'} Bấm "Đưa vào hệ thống" để tạo lớp học phần, gắn khóa học và lấy danh sách sinh viên đang ghi danh.</p>

@@ -48,7 +48,7 @@ def main():
 
     cs = next((s for s in call("GET", "/api/class-sections") if s["section_code"] == SECTION), None)
     if not cs:
-        raise SystemExit(f"*** Chưa có lớp {SECTION} – chạy 4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat trước")
+        raise SystemExit(f"*** Chưa có lớp {SECTION} – chạy scripts/tao_du_lieu_demo.bat trước")
     exams = call("GET", f"/api/class-sections/{cs['id']}/exams")
     final = next((e for e in exams if e["exam_title"] == FINAL and e["status"] == "Analyzed"), None)
     if not final:

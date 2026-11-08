@@ -1,6 +1,0 @@
-app.{$IP_CONG_KHAI}.sslip.io {
-	reverse_proxy app:8000
-}
-lms.{$IP_CONG_KHAI}.sslip.io {
-	reverse_proxy moodle:80
-}

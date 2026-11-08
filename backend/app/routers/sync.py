@@ -27,7 +27,7 @@ def sync_moodle(exam_id: int, analyze: bool = True, u: User = Depends(require("a
         if not e.moodle_offlinequiz_id:
             raise HTTPException(422, "Bài thi giấy chưa tạo Offline Quiz trên Moodle – hãy tạo đề thi giấy trên Moodle trước")
         if not moodle.offlinequiz_available():
-            raise HTTPException(502, "Moodle chưa cài plugin Offline Quiz (chạy lại 3_CAI_GIAO_DIEN_MOODLE.bat)")
+            raise HTTPException(502, "Moodle chưa cài plugin Offline Quiz (chạy lại scripts/cai_dat.bat)")
         # Phiếu đã tải lên Moodle nhưng chưa được chấm (Moodle chưa chạy cron) -> nhờ Moodle chấm ngay trước khi kéo về.
         if lms.configured():
             try:
