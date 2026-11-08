@@ -3,10 +3,6 @@ namespace local_clo;
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Nút "Phân tích CĐR" trên thanh điều hướng chính của Moodle – chỉ hiện với giảng viên / quản trị;
- * gợi ý đọc dưới từng câu làm sai ở trang xem lại bài Quiz.
- */
 class hook_callbacks {
     public static function primary_extend(\core\hook\navigation\primary_extend $hook): void {
         global $CFG;
@@ -26,7 +22,7 @@ class hook_callbacks {
         require_once($CFG->dirroot . '/local/clo/lib.php');
         try {
             $hook->add_html(local_clo_review_readings((int)$PAGE->url->get_param('attempt')));
-        } catch (\Throwable $e) {     // gợi ý đọc không được làm hỏng trang xem lại bài
+        } catch (\Throwable $e) {
             debugging('local_clo: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
     }

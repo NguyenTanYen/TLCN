@@ -8,11 +8,6 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Đẩy một học liệu (PDF, PPTX, DOCX…) từ hệ thống phân tích lên khóa học Moodle thành hoạt động "Tệp" (mod_resource),
- * để sinh viên xem trên Moodle và hệ thống chỉ gợi ý dựa trên đúng những gì đã đưa lên khóa học.
- * Gọi lại với cùng tên tệp trong cùng chủ đề thì không tạo trùng (trả về hoạt động đã có).
- */
 class add_resource extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
@@ -45,7 +40,6 @@ class add_resource extends external_api {
         }
         $filename = clean_param($p['filename'], PARAM_FILE);
 
-        // Đã có tài nguyên cùng tên tệp trong khóa học → không tạo trùng.
         $sql = "SELECT cm.id FROM {course_modules} cm
                   JOIN {modules} m ON m.id = cm.module AND m.name = 'resource'
                   JOIN {context} ctx ON ctx.instanceid = cm.id AND ctx.contextlevel = :lvl
@@ -58,7 +52,6 @@ class add_resource extends external_api {
                     'url' => (new \moodle_url('/mod/resource/view.php', ['id' => $exist->id]))->out(false)];
         }
 
-        // Tệp nháp trong khu vực của tài khoản dịch vụ, rồi tạo hoạt động từ tệp nháp đó.
         $usercontext = \context_user::instance($USER->id);
         $draftid = file_get_unused_draft_itemid();
         get_file_storage()->create_file_from_string([

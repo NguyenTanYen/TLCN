@@ -6,7 +6,6 @@ const DEMO = [['gv.son', 'Gv@123456', 'Giảng viên'], ['admin', 'Admin@123', '
 export default function Login() {
   const [f, setF] = useState({ username: '', password: '' })
   const [err, setErr] = useState('')
-  // Tài khoản minh họa chỉ hiện khi chạy bản phát triển hoặc khi máy chủ bật DEMO_MODE (không lộ trên bản triển khai thật)
   const [demo, setDemo] = useState(import.meta.env.DEV)
   useEffect(() => { fetch('/api/public-config').then(r => r.json()).then(d => d.demo_mode && setDemo(true)).catch(() => {}) }, [])
   const submit = async e => {

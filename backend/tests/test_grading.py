@@ -34,7 +34,7 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
     body = {"exam_title": "Bài tập lớn (tự luận)", "assessment_type": "process", "max_score": 10, "items": items}
     assert client.post("/api/class-sections/1/manual-exams", headers=gv_other, json=body).status_code == 403
     bad = {**body, "items": [{**items[0], "clos": [{"clo_id": 1, "weight": 0.5}]}]}
-    assert client.post("/api/class-sections/1/manual-exams", headers=gv, json=bad).status_code == 422      # tổng trọng số ≠ 1
+    assert client.post("/api/class-sections/1/manual-exams", headers=gv, json=bad).status_code == 422
     r = client.post("/api/class-sections/1/manual-exams", headers=gv, json=body)
     assert r.status_code == 201, r.text
     eid = r.json()["id"]
@@ -42,9 +42,7 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
     assert len(gb["items"]) == 2 and gb["raw_max"] == 10 and len(gb["students"]) == 40
     q1, q2 = (str(i["question_id"]) for i in gb["items"])
     studs = gb["students"]
-    # câu/ý chấm tay không xuất hiện trong ngân hàng câu hỏi trắc nghiệm
     assert not any(q["id"] == int(q1) for q in client.get("/api/questions?course_id=5", headers=gv).json())
-    # lưới: điểm vượt tối đa bị chặn
     assert client.put(f"/api/exams/{eid}/grades", headers=gv, json={"rows": [{"student_id": studs[0]["student_id"], "scores": {q1: 5}}]}).status_code == 422
     rows = [{"student_id": s["student_id"], "absent": i == 0, "scores": {q1: (i % 5), q2: (i % 7)}} for i, s in enumerate(studs[:20])]
     r = client.put(f"/api/exams/{eid}/grades", headers=gv, json={"rows": rows})
@@ -52,7 +50,6 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
     assert r.json()["saved"] == 19 and r.json()["absent"] == 1 and r.json()["analysis"]["n_students"] == 19
     e = client.get(f"/api/exams/{eid}", headers=gv).json()
     assert e["status"] == "Analyzed" and e["exam_type"] == "manual"
-    # CLO tính theo lớp (không theo từng SV): danh sách SV không còn trả CLO riêng
     st = {s["student_code"]: s for s in client.get(f"/api/exams/{eid}/students", headers=gv).json()}
     assert "clos" not in st[studs[1]["student_code"]]
     cs = client.get(f"/api/exams/{eid}/clo-summary", headers=gv).json()
@@ -61,13 +58,12 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
     assert ov["reliability"] == "Cronbach alpha" and ov["n_students"] == 19 and ov["n_absent"] == 1
     items_st = client.get(f"/api/exams/{eid}/item-stats", headers=gv).json()
     assert all(0 <= float(x["p_value"]) <= 1 for x in items_st)
-    # Excel: tải bảng điểm mẫu, sửa và tải lên
     x = client.get(f"/api/exams/{eid}/grades.xlsx", headers=gv)
     wb = load_workbook(io.BytesIO(x.content))
     ws = wb["NhapDiem"]
     assert ws["B3"].value == "MSSV" and ws.cell(6, 5).value == f"QB-{q1}"
-    ws.cell(7 + 25, 5).value = 3.5; ws.cell(7 + 25, 6).value = "4,5"   # SV thứ 26 (chưa có điểm)
-    ws.cell(7 + 26, 4).value = "x"                                       # SV thứ 27 vắng
+    ws.cell(7 + 25, 5).value = 3.5; ws.cell(7 + 25, 6).value = "4,5"
+    ws.cell(7 + 26, 4).value = "x"
     buf = io.BytesIO(); wb.save(buf)
     files = {"file": ("bd.xlsx", buf.getvalue(), "application/octet-stream")}
     pre = client.post(f"/api/exams/{eid}/grades/import?dry_run=true", headers=gv, files=files).json()
@@ -77,7 +73,6 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
     gb = client.get(f"/api/exams/{eid}/grades", headers=gv).json()
     s26 = gb["students"][25]
     assert s26["status"] == "finished" and s26["total"] == 8.0 and gb["students"][26]["status"] == "absent"
-    # đổi cấu trúc câu/ý khi đã có điểm: bị chặn
     assert client.put(f"/api/exams/{eid}/manual-items", headers=gv, json={"items": items}).status_code == 409
 
 
@@ -102,7 +97,6 @@ def test_create_exam_from_any_excel(client, gv):
     d = r.json()
     assert d["saved"] == 7 and d["analysis"]["n_students"] == 7
     assert _q("SELECT COUNT(*) FROM enrollments e JOIN students s ON s.id=e.student_id WHERE s.student_code='99999901' AND e.class_section_id=1")[0][0] == 1
-    # thiếu CLO trong tiêu đề -> xem trước báo cột cần chọn CLO; chọn CLO qua clo_map thì tạo được
     wb2 = Workbook(); w2 = wb2.active
     w2.append(["MSSV", "Họ tên", "Điểm thuyết trình"]); w2.append(["", "Điểm tối đa", 10])
     for c in codes[:3]:
@@ -128,9 +122,7 @@ def test_combine_exams_and_evidence_flag(client, gv, gv_other):
     m = client.post("/api/combined-analysis", headers=gv, json={"exam_ids": ids, "mode": "merge"}).json()
     cu = client.post("/api/combined-analysis", headers=gv, json={"exam_ids": ids, "mode": "cumulative"}).json()
     c1 = next(c for c in m["clos"] if c["clo_code"] == "CLO1")
-    # merge: mỗi SV đếm 1 lần; cumulative: mỗi bài một lượt
     assert c1["n_evaluated"] <= 40 and next(c for c in cu["clos"] if c["clo_code"] == "CLO1")["n_evaluated"] == sum(b["n"] for b in c1["by_exam"])
-    # kiểm tra lại công thức gộp cho một SV
     s = m["students"][0]
     rows = _q("""SELECT SUM(r.score_earned), SUM(r.score_max) FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id
                  JOIN students s ON s.id=a.student_id JOIN clos c ON c.id=r.clo_id
@@ -139,7 +131,6 @@ def test_combine_exams_and_evidence_flag(client, gv, gv_other):
     assert m["programs"] and all(p["plos"] for p in m["programs"])
     x = client.get(f"/api/combined-analysis.xlsx?ids={','.join(map(str, ids))}", headers=gv)
     assert x.status_code == 200 and load_workbook(io.BytesIO(x.content)).sheetnames == ["TongHop_CLO", "TungSinhVien"]
-    # bỏ bài 1 khỏi minh chứng -> BM6b của lớp chỉ còn bài 2
     before = {r[0]: r[1] for r in _q("SELECT clo_id, n_evaluated FROM clo_results WHERE class_section_id=1")}
     assert client.patch(f"/api/exams/{ids[0]}/evidence", headers=gv, json={"counts_for_clo": False}).status_code == 200
     after = {r[0]: r[1] for r in _q("SELECT clo_id, n_evaluated FROM clo_results WHERE class_section_id=1")}
@@ -154,7 +145,6 @@ def test_remedial_flow(client, gv, gv_other):
     assert ov["students"] and ov["questions"]
     worst = ov["students"][0]
     assert worst["n_wrong"] == max(s["n_wrong"] for s in ov["students"]) and worst["n_wrong"] > 0
-    # số câu sai = số dòng chi tiết; mỗi dòng đúng là câu chưa đủ điểm
     d = client.get(f"/api/class-sections/1/remedial/students/{worst['student_id']}", headers=gv).json()
     assert len(d["wrong"]) == worst["n_wrong"]
     assert all(w["score_earned"] < w["points"] for w in d["wrong"])
@@ -163,7 +153,6 @@ def test_remedial_flow(client, gv, gv_other):
     n = _q("""SELECT COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id WHERE a.exam_id=:e
               AND r.question_id=:q AND a.status='finished' AND NOT r.is_correct""", e=q0["exam_id"], q=q0["question_id"])[0][0]
     assert q0["n_wrong"] == n
-    # tạo bài phụ đạo cho 2 SV yếu nhất: câu đã sai + 1 câu tương tự mỗi câu
     two = [s["student_id"] for s in ov["students"][:2]]
     r = client.post("/api/class-sections/1/remedial-exams", headers=gv, json={"student_ids": two, "similar_per_question": 1, "seed": 3})
     assert r.status_code == 201, r.text

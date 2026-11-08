@@ -37,8 +37,7 @@ def _data(_req: Request, ex: DataError):
 
 
 async def _rag_loop():
-    """Tự đồng bộ học liệu của mọi lớp theo chu kỳ rồi xếp vào hàng đợi nạp (luồng nạp riêng, không chặn API).
-    Chạy nhiều worker thì khóa tên trong run_all bảo đảm mỗi lúc chỉ một vòng đồng bộ."""
+    """Tự đồng bộ học liệu của mọi lớp theo chu kỳ rồi xếp vào hàng đợi nạp (luồng nạp riêng, không chặn API)."""
     while True:
         await asyncio.sleep(settings.rag_sync_minutes * 60)
         try:
@@ -81,5 +80,5 @@ if dist.exists():
         if path == "api" or path.startswith("api/"):
             raise HTTPException(404, "Không có chức năng API này")
         f = (dist / path).resolve()
-        ok = path and f.is_file() and dist in f.parents  # chặn truy cập ra ngoài thư mục dist
-        return FileResponse(f if ok else dist / "index.html", headers={"Cache-Control": "no-cache, must-revalidate"})   # luôn lấy giao diện mới sau khi cập nhật
+        ok = path and f.is_file() and dist in f.parents
+        return FileResponse(f if ok else dist / "index.html", headers={"Cache-Control": "no-cache, must-revalidate"})

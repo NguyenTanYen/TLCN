@@ -3,24 +3,12 @@ namespace local_clo;
 
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Nhập tệp Moodle XML do hệ thống phân tích CĐR sinh ra (mỗi câu mang idnumber QB-n, phương án theo thứ tự gốc)
- * vào ngân hàng câu hỏi của khóa học. Dùng chung cho Quiz (thi online) và Offline Quiz (thi giấy).
- *
- * Câu đã có trong ngân hàng câu hỏi của khóa học (cùng idnumber QB-n) được DÙNG LẠI, không nhập trùng –
- * nếu nhập trùng, Moodle sẽ bỏ idnumber của bản sao và hệ thống không ánh xạ được bài làm về câu hỏi gốc.
- */
 class question_importer {
 
-    /**
-     * @param \stdClass $course khóa học
-     * @param string $xml nội dung Moodle XML
-     * @return int[] id câu hỏi Moodle theo đúng thứ tự trong đề
-     */
     public static function import(\stdClass $course, string $xml): array {
         $context = \context_course::instance($course->id);
         $order = self::idnumbers($xml);
-        if (!$order) {   // tệp không do hệ thống sinh: không ánh xạ được bài làm về câu hỏi gốc
+        if (!$order) {
             throw new \moodle_exception('importnoidnumber', 'local_clo');
         }
         $existing = self::existing($context, $order);
@@ -37,11 +25,6 @@ class question_importer {
         return array_map(fn($idn) => $all[$idn], $order);
     }
 
-    /**
-     * Điểm của từng câu trong đề (thẻ defaultgrade), theo thứ tự câu – dùng làm maxmark khi thêm vào Quiz/Offline Quiz,
-     * vì câu dùng lại từ đề khác có thể mang điểm mặc định khác.
-     * @return float[]
-     */
     public static function marks(string $xml): array {
         $doc = new \DOMDocument();
         $doc->loadXML($xml);
@@ -56,7 +39,6 @@ class question_importer {
         return $out;
     }
 
-    /** Danh sách idnumber QB-n theo thứ tự câu trong tệp. */
     private static function idnumbers(string $xml): array {
         $doc = new \DOMDocument();
         $doc->loadXML($xml);
@@ -73,7 +55,6 @@ class question_importer {
         return $out;
     }
 
-    /** idnumber => id câu hỏi (phiên bản mới nhất) đã có trong ngân hàng câu hỏi của khóa học. */
     private static function existing(\context $context, array $idnumbers): array {
         global $DB;
         if (!$idnumbers) {
@@ -96,7 +77,6 @@ class question_importer {
         return $out;
     }
 
-    /** Giữ lại câu danh mục + các câu có idnumber trong $keep. */
     private static function filter(string $xml, array $keep): string {
         $doc = new \DOMDocument();
         $doc->loadXML($xml);

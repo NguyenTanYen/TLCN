@@ -1,9 +1,4 @@
 <?php
-// Cấu hình kết nối Moodle ⇄ hệ thống phân tích CĐR (chạy một lần sau khi cài plugin):
-//   php local/clo/cli/setup.php --appurl=http://localhost:8000 --envfile="D:\3. TLCN\HeThong\backend\cau_hinh.env"
-// 1. Bật Web Service + giao thức REST, bật dịch vụ "local_clo" và cấp token cho tài khoản quản trị.
-// 2. Sinh khóa bí mật SSO (nếu chưa có), đặt địa chỉ hệ thống phân tích.
-// 3. Ghi MOODLE_URL / MOODLE_WS_TOKEN / MOODLE_SSO_SECRET vào tệp cấu hình của hệ thống phân tích.
 define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
@@ -23,7 +18,6 @@ if (strlen($secret) < 32) {
     set_config('ssosecret', $secret, 'local_clo');
 }
 
-// Web Service + REST.
 set_config('enablewebservices', 1);
 $protocols = array_filter(explode(',', (string)get_config('core', 'webserviceprotocols')));
 if (!in_array('rest', $protocols)) {
@@ -34,9 +28,6 @@ $service = $DB->get_record('external_services', ['shortname' => 'local_clo'], '*
 if (!$service->enabled) {
     $DB->set_field('external_services', 'enabled', 1, ['id' => $service->id]);
 }
-// Tài khoản dịch vụ riêng cho Web Service (không dùng tài khoản quản trị – quản trị bỏ qua mọi kiểm tra quyền):
-// vai trò "closervice" mang quyền mặc định của vai trò Quản lý (để nhập câu hỏi, tạo Quiz/Offline Quiz trong khóa học)
-// cộng thêm webservice/rest:use và local/clo:manage; token chỉ dùng được cho dịch vụ local_clo.
 $sysctx = context_system::instance();
 $roleid = $DB->get_field('role', 'id', ['shortname' => 'closervice']);
 if (!$roleid) {
@@ -64,15 +55,11 @@ if (!$token) {
     $token = \core_external\util::generate_token(EXTERNAL_TOKEN_PERMANENT, $service, $svcuser->id,
         $sysctx, 0, '', 'He thong phan tich CDR');
 }
-// Thu hồi token cũ cấp cho tài khoản quản trị (phiên bản trước) để không còn token toàn quyền.
 $DB->delete_records_select('external_tokens', 'externalserviceid = ? AND userid = ?', [$service->id, get_admin()->id]);
 
-// Bài thi giấy: plugin Offline Quiz nhận diện phiếu trả lời & chấm điểm.
-// SV ghi MSSV (8 chữ số) trên phiếu; Moodle tìm SV theo trường username (= MSSV) – đổi bằng --oqidfield/--oqdigits.
 if (core_component::get_component_directory('mod_offlinequiz')) {
     set_config('ID_field', $options['oqidfield'], 'offlinequiz');
     set_config('ID_digits', (int)$options['oqdigits'], 'offlinequiz');
-    // Nhãn tiếng Việt trên đề/phiếu (tùy biến ngôn ngữ chuẩn của Moodle).
     $dir = $CFG->dataroot . '/lang/vi_local';
     $target = $dir . '/offlinequiz.php';
     if (!file_exists($target) || strpos((string)file_get_contents($target), 'ĐƯỢC TẠO BỞI local_clo') !== false) {
@@ -84,7 +71,6 @@ if (core_component::get_component_directory('mod_offlinequiz')) {
     cli_writeln('CANH BAO: chua cai mod_offlinequiz – chua dung duoc bai thi giay (scripts/cai_dat.bat se cai).');
 }
 
-// Theme cũ (phiên bản trước) từng thêm mục menu trỏ thẳng tới hệ thống – nay đã thay bằng nút có SSO.
 $menu = (string)get_config('core', 'custommenuitems');
 if (strpos($menu, 'Phân tích CĐR|http') !== false) {
     $lines = array_filter(preg_split('/\R/', $menu), fn($l) => strpos($l, 'Phân tích CĐR|http') !== 0);

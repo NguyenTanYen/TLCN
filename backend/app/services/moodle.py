@@ -21,7 +21,7 @@ def render_bridge_sql(with_offlinequiz: bool = True, db_name: str | None = None,
     sql = BRIDGE_SQL.read_text(encoding="utf-8")
     if not with_offlinequiz:
         sql = OQ_BLOCK.sub("", sql)
-    sql = sql.replace("USE assessment_db;", f"USE `{settings.app_db_name}`;")   # cầu nối nằm trong CSDL của hệ thống
+    sql = sql.replace("USE assessment_db;", f"USE `{settings.app_db_name}`;")
     return sql.replace("moodle.mdl_", f"`{db_name or settings.moodle_db_name}`.{prefix or settings.moodle_prefix}")
 
 
@@ -77,8 +77,7 @@ def install_bridge() -> int:
 
 
 def sync_exam(db: Session, exam_id: int) -> dict:
-    """Gọi thủ tục trên kết nối AUTOCOMMIT để nhật ký sync_runs được giữ lại cả khi thủ tục ROLLBACK.
-    Phiên `db` được kết thúc giao dịch trước/sau khi gọi để không đọc ảnh chụp cũ (REPEATABLE READ)."""
+    """Gọi thủ tục trên kết nối AUTOCOMMIT để nhật ký sync_runs được giữ lại cả khi thủ tục ROLLBACK."""
     db.commit()
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         conn.execute(text("CALL sp_sync_exam(:e)"), {"e": exam_id})
@@ -86,12 +85,11 @@ def sync_exam(db: Session, exam_id: int) -> dict:
     db.expire_all()
     r = db.execute(text("SELECT status, n_attempts, n_absent FROM sync_runs WHERE exam_id=:e AND kind='moodle' ORDER BY id DESC LIMIT 1"),
                    {"e": exam_id}).one()
-    from .timing import compute_response_times          # thời gian trả lời từng câu (bài Moodle Quiz)
+    from .timing import compute_response_times
     n_timed = compute_response_times(db, exam_id) if r.status == "success" else 0
     return {"status": r.status, "n_attempts": r.n_attempts, "n_absent": r.n_absent, "n_timed_answers": n_timed}
 
 
-# ------------------------------------------------------------------ kiểm tra quyền trên khóa học / hoạt động Moodle (chỉ đọc)
 def _t(name: str) -> str:
     return f"`{settings.moodle_db_name}`.`{settings.moodle_prefix}{name}`"
 
@@ -122,8 +120,7 @@ TEACHER_ROLES = "('editingteacher', 'teacher')"
 
 
 def teacher_courses(db: Session, username: str | None) -> list[dict]:
-    """Khóa học Moodle mà `username` là giảng viên (vai trò Teacher/Non-editing teacher trong khóa học);
-    username=None (Bộ môn): mọi khóa học. Kèm danh sách GV và số SV đang ghi danh."""
+    """Khóa học Moodle mà `username` là giảng viên (vai trò Teacher/Non-editing teacher trong khóa học); username=None (Bộ môn): mọi khóa học."""
     where, params = "c.id <> 1", {}
     if username is not None:
         where += f""" AND EXISTS (SELECT 1 FROM {_t('role_assignments')} ra JOIN {_t('user')} u ON u.id = ra.userid AND u.deleted = 0

@@ -1,11 +1,4 @@
-"""Công cụ dòng lệnh: khởi tạo CSDL, tạo dữ liệu minh họa, mô phỏng bài làm.
-
-    python -m app.cli bootstrap        # (container) chờ MySQL, tạo CSDL + dữ liệu minh họa nếu chưa có, cài cầu nối
-    python -m app.cli init-db          # tạo 57 bảng + dữ liệu tham chiếu (BM2, phân công PIs)
-    python -m app.cli seed-demo        # tài khoản, môn DBMS330284, CLO, câu hỏi, lớp HP, 2 bài KT
-    python -m app.cli simulate-moodle  # (môi trường thử) dựng dữ liệu Moodle mô phỏng, đồng bộ & phân tích
-    python -m app.cli install-bridge   # cài view/thủ tục cầu nối vào CSDL (khi đã có CSDL Moodle)
-"""
+"""Công cụ dòng lệnh: khởi tạo CSDL, tạo dữ liệu minh họa, mô phỏng bài làm."""
 from __future__ import annotations
 
 import csv
@@ -45,14 +38,14 @@ def run_sql_file(path: Path, database: str | None = None) -> None:
         for stmt in moodle.split_statements(path.read_text(encoding="utf-8")):
             head = stmt.lstrip().upper()
             if head.startswith("CREATE DATABASE") or (database and head.startswith("USE ")):
-                continue                          # tệp SQL ghi sẵn "assessment_db" – luôn chạy trên CSDL đích đã chọn
+                continue
             cur.execute(stmt)
     finally:
         conn.close()
 
 
 def init_db() -> None:
-    name = settings.app_db_name                   # theo DATABASE_URL trong cau_hinh.env
+    name = settings.app_db_name
     conn = _raw_conn(); conn.cursor().execute(f"CREATE DATABASE IF NOT EXISTS `{name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); conn.close()
     run_sql_file(DB_DIR / "01_schema.sql", name)
     run_sql_file(DB_DIR / "03_seed_reference.sql", name)
@@ -66,13 +59,11 @@ def seed_demo() -> None:
     course = db.query(Course).filter_by(course_code="DBMS330284").one()
     son = db.query(Lecturer).filter_by(full_name="Nguyễn Thành Sơn").one()
     binh = db.query(Lecturer).filter_by(full_name="Trần Trọng Bình").one()
-    # --- tài khoản
     admin = User(username="admin", password_hash=hash_password("Admin@123"), full_name="Trưởng Bộ môn KTDL", role="admin")
     u_son = User(username="gv.son", password_hash=hash_password("Gv@123456"), full_name=son.full_name, role="lecturer")
     u_binh = User(username="gv.binh", password_hash=hash_password("Gv@123456"), full_name=binh.full_name, role="lecturer")
     db.add_all([admin, u_son, u_binh]); db.flush()
     son.user_id, binh.user_id = u_son.id, u_binh.id
-    # --- đề cương, CLO, ma trận CLO-PLO, kế hoạch CLO (BM6a)
     outlines = {}
     for n, name in D.CHAPTERS:
         o = CourseOutline(course_id=course.id, chapter_number=n, chapter_name=name); db.add(o); db.flush(); outlines[n] = o.id
@@ -86,7 +77,6 @@ def seed_demo() -> None:
         db.add(CLOAssessmentPlan(clo_id=clo_ids[code], semester_id=sem, assessments_text=txt, evidence_type=ev, method=method,
                                  cycle="1 lần/HK", pass_threshold_pct=thr, target_pct=tgt))
     course.clo_target_pct = 75
-    # --- kế hoạch đo PI minh họa (BM3b) dùng môn DBMS330284 làm minh chứng trong HKI 24-25
     for plo_code, pi_code, clos in [("1.3", "PI 1", ["CLO1", "CLO2"]), ("4.3", "PI 1", ["CLO3", "CLO4"])]:
         pi = db.execute(text("""SELECT pi.id FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id
                                 WHERE p.plo_code=:p AND pi.pi_code=:c"""), {"p": plo_code, "c": pi_code}).scalar()
@@ -98,7 +88,6 @@ def seed_demo() -> None:
             db.add(PIPlanCLO(plan_id=plan.id, clo_id=clo_ids[c]))
     db.execute(text("""INSERT IGNORE INTO assessment_assignments (semester_id, course_id, lecturer_id, note)
                        VALUES (:s, :c, :l, 'Đánh giá theo 4 CĐR môn học')"""), {"s": sem, "c": course.id, "l": son.id})
-    # --- CTĐT 2026 (CNTT, KTDL): CLO của môn đóng góp cho PLO1/PLO6/PLO7; KTDL 2026 đo PI6.2, PI7.1 tại môn này
     for prog in ("CNTT-2026", "KTDL-2026"):
         pid = db.execute(text("SELECT id FROM programs WHERE code=:c"), {"c": prog}).scalar()
         if not pid:
@@ -116,11 +105,9 @@ def seed_demo() -> None:
                 db.add(plan); db.flush()
                 for c in clos:
                     db.add(PIPlanCLO(plan_id=plan.id, clo_id=clo_ids[c]))
-    # --- CLO → PI (góp ý F2a): mỗi cặp CLO–PLO gắn với PI mà kế hoạch đo lấy CLO làm minh chứng (hoặc PI đầu tiên của PLO)
     db.flush()
     from .services.outcomes import backfill_clo_pi
     backfill_clo_pi(db.connection(), course.id)
-    # --- đề cương chi tiết phiên bản 1 đã duyệt (góp ý F1): nội dung chương, đánh giá học phần, tài liệu
     from .models import CourseSyllabus, SyllabusAssessment, SyllabusReference
     clo_obj = {c.clo_code: c for c in db.query(CLO).filter_by(course_id=course.id)}
     for o in db.query(CourseOutline).filter_by(course_id=course.id):
@@ -138,14 +125,12 @@ def seed_demo() -> None:
     if not course.description:
         course.description = ("Học phần trình bày kiến trúc và hoạt động của hệ quản trị CSDL SQL Server: lập trình T-SQL, trigger, "
                               "giao tác và điều khiển đồng thời, chỉ mục và tối ưu truy vấn, bảo mật, sao lưu và phục hồi.")
-    # --- lớp HP + sinh viên (mỗi SV có tài khoản: MSSV / Sv@123456)
     cs = ClassSection(course_id=course.id, semester_id=sem, lecturer_id=son.id, section_code="DBMS330284_01"); db.add(cs); db.flush()
     pw = hash_password("Sv@123456")
     for code, name in D.student_list(40):
         u = User(username=code, password_hash=pw, full_name=name, role="student"); db.add(u); db.flush()
         s = Student(user_id=u.id, student_code=code, full_name=name, class_name="22133A"); db.add(s); db.flush()
         db.add(Enrollment(class_section_id=cs.id, student_id=s.id))
-    # --- ngân hàng câu hỏi
     qids = []
     for ch, bloom, clo, content, opts, correct, _b in D.Q:
         q = Question(course_id=course.id, outline_id=outlines[ch], bloom_level_id=bloom, content=content, created_by=u_son.id)
@@ -153,7 +138,6 @@ def seed_demo() -> None:
             q.options.append(QuestionOption(position=i + 1, opt_label=LABELS[i], content=o, is_correct=(i == correct)))
         q.clo_links.append(QuestionCLO(clo_id=clo_ids[clo], weight=1))
         db.add(q); db.flush(); qids.append(q.id)
-    # --- bài KT quá trình (giấy, 10 câu chương 1-3) và thi cuối kỳ (Moodle, 20 câu)
     e1 = Exam(class_section_id=cs.id, exam_title="Kiểm tra quá trình (giấy)", assessment_type="process", exam_type="paper",
               exam_date=date(2024, 10, 15), duration_minutes=30, max_score=10, created_by=u_son.id)
     for i, qi in enumerate([0, 1, 2, 3, 5, 6, 7, 10, 11, 14], 1):
@@ -197,7 +181,6 @@ def _seed_second_section(db, course, sem, lecturer, clo_ids, user_id) -> str:
     return cs.section_code
 
 
-# ------------------------------------------------------------------ mô phỏng bài làm (mô hình IRT 2 tham số)
 def _abilities(n: int, seed: int = 7) -> list[float]:
     rng = random.Random(seed)
     return [rng.gauss(0.75, 0.9) for _ in range(n)]
@@ -205,9 +188,9 @@ def _abilities(n: int, seed: int = 7) -> list[float]:
 
 def _answer(rng: random.Random, theta: float, b: float, n_opts: int, correct: int, trap: bool) -> int | None:
     if rng.random() < 0.03:
-        return None  # bỏ trống
+        return None
     p = 1 / (1 + math.exp(-1.7 * (theta - b)))
-    if trap:  # câu "bẫy": SV khá hay chọn nhầm phương án A
+    if trap:
         if theta > 0.8 and rng.random() < 0.92:
             return 0
     if rng.random() < p:
@@ -216,15 +199,13 @@ def _answer(rng: random.Random, theta: float, b: float, n_opts: int, correct: in
     return rng.choice(wrong)
 
 
-# ------------------------------------------------------------------ mô phỏng THỜI GIAN làm bài trên Quiz (dữ liệu minh họa)
-QUIZ_TIME_LIMIT = 45 * 60           # Quiz cuối kỳ: 45 phút, hết giờ Moodle tự nộp
-RAPID_GUESSERS = (16, 17)           # SV thứ 17, 18 (22130017, 22130018): chọn đại 20 câu trong khoảng 1 phút rồi nộp
-IDLE_UNTIL_TIMEOUT = (5, 22)        # SV thứ 6, 23 (22130006, 22130023): chọn xong trong ~6 phút, không nộp, để hết giờ tự nộp
+QUIZ_TIME_LIMIT = 45 * 60
+RAPID_GUESSERS = (16, 17)
+IDLE_UNTIL_TIMEOUT = (5, 22)
 
 
 def timing_plan(trng: random.Random, i: int, n_answered: int, limit: int = QUIZ_TIME_LIMIT, last_attempt: bool = True):
-    """Thời điểm (giây kể từ lúc bắt đầu) SV thứ i chọn đáp án từng câu đã trả lời và lúc nộp bài.
-    Trả về (offsets, finish, kiểu). Dùng chung cho Moodle mô phỏng và kịch bản tạo dữ liệu trên Moodle thật."""
+    """Thời điểm (giây kể từ lúc bắt đầu) SV thứ i chọn đáp án từng câu đã trả lời và lúc nộp bài."""
     t, offs = 0.0, []
     if last_attempt and i in RAPID_GUESSERS:
         for _ in range(n_answered):
@@ -242,15 +223,11 @@ def timing_plan(trng: random.Random, i: int, n_answered: int, limit: int = QUIZ_
 
 
 def simulate_moodle() -> None:
-    """Chỉ dùng cho môi trường thử: tạo CSDL `moodle` mô phỏng (bảng Moodle 4.4 + Offline Quiz) có bài làm đã xáo đáp án.
-
-    - Bài online: Quiz 900 – lượt làm bài của SV (Moodle tự chấm).
-    - Bài giấy: Offline Quiz 910 – 2 mã đề A/B (xáo câu và phương án theo mã đề), phiếu đã được Moodle quét & chấm.
-    """
+    """Chỉ dùng cho môi trường thử: tạo CSDL `moodle` mô phỏng (bảng Moodle 4.4 + Offline Quiz) có bài làm đã xáo đáp án."""
     conn = _raw_conn(); cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_name=%s",
                 (settings.moodle_db_name, f"{settings.moodle_prefix}config"))
-    if cur.fetchone()[0]:  # có bảng mdl_config -> đây là Moodle thật, tuyệt đối không xóa
+    if cur.fetchone()[0]:
         conn.close()
         raise SystemExit(f"CSDL `{settings.moodle_db_name}` là Moodle thật – đặt MOODLE_DB_NAME khác để chạy mô phỏng.")
     cur.execute(f"DROP DATABASE IF EXISTS `{settings.moodle_db_name}`")
@@ -277,7 +254,6 @@ def simulate_moodle() -> None:
         cur.execute("INSERT INTO mdl_role_assignments (roleid, contextid, userid) VALUES (5,70,%s)", (uid,))
     cur.execute("INSERT INTO mdl_user (id, username, idnumber, firstname, lastname, email, deleted, description) VALUES (99,'gv.son','','Sơn','Nguyễn Thành','son@hcmute.edu.vn',0,'')")
     cur.execute("INSERT INTO mdl_question_categories (id,name,contextid,info,stamp,parent) VALUES (80,'Thi cuối kỳ',70,'','s',0)")
-    # "import XML": mỗi câu (của cả đề online và đề giấy) -> bank entry (idnumber QB-n), question, answers theo position
     pexam = db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
     qmap, ans_ids = {}, {}
     next_ans = 5000
@@ -301,12 +277,12 @@ def simulate_moodle() -> None:
     trap_content = D.Q[D.TRAP_QUESTION_INDEX][3]
     step = 100000
     t0 = int(datetime(2025, 1, 8, 7, 30).timestamp())
-    trng = random.Random(4242)          # thời gian làm bài: bộ sinh riêng, không làm đổi đáp án của dữ liệu minh họa
+    trng = random.Random(4242)
     for i, (code, name) in enumerate(studs):
-        if i in (3, 29):  # 2 SV vắng thi
+        if i in (3, 29):
             continue
         uid, usage = 100 + i, 7000 + i
-        attempts = 2 if i % 13 == 0 else 1  # vài SV nộp 2 lần -> lấy lượt cuối
+        attempts = 2 if i % 13 == 0 else 1
         for att_no in range(1, attempts + 1):
             usage_id = usage * 10 + att_no
             cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (%s,70,'mod_quiz','deferredfeedback')", (usage_id,))
@@ -314,7 +290,7 @@ def simulate_moodle() -> None:
             cur.execute("""INSERT INTO mdl_quiz_attempts (quiz, userid, attempt, uniqueid, layout, preview, state, timestart, timefinish, sumgrades)
                            VALUES (900,%s,%s,%s,'',0,'finished',%s,%s,0)""", (uid, att_no, usage_id, tstart, tstart))
             qa_id = cur.lastrowid; sumgrades = 0.0
-            answer_steps = []                 # (bước chọn đáp án, câu Moodle, số phương án, chỉ số đã chọn) -> gán thời điểm sau vòng lặp
+            answer_steps = []
             for slot, eq in enumerate(exam.questions, 1):
                 q = eq.question
                 b, corr = meta[q.content]
@@ -334,8 +310,7 @@ def simulate_moodle() -> None:
                     answer_steps.append((step, qa, len(ids), order.index(ids[pick])))
                     step += 1
                     if pick == corr:
-                        sumgrades += 0.5  # Moodle tự chấm: maxmark 0.5 x fraction 1
-            # thời điểm chọn đáp án và nộp bài (Quiz 45 phút); vài SV bình thường đổi đáp án một lần trước khi chốt
+                        sumgrades += 0.5
             offs, finish, kind = timing_plan(trng, i, len(answer_steps), last_attempt=att_no == attempts)
             for (st, qa, nopt, idx), off in zip(answer_steps, offs):
                 if kind == "binh_thuong" and trng.random() < 0.12 and off > 20:
@@ -345,12 +320,11 @@ def simulate_moodle() -> None:
                     cur.execute("INSERT INTO mdl_question_attempt_step_data (attemptstepid, name, value) VALUES (%s,'answer',%s)",
                                 (step, str((idx + 1) % nopt)))
                     step += 1
-                    off += trng.randint(30, 400) if trng.random() < 0.5 else 0      # đổi lại sau khi xem các câu khác
+                    off += trng.randint(30, 400) if trng.random() < 0.5 else 0
                 cur.execute("UPDATE mdl_question_attempt_steps SET timecreated=%s WHERE id=%s", (tstart + min(off, finish), st))
             cur.execute("UPDATE mdl_question_attempt_steps s JOIN mdl_question_attempts q ON q.id=s.questionattemptid SET s.timecreated=%s "
                         "WHERE q.questionusageid=%s AND s.sequencenumber=0", (tstart, usage_id))
             cur.execute("UPDATE mdl_quiz_attempts SET sumgrades=%s, timefinish=%s WHERE id=%s", (sumgrades, tstart + finish, qa_id))
-    # một lượt làm thử của GV (phải bị loại)
     cur.execute("INSERT INTO mdl_question_usages (id, contextid, component, preferredbehaviour) VALUES (999999,70,'mod_quiz','deferredfeedback')")
     cur.execute("INSERT INTO mdl_quiz_attempts (quiz, userid, attempt, uniqueid, layout, preview, state, timestart, timefinish) VALUES (900,99,1,999999,'',1,'finished',%s,%s)", (t0, t0 + 60))
     _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step + 1000, t0)
@@ -364,10 +338,8 @@ def simulate_moodle() -> None:
 
 
 def _simulate_materials(cur, t0: int) -> None:
-    """Tài nguyên của khóa học 50 (học liệu): slide, đề ôn tập (SV đang xem được → là học liệu), thư mục tài liệu tham khảo
-    (PDF + Word), slide chương 2 "mở khóa theo tuần" đã qua mốc ngày (được lấy); một slide đang ẩn, một ĐÁP ÁN giới hạn
-    truy cập "chỉ mở sau ngày thi" và một bài đọc thêm chỉ mở khi SV hoàn thành hoạt động khác (cả ba không được lấy)."""
-    now = int(datetime.now().timestamp())     # mốc mở khóa tính theo HÔM NAY (t0 là ngày cố định trong quá khứ)
+    """Tài nguyên của khóa học 50 (học liệu): slide, đề ôn tập (SV đang xem được → là học liệu), thư mục tài liệu tham khảo (PDF + Word), slide chương 2 "mở khóa theo tuần" đã qua mốc ngày (được lấy); một slide đang ẩn, một ĐÁP ÁN giới hạn truy cập "chỉ mở sau ngày thi" và một bài đọc thêm chỉ mở khi SV hoàn thành hoạt động khác (cả ba không được lấy)."""
+    now = int(datetime.now().timestamp())
     cur.execute("INSERT INTO mdl_modules (id, name) VALUES (17,'resource'),(8,'folder')")
     cur.execute("INSERT INTO mdl_course_sections (id, course, section, name, visible) VALUES "
                 "(500,50,1,'Chương 1. Tổng quan',1),(501,50,2,'Kiểm tra',1)")
@@ -381,9 +353,9 @@ def _simulate_materials(cur, t0: int) -> None:
                 "(800,50,17,300,500,1),(801,50,17,301,501,1),(802,50,17,302,500,0),(810,50,8,310,500,1)")
     cur.execute("INSERT INTO mdl_course_modules (id, course, module, instance, section, visible, availability) VALUES "
                 "(803,50,17,303,501,1,%s),(804,50,17,304,500,1,%s),(805,50,17,305,500,1,%s)",
-                ('{"op":"&","c":[{"type":"date","d":">=","t":%d}],"showc":[true]}' % (now + 86400 * 30),  # đáp án: chưa tới ngày
-                 '{"op":"&","c":[{"type":"date","d":">=","t":%d}],"showc":[true]}' % (now - 86400 * 7),   # slide tuần trước: đã mở
-                 '{"op":"&","c":[{"type":"completion","cm":800,"e":1}],"showc":[true]}'))           # theo từng SV
+                ('{"op":"&","c":[{"type":"date","d":">=","t":%d}],"showc":[true]}' % (now + 86400 * 30),
+                 '{"op":"&","c":[{"type":"date","d":">=","t":%d}],"showc":[true]}' % (now - 86400 * 7),
+                 '{"op":"&","c":[{"type":"completion","cm":800,"e":1}],"showc":[true]}'))
     cur.execute("INSERT INTO mdl_context (id, contextlevel, instanceid, path, depth) VALUES "
                 "(1800,70,800,'/1/70/1800',3),(1801,70,801,'/1/70/1801',3),(1802,70,802,'/1/70/1802',3),"
                 "(1810,70,810,'/1/70/1810',3),(1803,70,803,'/1/70/1803',3),(1804,70,804,'/1/70/1804',3),"
@@ -405,8 +377,7 @@ def _simulate_materials(cur, t0: int) -> None:
 
 
 def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> None:
-    """Offline Quiz 910: Moodle sinh 2 mã đề (A, B) – mỗi mã đề một thứ tự câu và thứ tự phương án (template usage);
-    phiếu quét của mỗi SV được Moodle nhận diện thành bước 'answer' trên bản sao usage của mã đề, rồi chấm (status=complete)."""
+    """Offline Quiz 910: Moodle sinh 2 mã đề (A, B) – mỗi mã đề một thứ tự câu và thứ tự phương án (template usage); phiếu quét của mỗi SV được Moodle nhận diện thành bước 'answer' trên bản sao usage của mã đề, rồi chấm (status=complete)."""
     rng = random.Random(11)
     theta = _abilities(len(studs))
     cur.execute("""INSERT INTO mdl_offlinequiz (id, course, name, intro, grade, numgroups, shufflequestions, shuffleanswers, docscreated)
@@ -444,15 +415,15 @@ def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> N
                     (90 + g, uid, total if status == 'complete' else None, usage, status, when, when, when))
 
     for k, _ in enumerate(studs):
-        if k in (5, 17):  # 2 SV vắng thi
+        if k in (5, 17):
             continue
         g = 1 if k % 2 == 0 else 2
         picks = [_answer(rng, theta[k], meta[eq.question.content][0], len(order), meta[eq.question.content][1], False)
                  for eq, order in layouts[g]]
-        if k == 1:  # phiếu quét lần đầu bị tô sai MSSV/nhận diện lại -> Moodle giữ kết quả mới nhất
+        if k == 1:
             result(100 + k, g, [0] * len(picks), 'complete', t1 - 3600)
         result(100 + k, g, picks, 'complete', t1)
-        if k == 2:  # một phiếu quét thiếu trang còn ở trạng thái partial -> không được tính
+        if k == 2:
             result(100 + k, g, [None] * len(picks), 'partial', t1 + 60)
 
 
@@ -479,7 +450,7 @@ def bootstrap() -> None:
 
 def _install_bridge() -> None:
     from . import migrate
-    migrate.upgrade_schema()   # CSDL từ bản cũ: thêm cột/ràng buộc mới trước khi tạo view
+    migrate.upgrade_schema()
     print(moodle.install_bridge(), "câu lệnh" + ("" if moodle.offlinequiz_available()
           else " (Moodle chưa có Offline Quiz: phần bài thi giấy sẽ được cài khi chạy hệ thống sau bước 3)"))
 

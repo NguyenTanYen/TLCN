@@ -9,7 +9,7 @@ from app.database import engine
 
 M = settings.moodle_db_name
 
-COURSE = 5  # DBMS330284
+COURSE = 5
 
 
 def q(sql, **p):
@@ -17,7 +17,6 @@ def q(sql, **p):
         return c.execute(text(sql), p).fetchall()
 
 
-# ---------------------------------------------------------------- xác thực & phân quyền
 def test_login_wrong_password(client):
     assert client.post("/api/auth/login", json={"username": "gv.son", "password": "sai"}).status_code == 401
 
@@ -29,12 +28,11 @@ def test_requires_token(client):
 def test_role_and_ownership(client, gv_other):
     from app.security import create_token
     uid = q("SELECT id FROM users WHERE role='student' LIMIT 1")[0][0]
-    sv = {"Authorization": "Bearer " + create_token(uid, "student")}  # kể cả khi có token SV cũng không dùng được API GV
-    assert client.get("/api/exams/2/item-stats", headers=gv_other).status_code == 403  # GV không phụ trách lớp
-    assert client.get("/api/exams/2/item-stats", headers=sv).status_code == 403        # SV không xem thống kê lớp
+    sv = {"Authorization": "Bearer " + create_token(uid, "student")}
+    assert client.get("/api/exams/2/item-stats", headers=gv_other).status_code == 403
+    assert client.get("/api/exams/2/item-stats", headers=sv).status_code == 403
 
 
-# ---------------------------------------------------------------- UC-01 ngân hàng câu hỏi
 def _question(**kw):
     body = {"course_id": COURSE, "outline_id": None, "bloom_level_id": 2, "content": "Câu hỏi kiểm thử về khóa chính?",
             "options": [{"content": "A1", "is_correct": True}, {"content": "B1"}, {"content": "C1"}, {"content": "D1"}],
@@ -62,12 +60,10 @@ def test_question_crud(client, gv):
 
 
 def test_question_with_results_is_locked(client, gv):
-    # câu 24 đã có kết quả thi -> không được sửa (409), không được xóa (409), chỉ được Hủy
     assert client.put("/api/questions/24", json=_question(), headers=gv).status_code == 409
     assert client.delete("/api/questions/24", headers=gv).status_code == 409
 
 
-# ---------------------------------------------------------------- UC-02 đề thi
 def test_exam_online_xml(client, gv):
     r = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Quiz kiểm thử", "exam_type": "online",
                                                     "items": [{"question_id": 1, "points": 1}, {"question_id": 2, "points": 1}]})
@@ -76,8 +72,8 @@ def test_exam_online_xml(client, gv):
     x = client.get(f"/api/exams/{eid}/moodle-xml", headers=gv)
     assert x.status_code == 200 and b"<idnumber>QB-1</idnumber>" in x.content and x.content.count(b'<question type="multichoice">') == 2
     assert client.get(f"/api/exams/{eid}", headers=gv).json()["status"] == "Published"
-    assert client.patch(f"/api/exams/{eid}/link-quiz", json={"moodle_quiz_id": 900}, headers=gv).status_code == 409  # quiz đã gắn bài #2
-    assert client.post(f"/api/exams/{eid}/moodle/create-offlinequiz", json={}, headers=gv).status_code == 422  # không phải bài giấy
+    assert client.patch(f"/api/exams/{eid}/link-quiz", json={"moodle_quiz_id": 900}, headers=gv).status_code == 409
+    assert client.post(f"/api/exams/{eid}/moodle/create-offlinequiz", json={}, headers=gv).status_code == 422
     assert client.delete(f"/api/exams/{eid}", headers=gv).status_code == 200
 
 
@@ -89,18 +85,16 @@ def test_exam_rejects_foreign_question(client, gv):
 
 
 def test_paper_exam_two_modes(client, gv):
-    # Bài giấy: hoặc Moodle (Offline Quiz) sinh đề & chấm, hoặc hệ thống tự sinh mã đề, in và chấm phiếu – không trộn hai chế độ
     paths = client.get("/openapi.json").json()["paths"]
     assert "/api/exams/{exam_id}/moodle/create-offlinequiz" in paths
     assert {"/api/exams/{exam_id}/paper/versions", "/api/exams/{exam_id}/scan", "/api/exams/{exam_id}/paper/answer-key.pdf"} <= set(paths)
-    assert client.post("/api/exams/1/paper/versions", json={"n_versions": 2}, headers=gv).status_code == 409   # bài 1 dùng Moodle
+    assert client.post("/api/exams/1/paper/versions", json={"n_versions": 2}, headers=gv).status_code == 409
     assert client.get("/api/exams/1/paper", headers=gv).json()["mode"] == "moodle"
     r = client.post("/api/exams/1/moodle/create-offlinequiz", json={"numgroups": 2}, headers=gv)
-    assert r.status_code == 409  # đã gắn Offline Quiz 910
+    assert r.status_code == 409
     assert client.patch("/api/exams/1/link-quiz", json={"moodle_quiz_id": 12345}, headers=gv).status_code == 422
 
 
-# ---------------------------------------------------------------- UC-03 đồng bộ / nhập phiếu
 def test_moodle_sync_matches_moodle_grades():
     rows = q(f"""SELECT a.total_score, ma.sumgrades FROM exam_attempts a JOIN {M}.mdl_quiz_attempts ma ON ma.id=a.moodle_attempt_id
                 WHERE a.exam_id=2""")
@@ -108,7 +102,6 @@ def test_moodle_sync_matches_moodle_grades():
 
 
 def test_moodle_sync_follows_grade_method_and_skips_preview():
-    # quiz mô phỏng dùng grademethod = 1 (điểm cao nhất, hòa -> lượt sớm hơn) như mặc định của Moodle
     graded = {r[0] for r in q(f"""SELECT x.id FROM {M}.mdl_quiz_attempts x WHERE x.quiz=900 AND x.preview=0 AND x.state='finished'
               AND NOT EXISTS (SELECT 1 FROM {M}.mdl_quiz_attempts y WHERE y.quiz=x.quiz AND y.userid=x.userid AND y.preview=0
               AND y.state='finished' AND (y.sumgrades > x.sumgrades OR (y.sumgrades = x.sumgrades AND y.attempt < x.attempt)))""")}
@@ -142,7 +135,6 @@ def test_sync_warns_average_grade_method(client, gv):
 
 
 def test_sync_stops_when_question_edited_on_moodle(client, gv):
-    # GV sửa đáp án đúng của một câu ngay trên Moodle -> cầu nối dừng (409), không giải xáo trộn sai, dữ liệu cũ giữ nguyên
     before = q("SELECT COUNT(*), SUM(total_score) FROM exam_attempts WHERE exam_id=2")[0]
     mq = q("SELECT moodle_question_id FROM question_bank q JOIN exam_questions eq ON eq.question_id=q.id WHERE eq.exam_id=2 LIMIT 1")[0][0]
     ids = [r[0] for r in q(f"SELECT id FROM {M}.mdl_question_answers WHERE question=:m ORDER BY id", m=mq)]
@@ -163,7 +155,6 @@ def test_sync_stops_when_question_edited_on_moodle(client, gv):
 
 
 def test_paper_sync_reads_moodle_offlinequiz():
-    # tổng điểm = sumgrades Moodle chấm; mỗi SV lấy kết quả complete mới nhất; phiếu partial không tính
     rows = q(f"""SELECT a.total_score, r.sumgrades, r.status FROM exam_attempts a
                  JOIN {M}.mdl_offlinequiz_results r ON r.id=a.moodle_attempt_id AND r.offlinequizid=910 WHERE a.exam_id=1""")
     assert len(rows) == 38 and all(st == "complete" for *_, st in rows)
@@ -176,7 +167,6 @@ def test_paper_sync_reads_moodle_offlinequiz():
 
 
 def test_paper_sync_maps_groups_to_versions():
-    # mã đề = nhóm A/B của Offline Quiz; mỗi SV ghi đúng mã đề đã làm
     assert {r[0] for r in q("SELECT version_code FROM exam_versions WHERE exam_id=1")} == {"A", "B"}
     bad = q(f"""SELECT COUNT(*) FROM exam_attempts a JOIN exam_versions v ON v.id=a.version_id
                 JOIN {M}.mdl_offlinequiz_results r ON r.id=a.moodle_attempt_id AND r.offlinequizid=910
@@ -185,7 +175,6 @@ def test_paper_sync_maps_groups_to_versions():
 
 
 def test_paper_reverse_shuffle_per_group():
-    # đáp án đúng theo hệ thống = đáp án đúng theo thứ tự đã xáo của từng mã đề trên Moodle
     ok = q(f"""SELECT SUM(r.is_correct), COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
                WHERE a.exam_id=1 AND a.status='finished' AND r.response_status='answered'""")[0]
     assert ok[1] > 300 and 0 < int(ok[0]) < ok[1]
@@ -207,7 +196,6 @@ def test_paper_resync_is_idempotent(client, gv):
     assert q("SELECT COUNT(*), SUM(total_score) FROM exam_attempts WHERE exam_id=1")[0] == before
 
 
-# ---------------------------------------------------------------- UC-04 thống kê
 def test_item_stats_flags_trap_question(client, gv):
     items = {x["question_id"]: x for x in client.get("/api/exams/2/item-stats", headers=gv).json()}
     trap = items[24]
@@ -222,7 +210,7 @@ def test_clo_results_bm6b(client, gv):
         assert round(100 * c["n_achieved"] / c["n_evaluated"], 2) == float(c["achieved_pct"])
         assert bool(c["is_achieved"]) == (float(c["achieved_pct"]) >= float(c["target_pct"]))
     clo1 = next(c for c in r["clos"] if c["clo_code"] == "CLO1")
-    assert clo1["n_evaluated"] == 76  # evidence_type 'any': cộng dồn 2 bài KT (BM6d)
+    assert clo1["n_evaluated"] == 76
 
 
 def test_clo_narrative(client, gv):
@@ -230,7 +218,6 @@ def test_clo_narrative(client, gv):
     assert r.status_code == 200
 
 
-# ---------------------------------------------------------------- UC-05: SV xem kết quả trên Moodle
 def test_student_cannot_login(client):
     r = client.post("/api/auth/login", json={"username": "22130001", "password": "Sv@123456"})
     assert r.status_code == 403 and "Moodle" in r.json()["detail"]
@@ -240,9 +227,9 @@ def test_results_for_moodle(client, gv):
     rows = client.get("/api/exams/2/moodle/results-preview", headers=gv).json()
     done = [r for r in rows if r["status"] == "finished"]
     absent = [r for r in rows if r["status"] == "absent"]
-    assert done and absent and all(r["data"] == {} and r["score"] is None for r in absent)  # E2 – chưa đủ bằng chứng
+    assert done and absent and all(r["data"] == {} and r["score"] is None for r in absent)
     d = done[0]["data"]
-    assert "clos" not in d                        # không gửi mức CLO riêng của từng SV sang Moodle
+    assert "clos" not in d
     weak = next(r for r in done if r["data"]["items"])
     assert all(i["gap"] > 0 and "clo" not in i for i in weak["data"]["items"])
     assert 0 <= done[0]["score"] <= done[0]["max_score"]
@@ -261,10 +248,9 @@ def test_publish_requires_analyzed(client, gv):
     client.delete(f"/api/exams/{eid}", headers=gv)
 
 
-# ---------------------------------------------------------------- UC-06/07 CTĐT, PLO/PI, báo cáo
 def test_program_structure(client, admin):
     p = client.get("/api/programs/1", headers=admin).json()
-    assert len(p["plos"]) == 19  # BM2 KTDL: 19 CĐR (5 nhóm)
+    assert len(p["plos"]) == 19
     plans = client.get("/api/pi-plans?academic_year=2024-2025", headers=admin).json()
     assert any(x["plo_code"] == "1.3" for x in plans)
 
@@ -281,7 +267,6 @@ def test_plo_summary_is_sum_of_pi(client, admin):
     by_plo = {p["plo_id"]: p for p in measured}
     for plo_id, n, ok in pis:
         assert by_plo[plo_id]["n_evaluated"] == n and by_plo[plo_id]["n_achieved"] == ok
-    # CTĐT KTDL 2026 cũng có kết quả PLO (PI6.2, PI7.1 đo tại môn DBMS330284)
     k = next(p for p in client.get("/api/programs", headers=admin).json() if p["code"] == "KTDL-2026")
     s2 = client.get(f"/api/reports/programs/{k['id']}/plo-summary?academic_year=2024-2025", headers=admin).json()
     assert {p["plo_code"] for p in s2["plos"] if p["n_evaluated"]} == {"PLO6", "PLO7"}
@@ -293,7 +278,6 @@ def test_bm6_workbook(client, gv):
     assert r.status_code == 200
     assert any(n.startswith("BM6a") for n in wb.sheetnames) and any(n.startswith("BM6b") for n in wb.sheetnames)
     assert sum(1 for n in wb.sheetnames if n.startswith("BM6c") or n.startswith("BM6d")) == 4
-    # bố cục biểu mẫu: mục lục "Biểu mẫu 6", 6a có chữ ký, 6b tiêu đề 2 tầng và số liệu liên kết sang sheet minh chứng
     assert wb.sheetnames[:3] == ["BM6", "BM6a_KH-KQ CĐR môn học", "BM6b_KH-KQ CĐR môn học"]
     assert any("TRƯỞNG ĐƠN VỊ" in str(c.value) for row in wb["BM6a_KH-KQ CĐR môn học"].iter_rows() for c in row if c.value)
     b = wb["BM6b_KH-KQ CĐR môn học"]
@@ -326,7 +310,7 @@ def test_bm6c_per_exam(client, gv, gv_other):
                                    JOIN clos c ON c.id=r.clo_id WHERE a.exam_id=:e AND a.status='finished' ORDER BY 1""", e=eid)]
         assert wb.sheetnames == ["TongHop_BaiKT"] + [f"BM6c_{c}" for c in clos]
         title = q("SELECT exam_title FROM exams WHERE id=:e", e=eid)[0][0]
-        for c in clos:   # mỗi sheet chỉ có đúng bài KT này, đủ số SV đã làm bài, đúng số SV đạt
+        for c in clos:
             ws = wb[f"BM6c_{c}"]
             vals = [x.value for row in ws.iter_rows() for x in row if x.value is not None]
             assert any(str(v).startswith("Bài KT 1: " + title) for v in vals)
@@ -370,7 +354,7 @@ def test_assignments_xlsx(client, gv):
     assert r.status_code == 200 and str(ws["A1"].value).startswith("PHÂN CÔNG ĐÁNH GIÁ PIs HỌC KỲ")
     assert [ws.cell(5, j).value for j in range(1, 6)] == ["STT", "MÃ MH", "TÊN MH", "GV ĐÁNH GIÁ", "GHI CHÚ"]
     gv_col = [ws.cell(i, 4).value for i in range(6, ws.max_row + 1)]
-    assert gv_col.count("Tất cả thầy/cô có hướng dẫn") == 2      # PODE434277, POIS431184
+    assert gv_col.count("Tất cả thầy/cô có hướng dẫn") == 2
     n = q("SELECT COUNT(*) FROM assessment_assignments WHERE semester_id=:s", s=sem)[0][0]
     assert sum(1 for v in gv_col if v) == n
     assert client.get("/api/reports/semesters/999999/assignments.xlsx", headers=gv).status_code == 404

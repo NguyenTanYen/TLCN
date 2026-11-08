@@ -1,13 +1,4 @@
-"""Chấm phiếu trả lời trắc nghiệm bằng ảnh quét / ảnh chụp điện thoại (OpenCV) – không cần Moodle.
-
-Quy trình mỗi trang ảnh:
-1. Tìm 4 ô vuông đen định vị ở 4 góc phiếu (đường viền 4 cạnh, gần vuông, tô đặc), mỗi ô gần một góc ảnh.
-2. Phép biến đổi phối cảnh (homography) từ tâm 4 ô về tọa độ chuẩn của phiếu (sheet_layout) → ảnh phiếu "phẳng"
-   dù chụp nghiêng/xoay; sau đó nhị phân hóa thích nghi (chịu được bóng, ánh sáng không đều).
-3. Mỗi ô tròn: độ đậm trung bình (sau khi chuẩn hóa nền) trong vòng tròn bán kính 0,7 r. Ô được tô khi tỷ lệ ≥ ngưỡng tuyệt đối và vượt rõ
-   mức nền của chính hàng đó (ô trống in sẵn viền + chữ). Hàng có 2 ô tô trở lên → "nhiều lựa chọn" (cần GV xem lại).
-4. Trả về MSSV, mã đề, đáp án từng câu, độ tin cậy và ảnh phiếu đã nắn thẳng có đánh dấu để GV soát/sửa trước khi lưu.
-"""
+"""Chấm phiếu trả lời trắc nghiệm bằng ảnh quét / ảnh chụp điện thoại (OpenCV) – không cần Moodle."""
 from __future__ import annotations
 
 import base64
@@ -16,9 +7,9 @@ import numpy as np
 
 from .paper import FID, FID_POS, ORIENT_BAR, PAGE_H, PAGE_W, SheetOptions, sheet_layout, sheet_layout_legacy
 
-PX = 6.0                       # độ phân giải ảnh chuẩn hóa: 6 px/mm (~152 dpi)
-FILL_MIN = 0.30                # độ đậm trung bình tối thiểu của ô được tô (0 = trắng, 1 = đen kín)
-FILL_GAP = 0.18                # chênh lệch tối thiểu so với ô nền của hàng
+PX = 6.0
+FILL_MIN = 0.30
+FILL_GAP = 0.18
 
 
 class OMRError(ValueError):
@@ -61,7 +52,6 @@ def find_fiducials(g: np.ndarray) -> np.ndarray:
     h, w = g.shape
     blur = cv2.GaussianBlur(g, (5, 5), 0)
     otsu, _ = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    # phép mở hình thái: xóa nét bút, chữ, đường kẻ mảnh (kể cả nét vẽ chạm vào ô định vị), giữ lại các ô tô đặc lớn
     k = max(3, int(min(h, w) * 0.006))
     kern = cv2.getStructuringElement(cv2.MORPH_RECT, (k, k))
     area = h * w
@@ -80,14 +70,13 @@ def find_fiducials(g: np.ndarray) -> np.ndarray:
             hull = cv2.convexHull(c)
             solidity = a / max(cv2.contourArea(hull), 1)
             rect = cv2.minAreaRect(c)
-            rect_fill = a / max(rect[1][0] * rect[1][1], 1)     # vuông tô đặc ≈ 1; tròn ≈ 0,785
+            rect_fill = a / max(rect[1][0] * rect[1][1], 1)
             if solidity > 0.9 and rect_fill > 0.86:
                 m = cv2.moments(c)
                 p = (m["m10"] / m["m00"], m["m01"] / m["m00"], a)
                 if not any((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < (0.5 * k * 4) ** 2 for q in cand):
                     cand.append(p)
 
-    # nhiều lượt: ngưỡng Otsu, các ngưỡng thấp hơn (nền tối/bóng đổ dính vào ô góc) và ngưỡng cục bộ (ánh sáng không đều)
     for t in (otsu, 100, 70, 45):
         collect((blur < t).astype(np.uint8) * 255)
         if len(cand) >= 4 and t == otsu and _four_corners(cand, w, h):
@@ -107,7 +96,6 @@ def find_fiducials(g: np.ndarray) -> np.ndarray:
     pts = np.array(pts, dtype=np.float32)
     if len({tuple(p) for p in pts.tolist()}) < 4:
         raise OMRError("Không xác định được 4 góc phiếu")
-    # 4 điểm phải tạo tứ giác lồi, chiếm phần lớn ảnh – nếu không, thà báo lỗi để GV xem lại còn hơn đọc sai mà không biết
     def _z(a, b):
         return float(a[0] * b[1] - a[1] * b[0])
     cross = [_z(pts[(i + 1) % 4] - pts[i], pts[(i + 2) % 4] - pts[(i + 1) % 4]) for i in range(4)]
@@ -122,27 +110,26 @@ def warp(g: np.ndarray, has_bar: bool = True) -> np.ndarray:
     src = find_fiducials(g)
     qw = np.linalg.norm(src[1] - src[0]) + np.linalg.norm(src[2] - src[3])
     qh = np.linalg.norm(src[3] - src[0]) + np.linalg.norm(src[2] - src[1])
-    if qw > qh * 1.1:                             # ảnh chụp ngang: xoay về dọc rồi tìm lại 4 góc
+    if qw > qh * 1.1:
         g = cv2.rotate(g, cv2.ROTATE_90_CLOCKWISE)
         src = find_fiducials(g)
     dst = np.array([(x * PX, y * PX) for x, y in
                     [(10 + FID / 2, 10 + FID / 2), (PAGE_W - 10 - FID / 2, 10 + FID / 2),
                      (PAGE_W - 10 - FID / 2, PAGE_H - 10 - FID / 2), (10 + FID / 2, PAGE_H - 10 - FID / 2)]], dtype=np.float32)
     ratio = min(qw, qh) / max(qw, qh)
-    if not 0.55 < ratio < 0.82:                   # tỷ lệ khoảng cách 4 ô định vị của phiếu A4 ≈ 183/270 = 0,68
+    if not 0.55 < ratio < 0.82:
         raise OMRError("4 góc tìm được không khớp khổ phiếu A4 (ô định vị bị che hoặc ảnh không phải phiếu của hệ thống)")
     M = cv2.getPerspectiveTransform(src, dst)
     out = cv2.warpPerspective(g, M, (int(PAGE_W * PX), int(PAGE_H * PX)), flags=cv2.INTER_LINEAR, borderValue=255)
-    for (x, y) in FID_POS:                         # kiểm tra lại: sau khi nắn, cả 4 ô định vị phải nằm đúng chỗ và đậm
+    for (x, y) in FID_POS:
         cell = out[int((y + 1.5) * PX):int((y + FID - 1.5) * PX), int((x + 1.5) * PX):int((x + FID - 1.5) * PX)]
         if cell.size == 0 or cell.mean() > 110:
             raise OMRError("Nắn phiếu không khớp ô định vị – chụp lại phiếu thẳng hơn, đủ 4 góc")
-    # ảnh chụp lật ngược (xoay 180°): vạch đen nhận chiều chỉ có ở giữa mép TRÊN phiếu
     bx, by, bw_, bh = ORIENT_BAR
     def bar(img):
         return img[int((by + 0.6) * PX):int((by + bh - 0.6) * PX), int((bx + 2) * PX):int((bx + bw_ - 2) * PX)].mean()
     flipped = cv2.rotate(out, cv2.ROTATE_180)
-    if has_bar and bar(flipped) + 40 < bar(out):    # chỉ lật khi vạch nhận chiều rõ ràng (phiếu bản cũ không có vạch)
+    if has_bar and bar(flipped) + 40 < bar(out):
         out = flipped
     return out
 
@@ -168,7 +155,7 @@ def _cover(bw: np.ndarray, x: float, y: float, r: float) -> float:
     return float((patch[mask] > 0.3 * 255).mean()) if mask.any() else 0.0
 
 
-SOLID = 0.45                   # độ phủ mực (trừ phần chữ in sẵn của ô trống cùng hàng) dưới ngưỡng này là ô gạch bỏ / tô không kín
+SOLID = 0.45
 
 
 def _pick(fills: dict) -> tuple[list, float]:
@@ -178,7 +165,7 @@ def _pick(fills: dict) -> tuple[list, float]:
     marked = [k for k, v in fills.items() if v >= FILL_MIN and v - base >= FILL_GAP]
     top = max(vals)
     if not marked:
-        conf = 1 - min(1, top / FILL_MIN)          # càng gần ngưỡng càng kém chắc chắn
+        conf = 1 - min(1, top / FILL_MIN)
         return [], round(max(0.0, min(1.0, 0.5 + conf / 2)), 2)
     second = max([v for k, v in fills.items() if k not in marked], default=base)
     return marked, round(max(0.0, min(1.0, (min(fills[k] for k in marked) - second) / 0.5)), 2)
@@ -210,14 +197,13 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
         layouts += [(sheet_layout_legacy(o), wimg0), (sheet_layout_legacy(o), cv2.rotate(wimg0, cv2.ROTATE_180))]
     except Exception:
         pass
-    L, wimg = max(layouts, key=lambda t: ring(t[1], t[0]) - (0 if t[0] is layouts[0][0] or t[0] is layouts[1][0] else 3))   # ưu tiên bố cục hiện hành khi điểm xấp xỉ nhau
-    # chuẩn hóa nền (bóng đổ, ánh sáng không đều): chia cho nền ước lượng bằng phép đóng hình thái + làm mờ
+    L, wimg = max(layouts, key=lambda t: ring(t[1], t[0]) - (0 if t[0] is layouts[0][0] or t[0] is layouts[1][0] else 3))
     bg = cv2.GaussianBlur(cv2.morphologyEx(wimg, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))), (31, 31), 0)
     norm = np.clip(wimg.astype(np.float32) / np.maximum(bg.astype(np.float32), 1) * 255, 0, 255)
-    bw = (255 - norm)                              # độ đậm mực 0..255 (vết tẩy/bút chì nhạt cho giá trị thấp)
+    bw = (255 - norm)
     r = L["r"]
     issues = []
-    marks = []                                    # (x, y, trạng thái) để vẽ ảnh soát
+    marks = []
 
     def digits(cells, ncol, what):
         out = ""
@@ -237,7 +223,6 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
             issues.append(f"{what} chưa tô đủ: {out}")
         return out.strip("?") if set(out) == {"?"} else out
     student = digits(L["student"], o.student_digits, "MSSV")
-    # mã đề: một hàng ô tô, mỗi ô là một mã đề (phiếu theo mẫu trường)
     version = ""
     if L["version"] and "code" not in L["version"][0]:
         version = digits(L["version"], o.version_digits, "Mã đề")
@@ -259,13 +244,12 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
         m, conf = _pick(fills)
         weak = []
         if m:
-            # độ phủ so với ô trống nhạt nhất cùng hàng: bỏ phần mực của chữ cái in sẵn trong ô (phiếu theo mẫu in chữ đậm)
             cover_all = {b["label"]: _cover(bw, b["x"], b["y"], r) for b in bs}
             base = min(v for k, v in cover_all.items() if k not in m) if len(m) < len(bs) else 0.0
             cover = {k: cover_all[k] - base for k in m}
             solid = [k for k in m if cover[k] >= SOLID]
             weak = [k for k in m if cover[k] < SOLID]
-            if solid and weak:                    # đổi đáp án bằng cách gạch chéo ô cũ: lấy ô tô kín, bỏ ô bị gạch
+            if solid and weak:
                 m = solid
                 weak = []
         conf_min = min(conf_min, conf)

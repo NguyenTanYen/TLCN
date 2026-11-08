@@ -66,7 +66,7 @@ $services = [
         'shortname' => 'local_clo',
         'restrictedusers' => 0,
         'enabled' => 1,
-        'downloadfiles' => 1,   // tải tệp đề/phiếu Offline Quiz qua webservice/pluginfile.php
+        'downloadfiles' => 1,
         'uploadfiles' => 0,
     ],
 ];

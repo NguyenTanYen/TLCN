@@ -1,14 +1,12 @@
-// Trợ giúp cho người mới: khung "Trang này dùng để làm gì?" (có thể thu gọn) và trang Hướng dẫn sử dụng có giải thích từ ngữ.
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { auth } from '../api'
 import { Card } from './ui'
 
-/** Khung giải thích ngắn ở đầu trang. Nhớ trạng thái đóng/mở trong trình duyệt (nếu có thể). */
 export function PageHelp({ id, title = 'Hướng dẫn cho trang này', children }) {
   const key = `help-${id}`
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(key) === 'open' } catch { return true } })
-  const toggle = () => { const v = !open; setOpen(v); try { localStorage.setItem(key, v ? 'open' : 'closed') } catch { /* bỏ qua */ } }
+  const toggle = () => { const v = !open; setOpen(v); try { localStorage.setItem(key, v ? 'open' : 'closed') } catch { } }
   return <div className={`pagehelp ${open ? 'open' : ''}`}>
     <button type="button" className="pagehelp-h" aria-expanded={open} onClick={toggle}><span aria-hidden="true">ⓘ</span> {title} <span className="pagehelp-t">{open ? 'Thu gọn' : 'Xem'}</span></button>
     {open && <div className="pagehelp-b">{children}</div>}

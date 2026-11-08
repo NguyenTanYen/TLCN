@@ -53,8 +53,8 @@ class ExamItemIn(BaseModel):
 
 
 class ExamIn(BaseModel):
-    class_section_id: Optional[int] = None     # bài của một lớp HP
-    course_id: Optional[int] = None            # hoặc đề của môn (tạo ở trang môn học, giao cho lớp khi xuất)
+    class_section_id: Optional[int] = None
+    course_id: Optional[int] = None
     exam_title: str = Field(min_length=3, max_length=255)
     assessment_type: Literal["process", "final"] = "final"
     exam_type: Literal["online", "paper"] = "online"
@@ -103,8 +103,8 @@ class CLOIn(BaseModel):
     clo_code: str = Field(min_length=1, max_length=10)
     description: str = Field(min_length=3)
     bloom_level_id: Optional[int] = Field(default=None, ge=1, le=6)
-    plos: list[dict] = []  # [{plo_id, level}]
-    pis: list[dict] = []   # [{pi_id, level}] – góp ý F2a: CLO → PI (có PI thì CLO – PLO được suy ra)
+    plos: list[dict] = []
+    pis: list[dict] = []
 
 
 class AssignmentIn(BaseModel):
@@ -153,13 +153,13 @@ class BlueprintIn(BaseModel):
     """Sinh đề theo ma trận: nhập số câu (tự lập ma trận) hoặc ma trận chi tiết chương × mức Bloom."""
     n_questions: Optional[int] = Field(default=None, ge=1, le=200)
     total_points: float = Field(default=10, gt=0, le=999)
-    outline_ids: list[int] = []            # rỗng = mọi chương; có giá trị = kiểm tra theo chương
-    clo_ids: list[int] = []                # rỗng = mọi CLO có câu trong phạm vi
+    outline_ids: list[int] = []
+    clo_ids: list[int] = []
     bloom_preset: Literal["balanced", "basic", "advanced", "custom"] = "balanced"
-    bloom_mix: dict[int, float] = {}       # dùng khi bloom_preset = custom: {mức: %}
-    matrix: list[MatrixCellIn] = []        # ma trận do GV nhập (nếu có thì bỏ qua n_questions)
+    bloom_mix: dict[int, float] = {}
+    matrix: list[MatrixCellIn] = []
     min_per_clo: Optional[int] = Field(default=None, ge=0, le=20)
-    fixed_ids: list[int] = []              # câu GV đã chọn tay, luôn giữ
+    fixed_ids: list[int] = []
     prefer_unused: bool = True
     seed: Optional[int] = None
 

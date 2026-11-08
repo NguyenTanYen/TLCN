@@ -1,4 +1,3 @@
-// Đề giấy sinh & chấm trên hệ thống: mã đề → xem trước đề (1 hoặc 2 cột) và phiếu trả lời ngay trên màn hình → xuất PDF/Word → chấm ảnh phiếu.
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { api } from '../api'
 import { ActionButton, Badge, Card, Field, FileButton, Loading, Modal, Stat, useToast } from './ui'
@@ -136,7 +135,7 @@ function Sheet({ e, st, reload }) {
       url = URL.createObjectURL(await r.blob()); if (alive) setImg(url)
     }).catch(x => toast(x.message, 'red')).finally(() => alive && setBusy(false)), 350)
     return () => { alive = false; clearTimeout(t); if (url) URL.revokeObjectURL(url) }
-  }, [qs])  // eslint-disable-line
+  }, [qs])
   const dirty = ['title', 'student_digits', 'version_digits', 'essay_lines', 'note'].some(k => String(s[k]) !== String(st.sheet[k]))
   return <div className="grid2">
     <div>
@@ -178,7 +177,7 @@ function CameraPane({ onShot, last }) {
     const v = vref.current; if (!v || !v.videoWidth) return
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight
     c.getContext('2d').drawImage(v, 0, 0)
-    c.toBlob(async b => { setBusy(true); try { await onShot(new File([b], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })) } catch (x) { /* thông báo ở onShot */ } finally { setBusy(false) } }, 'image/jpeg', 0.92)
+    c.toBlob(async b => { setBusy(true); try { await onShot(new File([b], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })) } catch (x) { } finally { setBusy(false) } }, 'image/jpeg', 0.92)
   }
   return <div className="cam-pane mt">
     {err ? <div className="alert red small">{err}</div> : <>
@@ -201,8 +200,8 @@ function Scan({ e, st, reload }) {
   const [errs, setErrs] = useState([])
   const [busy, setBusy] = useState(false)
   const [filter, setFilter] = useState('review')
-  const [cur, setCur] = useState(null)        // chi tiết phiếu đang soát (kèm ảnh)
-  const [edit, setEdit] = useState(null)      // bản sửa chưa lưu
+  const [cur, setCur] = useState(null)
+  const [edit, setEdit] = useState(null)
   const keys = useMemo(() => Object.fromEntries(st.versions.map(v => [v.version_code, Object.fromEntries(v.questions.map(q => [String(q.position), q]))])), [st.versions])
   const d = list.data
   const refresh = () => { list.reload(); reload() }
@@ -220,7 +219,7 @@ function Scan({ e, st, reload }) {
     try { const j = await upload(files); toast(`Đã chấm & lưu ${j.saved} phiếu${j.review ? `, ${j.review} phiếu cần xử lý` : ''}${j.errors ? `, ${j.errors} ảnh không đọc được` : ''}`, j.review || j.errors ? 'amber' : 'green')
       if (j.review) setFilter('review') } catch (x) { toast(x.message, 'red') } finally { setBusy(false) }
   }
-  const shot = async f => {   // camera: chụp xong là đọc, chấm và lưu ngay
+  const shot = async f => {
     try {
       const j = await upload([f]); const x = j.sheets[0]
       if (!x || x.error) { setLast({ bad: true, text: x?.error || 'Không đọc được phiếu – chụp lại thẳng, đủ 4 góc, đủ sáng' }); return }

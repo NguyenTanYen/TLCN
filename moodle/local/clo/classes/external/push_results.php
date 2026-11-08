@@ -9,11 +9,6 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Nhận kết quả phân tích CĐR của một bài kiểm tra từ hệ thống của nhóm (sau UC-03/UC-04) và trạng thái
- * công bố (publish_flag). Sinh viên xem tại local/clo/results.php; khi GV công bố, SV nhận thông báo.
- * Lần gửi sau thay thế toàn bộ kết quả của lần trước (đồng bộ lại không sinh bản ghi trùng).
- */
 class push_results extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
@@ -93,7 +88,6 @@ class push_results extends external_api {
             $keep[] = $row->id;
             $saved++;
         }
-        // Kết quả không còn trong lần gửi này (ví dụ SV rút khỏi lớp) bị loại bỏ.
         if ($p['results']) {
             [$notin, $params] = $DB->get_in_or_equal($keep ?: [0], SQL_PARAMS_NAMED, 'k', false);
             $DB->delete_records_select('local_clo_result', "cloexamid = :e AND id $notin", $params + ['e' => $exam->id]);
@@ -104,12 +98,10 @@ class push_results extends external_api {
         return ['cloexamid' => (int)$exam->id, 'saved' => $saved, 'notfound' => $notfound, 'notified' => $notified];
     }
 
-    /** Gửi thông báo "đã có kết quả phân tích" cho SV chưa được báo. */
     protected static function notify(\stdClass $exam, \stdClass $course): int {
         global $CFG, $DB;
         $n = 0;
         $url = new \moodle_url('/local/clo/results.php', ['id' => $course->id]);
-        // Chỉ báo cho SV có bài làm được chấm (SV vắng thi không có kết quả để xem).
         foreach ($DB->get_records('local_clo_result', ['cloexamid' => $exam->id, 'notified' => 0, 'status' => 'finished']) as $r) {
             $msg = new \core\message\message();
             $msg->component = 'local_clo';
@@ -117,7 +109,6 @@ class push_results extends external_api {
             $msg->userfrom = \core_user::get_noreply_user();
             $msg->userto = $r->userid;
             $msg->courseid = $course->id;
-            // Thông báo theo ngôn ngữ của người nhận (không theo ngôn ngữ của tài khoản gọi Web Service).
             $lang = $DB->get_field('user', 'lang', ['id' => $r->userid]) ?: $CFG->lang;
             $sm = get_string_manager();
             $msg->subject = $sm->get_string('notify_subject', 'local_clo', format_string($exam->title), $lang);

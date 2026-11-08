@@ -1,17 +1,13 @@
-// Sinh đề theo ma trận đề thi (UC-02): GV nhập số câu (hệ thống tự lập ma trận chương × mức độ nhận thức, phủ đủ CLO)
-// hoặc nhập ma trận chi tiết; hệ thống báo ô/CLO/mức thiếu câu. Kết quả đổ vào danh sách chọn để GV chỉnh tay.
 import { useMemo, useState } from 'react'
 import { api } from '../api'
 import { ActionButton } from './ui'
 import { useApi } from '../hooks'
 
-// góp ý 21/10: chọn độ khó bằng 3 mức dễ hiểu; tỷ lệ riêng và ma trận chi tiết nằm trong "Tùy chỉnh nâng cao"
 const LEVELS = [['basic', 'Cơ bản', 'nhiều câu Nhớ – Hiểu'], ['balanced', 'Cân bằng', 'đủ các mức'], ['advanced', 'Nâng cao', 'nhiều câu Vận dụng – Phân tích']]
 const PRESET_VI = { balanced: 'Cân bằng (20/30/30/15/5)', basic: 'Cơ bản (35/40/20/5)', advanced: 'Nâng cao (10/20/35/25/10)', custom: 'Tùy chỉnh' }
 const BLOOM_SHORT = ['', 'Nhớ', 'Hiểu', 'Vận dụng', 'Phân tích', 'Đánh giá', 'Sáng tạo']
 
 export function MatrixTable({ chapters, cells, blooms, value, render }) {
-  // bảng chương × mức độ nhận thức; render(o, b) trả nội dung ô
   const usedBlooms = blooms.filter(b => cells.some(c => c.bloom_level_id === b) || (value && Object.keys(value).some(k => k.endsWith(`:${b}`))))
   return <div className="scroll"><table className="tbl compact matrix">
     <thead><tr><th>Chương / Mức Bloom</th>{usedBlooms.map(b => <th key={b} className="num-c">{BLOOM_SHORT[b]}</th>)}<th className="num-c">Cộng</th></tr></thead>
@@ -22,18 +18,17 @@ export function MatrixTable({ chapters, cells, blooms, value, render }) {
   </table></div>
 }
 
-// base: /api/class-sections/{id} (bài của lớp) hoặc /api/courses/{id} (đề của môn)
 export default function Blueprint({ base, maxScore, picked, onApply }) {
   const [n, setN] = useState(20)
-  const [scope, setScope] = useState([])            // outline_id đã chọn; rỗng = mọi chương
+  const [scope, setScope] = useState([])
   const [preset, setPreset] = useState('balanced')
   const [mix, setMix] = useState({ 1: 20, 2: 30, 3: 30, 4: 15, 5: 5, 6: 0 })
   const [useMatrix, setUseMatrix] = useState(false)
-  const [mat, setMat] = useState({})                // "outline:bloom" -> số câu
+  const [mat, setMat] = useState({})
   const [keepPicked, setKeepPicked] = useState(false)
   const [res, setRes] = useState(null)
   const [seed, setSeed] = useState(1)
-  const [adv, setAdv] = useState(false)             // mở khung tùy chỉnh nâng cao
+  const [adv, setAdv] = useState(false)
   const pool = useApi(`${base}/exam-blueprint/pool${scope.length ? `?outline_ids=${scope.join(',')}` : ''}`)
   const allCh = useApi(`${base}/exam-blueprint/pool`).data?.chapters || []
   const p = pool.data
@@ -51,7 +46,7 @@ export default function Blueprint({ base, maxScore, picked, onApply }) {
     if (r.items.length) onApply(r.items)
     return r
   }
-  const toMatrix = () => {   // chép ma trận vừa sinh để GV chỉnh từng ô
+  const toMatrix = () => {
     setMat(Object.fromEntries((res?.matrix || []).filter(m => m.target).map(m => [`${m.outline_id}:${m.bloom_level_id}`, m.target]))); setUseMatrix(true); setAdv(true)
   }
   const chapters = (p?.chapters || [])

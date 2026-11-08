@@ -17,7 +17,6 @@ NHOM = [
 ]
 
 M = {
-    # ---------------------------------------------------------------- test_api
     "test_login_wrong_password": (0, "Đăng nhập sai mật khẩu", "POST /api/auth/login với mật khẩu sai", "401, không cấp token"),
     "test_requires_token": (0, "Gọi API không có token", "Gọi các API nghiệp vụ không kèm Authorization", "401"),
     "test_role_and_ownership": (0, "Phân quyền theo lớp học phần", "GV khác truy cập lớp/bài KT không phụ trách", "403; GV phụ trách xem được"),
@@ -54,17 +53,14 @@ M = {
     "test_bm2_docx": (6, "Xuất BM2 dạng Word", "Tải BM2 .docx", "Có KẾ HOẠCH và BÁO CÁO TỔNG KẾT"),
     "test_assignments_xlsx": (6, "Bảng phân công đánh giá PIs", "Xuất bảng phân công học kỳ", "Đúng cột như bảng gốc; 404 học kỳ không tồn tại"),
     "test_plo_narrative": (6, "Nhận xét PLO (BM3b)", "Lưu 4 mục nhận xét PLO", "Lưu đúng; GV bị 403"),
-    # ---------------------------------------------------------------- test_blueprint
     "test_auto_matrix_covers_chapters_clos_and_respects_bank": (3, "Sinh đề tự động theo ma trận", "Nhập 20 câu, phân bố Bloom cân bằng", "Phủ đủ chương, CLO; không vượt số câu sẵn có"),
     "test_shortage_and_matrix_errors": (3, "Báo thiếu câu theo ô ma trận", "Ma trận yêu cầu nhiều hơn ngân hàng", "Lỗi rõ ô thiếu, vẫn trả phần chọn được"),
     "test_chapter_test_and_fixed_questions": (3, "Kiểm tra theo chương", "Chọn chương 1–2", "Chỉ câu thuộc chương; CLO ngoài phạm vi 'không đo'"),
     "test_largest_remainder_caps": (3, "Chia số câu theo tỷ lệ Bloom", "Phần dư lớn nhất có trần", "Tổng đúng n, không ô nào vượt trần"),
     "test_blueprint_api": (3, "API sinh đề theo ma trận", "Gọi pool và generate qua API", "Kết quả, cảnh báo đúng; phân quyền"),
-    # ---------------------------------------------------------------- test_courses
     "test_new_course_setup_flow": (1, "Khai báo học phần mới (UC-12)", "Bộ môn tạo môn, lớp HP, chương, CLO; bảng kiểm tra 5 bước", "Đủ bước → 'Học phần đã sẵn sàng'; GV không tạo được môn"),
     "test_import_moodle_course": (9, "Đưa khóa học Moodle mới vào hệ thống", "Khóa học GV là giảng viên trên Moodle", "Tạo lớp HP, gắn khóa, lấy danh sách SV"),
     "test_programs_ctdt_2026": (1, "CTĐT CNTT 2026 và KTDL 2026, đề cương", "Đọc 2 CTĐT nạp từ PDF, đề cương học phần, GV sửa CLO", "7 PLO, 17 PI, 79/57 học phần; đề cương đủ mục; GV 403"),
-    # ---------------------------------------------------------------- test_engine
     "test_bm6c_single_test": (5, "Mức đạt CLO một bài (BM6c)", "Số liệu mẫu của biểu mẫu", "Khớp BM6c mẫu"),
     "test_bm6d_zero_score_stays_in_denominator": (5, "SV 0 điểm vẫn tính vào mẫu số", "SV làm bài được 0 điểm", "Có trong số SV đánh giá"),
     "test_bm6d_multi_test_aggregation": (5, "Cộng dồn nhiều bài (BM6d)", "CLO đo bởi 2 bài", "Cộng dồn lượt đánh giá đúng biểu mẫu"),
@@ -75,7 +71,6 @@ M = {
     "test_learning_path_priorities": (5, "Lộ trình ôn tập cá nhân", "SV chưa đạt nhiều CLO", "Sắp theo thiếu hụt, chọn đúng chương mất điểm"),
     "test_empty_inputs": (5, "Dữ liệu rỗng", "Bài không có lượt làm", "Không lỗi, trả rỗng"),
     "test_kr20_reliability": (5, "Độ tin cậy KR-20", "Ma trận đúng/sai mẫu", "Khớp công thức (1.3)"),
-    # ---------------------------------------------------------------- test_grading
     "test_manual_exam_grid_excel_and_analysis": (7, "Bài nhập điểm: bảng điểm, Excel, phân tích", "Tạo bài 2 câu/ý gắn CLO, nhập điểm, tải mẫu Excel, nhập lại, phân tích", "Kiểm tra giới hạn điểm; p, DI, alpha, CLO đúng"),
     "test_create_exam_from_any_excel": (7, "Tạo bài từ tệp Excel bất kỳ", "Tệp Excel tự soạn có cột MSSV và cột điểm", "Tạo bài, ghi điểm; SV lạ được ghi danh khi chọn"),
     "test_combine_exams_and_evidence_flag": (7, "Gộp 2–3 bài đánh giá CLO/PLO", "Gộp bài 2 lớp theo 2 cách; bật/tắt minh chứng BM6", "Số liệu khớp; PLO theo từng CTĐT; BM6b đổi tương ứng"),
@@ -85,7 +80,6 @@ M = {
     "test_restrict_requires_moodle_accounts": (7, "Giới hạn bài ôn cho đúng SV trên Moodle", "Danh sách SV được giao chuyển thành tài khoản Moodle", "Thiếu tài khoản Moodle thì báo lỗi rõ ràng"),
     "test_syllabus_pdf_mau_in": (1, "In đề cương chi tiết dạng PDF theo mẫu ký", "GET /courses/{id}/syllabus.pdf", "PDF có quốc hiệu, tiêu đề, các mục đánh số, ô ký Trưởng khoa/Trưởng bộ môn/Giảng viên; không có token thì 401"),
     "test_remedial_flow": (7, "Phụ đạo theo câu sai", "Đếm câu sai từng SV, xem câu sai, tạo bài phụ đạo", "Số câu sai đúng; bài phụ đạo có câu sai + câu tương tự, không gộp minh chứng"),
-    # ---------------------------------------------------------------- test_hardening
     "test_course_level_access": (0, "Phân quyền theo môn học", "GV không dạy môn truy cập ngân hàng câu hỏi, tệp mẫu", "403; 404 môn không tồn tại"),
     "test_clo_plan_change_reanalyzes": (5, "Đổi ngưỡng đạt → phân tích lại", "Sửa kế hoạch CLO (BM6a)", "Kết quả CLO tính lại ngay"),
     "test_link_quiz_must_belong_to_teacher_course": (9, "Chỉ liên kết Quiz của khóa mình dạy", "Liên kết Quiz của khóa học khác", "403/409"),
@@ -94,31 +88,24 @@ M = {
     "test_import_students_csv_semicolon": (0, "Nhập SV từ CSV (Windows-1258, dấu ;)", "Tệp CSV do Excel lưu", "Đúng dấu tiếng Việt"),
     "test_import_parsers_edge_cases": (2, "Trường hợp biên khi đọc tệp", "Dòng trống, BOM, khoảng trắng", "Đọc đúng, báo lỗi từng dòng"),
     "test_assignment_all_supervisors": (1, "Phân công 'Tất cả thầy/cô có hướng dẫn'", "Môn TLCN/KLTN", "Mọi GV hướng dẫn được truy cập"),
-    # ---------------------------------------------------------------- test_insights
     "test_section_stats": (10, "Thống kê lớp học phần", "Chỉ số tổng quan, CLO, Bloom, chương cần ôn, bản đồ nhiệt", "Khớp BM6"),
     "test_student_profile": (10, "Hồ sơ từng sinh viên", "Điểm, thứ hạng, CLO qua các bài, phần cần học lại", "Đúng số liệu"),
     "test_profile_access": (10, "Phân quyền hồ sơ SV", "GV khác, token SV", "403"),
-    # ---------------------------------------------------------------- test_moodle_auth
     "test_sha512_crypt_matches_glibc": (0, "Băm mật khẩu kiểu Moodle (SHA-512 crypt)", "Vector chuẩn glibc", "Khớp"),
     "test_verify_moodle_password": (0, "Xác minh mật khẩu Moodle", "Mật khẩu đúng/sai", "True/False"),
     "test_default_rounds_and_short_salt": (0, "Số vòng mặc định, salt ngắn", "Chuỗi băm biên", "Khớp chuẩn"),
-    # ---------------------------------------------------------------- test_paper
     "test_system_paper_exam_end_to_end": (8, "Đề giấy trên hệ thống từ đầu đến cuối", "Sinh 3 mã đề, xuất PDF 1/2 cột, Word, phiếu, đáp án, .zip; tô 6 phiếu (có ảnh nghiêng), chấm, sửa, lưu", "Đọc đúng MSSV, mã đề, điểm; 34 SV vắng; phân tích xong"),
     "test_omr_crossed_out_and_scribbles": (8, "Chấm phiếu: gạch chéo, tô 2 ô, nét bút đè ô định vị", "Phiếu tô theo nhiều kiểu", "Lấy ô tô kín; cảnh báo tô 2 ô; không lệch phiếu"),
-    # ---------------------------------------------------------------- test_question_import
     "test_parsers": (2, "Đọc tệp Excel/CSV câu hỏi", "Tệp mẫu", "Đúng nội dung, phương án, đáp án"),
     "test_bulk_import_then_tag": (2, "Nhập hàng loạt rồi gán CLO từ tệp", "Xem trước → ghi → tệp gán CLO", "Câu 'Chưa gán' → đã gán; phát hiện trùng"),
     "test_tagging_locks_used_questions": (2, "Không gán lại CLO câu đã có kết quả", "Tệp gán CLO cho câu đã dùng", "Bị bỏ qua kèm lý do"),
     "test_aiken_and_moodle_xml": (2, "Nhập Aiken và Moodle XML", "Tệp .txt Aiken, .xml Moodle", "Đọc đúng"),
-    # ---------------------------------------------------------------- test_sso
     "test_teacher_sso_and_replay": (9, "Đăng nhập một lần từ Moodle", "Vé SSO hợp lệ; dùng lại vé", "Vào thẳng lớp HP; vé dùng lại bị từ chối"),
     "test_sso_rejects_bad_tickets": (9, "Từ chối vé SSO sai", "Sai chữ ký, hết hạn, sai nơi phát hành", "401"),
     "test_sso_never_escalates": (9, "SSO không nâng quyền", "Vé ghi role admin cho tài khoản GV", "Giữ quyền GV"),
     "test_sso_provisions_declared_lecturer": (9, "SSO tạo tài khoản GV đã khai báo", "GV có hồ sơ nhưng chưa có tài khoản", "Tạo tài khoản, gắn hồ sơ"),
-    # ---------------------------------------------------------------- test_upgrade
     "test_bridge_without_offlinequiz_plugin": (11, "Cầu nối khi Moodle chưa cài Offline Quiz", "Cài cầu nối", "Vẫn chạy cho Quiz"),
     "test_upgrade_old_database_adds_offlinequiz_column": (11, "Nâng cấp CSDL phiên bản cũ", "CSDL thiếu cột mới, CHECK cũ", "Tự thêm cột, thay CHECK, nạp CTĐT 2026"),
-    # ---------------------------------------------------------------- test_z_toan_bo_chuc_nang
     "test_auth_me_and_catalogs": (0, "Tài khoản hiện tại và danh mục", "auth/me, học kỳ, Bloom, giảng viên, môn học, health, public-config", "Đúng dữ liệu; 401 khi không có token"),
     "test_programs_plo_and_pi_plans": (1, "Quản lý CTĐT, PLO, kế hoạch đo PI", "Thêm CTĐT, thêm/bỏ học phần, sửa chỉ tiêu PLO, thêm/sửa/xóa kế hoạch PI, tính lại", "Đúng; GV 403; trùng mã 409; 404"),
     "test_clo_lifecycle_cancel_question_and_template": (1, "Thêm/xóa CLO, Hủy câu hỏi, tệp mẫu", "Bộ môn thêm/xóa CLO; GV Hủy câu có lý do; tải tệp mẫu", "GV không sửa CLO (403); CLO đã dùng 409"),
@@ -134,7 +121,6 @@ M = {
     "test_course_exam_create_and_blocked_actions": (3, "Tạo bài kiểm tra ở trang môn học (đề của môn)", "Sinh đề theo ma trận cấp môn rồi lưu đề chưa gắn lớp; gọi tạo Quiz, đồng bộ, thống kê; GV khác; gửi cả lớp và môn", "Đề lưu ở môn; thao tác cần lớp 409 kèm hướng dẫn chọn lớp; Moodle XML được; GV khác 403; 422"),
     "test_course_exam_deploy_to_sections": (3, "Giao đề của môn cho lớp HP khi xuất", "Giao đề giấy cho 2 lớp, sinh mã đề ở bài của lớp, giao lại lớp đã có, xóa đề của môn", "Mỗi lớp một bài cùng câu hỏi; không tạo trùng; xóa đề gốc không mất bài của lớp"),
     "test_course_manual_exam_deploy_and_grade": (7, "Đề nhập điểm của môn giao cho lớp", "Khai báo câu/ý gắn CLO ở cấp môn, giao cho lớp 02 rồi nhập điểm", "Bảng điểm đủ 35 SV của lớp; nhập điểm ở đề chưa giao bị chặn (409)"),
-    # ---------------------------------------------------------------- test_tao_khoa_hoc_moodle
     "test_tao_lop_tu_tao_khoa_hoc_moodle": (9, "Tạo lớp HP tự tạo khóa học Moodle", "Bộ môn tạo lớp mới khi đã cấu hình Moodle", "Gọi local_clo_provision_course với mã lớp, GV; lưu moodle_course_id"),
     "test_tao_lop_khi_chua_cau_hinh_moodle_van_thanh_cong": (9, "Tạo lớp khi chưa nối Moodle", "Tạo lớp HP khi chưa có token Web Service", "Lớp vẫn được tạo, trạng thái 'skipped'"),
     "test_loi_moodle_khong_lam_hong_viec_tao_lop": (9, "Lỗi Moodle không làm hỏng việc tạo lớp", "Web Service báo lỗi khi tạo lớp; bấm tạo khóa học lại", "Lớp vẫn có, trạng thái 'error'; nút tạo lại trả 502"),

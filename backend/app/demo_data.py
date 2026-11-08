@@ -1,8 +1,4 @@
-"""Dữ liệu minh họa cho môn DBMS330284 – Hệ quản trị cơ sở dữ liệu (HKI 2024-2025).
-
-Mã môn, tên môn và GV lấy từ bảng "Phân công đánh giá PIs HKI 2023-2024"; PLO/PI lấy từ BM2 (KTDL).
-Nội dung chương, CLO, câu hỏi và sinh viên là DỮ LIỆU MINH HỌA do nhóm soạn để chạy thử hệ thống.
-"""
+"""Dữ liệu minh họa cho môn DBMS330284 – Hệ quản trị cơ sở dữ liệu (HKI 2024-2025)."""
 
 CHAPTERS = [
     (1, "Tổng quan hệ quản trị CSDL và SQL Server"),
@@ -13,7 +9,6 @@ CHAPTERS = [
     (6, "Bảo mật, phân quyền, sao lưu và phục hồi"),
 ]
 
-# (mã, mô tả, bloom, [(plo_code, level)])
 CLOS = [
     ("CLO1", "Trình bày được kiến trúc, các thành phần và chức năng của một hệ quản trị CSDL", 2, [("1.3", "R")]),
     ("CLO2", "Viết được thủ tục, hàm và trigger bằng T-SQL để hiện thực ràng buộc và nghiệp vụ", 3, [("1.3", "M"), ("4.3", "R")]),
@@ -21,7 +16,6 @@ CLOS = [
     ("CLO4", "Áp dụng chỉ mục, tối ưu truy vấn và cơ chế bảo mật cho một CSDL cụ thể", 3, [("4.3", "M")]),
 ]
 
-# Đề cương chi tiết (góp ý F1) – chương: (nội dung, tiết LT, tiết TH, hoạt động dạy học, CLO của chương)
 CHAPTER_DETAIL = {
     1: ("Khái niệm hệ quản trị CSDL, kiến trúc SQL Server, công cụ quản trị; ôn tập SQL (DDL, DML, truy vấn lồng).", 4, 4,
         "Thuyết giảng, demo trên SQL Server; SV thực hành cài đặt và truy vấn", ["CLO1"]),
@@ -45,7 +39,6 @@ SYLLABUS = {
     "course_policy": ("Sinh viên tham dự tối thiểu 80% số buổi. Nộp bài trễ bị trừ 10% mỗi ngày. "
                       "Gian lận trong kiểm tra, thi sẽ nhận 0 điểm thành phần đó."),
 }
-# (mã, tên, hình thức, thời điểm, tỷ trọng %, CLO)
 SYL_ASSESS = [
     ("A1", "Kiểm tra quá trình", "Trắc nghiệm trên giấy", "Tuần 7", 20, ["CLO1", "CLO2"]),
     ("A2", "Bài tập lớn", "Báo cáo và demo theo nhóm", "Tuần 14", 30, ["CLO2", "CLO4"]),
@@ -57,7 +50,6 @@ SYL_REFS = [
     ("extra", "Itzik Ben-Gan – T-SQL Fundamentals, 4th ed., Microsoft Press, 2023."),
 ]
 
-# Kế hoạch KT-ĐG CLO HKI 24-25 (BM6a): (clo, các bài KT, bài KT lấy minh chứng, phương pháp, ngưỡng %, chỉ tiêu %)
 CLO_PLANS = [
     ("CLO1", "KT quá trình, Thi cuối kỳ", "any", "Bài KT trắc nghiệm", 60, 80),
     ("CLO2", "KT quá trình, Thi cuối kỳ", "final", "Bài KT trắc nghiệm", 60, 75),
@@ -65,7 +57,6 @@ CLO_PLANS = [
     ("CLO4", "Thi cuối kỳ", "final", "Bài KT trắc nghiệm", 60, 70),
 ]
 
-# Câu hỏi: (chương, bloom, CLO, nội dung, [phương án], chỉ số đáp án đúng, độ khó mô phỏng b)
 Q = [
     (1, 1, "CLO1", "Thành phần nào của hệ quản trị CSDL chịu trách nhiệm phân tích và tối ưu câu lệnh SQL trước khi thực thi?",
      ["Bộ quản lý bộ đệm (Buffer manager)", "Bộ xử lý truy vấn (Query processor)", "Bộ quản lý tệp (File manager)", "Bộ quản lý nhật ký (Log manager)"], 1, -1.2),
@@ -131,7 +122,6 @@ Q = [
     (6, 3, "CLO4", "Vai trò (role) cơ sở dữ liệu nào cho phép người dùng đọc dữ liệu mọi bảng người dùng?",
      ["db_owner", "db_datareader", "db_datawriter", "public"], 1, -0.2),
 ]
-# Câu 24 (non-SARGable) mô phỏng "câu có vấn đề": SV giỏi hay chọn nhầm phương án A -> DI âm/thấp
 TRAP_QUESTION_INDEX = 23
 
 LAST = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", "Lý"]

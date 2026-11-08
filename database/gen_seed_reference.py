@@ -4,9 +4,7 @@ d = json.load(open('bm2_extract.json', encoding='utf-8'))
 q = lambda s: "'" + str(s).replace("\\", "\\\\").replace("'", "''") + "'" if s is not None else 'NULL'
 out = ["-- Dữ liệu tham chiếu sinh tự động từ BM2 (KTDL) và bảng phân công đánh giá PIs HKI 2023-2024",
        "USE assessment_db;", "SET NAMES utf8mb4;"]
-# Bloom
 out.append("INSERT INTO bloom_levels (id, code, name_vi) VALUES (1,'Remember','Nhớ'),(2,'Understand','Hiểu'),(3,'Apply','Vận dụng'),(4,'Analyze','Phân tích'),(5,'Evaluate','Đánh giá'),(6,'Create','Sáng tạo');")
-# Semesters
 sems = {}
 def sem(txt):
     m = re.search(r'HK\s*(I{1,2})\s*(\d{2})-(\d{2})', txt.replace(' ', ' '))
@@ -27,7 +25,6 @@ rows = []
 for (ay, t), (a, b) in sorted(sems.items()):
     rows.append(f"({q(ay)},{t},{q(('HKI ' if t==1 else 'HKII ') + ay[2:4] + '-' + ay[7:9])},{q(a)},{q(b)})")
 out.append("INSERT INTO semesters (academic_year, term, name, start_date, end_date) VALUES\n " + ",\n ".join(rows) + ";")
-# Program & PLOs
 out.append("INSERT INTO programs (id, code, name, level, department, target_pct) VALUES (1,'KTDL','Kỹ thuật dữ liệu','Đại học','Bộ môn Kỹ thuật dữ liệu',75.00);")
 rows = []
 for i, p in enumerate(d['plos'], 1):
@@ -40,13 +37,11 @@ for p in d['plos']:
     rows.append(f"({plo_id[p['code']]},2,{q(p['y2'])},{float(p['t2'].rstrip('%')):.2f})")
     rows.append(f"({plo_id[p['code']]},3,'2024-2025',75.00)")
 out.append("INSERT INTO plo_measurement_plans (plo_id, round_no, academic_year, target_pct) VALUES\n " + ",\n ".join(rows) + ";")
-# PIs
 rows = []
 pi_ids = []
 for i, p in enumerate(d['pis'], 1):
     rows.append(f"({i},{plo_id[p['plo']]},{q(p['code'])},{q(p['desc'])})"); pi_ids.append(i)
 out.append("INSERT INTO performance_indicators (id, plo_id, pi_code, description) VALUES\n " + ",\n ".join(rows) + ";")
-# Courses (mã môn thật trong bảng phân công đánh giá PIs HKI 2023-2024)
 courses = [('INDE131777','Nhập môn ngành Kỹ thuật dữ liệu'),('RPAN233577','Lập trình R cho phân tích'),
            ('BDAN333977','Big Data Analysis (Phân tích dữ liệu lớn)'),('BDES333877','Nhập môn dữ liệu lớn'),
            ('DBMS330284','Hệ quản trị cơ sở dữ liệu'),('DBSE431284','Bảo mật cơ sở dữ liệu'),
@@ -64,7 +59,6 @@ def match(name):
     for pat, code in alias:
         if re.search(pat, n): return cid[code]
     return None
-# Lecturers
 names = []
 def lect(n):
     n = n.split('/')[0].strip()
@@ -94,7 +88,6 @@ if plan_rows:
     out.append("INSERT INTO pi_assessment_plans (pi_id, course_id, semester_id, method, cycle, target_pct, lecturer_id) VALUES\n " + ",\n ".join(
         f"({pi},{c},(SELECT id FROM semesters WHERE academic_year={q(s[0])} AND term={s[1]}),{q(m)},{q(cy)},{t:.2f},{l if l else 'NULL'})"
         for pi, c, s, m, cy, t, l in plan_rows) + ";")
-# Môn TLCN/KLTN không giao cho một GV mà cho "tất cả thầy/cô có hướng dẫn" (all_supervisors = 1, lecturer_id NULL)
 out.append("INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, all_supervisors, note) VALUES\n " + ",\n ".join(
     f"((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),{cid[c]},{names.index(n)+1 if n else 'NULL'},{0 if n else 1},{q(note)})"
     for c, n, note in assign) + ";")

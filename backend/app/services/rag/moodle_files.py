@@ -1,15 +1,4 @@
-"""Liệt kê tệp trong khóa học Moodle của một lớp học phần – để GV chọn tệp nào là HỌC LIỆU.
-
-Đọc trực tiếp CSDL Moodle (cùng máy chủ MySQL, như services/moodle.py): hoạt động File (mod_resource) và Thư mục
-(mod_folder) cùng các tệp của chúng (mdl_files, filearea 'content').
-  - chỉ tài nguyên SV ĐANG XEM ĐƯỢC: hoạt động và chủ đề không ẩn, không đang bị xóa, và điều kiện giới hạn truy cập
-    (Restrict access) đã mở – đọc cây điều kiện JSON ở Python (available_now): mốc ngày đã qua thì mở (bài giảng mở
-    khóa theo tuần), điều kiện theo từng SV thì coi là chưa mở. Tệp SV đã xem được thì gợi ý trỏ tới nó không làm lộ gì thêm; đề thi trên Moodle là Quiz / Offline Quiz
-    (câu hỏi trong ngân hàng, không phải tệp) nên không bao giờ nằm trong danh sách này;
-  - kèm liên kết pluginfile để SV mở đúng trang (#page=N) bằng phiên đăng nhập Moodle của mình;
-  - hiện mới nạp được PDF (supported, theo mimetype HOẶC đuôi .pdf) – Word/PowerPoint cần GV xuất PDF; nội dung thật sự
-    có phải PDF không được kiểm tra lại khi tải tệp về (bước nạp).
-"""
+"""Liệt kê tệp trong khóa học Moodle của một lớp học phần – để GV chọn tệp nào là HỌC LIỆU."""
 from __future__ import annotations
 
 import json
@@ -23,24 +12,21 @@ from ...config import settings
 from ..moodle import _has_table, _t
 
 SUPPORTED_MIME = {"application/pdf"}
-SUPPORTED_EXT = (".pdf",)   # Moodle cấu hình MIME không chuẩn có thể gán PDF thành application/octet-stream → xét cả đuôi tệp
+SUPPORTED_EXT = (".pdf",)
 
 
 def _condition_open(node: dict, now: float) -> bool:
-    """Một nút trong cây điều kiện "Giới hạn truy cập" (Restrict access) của Moodle đã mở với MỌI SV chưa.
-    Nhóm: {"op": "&" | "|" | "!&" | "!|", "c": [...]}; điều kiện ngày: {"type": "date", "d": ">=" (mở từ) | "<" (đến
-    trước), "t": timestamp}. Điều kiện phụ thuộc từng SV (điểm, hoàn thành hoạt động, nhóm, hồ sơ...) không xét được cho
-    cả lớp → coi là CHƯA mở (thà bỏ sót còn hơn gợi ý tài liệu SV chưa được xem, VD đáp án)."""
+    """Một nút trong cây điều kiện "Giới hạn truy cập" (Restrict access) của Moodle đã mở với MỌI SV chưa."""
     if "c" in node:
         op = node.get("op", "&")
         parts = [_condition_open(c, now) for c in node.get("c") or []]
         if not parts:
-            return True                                    # nhóm rỗng (đặt rồi xóa hết điều kiện) = không giới hạn
+            return True
         if op == "&":
             return all(parts)
         if op == "|":
             return any(parts)
-        return False                                       # "!&" / "!|": phủ định – không đánh giá an toàn được
+        return False
     if node.get("type") == "date":
         t = node.get("t", 0)
         return now >= t if node.get("d") == ">=" else now < t
@@ -48,14 +34,13 @@ def _condition_open(node: dict, now: float) -> bool:
 
 
 def available_now(availability: str | None, now: float | None = None) -> bool:
-    """Tệp / chủ đề có điều kiện truy cập đã mở chưa (Moodle lưu NULL khi không giới hạn). Bài giảng "mở khóa theo
-    tuần" đã qua mốc ngày → mở; đáp án "chỉ mở sau ngày thi" chưa tới ngày → chưa mở."""
+    """Tệp / chủ đề có điều kiện truy cập đã mở chưa (Moodle lưu NULL khi không giới hạn)."""
     if not availability or not availability.strip():
         return True
     try:
         tree = json.loads(availability)
     except ValueError:
-        return False                                       # JSON hỏng: coi là chưa mở
+        return False
     return _condition_open(tree, time.time() if now is None else now)
 
 
@@ -64,8 +49,7 @@ def supported(mimetype: str, filename: str) -> bool:
 
 
 def file_url(contextid: int, modname: str, revision: int, filepath: str, filename: str) -> str:
-    """Liên kết pluginfile của Moodle: tệp của hoạt động File nằm ở gốc (Moodle bỏ đường dẫn con), tệp trong Thư mục
-    giữ đường dẫn con."""
+    """Liên kết pluginfile của Moodle: tệp của hoạt động File nằm ở gốc (Moodle bỏ đường dẫn con), tệp trong Thư mục giữ đường dẫn con."""
     path = "/" if modname == "resource" else filepath
     rel = f"/pluginfile.php/{contextid}/mod_{modname}/content/{revision}{quote(path)}{quote(filename)}"
     return settings.moodle_url.rstrip("/") + rel

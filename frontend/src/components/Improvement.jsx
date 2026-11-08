@@ -6,7 +6,6 @@ import { useApi } from '../hooks'
 const ST = { open: ['Chưa làm', 'gray'], doing: ['Đang làm', 'blue'], done: ['Đã làm', 'amber'], verified: ['Đã kiểm chứng', 'green'] }
 const ARROW = { up: ['▲', 'ok-t'], down: ['▼', 'bad-t'], flat: ['●', 'muted'] }
 
-// So sánh kết quả từng CLO của học phần qua các học kỳ (gộp các lớp cùng học kỳ)
 export function CloTrend({ courseId }) {
   const { data, ...st } = useApi(`/api/courses/${courseId}/clo-trend`)
   if (!data) return <Loading {...st} />
@@ -22,7 +21,6 @@ export function CloTrend({ courseId }) {
   </Card>
 }
 
-// Hành động cải tiến của lớp: người phụ trách, hạn, trạng thái, kết quả kiểm chứng
 export function ImprovementActions({ csId, clos }) {
   const { data, reload, ...st } = useApi(`/api/class-sections/${csId}/improvement-actions`)
   const empty = { description: '', clo_id: '', owner: '', due_date: '' }

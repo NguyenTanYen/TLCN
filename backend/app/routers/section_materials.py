@@ -1,13 +1,4 @@
-"""Học liệu của lớp học phần (RAG): tệp trong khóa học Moodle của lớp.
-
-TỰ ĐỘNG: đồng bộ lấy mọi tệp PDF sinh viên đang xem được (không ẩn, không giới hạn truy cập) làm học liệu – tệp SV đã
-xem được thì gợi ý trỏ tới nó không làm lộ gì thêm; đề thi trên Moodle là Quiz / Offline Quiz, không phải tệp. GV chỉ
-cần BỎ CHỌN tệp không muốn dùng (đồng bộ sau không lấy lại) hoặc chọn lại. Tệp mới ở trạng thái 'pending' (chờ tải và
-nạp). Giao diện gọi đồng bộ khi GV mở trang học liệu; sau đó các tệp chờ được xếp vào HÀNG ĐỢI của luồng nạp riêng
-(services/rag/index) –
-GV xem trạng thái từng tệp (đang nạp / đã nạp / lỗi). Ngoài ra hệ thống tự đồng bộ + nạp định kỳ (RAG_SYNC_MINUTES).
-Phân quyền: GV phụ trách lớp đồng bộ / chọn / bỏ chọn / nạp lại; Bộ môn chỉ xem.
-"""
+"""Học liệu của lớp học phần (RAG): tệp trong khóa học Moodle của lớp."""
 from dataclasses import asdict
 from typing import Literal, Optional
 
@@ -121,8 +112,7 @@ def sync_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
 
 @router.post("/{cs_id}/materials/moodle", status_code=201)
 def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Chọn (hoặc chọn LẠI tệp đã bỏ chọn) một tệp của khóa học Moodle làm học liệu. Chỉ nhận tệp đang có – và SV đang
-    xem được – trong khóa học của CHÍNH lớp này."""
+    """Chọn (hoặc chọn LẠI tệp đã bỏ chọn) một tệp của khóa học Moodle làm học liệu."""
     cs = check_section_access(db, u, cs_id)
     if not cs.moodle_course_id:
         raise HTTPException(409, "Lớp học phần chưa gắn với khóa học Moodle")
@@ -135,7 +125,7 @@ def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_d
     m = db.query(SectionMaterial).filter_by(class_section_id=cs_id, content_hash=f["content_hash"]).first()
     if m and m.status != "excluded":
         raise HTTPException(409, "Tệp này đã là học liệu của lớp")
-    if m:                                            # chọn lại tệp đã bỏ chọn
+    if m:
         m.status, m.material_type, m.error = "pending", body.material_type, None
         if body.title:
             m.title, m.title_custom = body.title.strip()[:255], True
@@ -150,8 +140,7 @@ def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_d
 
 @router.post("/{cs_id}/materials/{material_id}/reindex")
 def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Nạp lại học liệu đã nạp hoặc bị lỗi (GV sửa xong tệp, hoặc bộ đọc PDF được cải tiến). Trang / đoạn cũ giữ nguyên
-    cho tới khi nạp xong bản mới."""
+    """Nạp lại học liệu đã nạp hoặc bị lỗi (GV sửa xong tệp, hoặc bộ đọc PDF được cải tiến)."""
     check_section_access(db, u, cs_id)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
@@ -166,8 +155,7 @@ def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db)
 
 @router.delete("/{cs_id}/materials/{material_id}")
 def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Bỏ chọn học liệu. Tệp từ Moodle: đánh dấu 'excluded' (đồng bộ sau không lấy lại) và xóa trang / đoạn đã nạp;
-    tệp GV tải trực tiếp lên hệ thống: xóa hẳn."""
+    """Bỏ chọn học liệu."""
     check_section_access(db, u, cs_id)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
@@ -179,15 +167,14 @@ def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db),
     sync.delete_indexed(db, m.id)
     m.status, m.n_pages, m.indexed_at, m.error = "excluded", None, None, None
     db.commit()
-    index.enqueue(cs_id)                         # luồng nạp dựng lại chỉ mục tìm kiếm của lớp
+    index.enqueue(cs_id)
     return {"excluded": material_id}
 
 
 @router.patch("/{cs_id}/materials/{material_id}")
 def update_material(cs_id: int, material_id: int, body: MaterialPatchIn, db: Session = Depends(get_db),
                     u: User = Depends(lecturer_only)):
-    """GV sửa loại học liệu (slide / tài liệu tham khảo – mặc định chỉ đoán theo hoạt động Moodle) và tên hiển thị.
-    Tên GV tự đặt được giữ nguyên qua các lần đồng bộ."""
+    """GV sửa loại học liệu (slide / tài liệu tham khảo – mặc định chỉ đoán theo hoạt động Moodle) và tên hiển thị."""
     check_section_access(db, u, cs_id)
     if body.material_type is None and body.title is None:
         raise HTTPException(422, "Không có thông tin nào để sửa (material_type hoặc title)")
@@ -208,8 +195,7 @@ async def upload_material(cs_id: int, file: UploadFile = File(...), title: str =
                           material_type: Literal["slide", "reference"] = Form("slide"),
                           class_section_ids: str = Form(""), week: int = Form(0),
                           db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """GV tải PDF học liệu lên hệ thống và chọn các lớp cùng môn (kể cả lớp này) sẽ nhận: tệp được đăng lên khóa Moodle
-    của từng lớp, đồng bộ thành học liệu và nạp ở nền. class_section_ids: danh sách id cách nhau dấu phẩy; bỏ trống = chỉ lớp này."""
+    """GV tải PDF học liệu lên hệ thống và chọn các lớp cùng môn (kể cả lớp này) sẽ nhận: tệp được đăng lên khóa Moodle của từng lớp, đồng bộ thành học liệu và nạp ở nền."""
     ids = [int(x) for x in class_section_ids.replace(" ", "").split(",") if x.isdigit()]
     src, others = _targets(db, u, cs_id, ids)
     targets = [src] + others

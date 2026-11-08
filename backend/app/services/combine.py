@@ -1,11 +1,4 @@
-"""Gộp 2, 3… bài kiểm tra (cùng môn, có thể khác lớp HP của GV) để đánh giá CĐR môn học (CLO) và CĐR CTĐT (PI/PLO).
-
-Hai cách gộp:
-* merge (mặc định – "cộng điểm theo SV"): điểm CLO của mỗi SV = Σ điểm đạt các câu đo CLO / Σ điểm tối đa của các câu đó
-  trên mọi bài được chọn; SV đạt CLO nếu tỷ lệ ≥ ngưỡng đạt (BM6a). Tỷ lệ đạt CLO = số SV đạt / số SV có dữ liệu CLO.
-* cumulative ("cộng dồn lượt" – BM6d): mỗi bài là một lần đánh giá; số lượt đánh giá và số lượt đạt cộng dồn qua các bài.
-PLO/PI: cộng dồn (số đánh giá, số đạt) của các CLO đóng góp cho PLO (ma trận CLO–PLO) – cùng quy tắc với BM3c/BM2.
-"""
+"""Gộp 2, 3… bài kiểm tra (cùng môn, có thể khác lớp HP của GV) để đánh giá CĐR môn học (CLO) và CĐR CTĐT (PI/PLO)."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -48,8 +41,8 @@ def combined(db: Session, exam_ids: list[int], mode: str = "merge") -> dict:
             round(float(r["total_score"]) * float(e["max_score"]) / float(e["raw_max"] or 1), 2)
 
     students: dict[int, dict] = {}
-    agg = defaultdict(lambda: [0.0, 0.0])           # (sid, clo) -> earned, max
-    per_exam = defaultdict(lambda: [0, 0])           # (exam, clo) -> n, ok   (cumulative)
+    agg = defaultdict(lambda: [0.0, 0.0])
+    per_exam = defaultdict(lambda: [0, 0])
     for r in rows:
         students.setdefault(r["student_id"], {"student_id": r["student_id"], "student_code": r["student_code"], "full_name": r["full_name"]})
         a = agg[(r["student_id"], r["clo_id"])]
@@ -83,7 +76,6 @@ def combined(db: Session, exam_ids: list[int], mode: str = "merge") -> dict:
                                      "earned": round(e, 2), "max": round(m, 2)}
         out_students.append({**s, "clos": cl, "scores": {str(k): v for k, v in totals.get(sid, {}).items()},
                              "n_ok": sum(1 for v in cl.values() if v["ok"]), "n_clo": len(cl)})
-    # PLO / PI theo các CTĐT có môn học
     maps = [dict(r) for r in db.execute(text("""SELECT m.clo_id, m.level, p.id AS plo_id, p.plo_code, p.description, p.target_pct,
                                                      pr.id AS program_id, pr.code AS program_code, pr.name AS program_name
                                                 FROM clo_plo_mapping m JOIN plos p ON p.id=m.plo_id JOIN programs pr ON pr.id=p.program_id

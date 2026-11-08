@@ -1,8 +1,4 @@
-"""Xuất đề thi sang định dạng Moodle XML (UC-02).
-
-Mỗi câu hỏi mang <idnumber>QB-{id}</idnumber>; các <answer> theo thứ tự position tăng dần
-để cầu nối CSDL khớp được đáp án gốc khi đồng bộ (Reverse Shuffle).
-"""
+"""Xuất đề thi sang định dạng Moodle XML (UC-02)."""
 from xml.sax.saxutils import escape
 
 from ..models import Exam

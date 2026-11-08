@@ -40,14 +40,12 @@ def test_syllabus_word_export(client, gv):
 
 def test_syllabus_version_flow(client, admin, gv):
     cid = _demo_course()
-    # bản đã duyệt không sửa trực tiếp; GV không soạn được
     assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json={"objectives": "x"}).status_code == 409
     assert client.post(f"/api/courses/{cid}/syllabus/versions", headers=gv).status_code == 403
     r = client.post(f"/api/courses/{cid}/syllabus/versions", headers=admin)
     assert r.status_code == 201 and r.json()["version_no"] == 2
-    assert client.post(f"/api/courses/{cid}/syllabus/versions", headers=admin).status_code == 409      # đã có bản nháp
+    assert client.post(f"/api/courses/{cid}/syllabus/versions", headers=admin).status_code == 409
 
-    # bản nháp chép nội dung bản 1; Bộ môn xem bản nháp, GV vẫn xem bản đang áp dụng
     a = client.get(f"/api/courses/{cid}/syllabus", headers=admin).json()
     assert a["doc"]["version_no"] == 2 and a["doc"]["status"] == "draft" and len(a["doc"]["assessments"]) == 3
     assert client.get(f"/api/courses/{cid}/syllabus", headers=gv).json()["doc"]["version_no"] == 1
@@ -63,13 +61,11 @@ def test_syllabus_version_flow(client, admin, gv):
     if other:
         assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json={"assessments": [
             {"component_code": "A1", "name": "Giữa kỳ", "weight_pct": 100, "clo_ids": [other]}]}).status_code == 422
-    # tổng tỷ trọng 90% -> không lưu được
     body = {"objectives": "Mục tiêu bản 2", "assessments": [
         {"component_code": "A1", "name": "Giữa kỳ", "weight_pct": 40, "clo_ids": [clo["CLO1"], clo["CLO2"]]},
         {"component_code": "A2", "name": "Cuối kỳ", "weight_pct": 50, "clo_ids": [clo["CLO3"]]}]}
     r = client.put(f"/api/courses/{cid}/syllabus", headers=admin, json=body)
     assert r.status_code == 422 and "100%" in r.json()["detail"] and "90%" in r.json()["detail"]
-    # đủ 100% nhưng CLO4 chưa được đánh giá -> lưu được bản nháp, chưa duyệt được
     body["assessments"][1]["weight_pct"] = 60
     assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json=body).status_code == 200
     r = client.post(f"/api/courses/{cid}/syllabus/approve", headers=admin)
@@ -79,13 +75,12 @@ def test_syllabus_version_flow(client, admin, gv):
     assert client.post(f"/api/courses/{cid}/syllabus/approve", headers=gv).status_code == 403
     assert client.post(f"/api/courses/{cid}/syllabus/approve", headers=admin).status_code == 200
 
-    # bản 2 đang áp dụng, bản 1 đã thay thế; bản 1 vẫn xem lại được
     s = client.get(f"/api/courses/{cid}/syllabus", headers=gv).json()
     assert s["doc"]["version_no"] == 2 and s["doc"]["objectives"] == "Mục tiêu bản 2" and s["approved_version"] == 2
     assert [v["status"] for v in s["versions"]] == ["archived", "approved"]
     old = client.get(f"/api/courses/{cid}/syllabus?version=1", headers=gv).json()["doc"]
     assert old["status"] == "archived" and len(old["assessments"]) == 3
-    assert client.post(f"/api/courses/{cid}/syllabus/approve", headers=admin).status_code == 409    # không còn bản nháp
+    assert client.post(f"/api/courses/{cid}/syllabus/approve", headers=admin).status_code == 409
 
 
 def test_outline_detail(client, admin, gv):
@@ -99,7 +94,6 @@ def test_outline_detail(client, admin, gv):
     assert client.put(f"/api/outlines/{o['id']}", headers=admin, json={**base, "clo_ids": [999999]}).status_code == 422
     r = client.put(f"/api/outlines/{o['id']}", headers=admin, json={**base, "content": "Nội dung mới", "theory_hours": 6, "clo_ids": clo_ids})
     assert r.status_code == 200
-    # chỉ gửi số + tên (trình sửa nhanh) thì nội dung chi tiết giữ nguyên
     assert client.put(f"/api/outlines/{o['id']}", headers=admin, json=base).status_code == 200
     o2 = next(x for x in client.get(f"/api/courses/{cid}/syllabus", headers=gv).json()["outlines"] if x["id"] == o["id"])
     assert o2["content"] == "Nội dung mới" and o2["theory_hours"] == 6 and sorted(x["id"] for x in o2["clos"]) == sorted(clo_ids)
@@ -112,7 +106,6 @@ def test_new_course_without_syllabus(client, admin):
     s = client.get(f"/api/courses/{cid}/syllabus", headers=admin).json()
     assert s["doc"] is None and s["versions"] == [] and s["approved_version"] is None
     assert client.post(f"/api/courses/{cid}/syllabus/approve", headers=admin).status_code == 409
-    # lưu lần đầu tạo bản nháp phiên bản 1
     r = client.put(f"/api/courses/{cid}/syllabus", headers=admin, json={"english_name": "Test", "references": [{"citation": "Giáo trình A"}]})
     assert r.status_code == 200 and r.json() == {"version_no": 1, "status": "draft"}
     assert client.put(f"/api/courses/{cid}/syllabus", headers=admin, json={"effective_semester_id": 999999}).status_code == 422

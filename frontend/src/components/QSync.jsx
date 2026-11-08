@@ -1,4 +1,3 @@
-// Đồng bộ ngân hàng câu hỏi hai chiều với Moodle: so sánh từng câu (QB-n ⇄ idnumber trên Moodle), đẩy lên / kéo về.
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { ActionButton, Badge, Field, Loading, Modal } from './ui'
@@ -12,9 +11,9 @@ const ST = {
 export default function QSync({ courseId, onClose, onDone }) {
   const t = useApi(`/api/courses/${courseId}/moodle-sync/targets`)
   const [mc, setMc] = useState(null)
-  useEffect(() => { if (t.data?.targets.length && !mc) setMc(t.data.targets[0].moodle_course_id) }, [t.data])  // eslint-disable-line
+  useEffect(() => { if (t.data?.targets.length && !mc) setMc(t.data.targets[0].moodle_course_id) }, [t.data])
   const cmp = useApi(mc ? `/api/courses/${courseId}/moodle-sync?moodle_course_id=${mc}` : null)
-  const [act, setAct] = useState({})      // khóa -> 'push' | 'pull' | null
+  const [act, setAct] = useState({})
   const [flt, setFlt] = useState('todo')
   useEffect(() => { if (cmp.data) setAct(Object.fromEntries(cmp.data.rows.map(r => [key(r), r.action]))) }, [cmp.data])
   const key = r => r.question_id ? `q${r.question_id}` : `m${r.moodle_questionid}`

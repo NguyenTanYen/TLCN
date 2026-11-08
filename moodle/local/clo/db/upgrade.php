@@ -1,9 +1,6 @@
 <?php
 defined('MOODLE_INTERNAL') || die();
 
-/**
- * Nâng cấp local_clo: 2026100100 – thêm liên kết bài thi giấy (Offline Quiz).
- */
 function xmldb_local_clo_upgrade($oldversion) {
     global $DB;
     $dbman = $DB->get_manager();

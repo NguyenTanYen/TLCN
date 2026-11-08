@@ -8,7 +8,7 @@ LEVELS = [{"label": "Tốt", "score_pct": 100}, {"label": "Khá", "score_pct": 7
 def ctx(client, gv):
     cs = next(s for s in client.get("/api/class-sections", headers=gv).json() if s["section_code"] == "DBMS330284_01")
     clos = client.get(f"/api/class-sections/{cs['id']}/clo-results", headers=gv).json()["clos"]
-    return {"cs": cs, "clos": [c["clo_id"] for c in clos][-2:]}   # đo CLO cuối (CLO3, CLO4) để không lẫn vào minh chứng CLO1 của test khác
+    return {"cs": cs, "clos": [c["clo_id"] for c in clos][-2:]}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -18,7 +18,7 @@ def _don_dep(client, gv, ctx):
     cs = ctx["cs"]
     for e in client.get(f"/api/class-sections/{cs['id']}/exams", headers=gv).json():
         if "(rubric)" in e["exam_title"] or e["exam_title"] == "Bài vắng thử":
-            if client.delete(f"/api/exams/{e['id']}", headers=gv).status_code == 409:   # đã có điểm → bỏ khỏi minh chứng CLO
+            if client.delete(f"/api/exams/{e['id']}", headers=gv).status_code == 409:
                 client.patch(f"/api/exams/{e['id']}/evidence", headers=gv, json={"counts_for_clo": False})
     for r in client.get(f"/api/courses/{cs['course_id']}/rubrics", headers=gv).json():
         if r["name"] in ("Rubric báo cáo đồ án", "Rubric vắng", "Bản sao đã sửa") or r["name"].startswith("Rubric báo cáo đồ án"):
@@ -34,11 +34,11 @@ def _body(ctx, name="Rubric báo cáo đồ án"):
 def test_tao_rubric_va_kiem_tra_du_lieu(client, gv, ctx):
     cid = ctx["cs"]["course_id"]
     bad = _body(ctx); bad["criteria"][0]["levels"] = [{"label": "A", "score_pct": 80}, {"label": "B", "score_pct": 40}]
-    assert client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=bad).status_code == 422          # không có mức 100%
+    assert client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=bad).status_code == 422
     bad = _body(ctx); bad["criteria"][0]["levels"] = [{"label": "A", "score_pct": 100}, {"label": "B", "score_pct": 100}]
-    assert client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=bad).status_code == 422          # trùng tỷ lệ
+    assert client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=bad).status_code == 422
     bad = _body(ctx); bad["criteria"][0]["clo_id"] = 10**6
-    assert client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=bad).status_code == 422          # CLO sai môn
+    assert client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=bad).status_code == 422
     r = client.post(f"/api/courses/{cid}/rubrics", headers=gv, json=_body(ctx))
     assert r.status_code == 201, r.text
     d = client.get(f"/api/rubrics/{r.json()['id']}", headers=gv).json()
@@ -60,12 +60,10 @@ def test_cham_theo_rubric_ra_clo(client, gv, gv_other, ctx):
     c1, c2 = g["rubric"]["criteria"]
     lv = lambda c, label: next(l["id"] for l in c["levels"] if l["label"] == label)
     s1, s2, s3 = (s["student_id"] for s in g["students"][:3])
-    rows = [{"student_id": s1, "levels": {c1["id"]: lv(c1, "Tốt"), c2["id"]: lv(c2, "Tốt")}},          # 6 + 4 = 10
-            {"student_id": s2, "levels": {c1["id"]: lv(c1, "Khá"), c2["id"]: lv(c2, "Đạt")}},          # 4,5 + 2 = 6,5
-            {"student_id": s3, "levels": {c1["id"]: lv(c1, "Chưa đạt"), c2["id"]: lv(c2, "Chưa đạt")}}]  # 0
-    # chấm thiếu tiêu chí bị từ chối
+    rows = [{"student_id": s1, "levels": {c1["id"]: lv(c1, "Tốt"), c2["id"]: lv(c2, "Tốt")}},
+            {"student_id": s2, "levels": {c1["id"]: lv(c1, "Khá"), c2["id"]: lv(c2, "Đạt")}},
+            {"student_id": s3, "levels": {c1["id"]: lv(c1, "Chưa đạt"), c2["id"]: lv(c2, "Chưa đạt")}}]
     assert client.put(f"/api/exams/{eid}/rubric-grades", headers=gv, json={"rows": [{"student_id": s1, "levels": {c1["id"]: lv(c1, "Tốt")}}]}).status_code == 422
-    # mức không thuộc tiêu chí bị từ chối
     assert client.put(f"/api/exams/{eid}/rubric-grades", headers=gv,
                       json={"rows": [{"student_id": s1, "levels": {c1["id"]: lv(c2, "Tốt"), c2["id"]: lv(c2, "Tốt")}}]}).status_code == 422
     res = client.put(f"/api/exams/{eid}/rubric-grades", headers=gv, json={"rows": rows, "analyze": True})
@@ -74,20 +72,16 @@ def test_cham_theo_rubric_ra_clo(client, gv, gv_other, ctx):
     gb = client.get(f"/api/exams/{eid}/grades", headers=gv).json()
     tot = {s["student_id"]: s["total"] for s in gb["students"]}
     assert tot[s1] == 10 and tot[s2] == 6.5 and tot[s3] == 0
-    # CLO của lớp: tiêu chí 1 đo CLO a, tiêu chí 2 đo CLO b → đạt khi ≥ 60% điểm của chính tiêu chí
     ev = client.get(f"/api/class-sections/{cs['id']}/clo-results/{ctx['clos'][0]}/evidence", headers=gv).json()["evidence"]
     mine = {e["student_code"]: e for e in ev if e["exam_title"] == "Báo cáo đồ án (rubric)"}
     assert len(mine) == 3
     pct = sorted(e["score_pct"] for e in mine.values())
     assert pct == [0.0, 75.0, 100.0]
-    # lưu lại mức đã chọn
     g2 = client.get(f"/api/exams/{eid}/rubric-grid", headers=gv).json()
     assert g2["students"][0]["levels"][str(c1["id"])] == lv(c1, "Tốt")
-    # đã dùng: không sửa/xóa rubric, không nhập điểm trực tiếp
     assert client.put(f"/api/rubrics/{rid}", headers=gv, json=_body(ctx)).status_code == 409
     assert client.delete(f"/api/rubrics/{rid}", headers=gv).status_code == 409
     assert client.put(f"/api/exams/{eid}/grades", headers=gv, json={"rows": []}).status_code == 409
-    # nhân bản rồi sửa được
     new = client.post(f"/api/rubrics/{rid}/duplicate", headers=gv).json()["id"]
     assert client.put(f"/api/rubrics/{new}", headers=gv, json=_body(ctx, "Bản sao đã sửa")).status_code == 200
     assert client.delete(f"/api/rubrics/{new}", headers=gv).status_code == 200

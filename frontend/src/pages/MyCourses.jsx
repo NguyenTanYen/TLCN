@@ -1,4 +1,3 @@
-// Trang chính của giảng viên: Môn học → các lớp HP mình dạy → bài kiểm tra. Bấm vào môn để xem đề cương chi tiết.
 import { useMemo, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Link, useNavigate } from 'react-router-dom'

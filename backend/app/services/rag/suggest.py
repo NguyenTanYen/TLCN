@@ -1,17 +1,4 @@
-"""Bước 8: sinh viên làm SAI một câu → gợi ý các TRANG học liệu của lớp nên đọc lại.
-
-Truy vấn = thân câu + nội dung đáp án đúng (BM25 + từ điển đồng nghĩa của môn). Các lựa chọn khác đã ĐO trên bộ câu
-hỏi chuẩn (eval/rag_gold.json, `python -m app.services.rag.evaluate`, bảng "gợi ý theo trang") và bỏ vì không giúp:
-  - bỏ từ khuôn mẫu của đề ("nào sau đây", "là gì"...): không đổi chỉ số – hư từ + IDF đã lo;
-  - trộn thêm truy vấn PHƯƠNG ÁN SAI sinh viên chọn bằng RRF: Hit@1 0,78 → 0,54 (trọng số 0,25) / 0,46 (×1) – kéo
-    lên các đoạn nhắc CẢ hai khái niệm (trang tổng quan) chen mất trang giải thích chính. Giữ hàm (wrong_weight) để
-    đo lại khi có bộ nhãn cho "trang giải thích chỗ nhầm".
-Cổng ngữ nghĩa (semantic.py): không đoạn ứng viên nào đủ gần câu hỏi (cos MiniLM) → không gợi ý gì – tài liệu của lớp
-không nói về câu hỏi (BM25 thì luôn trả về "đoạn gần nhất"); qua cổng thì giữ thứ tự BM25 nhưng bỏ trang kém xa trang
-gần câu hỏi nhất (close_pages) – có thể còn ít hơn PAGES trang.
-Kết quả gom theo TRANG (sinh viên mở một trang, không mở một "đoạn"): mỗi trang lấy hạng của đoạn tốt nhất, kèm
-khung tô của đoạn đó.
-"""
+"""Bước 8: sinh viên làm SAI một câu → gợi ý các TRANG học liệu của lớp nên đọc lại."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -21,14 +8,13 @@ from sqlalchemy.orm import Session, undefer
 from ...models import ClassSection, Course, MaterialPage, MaterialPassage, Question, SectionMaterial
 
 RRF_K = 60
-DEPTH = 30                  # số đoạn lấy về trước khi gom theo trang
-PAGES = 3                   # số trang gợi ý cho một câu
+DEPTH = 30
+PAGES = 3
 SNIPPET = 240
 
 
 def fuse(lists: list[tuple[list, float]], k: int = RRF_K) -> list:
-    """Reciprocal Rank Fusion có trọng số: Σ w / (k + hạng) – trộn theo HẠNG (điểm BM25 không có trần, hai truy vấn
-    dài ngắn khác nhau không so được). Hòa điểm: giữ thứ tự xuất hiện đầu tiên."""
+    """Reciprocal Rank Fusion có trọng số: Σ w / (k + hạng) – trộn theo HẠNG (điểm BM25 không có trần, hai truy vấn dài ngắn khác nhau không so được)."""
     score: dict = {}
     for items, w in lists:
         for r, x in enumerate(items, 1):
@@ -42,7 +28,7 @@ def query_text(stem: str, correct: list[str]) -> str:
 
 def rank_passages(ix, stem: str, correct: list[str], wrong: str | None = None, synonyms=None,
                   wrong_weight: float = 0.0) -> list[int]:
-    """Id đoạn theo thứ tự gợi ý (ix: search.Index của lớp). wrong / wrong_weight: chỉ để đo (mặc định không dùng)."""
+    """Id đoạn theo thứ tự gợi ý (ix: search.Index của lớp)."""
     first = [i for i, _, _ in ix.score(query_text(stem, correct), DEPTH, synonyms)]
     if not wrong or not wrong_weight:
         return first
@@ -50,8 +36,7 @@ def rank_passages(ix, stem: str, correct: list[str], wrong: str | None = None, s
 
 
 def close_pages(pages: list[tuple], margin: float | None, floor: float | None = None) -> list:
-    """[(trang, cos cao nhất của các đoạn ứng viên trên trang)] theo thứ tự gợi ý → các trang giữ lại (giữ thứ tự): bỏ
-    trang có cos thấp hơn trang gần câu hỏi nhất quá margin, hoặc thấp hơn floor. Trang gần nhất luôn được giữ."""
+    """[(trang, cos cao nhất của các đoạn ứng viên trên trang)] theo thứ tự gợi ý → các trang giữ lại (giữ thứ tự): bỏ trang có cos thấp hơn trang gần câu hỏi nhất quá margin, hoặc thấp hơn floor."""
     if not pages:
         return []
     top = max(c for _, c in pages)
@@ -74,9 +59,9 @@ class PageSuggestion:
     material_id: int
     material_title: str
     file_name: str
-    url: str | None                 # tệp trên Moodle (SV xem được) + "#page=N"
+    url: str | None
     page_no: int
-    title: str                      # đề mục của đoạn tốt nhất trên trang
+    title: str
     snippet: str
     bboxes: list = field(default_factory=list)
 
@@ -84,19 +69,19 @@ class PageSuggestion:
 def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) -> list[PageSuggestion]:
     """Các trang học liệu của lớp nên đọc lại khi làm sai câu hỏi (chỉ học liệu 'ready' của đúng lớp)."""
     from ...config import settings
-    from . import search, semantic, synonyms                     # tránh vòng import khi nạp models
+    from . import search, semantic, synonyms
 
     correct = [o.content for o in question.options if o.is_correct]
-    if not correct:                                              # câu tự luận / chưa có đáp án: không gợi ý
+    if not correct:
         return []
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
             .filter(ClassSection.id == cs_id).scalar())
     ranked = rank_passages(search.section_index(db, cs_id), question.content, correct, synonyms=synonyms.for_course(code))
-    try:                                                         # bổ sung ứng viên GẦN NGHĨA (câu Việt – giáo trình Anh)
+    try:
         dense = [pid for pid, _ in semantic.dense_top(db, cs_id, query_text(question.content, correct), DEPTH)]
     except Exception:
         dense = []
-    if dense:                                                    # thứ hạng BM25 (đã đo) đứng NGUYÊN; gần nghĩa chỉ bổ sung phía sau
+    if dense:
         seen = set(ranked)
         ranked = (ranked + [pid for pid in dense if pid not in seen])[:DEPTH]
     if not ranked:
@@ -108,12 +93,12 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
             .options(undefer(MaterialPassage.embedding))
             .filter(MaterialPassage.id.in_(ranked), SectionMaterial.class_section_id == cs_id,
                     SectionMaterial.status == "ready")}
-    live = [pid for pid in ranked if pid in rows]                # bản chỉ mục cũ: bỏ đoạn đã bị nạp lại / bỏ chọn
+    live = [pid for pid in ranked if pid in rows]
     page_key = lambda i: (rows[i][2].id, rows[i][1].page_no)
     pages = pages_of(live, page_key)[:k]
     cos = semantic.scores(query_text(question.content, correct), [rows[pid][0].embedding for pid in live])
-    if cos is not None:                                          # None: không đánh giá được → không chặn, không lọc
-        if max(cos) < settings.rag_min_similarity:               # tài liệu của lớp không nói về câu hỏi
+    if cos is not None:
+        if max(cos) < settings.rag_min_similarity:
             return []
         best: dict = {}
         for pid, c in zip(live, cos):

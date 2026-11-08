@@ -1,4 +1,3 @@
-// Lớp truy cập REST API – tự đính kèm JWT, chuẩn hóa thông báo lỗi tiếng Việt
 const KEY = 'tlcn_token'
 
 export const auth = {

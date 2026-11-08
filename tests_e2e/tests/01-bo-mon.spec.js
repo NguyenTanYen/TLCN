@@ -1,26 +1,20 @@
-// VAI TRÒ BỘ MÔN (admin) – 9 flow AD1..AD9, chạy nối tiếp như người dùng thật.
-// Kịch bản: Bộ môn mở một học phần mới từ đầu (mã UIddhhmm) trong CTĐT KTDL-2026 → giao PI → khai báo chương, CLO gắn PI
-// → mở lớp cho gv.son → soạn và duyệt đề cương → lập kế hoạch đo PI → tổng hợp PLO, kết nối Moodle.
-// Tệp 02 (giảng viên), 03 (sinh viên) dùng tiếp học phần này qua tệp .state.json.
 const { test, expect } = require('@playwright/test')
 const H = require('./helpers')
 const { nav, modal, card, tab, field, pick, toast, see, goto } = H
 
-const PI_A = 'PI6.2'      // PI của PLO6 trong CTĐT KTDL-2026
-const PI_B = 'PI7.1'      // PI của PLO7
+const PI_A = 'PI6.2'
+const PI_B = 'PI7.1'
 const pad = n => String(n).padStart(2, '0')
 
-test.describe.configure({ mode: 'serial' })     // các flow phụ thuộc nhau → chạy lần lượt, flow trước lỗi thì dừng
+test.describe.configure({ mode: 'serial' })
 
 const S = H.loadState()
 const d = new Date()
-S.newCode = `UI${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`     // mã môn mới cho lần chạy này (AD3 dùng)
+S.newCode = `UI${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`
 
-// Mỗi test dùng trang riêng do Playwright cấp (để --ui ghi ảnh/vết từng bước) → đăng nhập Bộ môn trước mỗi test
 test.beforeEach(async ({ page }) => { await H.login(page, H.ADMIN) })
 test.afterEach(() => H.saveState(S))
 
-// ================================================================== AD1 – Đăng nhập
 test('AD1 – Bộ môn đăng nhập; sai mật khẩu bị từ chối', async ({ page, browser }) => {
   await test.step('Bước 1: menu của Bộ môn có đủ các mục quản trị', async () => {
     for (const item of ['Tổng quan', 'Chương trình đào tạo', 'Học phần', 'Lớp học phần', 'Kế hoạch đo chỉ báo (PI)', 'Kết quả chương trình (PLO)', 'Kết nối Moodle'])
@@ -58,7 +52,6 @@ test('AD1b – SSO: admin Moodle bấm "Phân tích CĐR" → vào thẳng hệ 
   await p.context().close()
 })
 
-// ================================================================== AD2 – Chương trình đào tạo
 test('AD2 – Xem CTĐT KTDL-2026: PLO/PI, học phần, ma trận học phần – PI, mục tiêu', async ({ page }) => {
   await test.step('Bước 1: menu Chương trình đào tạo → bấm vào mã CTĐT KTDL-2026', async () => {
     await nav(page, 'Chương trình đào tạo').click()
@@ -81,7 +74,6 @@ test('AD2 – Xem CTĐT KTDL-2026: PLO/PI, học phần, ma trận học phần 
   })
 })
 
-// ================================================================== AD3 – Tạo học phần, gán CTĐT, giao PI
 test('AD3 – Tạo học phần mới trong KTDL-2026, chặn trùng mã, mô tả, học kỳ/khối kiến thức, giao PI', async ({ page }) => {
   S.code = S.newCode
   await test.step('Bước 1: Học phần → "+ Học phần mới" → mã, tên, tín chỉ, tích KTDL-2026 → Lưu → tự mở tab Khai báo', async () => {
@@ -124,14 +116,14 @@ test('AD3 – Tạo học phần mới trong KTDL-2026, chặn trùng mã, mô t
   await test.step('Bước 5: CTĐT → Ma trận học phần – PI → dòng của môn: ô PI6.2 chọn 3, ô PI7.1 chọn 4', async () => {
     await goto(page, `/programs/${S.pid}?tab=matrix`)
     const head = page.locator('table.mx thead tr').nth(1)
-    await expect(head.locator('th', { hasText: PI_A })).toBeVisible()            // chờ bảng tải xong
+    await expect(head.locator('th', { hasText: PI_A })).toBeVisible()
     const row = page.locator('table.mx tbody tr').filter({ has: page.getByRole('link', { name: S.code, exact: true }) })
     for (const [pi, level] of [[PI_A, '3'], [PI_B, '4']]) {
       const idx = await head.locator('th').evaluateAll((ths, c) => ths.findIndex(t => t.textContent.trim() === c), pi)
-      await row.locator('td').nth(idx).click()                                   // bấm ô → hộp chọn mức
+      await row.locator('td').nth(idx).click()
       await modal(page).getByRole('button', { name: level, exact: true }).click()
       await expect(page.locator('.modal')).toHaveCount(0)
-      await expect(row.locator('td').nth(idx)).toHaveText(level)                // ô hiện mức vừa chọn
+      await expect(row.locator('td').nth(idx)).toHaveText(level)
     }
   })
   await test.step('Bước 6: đề cương mục 5 có 2 PI, đều tô đỏ "Chưa có CLO" (chưa khai báo CLO)', async () => {
@@ -144,7 +136,6 @@ test('AD3 – Tạo học phần mới trong KTDL-2026, chặn trùng mã, mô t
   })
 })
 
-// ================================================================== AD4 – Chương và CLO gắn PI
 test('AD4 – Thêm chương (Enter để lưu), CLO gắn PI, chi tiết chương; mục 5 hết tô đỏ', async ({ page }) => {
   await goto(page, `/courses/${S.cid}?tab=setup`)
   const box = card(page, 'Đề cương – các chương')
@@ -164,7 +155,7 @@ test('AD4 – Thêm chương (Enter để lưu), CLO gắn PI, chi tiết chươ
     await pick(m.getByLabel('Mức Bloom mục tiêu'), bloom)
     await m.getByLabel('Nội dung CLO').fill(desc)
     const row = m.locator('.clo-w').filter({ has: page.locator('b', { hasText: new RegExp(`^${pi.replace('.', '\\.')}$`) }) })
-    await expect(row.locator('.pill.green')).toHaveText(badge)                  // "CTĐT giao: …" lấy từ ma trận ở AD3
+    await expect(row.locator('.pill.green')).toHaveText(badge)
     await row.locator('input[type=checkbox]').check()
     await row.locator('select').selectOption(level)
     await m.getByRole('button', { name: 'Lưu' }).click()
@@ -204,14 +195,12 @@ test('AD4 – Thêm chương (Enter để lưu), CLO gắn PI, chi tiết chươ
   })
 })
 
-// ================================================================== AD5 – Lớp học phần
 test('AD5 – Mở lớp HP cho giảng viên Nguyễn Thành Sơn (HKII 24-25)', async ({ page }) => {
   await test.step('Bước 1: trang môn → thẻ Lớp học phần → "+ Lớp HP"', async () => {
     await goto(page, `/courses/${S.cid}?tab=sections`)
     await page.getByRole('button', { name: '+ Lớp HP' }).click()
   })
   await test.step('Bước 2: chọn HKII 24-25, nhập mã lớp, chọn GV phụ trách → Lưu', async () => {
-    // HKII: PI7.1 đã được đo ở môn demo trong HKI, mà CSDL chỉ cho mỗi PI một kế hoạch đo/học kỳ (dùng ở AD7)
     const m = modal(page)
     await pick(m.getByLabel('Học kỳ'), 'HKII 24-25')
     await m.getByLabel('Mã lớp học phần').fill(`${S.code}_01`)
@@ -234,7 +223,6 @@ test('AD5b – "Cập nhật lớp từ Moodle": lớp mới chưa có khóa Moo
   })
 })
 
-// ================================================================== AD6 – Đề cương có phiên bản
 test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo phiên bản mới, bản in không có nút', async ({ page }) => {
   await goto(page, `/courses/${S.cid}?tab=syllabus`)
   const checklist = page.locator('ul.checklist')
@@ -262,7 +250,7 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
       await modal(page).getByRole('button', { name: 'Lưu' }).click()
       await see(page, text)
     }
-    await expect(page.locator('.syl tr', { hasText: 'Tổng số tiết' })).toContainText('20')   // chương đã nhập ở AD4
+    await expect(page.locator('.syl tr', { hasText: 'Tổng số tiết' })).toContainText('20')
   })
   await test.step('Bước 4: mục 8 → 40% + 50% = 90% → dòng tổng đỏ, nút Lưu bị KHÓA', async () => {
     await edit(8).click()
@@ -326,7 +314,6 @@ test('AD6 – Soạn đề cương, chặn tỷ trọng ≠ 100%, duyệt, tạo
   })
 })
 
-// ================================================================== AD7 – Kế hoạch đo PI, phân công
 test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO gắn đúng PI); phân công đánh giá PI', async ({ page }) => {
   await test.step('Bước 1: menu Kế hoạch đo PI → chọn CTĐT KTDL-2026', async () => {
     await nav(page, 'Kế hoạch đo chỉ báo (PI)').click()
@@ -334,10 +321,10 @@ test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO
   })
   await test.step('Bước 2: xóa kế hoạch PI7.1 cũ của các lần kiểm thử trước (môn mã UI…) – mỗi PI chỉ 1 kế hoạch/học kỳ', async () => {
     const plans = card(page, 'Kế hoạch năm học')
-    await expect(plans.locator('tbody tr').first()).toBeVisible()               // chờ bảng kế hoạch tải xong
+    await expect(plans.locator('tbody tr').first()).toBeVisible()
     const old = plans.locator('tbody tr').filter({ hasText: PI_B }).filter({ hasText: /UI\d{6}/ })
     while (await old.count()) {
-      page.once('dialog', d => d.accept())                                       // xác nhận xóa của trình duyệt
+      page.once('dialog', d => d.accept())
       await old.first().getByRole('button', { name: '✕' }).click()
       await toast(page, 'Đã xóa')
       await page.waitForTimeout(500)
@@ -352,7 +339,7 @@ test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO
     await field(m, 'Phương pháp').fill('Bài tập lớn + thi cuối kỳ')
     await field(m, 'Chỉ tiêu (%)').fill('70')
     await pick(field(m, 'GV phụ trách'), 'Nguyễn Thành Sơn')
-    await see(m, 'gắn với chính PI này')                                         // gợi ý: không chọn CLO = dùng CLO gắn PI
+    await see(m, 'gắn với chính PI này')
     await m.getByRole('button', { name: 'Lưu' }).click()
     await toast(page, 'Đã lưu kế hoạch')
   })
@@ -371,7 +358,6 @@ test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO
   })
 })
 
-// ================================================================== AD8 – Tổng hợp PLO
 test('AD8 – Tổng hợp PLO: Tính lại, mở nhận xét PLO, xuất BM2/BM3 (.xlsx) và BM2 (.docx)', async ({ page }) => {
   await test.step('Bước 1: menu Tổng hợp PLO → CTĐT KTDL (có kết quả demo) → năm 2024-2025 → Tính lại', async () => {
     await nav(page, 'Kết quả chương trình (PLO)').click()
@@ -395,7 +381,6 @@ test('AD8 – Tổng hợp PLO: Tính lại, mở nhận xét PLO, xuất BM2/BM
   })
 })
 
-// ================================================================== AD9 – Kết nối Moodle
 test('AD9 – Trang Kết nối Moodle: trạng thái Web Service, hàm của plugin 1.4.0 @moodle', async ({ page }) => {
   await test.step('Bước 1: menu Kết nối Moodle → có khung Trạng thái và khung Web Service & đăng nhập một lần', async () => {
     await nav(page, 'Kết nối Moodle').click()

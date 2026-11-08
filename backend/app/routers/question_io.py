@@ -1,12 +1,4 @@
-"""UC-01 (mở rộng): nhập hàng loạt câu hỏi, rồi gán CLO / Bloom / chương cho từng câu bằng file Excel.
-
-Quy trình:
-1. GET  /api/questions/import-template            – tải file mẫu nhập câu hỏi (.xlsx)
-2. POST /api/questions/import?course_id=&dry_run=  – nhập (xem trước khi dry_run=true); câu chưa có CLO/Bloom = "chưa gán"
-3. GET  /api/questions/tagging-template?course_id= – tải file gán CLO: mỗi dòng 1 câu (ID, nội dung, chương, Bloom, CLO)
-4. POST /api/questions/tagging-import?course_id=&dry_run= – đọc file đã điền, kiểm tra, cập nhật hàng loạt
-Câu hỏi chưa gán đủ CLO và Bloom không được đưa vào đề (tránh sai lệch khi đo CLO).
-"""
+"""UC-01 (mở rộng): nhập hàng loạt câu hỏi, rồi gán CLO / Bloom / chương cho từng câu bằng file Excel."""
 from datetime import datetime
 from io import BytesIO
 
@@ -96,7 +88,6 @@ def _validations(ws, chapter_names, levels, col_chapter, col_bloom, n_rows):
     dv2.add(f"{col_bloom}2:{col_bloom}{n_rows + 200}")
 
 
-# ------------------------------------------------------------------ 1. file mẫu nhập câu hỏi
 @router.get("/import-template")
 def import_template(course_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
     check_course_access(db, u, course_id)
@@ -123,7 +114,6 @@ def import_template(course_id: int, db: Session = Depends(get_db), u: User = Dep
     return _xlsx(wb, f"mau_nhap_cau_hoi_{course.course_code}.xlsx")
 
 
-# ------------------------------------------------------------------ 2. nhập hàng loạt câu hỏi
 @router.post("/import")
 async def import_questions(course_id: int, dry_run: bool = True, skip_duplicates: bool = True, file: UploadFile = File(...),
                            db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
@@ -193,7 +183,6 @@ async def import_questions(course_id: int, dry_run: bool = True, skip_duplicates
     return {"dry_run": dry_run, "summary": summary, "rows": rows, "created_ids": created}
 
 
-# ------------------------------------------------------------------ 3. file gán CLO / Bloom / chương
 def _question_rows(db, course_id, only_untagged, ids):
     rows = [dict(r) for r in db.execute(text("""
         SELECT q.id, q.content, q.bloom_level_id, q.is_cancelled, o.chapter_number,
@@ -248,7 +237,6 @@ def tagging_template(course_id: int, only_untagged: bool = False, ids: str | Non
     return _xlsx(wb, f"gan_clo_{course.course_code}_{stamp}.xlsx")
 
 
-# ------------------------------------------------------------------ 4. đọc file gán CLO và cập nhật
 @router.post("/tagging-import")
 async def tagging_import(course_id: int, dry_run: bool = True, file: UploadFile = File(...),
                          db: Session = Depends(get_db), u: User = Depends(lecturer_only)):

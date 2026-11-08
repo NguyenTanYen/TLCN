@@ -1,13 +1,9 @@
-// VAI TRÒ SINH VIÊN – 5 flow SV1..SV5. Sinh viên KHÔNG dùng hệ thống phân tích: làm bài và xem kết quả trên Moodle.
-// Chạy sau tệp 02 (dùng bài phụ đạo GV14 đã tạo Quiz trên Moodle cho 2 SV). Lớp demo DBMS330284_01 – khóa học Moodle id 7.
-// Moodle đang dùng giao diện tiếng Anh nên câu thông báo của plugin local_clo là tiếng Anh.
-// Trong mỗi test: `page` = phiên giảng viên gv.son trên hệ thống (để công bố, đồng bộ); `sv` = phiên Moodle của sinh viên.
 const { test, expect } = require('@playwright/test')
 const H = require('./helpers')
 const { card, toast, see, goto, api } = H
 
-const SV_CO_KET_QUA = '22130011'      // SV có làm bài thi cuối kỳ (dữ liệu demo)
-const SV_VANG = '22130004'            // SV vắng thi cuối kỳ
+const SV_CO_KET_QUA = '22130011'
+const SV_VANG = '22130004'
 const RESULTS_URL = `${H.MOODLE}/local/clo/results.php?id=${H.DEMO.moodleCourse}`
 
 test.describe.configure({ mode: 'serial' })
@@ -15,20 +11,17 @@ const S = H.loadState()
 
 test.beforeEach(async ({ page }) => { await H.login(page, H.GV) })
 
-/** Trang Quiz trên Moodle của một bài KT (mod/quiz/view.php?q=<id Quiz>). */
 async function quizUrl(page, examId) {
   const e = await api(page, `/api/exams/${examId}`)
   return `${H.MOODLE}/mod/quiz/view.php?q=${e.moodle_quiz_id}`
 }
 
-/** id bài "Thi cuối kỳ (Moodle)" của lớp demo. */
 async function finalExamId(page) {
   const sections = await api(page, '/api/class-sections')
   const cs = sections.find(x => x.section_code === H.DEMO.section).id
   return (await api(page, `/api/class-sections/${cs}/exams`)).find(e => e.exam_title === H.DEMO.finalExam).id
 }
 
-// ================================================================== SV1 – Không đăng nhập hệ thống phân tích
 test('SV1 – SV đăng nhập hệ thống bằng MSSV → bị từ chối, hướng dẫn xem trên Moodle', async ({ browser }) => {
   const sv = await H.newPage(browser)
   await test.step('Bước 1: trang đăng nhập hệ thống → MSSV 22130017 / mật khẩu SV → Đăng nhập', async () => {
@@ -44,7 +37,6 @@ test('SV1 – SV đăng nhập hệ thống bằng MSSV → bị từ chối, h�
   await sv.context().close()
 })
 
-// ================================================================== SV3 – Chỉ SV được giao thấy Quiz phụ đạo
 test('SV3 – Nhóm Moodle "Ôn tập" gồm đúng 2 SV; SV không được giao không làm được Quiz phụ đạo @moodle', async ({ page, browser }) => {
   test.skip(!S.remedialExam, 'Chưa có bài phụ đạo – chạy GV14 (tệp 02) trước')
   const url = await quizUrl(page, S.remedialExam)
@@ -65,7 +57,6 @@ test('SV3 – Nhóm Moodle "Ôn tập" gồm đúng 2 SV; SV không được gia
   await sv.context().close()
 })
 
-// ================================================================== SV2 – SV làm Quiz, GV thấy tiến bộ
 test('SV2 – SV được giao làm Quiz phụ đạo trên Moodle; GV đồng bộ → thời gian làm bài và bảng tiến bộ @moodle', async ({ page, browser }) => {
   test.skip(!S.remedialExam, 'Chưa có bài phụ đạo – chạy GV14 (tệp 02) trước')
   const url = await quizUrl(page, S.remedialExam)
@@ -113,11 +104,10 @@ test('SV2 – SV được giao làm Quiz phụ đạo trên Moodle; GV đồng b
   })
 })
 
-// ================================================================== SV4 + SV5 – Xem kết quả, thông báo
 test('SV4 + SV5 – Trang "Learning outcome results": công bố / vắng thi / thu hồi; thông báo khi GV công bố @moodle', async ({ page, browser }) => {
   const eid = await finalExamId(page)
   const sv = await H.newPage(browser)
-  const gvToggle = async published => {           // GV bấm Công bố / Thu hồi cho tới trạng thái mong muốn
+  const gvToggle = async published => {
     await goto(page, `/exams/${eid}`)
     const name = published ? 'Công bố kết quả lên Moodle' : 'Thu hồi công bố'
     await expect(page.getByRole('button', { name: /Thu hồi công bố|Công bố kết quả lên Moodle/ }).first()).toBeVisible()

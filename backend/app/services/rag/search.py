@@ -1,31 +1,4 @@
-"""Bước 6: tìm đoạn học liệu bằng BM25 – CHỈ trong học liệu đã nạp ('ready') của MỘT lớp học phần.
-
-Tách từ tiếng Việt (tokens):
-  - chữ thường, Unicode NFC; mỗi âm tiết một từ. Dấu THANH tách khỏi chữ và ghi thành một chữ IN HOA cuối kiểu Telex
-    ("hoà" / "hòa" → "hoaF"): hai cách bỏ dấu cũ / mới, gõ tổ hợp / dựng sẵn đều ra cùng một từ; dấu của nguyên âm
-    (â ê ô ơ ư ă) và đ giữ nguyên – "bàn" ≠ "bán", "cơ" ≠ "có". In HOA vì văn bản đã chuyển chữ thường: không trùng
-    từ tiếng Anh nào (Telex chữ thường thì "mã" → "max" trùng hàm MAX, "thí" → "this", "còn" → "conf");
-  - từ ghép tiếng Việt viết rời từng âm tiết → thêm CẶP âm tiết liền nhau (bigram "khoaS_ngoaiJ") trong cùng một cụm
-    (không vượt dấu câu / xuống dòng): khớp cả cụm "khóa ngoại" được điểm cao hơn khớp rời "khóa" ... "ngoại";
-  - bỏ hư từ (là, của, các, được, ...) khi chấm điểm; cặp có hư từ cũng bỏ.
-
-Câu truy vấn KHÔNG DẤU ("dac trung 5V", gõ vội trên điện thoại) → tìm trên bản bỏ dấu của chỉ mục (fold: "đặc" →
-"dac"), dựng lần đầu cần tới. Câu có dấu chỉ tìm trên bản có dấu – không trộn bản bỏ dấu vào ("bàn" không khớp
-"bán" / "bạn").
-
-Mỗi đoạn là một văn bản: tiêu đề (tính 2 lần – breadcrumb đã chứa tiêu đề) + đường dẫn đề mục + chú thích + nội dung
-+ mô tả hình (VLM). BM25 (k1 = 1,2; b = 0,75), IDF kiểu Lucene (luôn dương – lớp ít tài liệu vẫn chấm được).
-
-Chỉ mục giữ trong RAM theo lớp; khóa = (id, indexed_at) các học liệu 'ready' của lớp, kiểm với MySQL ở MỌI lần tìm –
-nạp lại / bỏ chọn / đồng bộ mất tệp đều tự làm mới, nhiều worker không lệch nhau. DỰNG KHI GHI: luồng nạp (index)
-dựng lại chỉ mục của lớp ngay sau khi nạp / bỏ chọn (warm). Lần tìm gặp chỉ mục cũ thì dùng BẢN CŨ ngay và dựng lại
-ở nền (worker khác, hoặc trong lúc luồng nạp đang dựng) – không chờ; chỉ khi chưa từng có chỉ mục mới phải chờ dựng.
-Bản cũ an toàn: kết quả lấy lại từ CSDL theo id đoạn, đoạn của học liệu đã bỏ chọn / nạp lại bị loại.
-
-RAM: mỗi worker giữ bản riêng (đo: 2.849 đoạn của 8 PDF thật ~16 MB). Hiện chạy MỘT tiến trình uvicorn. BACKLOG – khi
-chạy nhiều worker mà RAM của các bản sao chỉ mục vượt ~70%: lưu chỉ mục ra chỗ dùng chung (tệp / MySQL theo khóa
-(id, indexed_at)), một worker dựng (khóa phân tán GET_LOCK), các worker khác nạp lên thay vì tự dựng.
-"""
+"""Bước 6: tìm đoạn học liệu bằng BM25 – CHỈ trong học liệu đã nạp ('ready') của MỘT lớp học phần."""
 from __future__ import annotations
 
 import logging
@@ -43,14 +16,13 @@ from ...models import ClassSection, Course, MaterialPage, MaterialPassage, Secti
 log = logging.getLogger(__name__)
 
 K1, B = 1.2, 0.75
-TITLE_WEIGHT = 2            # tiêu đề đoạn tính 2 lần (breadcrumb chứa tiêu đề + thêm một lần)
-CACHE_SECTIONS = 32         # số lớp giữ chỉ mục trong RAM (LRU)
+TITLE_WEIGHT = 2
+CACHE_SECTIONS = 32
 SNIPPET = 300
 
-# dấu thanh (dạng tổ hợp sau NFD) → chữ Telex IN HOA; chr() thay vì viết thẳng ký tự tổ hợp cho dễ đọc
 TONES = {chr(0x300): "F", chr(0x301): "S", chr(0x309): "R", chr(0x303): "X", chr(0x323): "J"}
 _WORD = re.compile(r"[^\W_]+")
-_BREAK = re.compile(r"[.,;:!?()\[\]{}|<>\"“”‘’'…/\\–—=+*•▪●◦\n]+")     # gạch nối KHÔNG ngắt cụm: "B-tree" → b, tree, b_tree
+_BREAK = re.compile(r"[.,;:!?()\[\]{}|<>\"“”‘’'…/\\–—=+*•▪●◦\n]+")
 
 _STOP_TEXT = """
 là của và các có được trong cho với những một này đó đây kia thì mà để khi từ theo như về ra vào nào gì
@@ -86,8 +58,6 @@ def plain(query: str) -> bool:
     return fold(q) == unicodedata.normalize("NFD", q)
 
 
-# Từ chức năng tiếng Anh không trùng âm tiết tiếng Việt bỏ dấu và không phải từ khóa SQL (where, from, for, and, by, on...)
-# – câu tiếng Việt không dấu hay nhắc các từ khóa đó: "menh de where".
 _ENGLISH = frozenset("which what who whose whom why how does did is are was were of this these those following".split())
 
 
@@ -105,25 +75,18 @@ def tokens(text: str) -> list[str]:
     return out
 
 
-# hư từ gõ KHÔNG DẤU ("mot", "nhung", "ra") khớp bản bỏ dấu của từ HIẾM có dấu ("mốt", "nhúng", "rà" – bản có dấu
-# của chính hư từ không có trong chỉ mục) → IDF CAO (đo trên 8 PDF thật: 7,0–7,5), kéo nhiễu lên; nhưng nhiều dạng
-# lại trùng âm tiết quan trọng ("bang" – bảng, "ma" – mã, "qua" – kết quả, "co" – cơ sở) nên không chặn hẳn: câu không
-# dấu KHÔNG tính chúng như một từ riêng, chỉ tính trong cặp ("co_so", "ket_qua") – như bộ lọc common_grams
 STOP_PLAIN = frozenset(fold(w) for w in STOP)
-SYN_WEIGHT = 0.8            # cách nói đồng nghĩa (từ điển) nhẹ hơn chữ người hỏi gõ
+SYN_WEIGHT = 0.8
 
 
 @dataclass
 class Query:
-    terms: dict[str, float]                 # từ → trọng số
-    concepts: list[frozenset[str]]          # khái niệm của câu hỏi (âm tiết có nghĩa / cụm đồng nghĩa) → các từ khớp nó
+    terms: dict[str, float]
+    concepts: list[frozenset[str]]
 
 
 def _weights(ws: list[str], plain_query: bool) -> tuple[list[float], list[bool]]:
-    """Trọng số từng âm tiết + có tạo cặp với âm tiết sau hay không. Từ ghép tiếng Việt sinh 3 từ (2 âm tiết + 1 cặp)
-    còn thuật ngữ một từ ("NameNode") chỉ 1 → từ ghép chung chung ("vai trò") lấn thuật ngữ chính. Cân lại: âm tiết
-    NẰM TRONG cụm ≥ 2 âm tiết và mỗi cặp tính ½, âm tiết đứng riêng tính 1 – "vai trò" khớp đủ = 1,5, "NameNode" = 1.
-    plain_query: hư từ (bỏ dấu) không tính riêng, cặp chỉ bỏ khi CẢ HAI là hư từ."""
+    """Trọng số từng âm tiết + có tạo cặp với âm tiết sau hay không."""
     if plain_query:
         single = [w not in STOP_PLAIN for w in ws]
         pairs = [single[i] or single[i + 1] for i in range(len(ws) - 1)]
@@ -157,9 +120,7 @@ def syllables(text: str, plain_query: bool = False) -> list[list[str]]:
 
 
 def analyze(text: str, plain_query: bool = False, synonyms=None) -> Query:
-    """Câu truy vấn → từ (kèm trọng số) + khái niệm. synonyms (services.rag.synonyms.Synonyms): cụm khớp từ điển của
-    môn (dài nhất trước) được thêm các cách nói khác trong nhóm, TỔNG trọng số phần thêm = SYN_WEIGHT × trọng số của
-    cụm gốc (cụm 4 âm tiết thêm vào không lấn át từ viết tắt gốc); cả cụm gốc + cách nói khác tính là MỘT khái niệm."""
+    """Câu truy vấn → từ (kèm trọng số) + khái niệm."""
     terms: Counter[str] = Counter()
     concepts: list[frozenset[str]] = []
     for ws in syllables(text, plain_query):
@@ -173,7 +134,7 @@ def analyze(text: str, plain_query: bool = False, synonyms=None) -> Query:
             span = _phrase_terms(ws[i:j], plain_query)
             budget = SYN_WEIGHT * sum(span.values())
             extra: dict[str, float] = {}
-            for alt in alts:                                  # mỗi cách nói là một phương án – lấy max, không cộng
+            for alt in alts:
                 at = _phrase_terms(alt, plain_query)
                 total = sum(at.values()) or 1.0
                 for t, x in at.items():
@@ -192,8 +153,7 @@ def query_terms(text: str, plain_query: bool = False) -> dict[str, float]:
 
 
 def required(n: int, spec: str | None) -> int:
-    """Số khái niệm phải khớp theo minimum_should_match dạng "2<70%": câu ≤ 2 khái niệm phải khớp hết, dài hơn khớp ít
-    nhất 70% (làm tròn xuống, tối thiểu 1). spec None: chỉ cần khớp một từ bất kỳ."""
+    """Số khái niệm phải khớp theo minimum_should_match dạng "2<70%": câu ≤ 2 khái niệm phải khớp hết, dài hơn khớp ít nhất 70% (làm tròn xuống, tối thiểu 1)."""
     if not spec or n == 0:
         return 0
     head, pct = spec.split("<")
@@ -206,11 +166,11 @@ def _doc_text(title: str, breadcrumb: str, caption: str | None, body: str, vlm: 
 
 @dataclass
 class Index:
-    ids: list[int] = field(default_factory=list)                  # id đoạn theo thứ tự văn bản
+    ids: list[int] = field(default_factory=list)
     lengths: list[int] = field(default_factory=list)
-    postings: dict[str, list[tuple[int, int]]] = field(default_factory=dict)   # từ → [(thứ tự văn bản, tần suất)]
+    postings: dict[str, list[tuple[int, int]]] = field(default_factory=dict)
     avgdl: float = 0.0
-    folded: dict[str, list[tuple[int, int]]] | None = None     # bản bỏ dấu – dựng khi có câu truy vấn không dấu
+    folded: dict[str, list[tuple[int, int]]] | None = None
 
     @classmethod
     def build(cls, docs: list[tuple[int, str]]) -> "Index":
@@ -232,12 +192,11 @@ class Index:
                 d = acc.setdefault(fold(t), {})
                 for i, n in post:
                     d[i] = d.get(i, 0) + n
-            self.folded = {t: sorted(d.items()) for t, d in acc.items()}   # hai luồng cùng dựng: cùng kết quả
+            self.folded = {t: sorted(d.items()) for t, d in acc.items()}
         return self.folded
 
     def score(self, query: str, k: int, synonyms=None, msm: str | None = None) -> list[tuple[int, float, list[str]]]:
-        """[(id đoạn, điểm, các từ khớp)] cao nhất trước; chỉ đoạn có khớp. synonyms: từ điển đồng nghĩa của môn;
-        msm: minimum_should_match ("2<70%") – đoạn khớp ít khái niệm hơn mức yêu cầu bị loại."""
+        """[(id đoạn, điểm, các từ khớp)] cao nhất trước; chỉ đoạn có khớp."""
         n = len(self.ids)
         if not n:
             return []
@@ -281,11 +240,10 @@ class Hit:
 
 _cache: "OrderedDict[int, tuple[tuple, Index]]" = OrderedDict()
 _lock = threading.Lock()
-_building: dict[int, threading.Lock] = {}     # khóa dựng theo lớp (số lớp có hạn – không cần dọn)
+_building: dict[int, threading.Lock] = {}
 
 
 def _ready(db: Session, cs_id: int) -> tuple:
-    # vlm_model: VLM điền mô tả hình SAU khi nạp (indexed_at không đổi) – chỉ mục phải dựng lại để tìm được theo mô tả
     rows = (db.query(SectionMaterial.id, SectionMaterial.indexed_at, SectionMaterial.vlm_model)
             .filter_by(class_section_id=cs_id, status="ready").order_by(SectionMaterial.id).all())
     return tuple((i, str(t), v) for i, t, v in rows)
@@ -336,8 +294,7 @@ def _building_lock(cs_id: int) -> threading.Lock:
 
 
 def section_index(db: Session, cs_id: int, wait: bool = False) -> Index:
-    """Chỉ mục BM25 của lớp. Học liệu 'ready' của lớp đã đổi: có bản cũ thì trả bản cũ NGAY và dựng lại ở nền (một
-    luồng dựng, yêu cầu khác không chờ); chưa có bản nào (hoặc wait – luồng nạp dựng sẵn) thì dựng / chờ dựng xong."""
+    """Chỉ mục BM25 của lớp."""
     key = _ready(db, cs_id)
     if (ix := _cached(cs_id, key)) is not None:
         return ix
@@ -349,7 +306,7 @@ def section_index(db: Session, cs_id: int, wait: bool = False) -> Index:
             threading.Thread(target=_refresh, args=(db.get_bind(), cs_id), name="rag-search-index", daemon=True).start()
         return stale[1]
     with building:
-        if (ix := _cached(cs_id, key)) is not None:                # bên khác vừa dựng xong
+        if (ix := _cached(cs_id, key)) is not None:
             return ix
         return _build(db, cs_id, key)
 
@@ -361,11 +318,11 @@ def warm(db: Session, cs_id: int) -> None:
 
 def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = None, floor: float | None = None) -> list[Hit]:
     """k đoạn học liệu của lớp khớp nhất với query (BM25 + từ điển đồng nghĩa của môn)."""
-    from . import synonyms                                       # synonyms dùng bộ tách từ của module này
+    from . import synonyms
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
             .filter(ClassSection.id == cs_id).scalar())
     scored = section_index(db, cs_id).score(query, k, synonyms.for_course(code), msm)
-    from . import semantic                                       # tìm theo nghĩa: trộn với BM25 bằng RRF (suggest.fuse)
+    from . import semantic
     from .suggest import fuse
     try:
         dense = semantic.dense_top(db, cs_id, query, max(k, 10), floor=floor)
@@ -388,7 +345,7 @@ def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = N
                     SectionMaterial.class_section_id == cs_id, SectionMaterial.status == "ready")}
     out = []
     for pid, s, matched in scored:
-        if pid not in rows:                                       # vừa bị nạp lại / bỏ chọn
+        if pid not in rows:
             continue
         p, pg, m = rows[pid]
         out.append(Hit(p.id, m.id, m.title, m.file_name, m.moodle_file_url, pg.page_no, p.kind, p.title, p.breadcrumb,

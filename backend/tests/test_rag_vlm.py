@@ -69,8 +69,8 @@ def _rows(db, mid):
 def test_prompt_carries_pdf_text_and_context():
     p = vlm.prompt_for("Kho dữ liệu", True, "ETL > Thu dữ liệu", "STATIC   CAPTURE " + "x " * 500)
     assert 'môn "Kho dữ liệu"' in p and 'phần "ETL > Thu dữ liệu"' in p and "slide bài giảng" in p
-    assert "STATIC CAPTURE" in p and "…" in p and len(p) < 1500          # chữ PDF bị cắt, gộp khoảng trắng
-    assert "Chữ đọc được" not in vlm.prompt_for("Kho dữ liệu", False, "", "")   # hình không có chữ (ảnh, scan)
+    assert "STATIC CAPTURE" in p and "…" in p and len(p) < 1500
+    assert "Chữ đọc được" not in vlm.prompt_for("Kho dữ liệu", False, "", "")
 
 
 def test_describes_only_figures_then_marks_material(material, fake_vlm):
@@ -79,13 +79,13 @@ def test_describes_only_figures_then_marks_material(material, fake_vlm):
     try:
         assert vlm.describe_missing(db, cs, fetcher=lambda m: _pdf()) == 1
         rows = _rows(db, mid)
-        assert rows[0] == ("text", None, 0)                                   # đoạn chữ: không đụng tới
-        assert rows[1][0] == "figure" and "zebrafish" in rows[1][1] and rows[1][2] == 1   # vector cũ bị xóa
-        assert "STATIC CAPTURE" in fake_vlm[0]                                # gửi kèm chữ đọc từ PDF
+        assert rows[0] == ("text", None, 0)
+        assert rows[1][0] == "figure" and "zebrafish" in rows[1][1] and rows[1][2] == 1
+        assert "STATIC CAPTURE" in fake_vlm[0]
         m = db.get(SectionMaterial, mid)
-        assert m.vlm_model == "fake-vlm" and m.embed_model is None            # embed_missing sẽ tính lại vector
+        assert m.vlm_model == "fake-vlm" and m.embed_model is None
         db.rollback()
-        assert vlm.describe_missing(db, cs, fetcher=lambda m: _pdf()) == 0     # đã mô tả: không hỏi lại
+        assert vlm.describe_missing(db, cs, fetcher=lambda m: _pdf()) == 0
         assert len(fake_vlm) == 1
     finally:
         db.close()
@@ -99,7 +99,7 @@ def test_description_is_searchable_after_describe(material, fake_vlm):
         assert not any(h.material_id == mid for h in search.search(db, cs, "zebrafish"))
         vlm.describe_missing(db, cs, fetcher=lambda m: _pdf())
         db.rollback()
-        search.warm(db, cs)                                                   # như run_section: vlm_model đổi → dựng lại
+        search.warm(db, cs)
         assert any(h.material_id == mid and h.kind == "figure" for h in search.search(db, cs, "zebrafish"))
     finally:
         db.close()
@@ -134,30 +134,29 @@ def test_stops_without_writing_when_vlm_fails(material, fake_vlm, monkeypatch):
     db = SessionLocal()
     try:
         assert vlm.describe_missing(db, cs, fetcher=lambda m: _pdf()) == 0
-        assert db.get(SectionMaterial, mid).vlm_model is None                # lần sau làm lại
-        assert [r[2] for r in _rows(db, mid)] == [0, 0]                      # vector giữ nguyên
+        assert db.get(SectionMaterial, mid).vlm_model is None
+        assert [r[2] for r in _rows(db, mid)] == [0, 0]
     finally:
         db.close()
 
 
 def test_figure_refused_by_ollama_is_skipped_not_blocking(material, fake_vlm, monkeypatch):
-    """Ollama trả HTTP 500 cho riêng một hình (vd. model lặp chữ → "token repeat limit reached"): bỏ qua hình đó,
-    học liệu vẫn được đánh dấu đã mô tả – không hỏi lại mãi ở mọi lần đồng bộ."""
+    """Ollama trả HTTP 500 cho riêng một hình (vd."""
     mid, cs = material
     import httpx
 
     def refused(url, **kw):
-        assert kw["json"]["options"]["repeat_penalty"] > 1                    # chặn lặp chữ ngay từ đầu
+        assert kw["json"]["options"]["repeat_penalty"] > 1
         return httpx.Response(500, json={"error": "prediction aborted, token repeat limit reached"},
                               request=httpx.Request("POST", url))
-    monkeypatch.setattr(vlm, "describe", _real_describe)                     # fake_vlm đã thay describe
+    monkeypatch.setattr(vlm, "describe", _real_describe)
     monkeypatch.setattr(httpx, "post", refused)
     db = SessionLocal()
     try:
         assert vlm.describe_missing(db, cs, fetcher=lambda m: _pdf()) == 0
-        assert [r[1:] for r in _rows(db, mid)] == [(None, 0), (None, 0)]     # không ghi gì, vector giữ nguyên
+        assert [r[1:] for r in _rows(db, mid)] == [(None, 0), (None, 0)]
         m = db.get(SectionMaterial, mid)
-        assert m.vlm_model == "fake-vlm" and m.embed_model == "mini"          # đã xong, embed_missing không phải chạy
+        assert m.vlm_model == "fake-vlm" and m.embed_model == "mini"
     finally:
         db.close()
 
@@ -168,7 +167,7 @@ def test_describe_raises_on_connection_error(monkeypatch):
     def down(url, **kw):
         raise httpx.ConnectError("Ollama tắt")
     monkeypatch.setattr(httpx, "post", down)
-    with pytest.raises(httpx.TransportError):                                 # describe_missing bỏ dở, lần sau làm lại
+    with pytest.raises(httpx.TransportError):
         vlm.describe(b"png", "p")
 
 
@@ -176,10 +175,10 @@ def test_skipped_when_disabled_or_ollama_missing(material, monkeypatch):
     mid, cs = material
     db = SessionLocal()
     try:
-        assert settings.rag_vlm_model == ""                                   # kiểm thử tắt VLM (conftest)
+        assert settings.rag_vlm_model == ""
         assert vlm.describe_missing(db, cs, fetcher=lambda m: pytest.fail("không được tải tệp")) == 0
         monkeypatch.setattr(settings, "rag_vlm_model", "fake-vlm")
-        monkeypatch.setattr(settings, "rag_vlm_url", "http://127.0.0.1:9")   # không có Ollama
+        monkeypatch.setattr(settings, "rag_vlm_url", "http://127.0.0.1:9")
         assert not vlm.available()
         assert vlm.describe_missing(db, cs, fetcher=lambda m: pytest.fail("không được tải tệp")) == 0
         assert db.get(SectionMaterial, mid).vlm_model is None

@@ -10,7 +10,6 @@ import { useApi } from '../hooks'
 
 const EVID = { process: 'Quá trình', final: 'Cuối kỳ', any: 'Quá trình + Cuối kỳ' }
 
-// góp ý 21/10: trang BM6 của lớp theo 3 bước – BM6a lập kế hoạch → BM6b kết quả tổng hợp → BM6c/6d minh chứng; xuất Excel luôn ở đầu trang.
 export default function CloResults() {
   const { id } = useParams()
   const res = useApi(`/api/class-sections/${id}/clo-results`)

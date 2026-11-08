@@ -10,8 +10,8 @@ from app.services import lms
 from app.services.rag import search, suggest
 from app.services.rag.search import Index
 
-EXAM = 2                                   # "Thi cuối kỳ (Moodle)" của lớp gắn khóa Moodle 50 (dữ liệu mô phỏng)
-PITR, INSTEAD_OF = 29, 14                  # câu point-in-time recovery / trigger INSTEAD OF – nhiều SV làm sai
+EXAM = 2
+PITR, INSTEAD_OF = 29, 14
 URL = "http://moodle.test/pluginfile.php/1810/mod_resource/content/1/test_suggest.pdf"
 
 
@@ -21,9 +21,8 @@ def test_pages_of_groups_passages_by_page_keeping_best_rank():
 
 
 def test_fuse_rrf_by_rank_with_weights():
-    assert suggest.fuse([([1, 2, 3], 1.0), ([3, 9], 1.0)]) == [3, 1, 2, 9]             # có ở cả hai danh sách lên đầu
-    assert suggest.fuse([([1, 2, 3], 1.0), ([9], 0.1)]) == [1, 2, 3, 9]                 # chỉ ở danh sách phụ: xếp sau
-    # ... nhưng có ở CẢ HAI thì vẫn vượt lên dù trọng số phụ rất nhỏ – lý do RRF với phương án sai làm Hit@1 giảm
+    assert suggest.fuse([([1, 2, 3], 1.0), ([3, 9], 1.0)]) == [3, 1, 2, 9]
+    assert suggest.fuse([([1, 2, 3], 1.0), ([9], 0.1)]) == [1, 2, 3, 9]
     assert suggest.fuse([([1, 2, 3], 1.0), ([3, 9], 0.1)])[0] == 3
 
 
@@ -76,7 +75,7 @@ def test_wrong_answers_get_material_pages_in_results_sent_to_moodle(material):
         rows = lms.student_results(db, EXAM)
         attempts = {a for a, _ in wrong}
         no_pitr = {wrong[(a, q)] for a, q in wrong if q == PITR}
-        assert len(no_pitr) == 1                                   # một mã đề: cùng số câu cho mọi SV
+        assert len(no_pitr) == 1
         n_with, n_without = 0, 0
         ids = dict(db.execute(text("SELECT s.student_code, a.id FROM exam_attempts a JOIN students s "
                                    "ON s.id = a.student_id WHERE a.exam_id = :e"), {"e": EXAM}).fetchall())
@@ -85,16 +84,16 @@ def test_wrong_answers_get_material_pages_in_results_sent_to_moodle(material):
             mats = {m["question"]: m["pages"] for m in r["data"].get("materials", [])}
             if (att, PITR) in wrong:
                 pages = _ours(mats[wrong[(att, PITR)]], mid)
-                assert PITR in {m["question_id"] for m in r["data"]["materials"]}     # plugin khớp câu theo QB-n
+                assert PITR in {m["question_id"] for m in r["data"]["materials"]}
                 assert pages[0]["page"] == 1 and pages[0]["url"] == URL + "#page=1"
                 assert pages[0]["heading"] == "Recovery model"
                 n_with += 1
             elif att in attempts:
-                assert next(iter(no_pitr)) not in mats                # làm đúng câu đó: không gợi ý câu đó
+                assert next(iter(no_pitr)) not in mats
                 n_without += 1
         assert n_with == 25 and n_without > 0
         assert all("clos" not in lms.public_data(r["data"]) for r in rows)
-        assert any(lms.public_data(r["data"]).get("materials") for r in rows)  # gợi ý được gửi cho SV
+        assert any(lms.public_data(r["data"]).get("materials") for r in rows)
     finally:
         db.close()
 
@@ -124,9 +123,9 @@ def test_lecturer_previews_suggestions_per_question(client, gv, gv_other, materi
 
 def test_close_pages_drops_pages_far_below_the_closest():
     pages = [("a", 0.60), ("b", 0.70), ("c", 0.56), ("d", 0.40)]
-    assert suggest.close_pages(pages, 0.15) == ["a", "b", "c"]                  # giữ thứ tự gợi ý, bỏ d (0,70 − 0,40)
+    assert suggest.close_pages(pages, 0.15) == ["a", "b", "c"]
     assert suggest.close_pages(pages, None, 0.58) == ["a", "b"]
-    assert suggest.close_pages([("x", 0.1)], 0.15) == ["x"]                     # trang gần nhất luôn được giữ
+    assert suggest.close_pages([("x", 0.1)], 0.15) == ["x"]
     assert suggest.close_pages([], 0.15) == []
 
 
@@ -138,11 +137,10 @@ def test_weak_pages_are_trimmed_after_the_gate(material, monkeypatch):
         q = db.get(Question, PITR)
         full = suggest.for_question(db, cs, q)
         assert len(full) >= 2
-        # đoạn đứng đầu rất gần câu hỏi, các đoạn khác kém xa → chỉ còn trang của đoạn đầu
         monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.8] + [0.5] * (len(embs) - 1))
         trimmed = suggest.for_question(db, cs, q)
         assert [(p.material_id, p.page_no) for p in trimmed] == [(full[0].material_id, full[0].page_no)]
-        monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.4] * len(embs))   # dưới cổng: không gợi ý
+        monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.4] * len(embs))
         assert suggest.for_question(db, cs, q) == []
     finally:
         db.close()

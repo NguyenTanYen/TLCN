@@ -1,8 +1,4 @@
 <?php
-// Bản dịch tiếng Việt các nhãn in trên đề thi / phiếu trả lời của plugin Offline Quiz (mod_offlinequiz).
-// cli/setup.php của local_clo chép tệp này vào <dataroot>/lang/vi_local/offlinequiz.php
-// (tùy biến ngôn ngữ chuẩn của Moodle – không sửa mã nguồn plugin).
-// ĐƯỢC TẠO BỞI local_clo
 defined('MOODLE_INTERNAL') || die();
 
 $string['answerform'] = 'Phiếu trả lời';
@@ -23,7 +19,6 @@ $string['formforcorrection'] = 'Đáp án – mã đề {$a}';
 $string['modulename'] = 'Bài thi giấy (Offline Quiz)';
 $string['modulenameplural'] = 'Bài thi giấy (Offline Quiz)';
 
-// Nhãn điều hướng / trang tải phiếu quét (để giảng viên dễ tìm chức năng quét phiếu).
 $string['tabofflinequizcontent'] = 'Chuẩn bị đề';
 $string['preparation'] = '1. Chuẩn bị đề';
 $string['tabeditgroupquestions'] = 'Câu hỏi';

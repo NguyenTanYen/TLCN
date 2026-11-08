@@ -1,4 +1,3 @@
-// Ôn tập: xem SV nào yếu ở chương/câu nào → chọn một SV hoặc cả nhóm cùng yếu một chương → tạo bài kiểm tra lại đúng phần đó.
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, auth } from '../api'
@@ -7,17 +6,17 @@ import { useApi } from '../hooks'
 
 export default function Remedial() {
   const { id } = useParams()
-  const isAdmin = auth.user()?.role === 'admin'      // Bộ môn chỉ xem, không tạo bài ôn tập
+  const isAdmin = auth.user()?.role === 'admin'
   const cs = useApi('/api/class-sections').data?.find(x => String(x.id) === id)
-  const [exams, setExams] = useState(null)       // null = mọi bài đã phân tích
+  const [exams, setExams] = useState(null)
   const ov = useApi(`/api/class-sections/${id}/remedial${exams ? `?exam_ids=${exams.join(',')}` : ''}`)
-  const prog = useApi(`/api/class-sections/${id}/remedial-exams`)      // góp ý F5: tiến bộ sau phụ đạo
+  const prog = useApi(`/api/class-sections/${id}/remedial-exams`)
   const [open, setOpen] = useState(null)
   const [pick, setPick] = useState([])
   const [mk, setMk] = useState(false)
   const [view, setView] = useState('chapters')
   const [chapPick, setChapPick] = useState([])
-  const [outlines, setOutlines] = useState([])      // chương được chọn khi tạo bài cho nhóm
+  const [outlines, setOutlines] = useState([])
   const d = ov.data
   const sel = exams || d?.selected || []
   const weak = useMemo(() => (d?.students || []).filter(s => s.n_wrong > 0), [d])
@@ -80,7 +79,6 @@ export default function Remedial() {
 const pctCell = v => v == null ? <span className="muted">—</span> : `${v}%`
 const ST_VI = { finished: 'Đã nộp', inprogress: 'Đang làm', not_started: 'Chưa làm' }
 
-// Mỗi bài phụ đạo: SV được giao, điểm trên chính các câu đã đưa lại ở bài trước → ở bài phụ đạo
 function Progress({ list }) {
   return <Card title={`Bài ôn tập đã giao (${list.length}) – tiến bộ của sinh viên`}>
     <p className="muted small">"Trước": tỷ lệ điểm trên các câu của bài ôn tập mà SV đã làm ở bài kiểm tra chính thức. "Sau (cùng câu)": tỷ lệ điểm trên chính các câu đó ở bài ôn tập. "Cả bài": gồm cả câu tương tự.</p>

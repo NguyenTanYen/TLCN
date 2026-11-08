@@ -1,4 +1,3 @@
-// Bộ môn: danh sách học phần theo CTĐT – bấm học phần để xem/sửa đề cương chi tiết, CLO, lớp.
 import { useMemo, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Link, useNavigate } from 'react-router-dom'

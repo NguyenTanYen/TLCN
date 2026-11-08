@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-// Nhãn PLO: CTĐT cũ lưu mã '1.3', CTĐT 2026 lưu 'PLO6' → không lặp chữ PLO
 export const ploLabel = c => (/^PLO/i.test(String(c || '')) ? c : `PLO ${c}`)
 
 export function Card({ title, actions, children, className = '' }) {
@@ -28,10 +27,9 @@ export function Loading({ error, loading }) {
   return null
 }
 
-// size: 'sm' (hộp xác nhận) | mặc định (biểu mẫu ngắn) | 'md' (lựa chọn, danh sách) | 'wide' (bảng, soạn đề)
 export function Modal({ title, onClose, children, wide, size }) {
   const hid = useId()
-  useEffect(() => {  // Esc để đóng
+  useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -46,13 +44,11 @@ export function Modal({ title, onClose, children, wide, size }) {
   )
 }
 
-// group=true: nhóm nhiều ô (checkbox/radio có nhãn riêng) – dùng <fieldset> thay vì <label> để không lồng nhãn
 export function Field({ label, children, hint, group }) {
   if (group) return <fieldset className="field"><legend>{label}</legend>{children}{hint && <small className="muted">{hint}</small>}</fieldset>
   return <label className="field"><span>{label}</span>{children}{hint && <small className="muted">{hint}</small>}</label>
 }
 
-// Nút chọn tệp: là <button> thật (dùng được bằng bàn phím), chọn lại cùng một tệp vẫn kích hoạt
 export function FileButton({ label, accept, onPick, className = 'btn primary', disabled }) {
   const ref = useRef(null)
   return <>
@@ -61,7 +57,6 @@ export function FileButton({ label, accept, onPick, className = 'btn primary', d
   </>
 }
 
-// ---- thông báo nhanh (toast)
 const ToastCtx = createContext(() => {})
 export function ToastProvider({ children }) {
   const [items, setItems] = useState([])
@@ -74,8 +69,6 @@ export function ToastProvider({ children }) {
 }
 export const useToast = () => useContext(ToastCtx)
 
-// Nút thực hiện hành động bất đồng bộ, tự báo lỗi/thành công
-// confirm: câu hỏi xác nhận trước thao tác không hoàn tác được
 export function ActionButton({ onRun, children, className = 'btn', okMsg, disabled, title, confirm }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
@@ -98,20 +91,16 @@ export function diClass(di) {
   di = Number(di); return di < 0 ? 'bad' : di < 0.2 ? 'warn' : di < 0.3 ? 'mid' : 'ok'
 }
 
-// Chọn CTĐT đang làm việc (dùng với useProgram())
 export function ProgramPicker({ programs, pid, setPid }) {
   return <Field label="Chương trình đào tạo"><select value={pid || ''} onChange={e => setPid(e.target.value)}>
     {programs?.map(p => <option key={p.id} value={p.id}>{p.code} – {p.name}{p.cohort_year ? ` (khóa ${p.cohort_year})` : ''}</option>)}</select></Field>
 }
 
-// Đường dẫn phân cấp trên đầu trang: [['/', 'Môn học'], [null, 'DBMS330284_01']]
 export function Crumbs({ items }) {
   return <nav className="crumb" aria-label="Đường dẫn">{items.filter(Boolean).map(([to, label], i) => <span key={i}>{i > 0 && <span className="sep"> › </span>}
     {to ? <Link to={to}>{label}</Link> : <span>{label}</span>}</span>)}</nav>
 }
 
-// Luồng công việc chính (góp ý 21/10: nhìn vào là biết làm gì trước, gì sau). Mỗi bước: { label, sub, done, on, to | onClick, tab }
-// tab=true: bước là một thẻ của trang (role="tab", tên = label để kiểm thử/đọc màn hình); số thứ tự aria-hidden.
 export function Flow({ steps, extra }) {
   return <div className="flow-wrap"><ol className="flow" role={steps.some(s => s?.tab) ? 'tablist' : undefined}>{steps.filter(Boolean).map((s, i) => {
     const body = <><span className="flow-n" aria-hidden="true">{s.done && !s.on ? '✓' : i + 1}</span><span className="flow-t"><b>{s.label}</b>{s.sub && <small>{s.sub}</small>}</span></>
@@ -121,12 +110,8 @@ export function Flow({ steps, extra }) {
   })}</ol>{extra && <div className="flow-x">{extra}</div>}</div>
 }
 
-// Thẻ chọn nhanh (tab) đồng bộ với ?tab= trên địa chỉ trang
-// Bỏ dấu tiếng Việt để tìm "co so du lieu" vẫn ra "Cơ sở dữ liệu"
 export const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
 
-// Ô chọn học phần có tìm kiếm (góp ý 23/10: CTĐT có hàng trăm học phần, ô select thường khó chọn).
-// Gõ mã hoặc tên (có/không dấu) để lọc; ↑ ↓ Enter để chọn, Esc để đóng. value/onChange dùng id dạng chuỗi như <select>.
 export function CourseSelect({ courses, value, onChange, placeholder = '— chọn môn học —', allowEmpty = false, disabled }) {
   const label = c => `${c.course_code} – ${c.course_name}`
   const cur = (courses || []).find(c => String(c.id) === String(value))
@@ -137,7 +122,6 @@ export function CourseSelect({ courses, value, onChange, placeholder = '— ch�
   const [pos, setPos] = useState(null)
   useEffect(() => {
     if (!open) return
-    // danh sách dùng position: fixed theo vị trí ô nhập – không bị khung thẻ / hộp thoại (overflow: auto) cắt mất
     const place = () => { const r = box.current?.getBoundingClientRect(); if (r) { const w = Math.min(Math.max(r.width, 440), window.innerWidth - 16); setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)), top: r.bottom + 2, width: w }) } }
     const off = e => { if (box.current && !box.current.contains(e.target)) setOpen(false) }
     place()

@@ -1,12 +1,4 @@
-"""Phụ đạo (góp ý 15/10): mỗi SV trả lời sai bao nhiêu câu → bấm vào SV xem danh sách câu sai → tạo bài KT phụ đạo riêng
-cho một SV hoặc một nhóm SV (câu đã sai + câu tương tự cùng CLO/chương trong ngân hàng câu hỏi).
-
-Bài phụ đạo là bài KT bình thường của lớp HP (phát hành lên Moodle Quiz hoặc in giấy, chấm như mọi bài) nhưng mặc định
-KHÔNG gộp vào minh chứng CLO (counts_for_clo = 0), có parent_exam_id = bài gốc và target_students = MSSV được giao.
-
-Góp ý F5: Quiz phụ đạo trên Moodle chỉ các SV được giao thấy và làm được (nhóm Moodle + điều kiện truy cập, xem
-routers/lms.py), và theo dõi tiến bộ của từng SV: tỷ lệ điểm trên chính các câu đó ở bài trước → ở bài phụ đạo.
-"""
+"""Phụ đạo (góp ý 15/10): mỗi SV trả lời sai bao nhiêu câu → bấm vào SV xem danh sách câu sai → tạo bài KT phụ đạo riêng cho một SV hoặc một nhóm SV (câu đã sai + câu tương tự cùng CLO/chương trong ngân hàng câu hỏi)."""
 import random
 from typing import Literal, Optional
 
@@ -24,11 +16,11 @@ router = APIRouter(prefix="/api", tags=["Ôn tập theo câu trả lời sai (ph
 
 class RemedialIn(BaseModel):
     student_ids: list[int] = Field(min_length=1)
-    exam_ids: list[int] = []                    # rỗng = mọi bài đã phân tích của lớp
+    exam_ids: list[int] = []
     exam_title: Optional[str] = Field(default=None, max_length=255)
     exam_type: Literal["online", "paper"] = "online"
     similar_per_question: int = Field(default=1, ge=0, le=3, description="Số câu tương tự (cùng CLO, cùng chương) thêm cho mỗi câu sai")
-    include_wrong: bool = True                  # đưa lại chính các câu đã sai
+    include_wrong: bool = True
     max_questions: int = Field(default=40, ge=1, le=200)
     max_score: float = Field(default=10, gt=0, le=100)
     outline_ids: list[int] = Field(default=[], description="Chỉ lấy các câu sai thuộc những chương này (rỗng = mọi chương)")
@@ -97,7 +89,6 @@ def remedial_overview(cs_id: int, exam_ids: str = "", u: User = Depends(require(
                 WHERE a.exam_id IN :ids AND a.status='finished'
                 GROUP BY s.id, s.student_code, s.full_name ORDER BY n_wrong DESC, s.student_code""").bindparams(bindparam("ids", expanding=True))
     studs = [dict(r) for r in db.execute(q, {"ids": ids}).mappings()]
-    # nội dung (chương) mỗi SV còn yếu: gom từ các câu làm sai/bỏ trống
     wrong_all = _wrong_rows(db, ids)
     by_stu: dict[int, dict] = {}
     by_chap: dict[str, dict] = {}
@@ -164,9 +155,7 @@ def _pct(db: Session, exam_ids: list[int], student_id: int, qids: list[int]):
 
 @router.get("/class-sections/{cs_id}/remedial-exams")
 def remedial_progress(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Các bài phụ đạo của lớp và tiến bộ của từng SV được giao (góp ý F5):
-    - before_pct: điểm trên các câu của bài phụ đạo mà SV đã làm ở các bài KT chính thức trước đó (câu đã sai được đưa lại);
-    - after_same_pct: điểm trên chính các câu đó ở bài phụ đạo; after_pct: điểm cả bài phụ đạo (gồm câu tương tự)."""
+    """Các bài phụ đạo của lớp và tiến bộ của từng SV được giao (góp ý F5): - before_pct: điểm trên các câu của bài phụ đạo mà SV đã làm ở các bài KT chính thức trước đó (câu đã sai được đưa lại); - after_same_pct: điểm trên chính các câu đó ở bài phụ đạo; after_pct: điểm cả bài phụ đạo (gồm câu tương tự)."""
     check_section_access(db, u, cs_id)
     regular = [r[0] for r in db.execute(text("""SELECT id FROM exams WHERE class_section_id=:cs AND target_students IS NULL
                                                 AND status IN ('Synced','Analyzed')"""), {"cs": cs_id})]
@@ -231,7 +220,7 @@ def create_remedial(cs_id: int, body: RemedialIn, u: User = Depends(lecturer_onl
     freq = {}
     for r in wrong:
         freq[r["question_id"]] = freq.get(r["question_id"], 0) + 1
-    base = sorted(freq, key=lambda q: -freq[q])                # câu nhiều SV sai nhất trước
+    base = sorted(freq, key=lambda q: -freq[q])
     seen = {r[0] for r in db.execute(text("""SELECT DISTINCT eq.question_id FROM exam_questions eq JOIN exams e ON e.id=eq.exam_id
                                              WHERE e.class_section_id=:cs"""), {"cs": cs_id})}
     pool = {}
@@ -248,7 +237,7 @@ def create_remedial(cs_id: int, body: RemedialIn, u: User = Depends(lecturer_onl
         if body.similar_per_question and qid in pool:
             o, cl = pool[qid]
             cands = [x for x, (o2, c2) in pool.items() if x not in used and x not in seen and c2 & cl]
-            cands.sort(key=lambda x: (pool[x][0] != o, rng.random()))   # ưu tiên cùng chương
+            cands.sort(key=lambda x: (pool[x][0] != o, rng.random()))
             for x in cands[:body.similar_per_question]:
                 chosen.append(x); used.add(x)
         if len(chosen) >= body.max_questions:

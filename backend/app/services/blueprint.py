@@ -1,26 +1,10 @@
-"""Sinh đề theo ma trận đề thi (UC-02).
-
-Ma trận đề là bảng **chương × mức Bloom** ghi số câu cần lấy ở mỗi ô; kèm theo yêu cầu **phủ CLO**
-(mỗi CLO trong phạm vi bài có tối thiểu một số câu). Có hai cách dùng:
-
-* **Tự động:** giảng viên chỉ nhập số câu (và tùy chọn phạm vi chương, phân bố mức độ). Hệ thống tự lập ma trận:
-  chia số câu cho các chương theo lượng câu sẵn có (mỗi chương ít nhất 1 câu khi đủ số câu), chia theo mức Bloom
-  theo tỷ lệ mong muốn, rồi lấp từng ô trong giới hạn số câu sẵn có của ô đó.
-* **Theo ma trận của giảng viên:** giảng viên nhập số câu từng ô; ô nào ngân hàng không đủ câu thì báo thiếu cụ thể.
-
-Trong mỗi ô, câu được chọn để **phủ đều CLO** (ưu tiên CLO còn thiếu), tránh câu có DI âm/thấp, ưu tiên câu ít được dùng;
-yếu tố ngẫu nhiên (có `seed`) giúp sinh nhiều đề khác nhau từ cùng một ma trận.
-Kiểm tra chương: chỉ lấy câu trong các chương được chọn; CLO không có câu nào trong các chương đó được báo là
-"không đo trong bài này" (thông tin), không tính là thiếu.
-Hàm `generate` là hàm thuần (không truy cập CSDL) để kiểm thử độc lập.
-"""
+"""Sinh đề theo ma trận đề thi (UC-02)."""
 from __future__ import annotations
 
 import math
 import random
 from dataclasses import dataclass, field
 
-# Tỷ lệ % mặc định theo mức Bloom (1 Nhớ … 6 Sáng tạo) – "cân bằng"
 PRESETS = {
     "balanced": {1: 20, 2: 30, 3: 30, 4: 15, 5: 5, 6: 0},
     "basic": {1: 35, 2: 40, 3: 20, 4: 5, 5: 0, 6: 0},
@@ -33,7 +17,7 @@ class Q:
     id: int
     outline_id: int | None
     bloom: int
-    clos: dict[int, float]          # clo_id -> trọng số
+    clos: dict[int, float]
     avg_p: float | None = None
     avg_di: float | None = None
     n_exams: int = 0
@@ -42,16 +26,14 @@ class Q:
 @dataclass
 class Result:
     items: list[int] = field(default_factory=list)
-    target: dict[tuple, int] = field(default_factory=dict)     # (outline_id, bloom) -> số câu
+    target: dict[tuple, int] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     info: list[str] = field(default_factory=list)
 
 
 def largest_remainder(total: int, weights: dict, caps: dict | None = None) -> dict:
-    """Chia `total` thành các phần nguyên theo tỷ lệ `weights` bằng phương pháp phần dư lớn nhất (Hamilton):
-    lấy phần nguyên của phần lý tưởng, phần còn lại cấp cho khóa có phần lẻ lớn nhất (hòa thì khóa có trọng số lớn hơn).
-    Khóa chạm trần `caps` thì phần thừa được chia lại cho các khóa còn chỗ."""
+    """Chia `total` thành các phần nguyên theo tỷ lệ `weights` bằng phương pháp phần dư lớn nhất (Hamilton): lấy phần nguyên của phần lý tưởng, phần còn lại cấp cho khóa có phần lẻ lớn nhất (hòa thì khóa có trọng số lớn hơn)."""
     out = {k: 0 for k in weights}
     cap = lambda k: caps.get(k, 0) if caps is not None else 10 ** 9
     remaining = max(total, 0)
@@ -96,7 +78,6 @@ def auto_matrix(pool: list[Q], n: int, bloom_mix: dict[int, float]) -> dict[tupl
     chapters = sorted({k[0] for k in avail}, key=lambda x: (x is None, x))
     ch_avail = {c: sum(v for k, v in avail.items() if k[0] == c) for c in chapters}
     bl_avail = {b: sum(v for k, v in avail.items() if k[1] == b) for b in range(1, 7)}
-    # Chương: mỗi chương ít nhất 1 câu (nếu đủ số câu), phần còn lại theo lượng câu sẵn có
     ch_q = {c: 0 for c in chapters}
     if n >= len(chapters):
         for c in chapters:
@@ -106,7 +87,6 @@ def auto_matrix(pool: list[Q], n: int, bloom_mix: dict[int, float]) -> dict[tupl
             ch_q[c] += rest[c]
     else:
         ch_q = largest_remainder(n, ch_avail, ch_avail)
-    # Mức Bloom: theo tỷ lệ mong muốn, giới hạn bởi số câu sẵn có; nếu thiếu thì lấy bù từ mức khác
     w = {b: bloom_mix.get(b, 0) for b in range(1, 7)}
     bl_q = largest_remainder(n, w, bl_avail)
     short = n - sum(bl_q.values())
@@ -114,7 +94,6 @@ def auto_matrix(pool: list[Q], n: int, bloom_mix: dict[int, float]) -> dict[tupl
         extra = largest_remainder(short, {b: 1 for b in range(1, 7)}, {b: bl_avail[b] - bl_q[b] for b in range(1, 7)})
         for b in extra:
             bl_q[b] += extra[b]
-    # Lấp ô: mỗi lần thêm 1 câu vào ô có (thiếu hụt chương + thiếu hụt mức) lớn nhất còn câu
     target = {k: 0 for k in avail}
     for _ in range(n):
         best, key = None, None
@@ -135,7 +114,7 @@ def auto_matrix(pool: list[Q], n: int, bloom_mix: dict[int, float]) -> dict[tupl
 def generate(pool: list[Q], n: int | None = None, matrix: dict[tuple, int] | None = None, scope_clos: list[int] | None = None,
              bloom_mix: dict[int, float] | None = None, min_per_clo: int | None = None, fixed: list[int] | None = None,
              prefer_unused: bool = True, seed: int | None = None, names: dict | None = None) -> Result:
-    """Chọn câu theo ma trận. `matrix` (nếu có) là ma trận của giảng viên; nếu không, lập tự động cho `n` câu."""
+    """Chọn câu theo ma trận."""
     names = names or {}
     ch_name = names.get("chapter", lambda c: f"chương {c}")
     bl_name = names.get("bloom", lambda b: f"mức {b}")
@@ -177,7 +156,6 @@ def generate(pool: list[Q], n: int | None = None, matrix: dict[tuple, int] | Non
                                     f"{len([q for q in pool if q.bloom == b])} câu – đã lấy bù ở mức khác")
     res.target = target
 
-    # Phạm vi CLO và yêu cầu phủ tối thiểu
     pool_clos = sorted({c for q in pool for c in q.clos})
     clos = [c for c in (scope_clos or pool_clos) if c in pool_clos]
     if scope_clos:
@@ -193,7 +171,6 @@ def generate(pool: list[Q], n: int | None = None, matrix: dict[tuple, int] | Non
         for c in by_id[qid].clos:
             if c in cover:
                 cover[c] += 1
-    # Lấp từng ô: ô ít lựa chọn trước để không "tiêu" mất câu hiếm
     fixed_in = {}
     for qid in fixed:
         k = (by_id[qid].outline_id, by_id[qid].bloom)
@@ -214,7 +191,6 @@ def generate(pool: list[Q], n: int | None = None, matrix: dict[tuple, int] | Non
                 if c in cover:
                     cover[c] += 1
 
-    # Sửa phủ CLO: đổi câu cùng ô (giữ nguyên ma trận) nếu còn CLO thiếu
     for c in [c for c in clos if cover[c] < k_min]:
         for _ in range(k_min - cover[c]):
             swapped = False

@@ -1,7 +1,6 @@
 <?php
 defined('MOODLE_INTERNAL') || die();
 
-/** SCSS chính = preset mặc định của Boost + phần tùy biến của UTE. */
 function theme_ute_get_main_scss_content($theme) {
     global $CFG;
     $scss = file_get_contents($CFG->dirroot . '/theme/boost/scss/preset/default.scss');
@@ -9,7 +8,6 @@ function theme_ute_get_main_scss_content($theme) {
     return $scss;
 }
 
-/** Biến SCSS đặt trước (màu chủ đạo, phông chữ, bo góc). */
 function theme_ute_get_pre_scss($theme) {
     $brand = !empty($theme->settings->brandcolor) ? $theme->settings->brandcolor : '#0b3d91';
     $accent = !empty($theme->settings->accentcolor) ? $theme->settings->accentcolor : '#f5a623';
@@ -20,12 +18,10 @@ function theme_ute_get_pre_scss($theme) {
     return $scss;
 }
 
-/** SCSS bổ sung do quản trị nhập (Quản trị > Giao diện > UTE). */
 function theme_ute_get_extra_scss($theme) {
     return !empty($theme->settings->scss) ? $theme->settings->scss : '';
 }
 
-/** Dữ liệu dùng chung cho banner trang chủ / dải chào mừng ở bảng điều khiển. */
 function theme_ute_hero_context(): array {
     global $DB, $USER;
     $cfg = get_config('theme_ute');

@@ -22,7 +22,6 @@ import Remedial from './pages/Remedial'
 import Guide from './components/Help'
 import Home from './pages/Home'
 
-// Điều hướng theo vai trò: GV làm việc theo Môn học → các lớp → bài kiểm tra; Bộ môn quản lý theo CTĐT → học phần → CLO
 const ROLE_VI = { admin: 'Bộ môn / Quản trị', lecturer: 'Giảng viên' }
 
 function useMoodleUrl() {
@@ -84,7 +83,7 @@ function Shell({ user, children }) {
 export default function App() {
   const user = auth.user()
   if (!auth.token || !user) return <Routes><Route path="*" element={<Login />} /></Routes>
-  if (!MENUS[user.role]) {  // sinh viên: xem kết quả trên Moodle
+  if (!MENUS[user.role]) {
     auth.clear()
     return <Routes><Route path="*" element={<Login />} /></Routes>
   }

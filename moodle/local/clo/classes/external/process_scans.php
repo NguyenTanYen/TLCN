@@ -8,11 +8,6 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Cho Moodle nhận diện & chấm ngay các phiếu trả lời đã tải lên (đang chờ trong hàng đợi của Offline Quiz),
- * không phải đợi tác vụ định kỳ (cron) – hữu ích khi Moodle chạy trên XAMPP không bật cron.
- * Việc nhận diện và chấm vẫn do chính plugin Offline Quiz thực hiện (offlinequiz_evaluation_cron).
- */
 class process_scans extends external_api {
 
     public static function execute_parameters(): external_function_parameters {

@@ -63,7 +63,7 @@ def test_save_document_pages_passages_and_status(db):
         (2, "text", "Chương 3: Ràng buộc > Khóa ngoại"),
         (2, "table", "Chương 3: Ràng buộc > Khóa ngoại")]
     assert rows[2].body.startswith("|Cột|Ràng buộc|") and rows[2].is_code is False
-    assert rows[1].bboxes == [list(b) for b in passages[1].bboxes]       # JSON khung tô đọc lại đúng
+    assert rows[1].bboxes == [list(b) for b in passages[1].bboxes]
     pg = db.query(MaterialPage).filter_by(material_id=m.id, page_no=2).one()
     assert (float(pg.width), float(pg.height), pg.is_scanned) == (720.0, 540.0, False)
 
@@ -73,7 +73,7 @@ def test_reindex_replaces_old_rows(db):
     pages = ingest.read_pdf(_pdf())
     passages = chunk.build_passages(pages)
     store.save_document(db, m, pages, passages)
-    store.save_document(db, m, pages, passages)                          # GV sửa tệp → nạp lại
+    store.save_document(db, m, pages, passages)
     db.commit()
     assert db.query(MaterialPage).filter_by(material_id=m.id).count() == 2
     assert db.query(MaterialPassage).filter_by(material_id=m.id).count() == len(passages)
@@ -83,11 +83,11 @@ def test_same_file_twice_in_one_section_rejected(db):
     _material(db, "test_rag_a.pdf", "b" * 40)
     db.commit()
     with pytest.raises(IntegrityError):
-        _material(db, "test_rag_b.pdf", "b" * 40)                        # cùng nội dung (SHA-1), khác tên tệp
+        _material(db, "test_rag_b.pdf", "b" * 40)
 
 
-@pytest.mark.parametrize("kw", [dict(source="moodle"),                    # tệp Moodle phải có moodle_cmid
-                                dict(material_type="exam"),              # chỉ slide / reference
+@pytest.mark.parametrize("kw", [dict(source="moodle"),
+                                dict(material_type="exam"),
                                 dict(status="done")])
 def test_material_checks(db, kw):
     with pytest.raises((IntegrityError, OperationalError)):

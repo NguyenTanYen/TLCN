@@ -1,8 +1,3 @@
-// VAI TRÒ GIẢNG VIÊN (gv.son) – 15 flow GV1..GV15, chạy sau tệp 01 (dùng học phần, lớp mà Bộ môn vừa tạo – .state.json).
-// Trên học phần kiểm thử (lớp UIxxxxxx_01, chưa có khóa học Moodle): SV, ngân hàng câu hỏi, đề trực tuyến, đề giấy chấm trên
-// hệ thống, bài nhập điểm, kết quả CLO, rubric.
-// Các flow @moodle dùng môn demo DBMS330284 / lớp DBMS330284_01 (khóa học Moodle id 7): SSO, đồng bộ SV, đồng bộ câu hỏi
-// 2 chiều, đồng bộ bài làm, phụ đạo (tạo Quiz + giới hạn SV), công bố kết quả.
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -11,7 +6,6 @@ const { test, expect } = require('@playwright/test')
 const H = require('./helpers')
 const { nav, modal, card, tab, field, pick, toast, see, goto, api } = H
 
-// MSSV 8 chữ số như MSSV thật – phiếu trả lời giấy chỉ tô được chữ số
 const STUDENTS = [['26990001', 'Nguyễn Văn An'], ['26990002', 'Trần Thị Bình'], ['26990003', 'Lê Văn Cường'],
   ['26990004', 'Phạm Thị Dung'], ['26990005', 'Hoàng Văn Em']]
 const TMP = os.tmpdir()
@@ -21,35 +15,31 @@ const S = H.loadState()
 
 test.beforeEach(async ({ page }) => {
   test.skip(!S.cid || !S.cs, 'Chưa có học phần kiểm thử – chạy tệp 01-bo-mon trước')
-  await H.login(page, H.GV)                    // mỗi test đăng nhập giảng viên gv.son
+  await H.login(page, H.GV)
 })
 test.afterEach(() => H.saveState(S))
 
-/** id môn và lớp demo DBMS330284 / DBMS330284_01 – lấy qua API của chính GV đang đăng nhập. */
 async function demoIds(page) {
   const sections = await api(page, '/api/class-sections')
   const s = sections.find(x => x.section_code === H.DEMO.section)
   return { cid: s.course_id, cs: s.id }
 }
 
-/** Ngân hàng câu hỏi → "+ Thêm câu hỏi": nội dung, chương, Bloom, 4 phương án (A đúng), tích CLO → Lưu. */
 async function addQuestion(page, content, chapter, bloom, clo) {
   await page.getByRole('button', { name: '+ Thêm câu hỏi' }).click()
   const m = modal(page)
   await m.getByLabel('Nội dung câu hỏi').fill(content)
   await pick(m.getByLabel('Chương (đề cương)'), `Chương ${chapter}.`)
   await pick(m.getByLabel('Mức Bloom'), bloom)
-  const opts = await m.locator('.opt input.grow').all()                   // 4 ô phương án; A mặc định là đáp án đúng
+  const opts = await m.locator('.opt input.grow').all()
   for (const [i, o] of opts.entries()) await o.fill(`Phương án ${'ABCD'[i]} – ${content.slice(0, 30)}`)
   await m.locator('.clo-w').filter({ has: page.locator('b', { hasText: clo }) }).locator('input[type=checkbox]').check()
   await m.getByRole('button', { name: 'Lưu' }).click()
   await toast(page, 'Đã lưu câu hỏi')
 }
 
-/** Lấy id bài KT từ địa chỉ trang /exams/<id>. */
 const examIdFromUrl = page => Number(page.url().match(/\/exams\/(\d+)/)[1])
 
-// ================================================================== GV1 – Đăng nhập
 test('GV1 – Giảng viên đăng nhập: menu chỉ có mục của GV', async ({ page }) => {
   await test.step('Bước 1: có Môn học của tôi, Ngân hàng câu hỏi, Chương trình đào tạo', async () => {
     for (const item of ['Tổng quan', 'Môn học của tôi', 'Ngân hàng câu hỏi', 'Chương trình đào tạo']) await expect(nav(page, item)).toBeVisible()
@@ -81,7 +71,6 @@ test('GV1b – SSO: gv.son bấm "Phân tích CĐR" trên Moodle → vào thẳn
   await p.context().close()
 })
 
-// ================================================================== GV2 – Môn của tôi, chỉ xem đề cương, phân quyền
 test('GV2 – Thấy môn mình phụ trách, chỉ xem đề cương bản đang áp dụng; GV khác bị chặn', async ({ page, browser }) => {
   await test.step('Bước 1: Môn học của tôi → có môn kiểm thử (được phân công ở AD5) và môn demo', async () => {
     await goto(page, '/courses')
@@ -94,7 +83,7 @@ test('GV2 – Thấy môn mình phụ trách, chỉ xem đề cương bản đan
     await expect(page.getByRole('tab', { name: 'Thiết lập học phần' })).toHaveCount(0)
   })
   await test.step('Bước 3: đề cương hiện "Phiên bản 1: Đang áp dụng" (không phải bản nháp 2), không có nút Sửa', async () => {
-    await tab(page, 'Đề cương chi tiết').click()                    // trang môn mở sẵn bước "Lớp học phần" – chuyển sang đề cương
+    await tab(page, 'Đề cương chi tiết').click()
     await see(page, 'Phiên bản 1: Đang áp dụng')
     await see(page, 'Bộ môn quản lý – giảng viên chỉ xem')
     await expect(page.locator('.syl h4').getByRole('button', { name: 'Sửa' })).toHaveCount(0)
@@ -109,7 +98,6 @@ test('GV2 – Thấy môn mình phụ trách, chỉ xem đề cương bản đan
   })
 })
 
-// ================================================================== GV3 – Danh sách sinh viên
 test('GV3 – Nhập danh sách 5 SV vào lớp từ tệp CSV', async ({ page }) => {
   const csv = path.join(TMP, 'ds_sv_kiem_thu.csv')
   await test.step('Bước 1: tạo tệp ds.csv (UTF-8): student_code, full_name, class_name', async () => {
@@ -138,7 +126,6 @@ test('GV3b – Môn demo: "Cập nhật lớp từ Moodle" cập nhật SV đang
   })
 })
 
-// ================================================================== GV4 – Ngân hàng câu hỏi
 test('GV4 – Soạn câu hỏi, cây PLO → PI → CLO, lọc theo PI, Hủy câu', async ({ page }) => {
   const tree = page.locator('.otree')
   await test.step('Bước 1: Ngân hàng câu hỏi → mở môn kiểm thử', async () => {
@@ -167,7 +154,7 @@ test('GV4 – Soạn câu hỏi, cây PLO → PI → CLO, lọc theo PI, Hủy c
     await page.locator('tr').filter({ hasText: 'Câu hỏi soạn nhầm cần Hủy' }).getByRole('button', { name: 'Chi tiết' }).click()
     const m = modal(page)
     await m.getByPlaceholder('Lý do Hủy câu hỏi…').fill('Đáp án sai, soạn lại')
-    page.once('dialog', d => d.accept())                                   // hộp xác nhận của trình duyệt
+    page.once('dialog', d => d.accept())
     await m.getByRole('button', { name: /Hủy câu hỏi/ }).click()
     await toast(page, 'Đã Hủy câu hỏi')
     await H.closeModals(page)
@@ -175,7 +162,6 @@ test('GV4 – Soạn câu hỏi, cây PLO → PI → CLO, lọc theo PI, Hủy c
   })
 })
 
-// ================================================================== GV5 – Nhập câu hỏi từ file, gán CLO từ file
 test('GV5 – Nhập 2 câu từ tệp Aiken → "chưa gán"; gán Chương/Bloom/CLO bằng tệp Excel', async ({ page }) => {
   const aiken = path.join(TMP, 'cau_hoi_aiken.txt')
   const xlsx = path.join(TMP, 'gan_clo_kiem_thu.xlsx')
@@ -200,7 +186,6 @@ test('GV5 – Nhập 2 câu từ tệp Aiken → "chưa gán"; gán Chương/Blo
     const dl = page.waitForEvent('download')
     await modal(page).getByRole('button', { name: /Các câu chưa gán \(2\)/ }).click()
     await (await dl).saveAs(xlsx)
-    // điền tệp Excel bằng Python (openpyxl có sẵn trong .venv): cột D = Chương, E = Bloom, F = CLO
     const py = path.join(H.ROOT, '.venv', 'Scripts', 'python.exe')
     execFileSync(py, ['-c', `import openpyxl,sys\nwb=openpyxl.load_workbook(sys.argv[1]);ws=wb['GanCLO']\nfor r in range(2,ws.max_row+1):\n ws.cell(r,4).value,ws.cell(r,5).value,ws.cell(r,6).value=2,3,'CLO2'\nwb.save(sys.argv[1])`, xlsx])
   })
@@ -217,7 +202,6 @@ test('GV5 – Nhập 2 câu từ tệp Aiken → "chưa gán"; gán Chương/Blo
   })
 })
 
-// ================================================================== GV6 – Đồng bộ câu hỏi 2 chiều (môn demo)
 test('GV6 – Đồng bộ câu hỏi 2 chiều: đẩy lên; sửa cả hai bên → "Hai bên khác nhau"; lấy bản Moodle; "Hệ thống mới hơn" @moodle', async ({ page, browser }) => {
   const { cid } = await demoIds(page)
   const content = `Lệnh nào xóa toàn bộ dữ liệu của bảng nhưng giữ cấu trúc? (${S.code})`
@@ -254,7 +238,7 @@ test('GV6 – Đồng bộ câu hỏi 2 chiều: đẩy lên; sửa cả hai bê
   })
   await test.step('Bước 5: sửa CÙNG câu trên MOODLE (admin Moodle): form sửa câu QB-n → đổi nội dung → Lưu (phiên bản 2)', async () => {
     const cmp = await api(page, `/api/courses/${cid}/moodle-sync?moodle_course_id=${H.DEMO.moodleCourse}`)
-    const mq = cmp.rows.find(r => r.question_id === qid).moodle_questionid       // id câu trên Moodle (bảng so sánh)
+    const mq = cmp.rows.find(r => r.question_id === qid).moodle_questionid
     const p = await H.newPage(browser)
     await H.moodleLogin(p, H.MOODLE_ADMIN)
     await p.goto(`${H.MOODLE}/question/bank/editquestion/question.php?courseid=${H.DEMO.moodleCourse}&id=${mq}`)
@@ -292,7 +276,6 @@ test('GV6 – Đồng bộ câu hỏi 2 chiều: đẩy lên; sửa cả hai bê
   })
 })
 
-// ================================================================== GV7 – Ra đề trực tuyến
 test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber QB-n', async ({ page }) => {
   await test.step('Bước 1: mở lớp → "+ Tạo bài kiểm tra" → "Trắc nghiệm trực tuyến"', async () => {
     await goto(page, `/sections/${S.cs}`)
@@ -317,8 +300,8 @@ test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber Q
     await modal(page).getByRole('button', { name: 'Lưu bài kiểm tra' }).click()
     await page.waitForURL(/\/exams\/\d+/)
     S.onlineExam = examIdFromUrl(page)
-    await see(page, 'Đề thi')                                                     // trang bài mở ở bước đưa bài cho sinh viên (bài mới ở trạng thái nháp)
-    await tab(page, 'Đề thi').click()                                            // trang bài KT chia bước; bước "Đề thi"
+    await see(page, 'Đề thi')
+    await tab(page, 'Đề thi').click()
     await expect(card(page, 'Đề thi').locator('tbody tr').first()).toBeVisible()
   })
   await test.step('Bước 5: bước "Đưa bài lên Moodle" → "Cách thủ công…"', async () => {
@@ -334,7 +317,6 @@ test('GV7 – Ra đề trực tuyến cho lớp; tải Moodle XML có idnumber Q
   })
 })
 
-// ================================================================== GV8 – Đề giấy chấm trên hệ thống
 test('GV8 – Đề giấy: sinh 2 mã đề, tải đề/đáp án, tải ảnh phiếu đã tô → hệ thống đọc và chấm', async ({ page }) => {
   let eid
   await test.step('Bước 1: lớp → "+ Tạo bài kiểm tra" → "Trắc nghiệm trên giấy" → thông tin → tự chọn tất cả câu → kiểm tra → Lưu', async () => {
@@ -388,7 +370,6 @@ test('GV8 – Đề giấy: sinh 2 mã đề, tải đề/đáp án, tải ảnh
   })
 })
 
-// ================================================================== GV9 – Bài nhập điểm
 test('GV9 – Bài nhập điểm: 2 câu gắn CLO, chặn điểm vượt tối đa, lưu & phân tích, kết quả từng SV', async ({ page }) => {
   const grid = page.locator('table.grade-grid')
   const cell = (code, q) => grid.getByLabel(`${code} câu ${q}`)
@@ -438,19 +419,17 @@ test('GV9 – Bài nhập điểm: 2 câu gắn CLO, chặn điểm vượt tố
   })
 })
 
-// ================================================================== GV10 – Lấy bài làm & phân tích bài Moodle (môn demo)
 test('GV10 – Bài thi cuối kỳ demo: "⟳ Lấy bài làm & phân tích" đọc lại bài làm từ CSDL Moodle @moodle', async ({ page }) => {
   await test.step('Bước 1: mở bài "Thi cuối kỳ (Moodle)" của lớp demo → "⟳ Lấy bài làm & phân tích" → đồng bộ N bài làm', async () => {
     const { cs } = await demoIds(page)
     const exams = await api(page, `/api/class-sections/${cs}/exams`)
     await goto(page, `/exams/${exams.find(e => e.exam_title === H.DEMO.finalExam).id}`)
-    await tab(page, 'Lấy bài làm & phân tích').click()                              // bài đã phân tích mở sẵn bước "Kết quả"
+    await tab(page, 'Lấy bài làm & phân tích').click()
     await page.getByRole('button', { name: /Lấy bài làm & phân tích/ }).click()
     await toast(page, /Đồng bộ \d+ bài làm/, 60000)
   })
 })
 
-// ================================================================== GV11 – Xem phân tích (môn demo)
 test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, thời gian làm bài; thống kê lớp; hồ sơ SV', async ({ page }) => {
   const { cs } = await demoIds(page)
   await test.step('Bước 1: mở bài "Thi cuối kỳ (Moodle)" → thẻ "Tổng quan điểm": SV dự thi, điểm trung bình', async () => {
@@ -483,7 +462,6 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
   })
 })
 
-// ================================================================== GV12 – Kết quả CLO, kế hoạch đánh giá, xuất biểu mẫu
 test('GV12 – Lớp kiểm thử: lập kế hoạch đánh giá cho CLO1, xem kết quả cả lớp, xuất biểu mẫu Excel', async ({ page }) => {
   await test.step('Bước 1: trang Kết quả chuẩn đầu ra của lớp → thẻ Kế hoạch đánh giá → "Sửa" kế hoạch của CLO1', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6a`)
@@ -508,7 +486,6 @@ test('GV12 – Lớp kiểm thử: lập kế hoạch đánh giá cho CLO1, xem 
   })
 })
 
-// ================================================================== GV13 – Gộp nhiều bài KT (môn demo)
 test('GV13 – Môn demo: gộp 2 bài KT → mức đạt CLO; xuất Excel', async ({ page }) => {
   await test.step('Bước 1: trang môn demo → thẻ "Chọn bài tính vào kết quả" → tích 2 bài', async () => {
     const { cid } = await demoIds(page)
@@ -528,7 +505,6 @@ test('GV13 – Môn demo: gộp 2 bài KT → mức đạt CLO; xuất Excel', a
   })
 })
 
-// ================================================================== GV14 – Phụ đạo (môn demo, Moodle)
 test('GV14 – Phụ đạo: xem câu sai, tạo bài cho 2 SV, tạo Quiz chỉ 2 SV đó làm được @moodle', async ({ page }) => {
   const { cs } = await demoIds(page)
   let first, second
@@ -573,7 +549,6 @@ test('GV14 – Phụ đạo: xem câu sai, tạo bài cho 2 SV, tạo Quiz chỉ
   })
 })
 
-// ================================================================== GV15 – Công bố / thu hồi (môn demo, Moodle)
 test('GV15 – Bài thi cuối kỳ demo: thu hồi công bố rồi công bố lại @moodle', async ({ page }) => {
   await test.step('Bước 1: mở bài "Thi cuối kỳ (Moodle)" của lớp demo', async () => {
     const { cs } = await demoIds(page)
@@ -595,7 +570,6 @@ test('GV15 – Bài thi cuối kỳ demo: thu hồi công bố rồi công bố 
   })
 })
 
-// ================================================================== Bộ môn kiểm tra lại PI/PLO sau khi GV nhập điểm
 test('AD8b – Sau GV8 + GV9: kế hoạch đo PI7.1 của môn kiểm thử = 4/5 = 80% → Đạt (chỉ tiêu 70%)', async ({ browser }) => {
   const p = await H.newPage(browser)
   await H.login(p, H.ADMIN)
@@ -617,7 +591,6 @@ test('AD8b – Sau GV8 + GV9: kế hoạch đo PI7.1 của môn kiểm thử = 4
   await p.context().close()
 })
 
-// ================================================================== GV16 – Vòng cải tiến
 test('GV16 – Kết quả CLO: so sánh qua các học kỳ; ghi hành động cải tiến, đổi trạng thái, xóa', async ({ page }) => {
   await test.step('Bước 1: mở Kết quả cả lớp của lớp → thấy bảng "Xu hướng đạt CLO qua các học kỳ" và khung "Hành động cải tiến"', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6b`)
@@ -645,7 +618,6 @@ test('GV16 – Kết quả CLO: so sánh qua các học kỳ; ghi hành động 
   })
 })
 
-// ================================================================== GV17 – Rubric
 test('GV17 – Rubric: tạo rubric của môn, tạo bài chấm theo rubric, chọn mức từng SV, lưu và phân tích', async ({ page }) => {
   await test.step('Bước 1: trang môn → thẻ "Rubric chấm điểm" → "+ Tạo rubric"', async () => {
     await goto(page, `/courses/${S.cid}?tab=rubrics`)

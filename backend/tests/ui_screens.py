@@ -1,7 +1,4 @@
-"""Chụp màn hình giao diện (Playwright) phục vụ báo cáo + phát hiện lỗi console.
-Chạy trên dữ liệu minh họa (sau 4_TAO_DU_LIEU_DEMO_TREN_MOODLE):  python tests/ui_screens.py [http://localhost:8000]
-Các màn hình nhập câu hỏi / gán CLO thêm câu tạm vào ngân hàng rồi xóa lại; màn hình tạo đề giấy tạo bài KT tạm rồi xóa.
-"""
+"""Chụp màn hình giao diện (Playwright) phục vụ báo cáo + phát hiện lỗi console."""
 import io
 import sys
 from pathlib import Path
@@ -82,7 +79,6 @@ with sync_playwright() as pw:
     shot(page, "08_quy_trinh_online", "/exams/2")
     shot(page, "09_quy_trinh_giay", "/exams/1?step=release", wait="text=Bài đã chấm trên Moodle")
     shot(page, "10_tong_quan_diem", "/exams/2", click="text=Tổng quan điểm", wait="canvas")
-    # tạo bài kiểm tra ở trang môn học (đề của môn) – chọn lớp HP khi xuất
     cid = next(x["course_id"] for x in requests.get(BASE + "/api/class-sections", headers=gv).json() if x["id"] == 1)
     page.goto(BASE + f"/courses/{cid}?tab=exams"); page.wait_for_selector("text=Đề dùng chung cho nhiều lớp")
     page.click(".page-h >> text=+ Tạo bài kiểm tra"); page.wait_for_selector(".choice"); page.wait_for_timeout(400)
@@ -110,11 +106,9 @@ with sync_playwright() as pw:
         page.screenshot(path=str(OUT / "16_minh_chung_bm6c.png")); print("saved evidence")
     except Exception:
         print("BỎ QUA 16_minh_chung_bm6c (cần kế hoạch BM6a + dữ liệu Moodle)")
-    # thống kê lớp và hồ sơ từng sinh viên
     shot(page, "21_thong_ke_lop", "/sections/1/stats?exam=2", wait="canvas")
     sid = requests.get(BASE + "/api/class-sections/1/students", headers=gv).json()[0]["id"]
     shot(page, "22_ho_so_sinh_vien", f"/sections/1/students/{sid}?exam=2", wait=".tbl")
-    # bài thi giấy mới: màn hình tạo đề trên Moodle (bài KT tạm, xóa sau khi chụp)
     tmp_exam = requests.post(BASE + "/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Kiểm tra giữa kỳ (giấy)", "exam_type": "paper",
                              "assessment_type": "process", "max_score": 10, "duration_minutes": 30,
                              "items": [{"question_id": q, "points": 1} for q in (2, 3, 6, 7, 9, 11, 12, 13, 16, 17)]}).json()["id"]
@@ -125,7 +119,6 @@ with sync_playwright() as pw:
                              "items": [{"question_id": q, "points": 1} for q in range(1, 11)]}).json()["id"]
     shot(page, "08b_tao_quiz_api", f"/exams/{tmp_exam}", wait="text=Tạo bài trắc nghiệm trên Moodle", full=False)
     requests.delete(BASE + f"/api/exams/{tmp_exam}", headers=gv)
-    # nhập câu hỏi hàng loạt rồi gán CLO từ file (thêm câu tạm, xóa ở cuối)
     f = sample_questions()
     page.goto(BASE + "/questions"); page.wait_for_selector(".tbl tbody tr")
     page.click("text=Nhập câu hỏi từ file"); page.wait_for_selector(".modal")
@@ -146,7 +139,6 @@ with sync_playwright() as pw:
     page.screenshot(path=str(OUT / "24_gan_clo_tu_file.png")); print("saved tagging")
     for q in new_ids:
         requests.delete(BASE + f"/api/questions/{q}", headers=gv)
-    # chức năng bổ sung 15/10
     shot(page, "31_mon_hoc_cua_toi", "/", wait=".secrow")
     shot(page, "32_de_cuong_chi_tiet", "/courses/5?tab=syllabus", wait=".syl")
     page.goto(BASE + "/courses/5?tab=combine"); page.wait_for_selector("text=Phân tích gộp"); page.click("text=Phân tích gộp"); page.wait_for_selector("text=2. Mức đạt CĐR môn học")
@@ -169,7 +161,6 @@ with sync_playwright() as pw:
     page.screenshot(path=str(OUT / "38_de_giay_xem_truoc.png"), full_page=True)
     page.click("button:has-text('3. Phiếu trả lời')"); page.wait_for_selector(".sheet-img"); page.wait_for_timeout(700)
     page.screenshot(path=str(OUT / "39_phieu_tra_loi.png"), full_page=False)
-    # chấm phiếu: tô phiếu (in PDF -> ảnh), một phiếu chụp nghiêng, một phiếu tô 2 ô, một phiếu gạch chéo đổi đáp án
     import random as _r, sys as _s
     _s.path.insert(0, str(Path(__file__).resolve().parents[1]))
     import numpy as np, cv2, fitz
@@ -184,19 +175,19 @@ with sync_playwright() as pw:
         v = vs[i % len(vs)]
         fills.append({"student": code, "version": v["version_code"],
                       "answers": {q["position"]: (q["answer"] if rg.random() < .75 else rg.choice([o["label"] for o in q["options"]])) for q in v["questions"]}})
-    fills.append({"student": roster[0][:-1], "version": vs[0]["version_code"], "answers": fills[0]["answers"]})   # MSSV tô thiếu 1 chữ số -> vào danh sách cần xử lý
+    fills.append({"student": roster[0][:-1], "version": vs[0]["version_code"], "answers": fills[0]["answers"]})
     L = _P.sheet_layout(so); S_ = 150 / 25.4
     pos = {(b["q"], b["label"]): (int(b["x"] * S_), int(b["y"] * S_)) for b in L["answers"]}; rr = int(L["r"] * S_)
     imgs = []
     for k, pg in enumerate(fitz.open(stream=_P.sheet_pdf(so, prefills=fills), filetype="pdf")):
         px = pg.get_pixmap(matrix=fitz.Matrix(150 / 72, 150 / 72), colorspace=fitz.csGRAY)
         g = np.frombuffer(px.samples, np.uint8).reshape(px.height, px.width).copy()
-        if k == 1:      # tô thêm một ô ở câu 3 -> cảnh báo tô 2 ô
+        if k == 1:
             lab = [l for (q, l) in pos if q == 3 and l != fills[1]["answers"][3]][0]; cv2.circle(g, pos[(3, lab)], int(rr * .9), 40, -1)
-        if k == 2:      # gạch chéo một ô khác ở câu 5 (đổi đáp án đúng cách)
+        if k == 2:
             lab = [l for (q, l) in pos if q == 5 and l != fills[2]["answers"][5]][0]; x, y = pos[(5, lab)]
             cv2.line(g, (x - rr, y - rr), (x + rr, y + rr), 30, 2); cv2.line(g, (x - rr, y + rr), (x + rr, y - rr), 30, 2)
-        if k == 3:      # ảnh chụp nghiêng
+        if k == 3:
             h, w = g.shape; g = cv2.warpAffine(g, cv2.getRotationMatrix2D((w / 2, h / 2), 6, .9), (w, h), borderValue=110)
         f = TMP / f"phieu_{k + 1}.jpg"; cv2.imwrite(str(f), g); imgs.append(str(f))
     page.click("button:has-text('4. Chấm phiếu')"); page.wait_for_timeout(300)
@@ -215,7 +206,7 @@ with sync_playwright() as pw:
     shot(page, "28_ma_tran_hp_pi", "/programs/3?tab=matrix", wait=".tbl tbody tr", full=False)
     shot(page, "29_hoc_phan_theo_hk", "/programs/3?tab=courses", wait=".tbl tbody tr")
     shot(page, "30_khai_bao_hoc_phan", "/courses/5?tab=setup", wait=".tbl tbody tr")
-    page.evaluate("localStorage.setItem('tlcn_program', '1')")      # CTĐT KTDL (BM2 minh họa)
+    page.evaluate("localStorage.setItem('tlcn_program', '1')")
     shot(page, "18_ke_hoach_pi_bm3b", "/pi-plans", wait=".tbl tbody tr")
     shot(page, "19_tong_hop_plo", "/plo-summary", wait="canvas")
     shot(page, "20_ket_noi_moodle", "/system", wait=".tbl")

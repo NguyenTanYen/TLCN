@@ -1,13 +1,7 @@
-// Cấu hình Playwright Test cho kiểm thử giao diện hệ thống phân tích CĐR (chạy trên hệ thống THẬT đang bật).
-// Chuẩn bị: bật MariaDB, Apache (Moodle), chạy scripts/chay.bat, đã chạy scripts/tao_du_lieu_demo.bat.
-// Chạy:  npx playwright test --ui                  (giao diện: chọn test, xem từng bước)
-//        npx playwright test --grep-invert @moodle  (bỏ các flow cần Moodle thật)
 const fs = require('fs')
 const path = require('path')
 const { defineConfig } = require('@playwright/test')
 
-// Dùng Chromium đã có sẵn trong %LOCALAPPDATA%\ms-playwright nếu có (không bắt buộc tải thêm).
-// Muốn dùng bản Chromium đúng phiên bản của Playwright: chạy "npx playwright install chromium" và đặt PW_DUNG_CHROMIUM_CHUAN=1.
 function chromiumCoSan() {
   if (process.env.PW_DUNG_CHROMIUM_CHUAN) return undefined
   const base = path.join(process.env.LOCALAPPDATA || '', 'ms-playwright')
@@ -22,10 +16,9 @@ function chromiumCoSan() {
 
 module.exports = defineConfig({
   testDir: './tests',
-  // Các tệp chạy NỐI TIẾP theo thứ tự tên (01 Bộ môn → 02 Giảng viên → 03 Sinh viên) vì dùng chung dữ liệu
   fullyParallel: false,
   workers: 1,
-  timeout: 5 * 60 * 1000,               // mỗi test là một flow dài (nhiều bước)
+  timeout: 5 * 60 * 1000,
   expect: { timeout: 15000 },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
@@ -36,7 +29,7 @@ module.exports = defineConfig({
     locale: 'vi-VN',
     acceptDownloads: true,
     actionTimeout: 15000,
-    trace: 'on',                        // lưu vết từng thao tác để xem lại trong --ui / show-report
+    trace: 'on',
     screenshot: 'only-on-failure',
   },
 })

@@ -4,9 +4,6 @@ import { ActionButton, Badge, Card, Loading, Modal, useToast } from './ui'
 import { useApi } from '../hooks'
 import { openMoodle } from '../moodle'
 
-// Thẻ "Học liệu" của lớp học phần (RAG): tệp PDF trong khóa học Moodle của lớp được tự lấy làm học liệu, nạp ở nền;
-// khi SV làm sai câu hỏi, hệ thống gợi ý các trang học liệu nên đọc lại. GV bỏ chọn tệp không muốn dùng, sửa tên / loại,
-// nạp lại; Bộ môn chỉ xem.
 const STATUS = {
   pending: ['Chờ nạp', 'gray'], indexing: ['Đang nạp…', 'blue'], ready: ['Đã nạp', 'green'], failed: ['Lỗi', 'red'],
   excluded: ['Đã bỏ chọn', 'gray'], missing: ['Không còn trên Moodle', 'amber'],
@@ -18,7 +15,6 @@ const POLL_MS = 4000
 const fmtSize = b => (b == null ? '' : b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`)
 const fmtTime = t => (t ? new Date(t).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : '')
 
-// Mở tệp trên Moodle (đăng nhập bằng tài khoản đang dùng); page: mở đúng trang của PDF
 function openFile(url, page) {
   const at = (url || '').indexOf('/pluginfile.php/')
   if (at < 0) return
@@ -33,22 +29,21 @@ export default function SectionMaterials({ cs, canEdit }) {
   const synced = useRef(null)
   const [dlg, setDlg] = useState(null)
 
-  // GV mở thẻ → đồng bộ với khóa học Moodle (tệp mới / đổi / bị xóa) rồi nạp ở nền các tệp chờ
   useEffect(() => {
     if (!canEdit || !cs.moodle_course_id || synced.current === id) return
     synced.current = id
     setSyncing(true)
     api.post(`/api/class-sections/${id}/materials/sync`).then(() => list.reload())
       .catch(e => toast(`Không đồng bộ được học liệu từ Moodle: ${e.message}`, 'red')).finally(() => setSyncing(false))
-  }, [id, canEdit, cs.moodle_course_id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, canEdit, cs.moodle_course_id])
 
   const mats = list.data?.materials || []
   const busy = mats.some(m => BUSY.includes(m.status))
-  useEffect(() => {                                  // đang nạp: tải lại định kỳ để thấy trạng thái mới
+  useEffect(() => {
     if (!busy) return
     const t = setInterval(() => list.reload(), POLL_MS)
     return () => clearInterval(t)
-  }, [busy]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [busy])
 
   if (!cs.moodle_course_id) return <Card><div className="empty"><p>Lớp chưa gắn với khóa học Moodle.</p>
     <p className="muted small">Học liệu được lấy từ các tệp PDF trong khóa học Moodle của lớp – hãy tạo hoặc gắn khóa học Moodle ở đầu trang.</p></div></Card>
@@ -131,7 +126,6 @@ export default function SectionMaterials({ cs, canEdit }) {
   </>
 }
 
-// Thử tìm trong học liệu đã nạp – để GV kiểm tra hệ thống tìm đúng trang trước khi SV dùng gợi ý
 function MaterialSearch({ id }) {
   const [q, setQ] = useState('')
   const [res, setRes] = useState(null)
@@ -167,7 +161,6 @@ function MaterialSearch({ id }) {
   </Card>
 }
 
-// Các lớp cùng môn (không kể lớp hiện tại) để chọn nơi nhận học liệu
 function useSiblings(cs) {
   const secs = useApi('/api/class-sections').data
   return (secs || []).filter(s => s.course_id === cs.course_id && s.id !== cs.id)

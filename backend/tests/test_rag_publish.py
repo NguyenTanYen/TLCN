@@ -33,7 +33,7 @@ def sections():
 
 @pytest.fixture(autouse=True)
 def fake_moodle(monkeypatch):
-    posted = {}                                   # moodle_course_id -> [(name, filename, size, section)]
+    posted = {}
 
     def add_resource(cid, name, filename, data, section=0):
         posted.setdefault(cid, []).append((name, filename, len(data), section))
@@ -95,9 +95,9 @@ def test_share_material_to_other_class_and_copy_from(client, gv, sections, fake_
     db.close()
     r = client.post(f"/api/class-sections/{a}/materials/{mid}/copy", headers=gv, json={"class_section_ids": [src]})
     assert r.status_code == 200, r.text
-    assert r.json()["results"][0]["section_code"] and r.json()["results"][0]["ok"] is False   # lớp nguồn (khóa 50) không có hoạt động giả → chưa thấy tệp
+    assert r.json()["results"][0]["section_code"] and r.json()["results"][0]["ok"] is False
     r = client.post(f"/api/class-sections/{b}/materials/copy-from/{a}", headers=gv)
-    assert r.status_code == 200 and r.json()["results"][0]["ok"] is False                       # lớp B chưa gắn Moodle
+    assert r.status_code == 200 and r.json()["results"][0]["ok"] is False
 
 
 def test_lecturer_only_and_course_check(client, gv_other, sections):

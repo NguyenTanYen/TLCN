@@ -12,7 +12,6 @@ export default function QuestionBank() {
   const courses = useApi('/api/courses').data
   const bloom = useApi('/api/bloom-levels').data
   const isAdmin = auth.user()?.role === 'admin'
-  // GV chỉ thấy các môn mình phụ trách (có lớp HP); Quản trị thấy mọi môn
   const myCourses = useMemo(() => {
     if (!courses) return null
     if (isAdmin) return courses
@@ -27,7 +26,7 @@ export default function QuestionBank() {
   }, [sections, myCourses, courseId])
   const course = useApi(courseId ? `/api/courses/${courseId}` : null).data
   const [flt, setFlt] = useState({ plo_id: '', pi_id: '', clo_id: '', outline_id: '', bloom_level_id: '', q: '', include_cancelled: false, untagged: false })
-  const tree = useApi(courseId ? `/api/questions/tree?course_id=${courseId}` : null)   // góp ý F2a: cây PLO → PI → CLO → câu hỏi
+  const tree = useApi(courseId ? `/api/questions/tree?course_id=${courseId}` : null)
   const pick = (k, v) => setFlt(x => ({ ...x, plo_id: '', pi_id: '', clo_id: '', [k]: v }))
   const qs = new URLSearchParams(Object.entries({ course_id: courseId, ...flt }).filter(([, v]) => v !== '' && v !== false && v !== null)).toString()
   const list = useApi(courseId ? `/api/questions?${qs}` : null)
@@ -102,7 +101,6 @@ export default function QuestionBank() {
   )
 }
 
-// Cây PLO → PI → CLO kèm số câu hỏi; bấm một nút để lọc danh sách (góp ý F2a)
 function OutcomeTree({ t, flt, pick }) {
   if (!t) return <Loading />
   const on = (k, id) => String(flt[k]) === String(id)
@@ -135,7 +133,6 @@ function QuestionForm({ q, course, bloom, readOnly, onClose, onSaved }) {
   const used = (q.usage?.n_results || 0) > 0
   const locked = used || readOnly
   const [f, setF] = useState(() => ({
-    // câu mới: gợi ý chương 1, Bloom 2; câu nhập từ file chưa gán: để trống để GV chủ động chọn (không gán ngầm)
     content: q.content || '', outline_id: q.id ? (q.outline_id || '') : (course.outlines[0]?.id || ''),
     bloom_level_id: q.id ? (q.bloom_level_id || '') : 2,
     options: q.options?.map(o => ({ content: o.content, is_correct: o.is_correct })) || [0, 1, 2, 3].map(i => ({ content: '', is_correct: i === 0 })),

@@ -1,12 +1,4 @@
-"""Giao tiếp với Moodle qua Web Service (plugin local_clo) – chiều GHI của tích hợp.
-
-- Tạo Quiz từ đề đã soạn (UC-02, thay cho bước import XML thủ công): local_clo_create_quiz.
-- Bài thi giấy: tạo Offline Quiz (Moodle sinh đề in, phiếu trả lời, nhận diện phiếu quét và chấm):
-  local_clo_create_offlinequiz / local_clo_get_offlinequiz / local_clo_process_scans; tải tệp đề/phiếu qua webservice/pluginfile.
-- Đẩy kết quả phân tích từng SV + trạng thái công bố về Moodle để SV xem (UC-05): local_clo_push_results.
-- Bài phụ đạo (góp ý F5): chỉ các SV được giao thấy và làm được Quiz – nhóm + điều kiện truy cập: local_clo_restrict_users.
-Chiều ĐỌC (bài làm của SV) vẫn dùng cầu nối CSDL chỉ đọc + sp_sync_exam như thiết kế (mục V báo cáo).
-"""
+"""Giao tiếp với Moodle qua Web Service (plugin local_clo) – chiều GHI của tích hợp."""
 from __future__ import annotations
 
 import json
@@ -25,7 +17,6 @@ from ..models import Exam
 from . import xml_export
 
 
-# httpx ghi URL của mọi request ở mức INFO – URL tải tệp / gọi Web Service chứa token Moodle → không để lọt vào log
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
@@ -60,7 +51,7 @@ def call(function: str, params: dict | None = None, timeout: float = 60) -> dict
     url = settings.moodle_url.rstrip("/") + "/webservice/rest/server.php"
     query = {"wstoken": settings.moodle_ws_token, "wsfunction": function, "moodlewsrestformat": "json"}
     try:
-        with httpx.Client(timeout=timeout, trust_env=False) as client:   # Moodle nội bộ: không đi qua proxy hệ thống
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
             r = client.post(url, params=query, content=urlencode(form).encode(),
                             headers={"Content-Type": "application/x-www-form-urlencoded"})
     except httpx.HTTPError as ex:
@@ -81,7 +72,6 @@ def site_info() -> dict:
     return call("core_webservice_get_site_info")
 
 
-# ------------------------------------------------------------------ tạo Quiz (UC-02)
 def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
     xml = xml_export.exam_to_moodle_xml(exam)
     res = call("local_clo_create_quiz", {
@@ -92,8 +82,7 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
 
 
 def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:
-    """Đăng một tệp học liệu lên khóa học Moodle thành hoạt động Tệp (local_clo_add_resource, base64). Gọi lại với cùng
-    tên tệp trong khóa thì Moodle không tạo trùng (created = False)."""
+    """Đăng một tệp học liệu lên khóa học Moodle thành hoạt động Tệp (local_clo_add_resource, base64)."""
     import base64
     return call("local_clo_add_resource", {"courseid": moodle_course_id, "name": name[:250], "filename": filename,
                                            "content": base64.b64encode(data).decode("ascii"), "section": section},
@@ -106,7 +95,6 @@ def restrict_users(moodle_course_id: int, quizid: int, groupname: str, userids: 
                                              "groupname": groupname[:250], "userids": userids})
 
 
-# ------------------------------------------------------------------ bài thi giấy: Offline Quiz
 def create_offlinequiz(exam: Exam, moodle_course_id: int, numgroups: int = 2, shuffle_questions: bool = True,
                        shuffle_answers: bool = True, docx: bool = False, intro: str = "") -> dict:
     xml = xml_export.exam_to_moodle_xml(exam)
@@ -148,8 +136,7 @@ def _check_url(url: str) -> None:
 
 @contextmanager
 def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
-    """Tải tệp Moodle qua webservice/pluginfile.php theo TỪNG KHÚC (tệp lớn không phải nằm trọn trong RAM).
-    Lỗi mạng giữa chừng → MoodleWSError."""
+    """Tải tệp Moodle qua webservice/pluginfile.php theo TỪNG KHÚC (tệp lớn không phải nằm trọn trong RAM)."""
     _check_url(url)
     try:
         with httpx.Client(timeout=120, trust_env=False) as client:
@@ -163,7 +150,6 @@ def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
         raise MoodleWSError(f"Lỗi kết nối LMS: {ex}") from ex
 
 
-# ------------------------------------------------------------------ kết quả từng SV (UC-05)
 def student_results(db: Session, exam_id: int) -> list[dict]:
     """Kết quả phân tích của từng SV trong bài KT – dữ liệu SV sẽ xem trên Moodle."""
     e = db.execute(text("""SELECT e.id, e.max_score, e.class_section_id, cs.course_id,
@@ -218,8 +204,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
 
 
 def wrong_items(db: Session, exam_id: int) -> list:
-    """(lượt làm, câu hỏi, số thứ tự câu SV thấy) của các câu làm sai / bỏ trống – số thứ tự theo mã đề nếu bài có
-    nhiều mã đề (thứ tự câu bị trộn)."""
+    """(lượt làm, câu hỏi, số thứ tự câu SV thấy) của các câu làm sai / bỏ trống – số thứ tự theo mã đề nếu bài có nhiều mã đề (thứ tự câu bị trộn)."""
     return db.execute(text("""
         SELECT r.attempt_id, r.question_id, COALESCE(vq.position, eq.order_index) AS no
         FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
@@ -231,8 +216,7 @@ def wrong_items(db: Session, exam_id: int) -> list:
 
 
 def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[int, list]:
-    """Lượt làm → [{câu SV làm sai, các trang học liệu của lớp nên đọc lại}] (RAG bước 8). Gợi ý tính MỘT lần mỗi câu.
-    Lỗi của bộ tìm kiếm không được chặn việc gửi kết quả: ghi log, gửi không kèm gợi ý."""
+    """Lượt làm → [{câu SV làm sai, các trang học liệu của lớp nên đọc lại}] (RAG bước 8)."""
     from ..models import SectionMaterial
     from .rag import suggest
 
@@ -279,7 +263,6 @@ def push_results(db: Session, exam: Exam) -> dict:
     return res
 
 
-# ------------------------------------------------------------------ tạo khóa học + ghi danh (lớp HP → Moodle)
 def _split_name(full: str) -> tuple[str, str]:
     """Tên người Việt: tên = từ cuối, họ và tên đệm = phần còn lại."""
     parts = (full or "").split()
@@ -287,8 +270,7 @@ def _split_name(full: str) -> tuple[str, str]:
 
 
 def provision_section(db: Session, cs) -> dict:
-    """Tạo (hoặc bổ sung) khóa học Moodle cho lớp học phần: khóa học mang mã lớp, ghi danh GV phụ trách và SV đang học.
-    Idempotent – gọi lại sau khi thêm SV thì chỉ ghi danh người còn thiếu. Lưu moodle_course_id và mdl_user.id của SV."""
+    """Tạo (hoặc bổ sung) khóa học Moodle cho lớp học phần: khóa học mang mã lớp, ghi danh GV phụ trách và SV đang học."""
     lec = cs.lecturer
     lec_user = db.execute(text("SELECT username, email FROM users WHERE id=:i"), {"i": lec.user_id}).first() if lec.user_id else None
     if not lec_user:

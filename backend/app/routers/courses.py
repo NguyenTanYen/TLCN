@@ -1,9 +1,4 @@
-"""UC-12: Khai báo học phần (Bộ môn; giảng viên chỉ xem học phần, chương, CLO) – môn học, đề cương (chương), CLO và ánh xạ CLO–PLO, lớp học phần.
-
-Để đưa một học phần mới vào hệ thống: (1) Bộ môn tạo môn học (nếu chưa có) và lớp học phần, gán GV phụ trách;
-(2) GV/Bộ môn khai báo các chương của đề cương; (3) khai báo CLO, mức Bloom mục tiêu và mức đóng góp cho PLO (I/R/M);
-(4) lập kế hoạch đánh giá CLO (BM6a – trang Kết quả CĐR); sau đó nhập câu hỏi và gán CLO (UC-01/UC-09), ra đề (UC-02).
-"""
+"""UC-12: Khai báo học phần (Bộ môn; giảng viên chỉ xem học phần, chương, CLO) – môn học, đề cương (chương), CLO và ánh xạ CLO–PLO, lớp học phần."""
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,7 +24,7 @@ class CourseIn(BaseModel):
     course_structure: Optional[str] = Field(default=None, max_length=30)
     prerequisites: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
-    program_ids: Optional[list[int]] = None   # CTĐT chứa học phần (bỏ trống = mọi CTĐT, như bản trước)
+    program_ids: Optional[list[int]] = None
 
 
 class CourseUpd(BaseModel):
@@ -46,7 +41,6 @@ class CourseUpd(BaseModel):
 class OutlineIn(BaseModel):
     chapter_number: int = Field(ge=1, le=99)
     chapter_name: str = Field(min_length=1, max_length=255)
-    # góp ý F1 – nội dung chi tiết của chương trong đề cương; không gửi thì giữ nguyên
     content: Optional[str] = None
     theory_hours: Optional[int] = Field(default=None, ge=0, le=500)
     practice_hours: Optional[int] = Field(default=None, ge=0, le=500)
@@ -81,7 +75,7 @@ class CLOUpd(BaseModel):
     description: str = Field(min_length=3)
     bloom_level_id: Optional[int] = Field(default=None, ge=1, le=6)
     plos: list[PLOMapIn] = []
-    pis: list[PIMapIn] = []      # góp ý F2a: CLO → PI; có PI thì ma trận CLO – PLO được suy ra từ PI
+    pis: list[PIMapIn] = []
 
 
 class SectionIn(BaseModel):
@@ -108,7 +102,6 @@ def _plos(db: Session, maps: list[PLOMapIn]):
             raise HTTPException(422, f"PLO {m.plo_id} không tồn tại")
 
 
-# ------------------------------------------------------------------ môn học
 @router.post("/courses", status_code=201)
 def create_course(body: CourseIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     if db.query(Course).filter_by(course_code=body.course_code.strip()).first():
@@ -169,7 +162,6 @@ def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(requ
     return {"course_id": cid, "steps": steps, "ready": all(s["ok"] for s in steps if s["key"] not in ("plans", "syllabus"))}
 
 
-# ------------------------------------------------------------------ đề cương (chương)
 @router.post("/courses/{cid}/outlines", status_code=201)
 def create_outline(cid: int, body: OutlineIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     _course(db, cid)
@@ -208,7 +200,6 @@ def delete_outline(oid: int, db: Session = Depends(get_db), _=Depends(require("a
     return {"deleted": oid}
 
 
-# ------------------------------------------------------------------ CLO
 @router.put("/clos/{clo_id}")
 def update_clo(clo_id: int, body: CLOUpd, db: Session = Depends(get_db), _=Depends(require("admin"))):
     clo = db.get(CLO, clo_id)
@@ -222,7 +213,7 @@ def update_clo(clo_id: int, body: CLOUpd, db: Session = Depends(get_db), _=Depen
             outcomes.set_clo_pis(db, clo, [(m.pi_id, m.level) for m in body.pis])
         except ValueError as ex:
             raise HTTPException(422, str(ex))
-    else:   # chưa chọn PI: cách cũ – ánh xạ thẳng CLO → PLO
+    else:
         _plos(db, body.plos)
         clo.pi_links.clear()
         db.query(CLOPLOMapping).filter_by(clo_id=clo_id).delete()
@@ -246,10 +237,8 @@ def delete_clo(clo_id: int, db: Session = Depends(get_db), _=Depends(require("ad
     return {"deleted": clo_id}
 
 
-# ------------------------------------------------------------------ lớp học phần
 def _auto_provision(db: Session, cs: ClassSection) -> dict:
-    """Tạo khóa học Moodle + ghi danh GV/SV ngay khi Bộ môn tạo/phân công lớp. Lỗi Moodle KHÔNG làm hỏng việc tạo lớp:
-    trả trạng thái để giao diện báo và cho bấm "Tạo khóa học trên Moodle" làm lại sau."""
+    """Tạo khóa học Moodle + ghi danh GV/SV ngay khi Bộ môn tạo/phân công lớp."""
     from ..services import lms
     if not lms.configured():
         return {"status": "skipped", "message": "Chưa cấu hình kết nối Moodle – lớp chỉ có trên hệ thống"}
@@ -318,7 +307,6 @@ def delete_section(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
     return {"deleted": cs_id}
 
 
-# ------------------------------------------------------------------ khóa học Moodle → lớp học phần
 class NewSemesterIn(BaseModel):
     academic_year: str = Field(pattern=r"^[0-9]{4}-[0-9]{4}$")
     term: Literal[1, 2, 3]
@@ -327,9 +315,9 @@ class NewSemesterIn(BaseModel):
 class MoodleImportIn(BaseModel):
     course_id: int
     semester_id: Optional[int] = None
-    new_semester: Optional[NewSemesterIn] = None   # học kỳ chưa có: tạo theo ngày bắt đầu của khóa học Moodle
+    new_semester: Optional[NewSemesterIn] = None
     section_code: str = Field(min_length=2, max_length=30)
-    lecturer_id: Optional[int] = None      # chỉ Bộ môn chọn; GV luôn là chính mình
+    lecturer_id: Optional[int] = None
 
 
 TERM_VI = {1: "HKI", 2: "HKII", 3: "HK hè"}
@@ -403,7 +391,7 @@ def my_moodle_courses(db: Session = Depends(get_db), u: User = Depends(require("
     for r in rows:
         hay = " ".join(str(r[k] or "") for k in ("shortname", "idnumber", "fullname")).upper()
         sug_course = next((c[0] for c in sorted(courses, key=lambda c: -len(c[1])) if c[1].upper() in hay), None)
-        if not sug_course:   # không có mã môn trong tên khóa: thử khớp đúng tên môn học
+        if not sug_course:
             full = _norm(r["fullname"])
             sug_course = next((c[0] for c in courses if _norm(c[2]) and (_norm(c[2]) == full or full.startswith(_norm(c[2]) + " "))), None)
         st = int(r["startdate"] or 0)
@@ -429,8 +417,7 @@ def my_moodle_courses(db: Session = Depends(get_db), u: User = Depends(require("
 
 @router.post("/moodle/courses/{mid}/import", status_code=201)
 def import_moodle_course(mid: int, body: MoodleImportIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tạo lớp HP từ một khóa học Moodle và lấy danh sách SV đang ghi danh. GV chỉ đưa vào khóa học mình là giảng viên
-    trên Moodle và chọn môn học đã có (môn học mới do Bộ môn tạo)."""
+    """Tạo lớp HP từ một khóa học Moodle và lấy danh sách SV đang ghi danh."""
     moodle = _need_moodle()
     if not moodle.course_exists(db, mid):
         raise HTTPException(404, f"Không có khóa học Moodle id = {mid}")
@@ -477,7 +464,6 @@ def refresh_roster(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
     return {"added": n, "n_students": total}
 
 
-# ------------------------------------------------------------------ liên kết mã lớp hệ thống ⇄ khóa học Moodle
 def _autolink(db: Session, u: User, cs: ClassSection) -> dict:
     """Gắn lớp HP với khóa học Moodle có shortname/idnumber trùng mã lớp (nếu chưa gắn)."""
     from ..deps import check_moodle_course

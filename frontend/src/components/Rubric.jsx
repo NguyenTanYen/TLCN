@@ -1,4 +1,3 @@
-// Rubric chấm điểm theo tiêu chí: soạn rubric của môn, tạo bài chấm theo rubric, bảng chấm chọn mức cho từng sinh viên
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -9,10 +8,9 @@ const DEFAULT_LEVELS = [{ label: 'Tốt', descriptor: '', score_pct: 100 }, { la
   { label: 'Đạt', descriptor: '', score_pct: 50 }, { label: 'Chưa đạt', descriptor: '', score_pct: 0 }]
 const blankCriterion = clo => ({ name: '', points: 2, clo_id: clo || '', levels: DEFAULT_LEVELS.map(l => ({ ...l })) })
 
-// ---- danh sách rubric của môn
 export function RubricsTab({ courseId, readOnly }) {
   const list = useApi(`/api/courses/${courseId}/rubrics`)
-  const [edit, setEdit] = useState(null)       // null | 'new' | id
+  const [edit, setEdit] = useState(null)
   const dup = id => api.post(`/api/rubrics/${id}/duplicate`).then(() => list.reload())
   const del = id => window.confirm('Xóa rubric này?') && api.del(`/api/rubrics/${id}`).then(() => list.reload())
   return <Card title="Rubric chấm điểm" actions={!readOnly && <button className="btn sm primary" onClick={() => setEdit('new')}>+ Tạo rubric</button>}>
@@ -39,7 +37,7 @@ function RubricForm({ courseId, id, readOnly, onClose }) {
     if (cur.data) setF({ name: cur.data.name, description: cur.data.description || '', criteria: cur.data.criteria.map(c => ({ name: c.name, points: c.points, clo_id: c.clo_id,
       levels: c.levels.map(l => ({ label: l.label, descriptor: l.descriptor || '', score_pct: l.score_pct })) })) })
   }, [cur.data])
-  useEffect(() => { if (!id && clos.length && !f.criteria[0].clo_id) setF(x => ({ ...x, criteria: x.criteria.map(c => ({ ...c, clo_id: clos[0].id })) })) }, [clos.length])  // eslint-disable-line
+  useEffect(() => { if (!id && clos.length && !f.criteria[0].clo_id) setF(x => ({ ...x, criteria: x.criteria.map(c => ({ ...c, clo_id: clos[0].id })) })) }, [clos.length])
   const locked = readOnly || cur.data?.in_use
   const setC = (i, patch) => setF(x => ({ ...x, criteria: x.criteria.map((c, j) => j === i ? { ...c, ...patch } : c) }))
   const setL = (i, k, patch) => setC(i, { levels: f.criteria[i].levels.map((l, j) => j === k ? { ...l, ...patch } : l) })
@@ -77,7 +75,6 @@ function RubricForm({ courseId, id, readOnly, onClose }) {
   </Modal>
 }
 
-// ---- tạo bài chấm theo rubric cho một lớp
 export function RubricExamForm({ cs, onClose }) {
   const nav = useNavigate()
   const list = useApi(`/api/courses/${cs.course_id}/rubrics`)
@@ -96,7 +93,6 @@ export function RubricExamForm({ cs, onClose }) {
   </Modal>
 }
 
-// ---- bảng chấm: mỗi dòng một sinh viên, mỗi cột một tiêu chí, chọn mức
 export function RubricGrades({ e, reload }) {
   const g = useApi(`/api/exams/${e.id}/rubric-grid`)
   const [rows, setRows] = useState({})
@@ -111,7 +107,7 @@ export function RubricGrades({ e, reload }) {
   const pts = (sid) => crit.reduce((s, c) => { const lid = rows[sid]?.levels[String(c.id)]; const l = c.levels.find(x => x.id === lid); return s + (l ? c.points * l.score_pct / 100 : 0) }, 0)
   const full = sid => crit.every(c => rows[sid]?.levels[String(c.id)])
   const partial = sid => !rows[sid]?.absent && crit.some(c => rows[sid]?.levels[String(c.id)]) && !full(sid)
-  const anyPartial = useMemo(() => [...dirty].some(partial), [dirty, rows, crit])  // eslint-disable-line
+  const anyPartial = useMemo(() => [...dirty].some(partial), [dirty, rows, crit])
   const save = async () => {
     const body = [...dirty].map(sid => ({ student_id: Number(sid), absent: rows[sid].absent, levels: Object.fromEntries(crit.map(c => [c.id, rows[sid].absent ? null : (rows[sid].levels[String(c.id)] || null)])) }))
     const r = await api.put(`/api/exams/${e.id}/rubric-grades`, { rows: body, analyze: true })

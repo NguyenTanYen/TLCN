@@ -20,16 +20,13 @@ $THEME->layouts = [
     'course' => $drawer + ['options' => ['langmenu' => true]],
     'coursecategory' => $drawer,
     'incourse' => $drawer,
-    // Trang chủ: có banner giới thiệu hệ thống và số liệu thống kê.
     'frontpage' => ['file' => 'frontpage.php', 'regions' => ['side-pre'], 'defaultregion' => 'side-pre',
         'options' => ['nonavbar' => true]],
     'admin' => $drawer,
     'mycourses' => $drawer + ['options' => ['nonavbar' => true]],
-    // Bảng điều khiển: thêm dải lối tắt tới hệ thống phân tích CĐR.
     'mydashboard' => ['file' => 'frontpage.php', 'regions' => ['side-pre'], 'defaultregion' => 'side-pre',
         'options' => ['nonavbar' => true, 'langmenu' => true]],
     'mypublic' => $drawer,
-    // Trang đăng nhập hai cột.
     'login' => ['file' => 'login.php', 'regions' => [], 'options' => ['langmenu' => true]],
     'popup' => ['file' => 'columns1.php', 'regions' => [], 'options' => ['nofooter' => true, 'nonavbar' => true,
         'activityheader' => ['notitle' => true, 'nocompletion' => true, 'nodescription' => true]]],

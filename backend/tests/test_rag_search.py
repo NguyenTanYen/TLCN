@@ -17,14 +17,14 @@ from app.services.rag.search import Index, query_terms, tokens
 def test_tokens_same_word_whatever_tone_placement_or_unicode_form():
     assert tokens("hoà") == tokens("hòa") == tokens(unicodedata.normalize("NFD", "hòa")) == ["hoaF"]
     assert tokens("thuỷ") == tokens("thủy")
-    assert tokens("bàn") != tokens("bán") and tokens("cơ") != tokens("có")      # dấu khác → từ khác
-    assert tokens("mã") != tokens("max") and tokens("thí") != tokens("this")     # dấu thanh không trùng từ tiếng Anh
+    assert tokens("bàn") != tokens("bán") and tokens("cơ") != tokens("có")
+    assert tokens("mã") != tokens("max") and tokens("thí") != tokens("this")
 
 
 def test_tokens_drop_function_words_and_pair_syllables_within_phrase():
     assert tokens("Khóa ngoại là gì?") == ["khoaS", "ngoaiJ", "khoaS_ngoaiJ"]
-    assert "ngoaiJ_bangR" not in tokens("khóa ngoại, bảng")                      # cặp không vượt dấu câu
-    assert "khoaS_ngoaiJ" not in tokens("khóa của ngoại")                        # cặp có hư từ bỏ
+    assert "ngoaiJ_bangR" not in tokens("khóa ngoại, bảng")
+    assert "khoaS_ngoaiJ" not in tokens("khóa của ngoại")
     assert tokens("B-tree") == ["b", "tree", "b_tree"]
 
 
@@ -36,7 +36,7 @@ def test_query_terms_balance_compound_words_against_single_terms():
 def test_bm25_phrase_beats_scattered_syllables_and_rare_term_beats_common():
     ix = Index.build([
         (1, "Khóa ngoại tham chiếu tới khóa chính của bảng khác."),
-        (2, "Mỗi bảng có một khóa. Dữ liệu ngoại lai được loại bỏ."),             # "khóa" ... "ngoại" rời
+        (2, "Mỗi bảng có một khóa. Dữ liệu ngoại lai được loại bỏ."),
         (3, "Bảng sinh viên lưu thông tin sinh viên."),
         (4, "Bảng lớp lưu thông tin lớp."),
     ])
@@ -51,27 +51,26 @@ def test_query_without_diacritics_searches_folded_index_only_then():
         (2, "Bàn phím và màn hình."),
         (3, "Bán hàng trực tuyến."),
     ])
-    assert ix.folded is None                                                    # chưa cần thì chưa dựng
+    assert ix.folded is None
     assert [i for i, _, _ in ix.score("dac trung 5V du lieu lon", 5)][0] == 1
-    assert {i for i, _, _ in ix.score("ban", 5)} == {2, 3}                     # không dấu: khớp mọi dấu
-    assert [i for i, _, _ in ix.score("bàn", 5)] == [2]                        # có dấu: chỉ đúng dấu
+    assert {i for i, _, _ in ix.score("ban", 5)} == {2, 3}
+    assert [i for i, _, _ in ix.score("bàn", 5)] == [2]
     assert [i for i, _, _ in ix.score("HDFS", 5)] == []
 
 
 def test_plain_query_function_words_only_count_inside_pairs():
     q = query_terms("co so du lieu la gi", plain_query=True)
-    assert "co" not in q and "la" not in q and "gi" not in q and "la_gi" not in q    # hư từ bỏ dấu: không tính riêng
-    assert q["co_so"] == 0.5 and q["du_lieu"] == 0.5 and q["so"] == 0.5             # ... nhưng "cơ sở" vẫn khớp cặp
+    assert "co" not in q and "la" not in q and "gi" not in q and "la_gi" not in q
+    assert q["co_so"] == 0.5 and q["du_lieu"] == 0.5 and q["so"] == 0.5
     ix = Index.build([
         (1, "Cơ sở dữ liệu quan hệ lưu dữ liệu thành bảng."),
-        (2, "Mốt thời trang năm nay."),                       # "mốt" hiếm → "mot" bỏ dấu IDF cao nếu được tính riêng
+        (2, "Mốt thời trang năm nay."),
         (3, "Khóa ngoại là một ràng buộc tham chiếu."),
     ])
     assert [i for i, _, _ in ix.score("co so du lieu", 5)][0] == 1
     assert [i for i, _, _ in ix.score("khoa ngoai la mot rang buoc", 5)] == [3]
 
 
-# ------------------------------------------------------------------ trên CSDL: phạm vi lớp, làm mới chỉ mục, API
 @pytest.fixture()
 def sections():
     db = SessionLocal()
@@ -140,7 +139,7 @@ def test_index_follows_reindex_and_exclusion(sections):
     cs, _ = sections
     a = _material(cs, "chuong4", [("Giao tác", "Giao tác bảo đảm tính nguyên tố.")])
     assert [h.material_id for h in _search(cs, "giao tác nguyên tố")] == [a]
-    db = SessionLocal()                                        # GV sửa tệp → nạp lại: nội dung mới, indexed_at mới
+    db = SessionLocal()
     db.query(MaterialPassage).filter_by(material_id=a).update({"body": "Khóa chết (deadlock) giữa hai giao tác."})
     m = db.get(SectionMaterial, a)
     m.indexed_at = m.indexed_at + timedelta(seconds=5)
@@ -148,16 +147,16 @@ def test_index_follows_reindex_and_exclusion(sections):
     _warm(cs)
     assert [h.material_id for h in _search(cs, "khóa chết deadlock")] == [a]
     m = db.get(SectionMaterial, a)
-    m.status = "excluded"                                      # GV bỏ chọn – CHƯA dựng lại chỉ mục
+    m.status = "excluded"
     db.commit()
     db.close()
-    assert _search(cs, "khóa chết deadlock") == []            # bản cũ vẫn không trả đoạn của học liệu đã bỏ chọn
+    assert _search(cs, "khóa chết deadlock") == []
 
 
 def test_stale_index_served_at_once_while_rebuilding_in_background(sections, monkeypatch):
     cs, _ = sections
     a = _material(cs, "chuong7", [("Phục hồi", "Nhật ký ghi trước (WAL) giúp phục hồi sau sự cố.")])
-    db = SessionLocal()                                        # nạp lại ở worker KHÁC: chỉ mục ở đây chưa dựng lại
+    db = SessionLocal()
     db.query(MaterialPassage).filter_by(material_id=a).update({"body": "Điểm kiểm tra (checkpoint) rút ngắn phục hồi."})
     m = db.get(SectionMaterial, a)
     m.indexed_at = m.indexed_at + timedelta(seconds=5)
@@ -166,10 +165,10 @@ def test_stale_index_served_at_once_while_rebuilding_in_background(sections, mon
     build = Index.build.__func__
     monkeypatch.setattr(Index, "build", classmethod(lambda cls, docs: (time.sleep(1), build(cls, docs))[1]))
     t = time.monotonic()
-    assert [h.material_id for h in _search(cs, "nhật ký ghi trước WAL")] == [a]      # bản cũ, trả ngay
+    assert [h.material_id for h in _search(cs, "nhật ký ghi trước WAL")] == [a]
     assert _search(cs, "checkpoint") == [] and time.monotonic() - t < 1
     deadline = time.monotonic() + 10
-    while not _search(cs, "checkpoint") and time.monotonic() < deadline:            # dựng xong ở nền → bản mới
+    while not _search(cs, "checkpoint") and time.monotonic() < deadline:
         time.sleep(0.2)
     assert [h.material_id for h in _search(cs, "điểm kiểm tra checkpoint")] == [a]
 
@@ -177,12 +176,12 @@ def test_stale_index_served_at_once_while_rebuilding_in_background(sections, mon
 def test_concurrent_requests_build_section_index_once(sections, monkeypatch):
     cs, _ = sections
     _material(cs, "chuong6", [("Sao lưu", "Sao lưu và phục hồi dữ liệu.")], warm=False)
-    search._cache.pop(cs, None)                                # lớp chưa từng có chỉ mục: phải chờ dựng
+    search._cache.pop(cs, None)
     calls, build = [], Index.build.__func__
 
     def slow_build(cls, docs):
         calls.append(1)
-        time.sleep(0.3)                                         # dựng chậm: các yêu cầu khác đến trong lúc dựng
+        time.sleep(0.3)
         return build(cls, docs)
     monkeypatch.setattr(Index, "build", classmethod(slow_build))
     got = []
@@ -218,10 +217,10 @@ def test_indexer_thread_builds_section_index_after_indexing(sections, monkeypatc
     cs, _ = sections
     _material(cs, "chuong8", [("Phân quyền", "GRANT cấp quyền cho người dùng.")], warm=False)
     search._cache.pop(cs, None)
-    monkeypatch.setattr(index, "index_pending", lambda db, cs_id: {})   # tệp chờ đã nạp xong (không gọi Moodle)
+    monkeypatch.setattr(index, "index_pending", lambda db, cs_id: {})
     index.run_section(cs)
     db = SessionLocal()
     try:
-        assert search._cached(cs, search._ready(db, cs)) is not None       # lần tìm sau không phải dựng
+        assert search._cached(cs, search._ready(db, cs)) is not None
     finally:
         db.close()

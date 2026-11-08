@@ -29,8 +29,8 @@ def test_parsers():
     assert qi.parse_clos("clo1, clo2, clo3", clos)[0] == [(1, 0.33), (2, 0.33), (3, 0.34)]
     assert qi.parse_clos("CLO1:0.6; CLO3:0.4", clos)[0] == [(1, 0.6), (3, 0.4)]
     assert qi.parse_clos("2", clos)[0] == [(2, 1.0)]
-    assert qi.parse_clos("CLO1:0.6; CLO3:0.6", clos)[1]           # tổng ≠ 1
-    assert qi.parse_clos("CLO1:0.6; CLO3", clos)[1]               # thiếu trọng số
+    assert qi.parse_clos("CLO1:0.6; CLO3:0.6", clos)[1]
+    assert qi.parse_clos("CLO1:0.6; CLO3", clos)[1]
     assert qi.parse_clos("CLO9", clos)[1]
     levels = [{"id": 3, "code": "Apply", "name_vi": "Vận dụng"}]
     assert qi.parse_bloom("3 - Vận dụng", levels)[0] == 3
@@ -47,12 +47,12 @@ def test_bulk_import_then_tag(client, gv):
     data = _xlsx([["Nội dung", "A", "B", "C", "Đáp án"],
                   ["Câu nhập hàng loạt số một?", "x", "y", "z", "b"],
                   ["Câu nhập hàng loạt số hai?", "x", "y", "z", "3"],
-                  ["Câu nhập hàng loạt số hai?", "x", "y", "z", "C"],   # trùng trong file
+                  ["Câu nhập hàng loạt số hai?", "x", "y", "z", "C"],
                   ["Câu lỗi", "x", "", "", ""]])
     url = f"/api/questions/import?course_id={cid}"
     prev = _up(client, gv, url + "&dry_run=true", "q.xlsx", data).json()
     assert prev["summary"] == {"format": "Excel/CSV", "total": 4, "ok": 2, "duplicate": 1, "error": 1, "will_add": 2, "untagged": 2}
-    assert len(client.get(f"/api/questions?course_id={cid}", headers=gv).json()) == before     # xem trước không ghi
+    assert len(client.get(f"/api/questions?course_id={cid}", headers=gv).json()) == before
     res = _up(client, gv, url + "&dry_run=false", "q.xlsx", data).json()
     ids = res["created_ids"]
     assert len(ids) == 2
@@ -60,16 +60,13 @@ def test_bulk_import_then_tag(client, gv):
     assert q["tagged"] is False and q["bloom_level_id"] is None and [o["is_correct"] for o in q["options"]] == [False, False, True]
     untagged = {x["id"] for x in client.get(f"/api/questions?course_id={cid}&untagged=true", headers=gv).json()}
     assert set(ids) <= untagged
-    # nhập lại → trùng với câu đã có
     assert _up(client, gv, url + "&dry_run=true", "q.xlsx", data).json()["summary"]["duplicate"] == 3
 
-    # câu chưa gán không được đưa vào đề
     cs = client.get("/api/class-sections", headers=gv).json()[0]["id"]
     r = client.post("/api/exams", headers=gv, json={"class_section_id": cs, "exam_title": "Đề thử", "exam_type": "online",
                                                     "assessment_type": "process", "max_score": 10, "items": [{"question_id": ids[0], "points": 1}]})
     assert r.status_code == 422 and "chưa gán" in r.json()["detail"]
 
-    # tải file gán CLO, điền, tải lên
     t = client.get(f"/api/questions/tagging-template?course_id={cid}&ids={','.join(map(str, ids))}", headers=gv)
     wb = load_workbook(io.BytesIO(t.content)); ws = wb["GanCLO"]
     assert [c.value for c in ws[1]][:6] == ["ID", "Nội dung câu hỏi", "Đáp án", "Chương", "Bloom", "CLO"]
@@ -87,9 +84,7 @@ def test_bulk_import_then_tag(client, gv):
     q = client.get(f"/api/questions/{ids[1]}", headers=gv).json()
     assert q["tagged"] and q["bloom_level_id"] == 3 and q["chapter"] == "Chương 2"
     assert sorted((c["clo_code"], c["weight"]) for c in q["clos"]) == [("CLO1", 0.7), ("CLO2", 0.3)]
-    # tải lại cùng file → không đổi
     assert _up(client, gv, turl + "&dry_run=true", "t.xlsx", b.getvalue()).json()["summary"]["unchanged"] == 2
-    # giờ đưa vào đề được
     r = client.post("/api/exams", headers=gv, json={"class_section_id": cs, "exam_title": "Đề thử", "exam_type": "online",
                                                     "assessment_type": "process", "max_score": 10, "items": [{"question_id": ids[0], "points": 1}]})
     assert r.status_code == 201

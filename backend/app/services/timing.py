@@ -1,25 +1,4 @@
-"""Phân tích THỜI GIAN LÀM BÀI trên Moodle Quiz để cảnh báo giảng viên các lượt làm bài bất thường.
-
-Nguồn dữ liệu: mỗi lần SV lưu đáp án (chuyển trang, Moodle tự lưu định kỳ, nộp bài) question engine ghi một bước có
-dữ liệu 'answer' kèm thời điểm. Thủ tục sp_sync_exam lấy về cho từng câu: lần chọn đầu, lần chọn cuối, số lần lưu;
-cho từng lượt: bắt đầu, nộp, giới hạn thời gian của Quiz, lần chọn đáp án cuối cùng, có bị Moodle tự nộp khi hết giờ.
-
-Thời gian trả lời một câu (response time) = khoảng cách từ lần chọn đáp án liền trước trong lượt (hoặc lúc bắt đầu) tới
-lần đầu chọn đáp án câu đó. Khi Quiz đặt nhiều câu trên một trang, các câu cùng trang được lưu cùng một thời điểm – khi đó
-khoảng thời gian của cả trang được chia đều cho các câu (ước lượng theo trang).
-
-Các dấu hiệu (ngưỡng chỉnh được – DEFAULTS):
-  LAM_NHANH  Làm bài quá nhanh / nghi chọn đại: thời gian làm trung bình < min_sec_per_q giây/câu (VD 50 câu trong 5 phút
-             = 6 giây/câu), HOẶC tỷ lệ câu trả lời "chớp nhoáng" ≥ rapid_share. Câu chớp nhoáng: thời gian trả lời dưới
-             max(rapid_sec, 10% trung vị thời gian của câu đó trong lớp) – phương pháp ngưỡng chuẩn NT10 (Wise & Ma, 2012),
-             tối đa 10 giây. Kèm tỷ lệ đúng của các câu chớp nhoáng so với xác suất đoán mò (1/số phương án).
-  BO_DO      Chọn rồi nghỉ (bỏ dở): ≥ 50% số câu bỏ trống và nộp sớm (không phải hết giờ).
-  TREO_MAY   Chọn xong nhưng không nộp, để hết giờ Moodle tự nộp: bài nộp do hết giờ VÀ khoảng thời gian không thao tác
-             từ lần chọn đáp án cuối tới lúc nộp ≥ idle_min phút và ≥ idle_share thời gian làm bài.
-  NOP_MUON   (lưu ý) Tự bấm nộp nhưng trước đó để lâu không thao tác (cùng ngưỡng idle, không do hết giờ).
-  DON_CUOI   (lưu ý) Dồn đáp án vào phút cuối: ≥ 30% số câu được chọn lần đầu trong 60 giây trước khi nộp.
-Đây là DẤU HIỆU để GV xem lại (kết hợp quan sát phòng thi, nhật ký Moodle), không phải kết luận gian lận.
-"""
+"""Phân tích THỜI GIAN LÀM BÀI trên Moodle Quiz để cảnh báo giảng viên các lượt làm bài bất thường."""
 from __future__ import annotations
 
 import statistics
@@ -53,8 +32,7 @@ def _secs(a: datetime | None, b: datetime | None) -> float | None:
 
 
 def response_times(started: datetime | None, first_times: list[datetime]) -> list[float]:
-    """Thời gian trả lời từng câu (giây) từ các thời điểm chọn đáp án lần đầu ĐÃ SẮP TĂNG DẦN của một lượt làm bài.
-    Các câu lưu cùng một thời điểm (nhiều câu trên một trang) chia đều khoảng thời gian của trang."""
+    """Thời gian trả lời từng câu (giây) từ các thời điểm chọn đáp án lần đầu ĐÃ SẮP TĂNG DẦN của một lượt làm bài."""
     out, prev, i = [], started or (first_times[0] if first_times else None), 0
     while i < len(first_times):
         j = i
@@ -67,7 +45,7 @@ def response_times(started: datetime | None, first_times: list[datetime]) -> lis
 
 
 def compute_response_times(db: Session, exam_id: int) -> int:
-    """Tính response_time_sec cho mọi câu đã trả lời của bài (gọi sau mỗi lần đồng bộ). Trả về số câu được tính."""
+    """Tính response_time_sec cho mọi câu đã trả lời của bài (gọi sau mỗi lần đồng bộ)."""
     rows = db.execute(text("""SELECT r.id, r.attempt_id, r.first_answer_at, a.started_at
                               FROM item_level_results r JOIN exam_attempts a ON a.id = r.attempt_id
                               WHERE a.exam_id = :e AND a.status = 'finished' AND r.first_answer_at IS NOT NULL
@@ -122,7 +100,6 @@ def report(db: Session, exam_id: int, th: dict | None = None) -> dict:
     by_att = defaultdict(list)
     for it in items:
         by_att[it["attempt_id"]].append(it)
-    # trung vị thời gian trả lời từng câu trong lớp -> ngưỡng chớp nhoáng NT10 của từng câu
     rts = defaultdict(list)
     for it in items:
         if it["response_time_sec"] is not None and it["response_status"] == "answered":

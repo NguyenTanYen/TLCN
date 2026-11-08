@@ -1,11 +1,4 @@
 <?php
-// Kịch bản kiểm thử tích hợp với Moodle THẬT (chạy trong thư mục cài Moodle 4.x):
-//   php moodle_build_quiz.php --spec=spec.json --xml=exam.xml
-// - Tạo khóa học, tài khoản SV/GV, ghi danh.
-// - NHẬP tệp Moodle XML do hệ thống xuất (giữ idnumber QB-n) vào ngân hàng câu hỏi của khóa học.
-// - Tạo Quiz có xáo trộn phương án, thêm câu hỏi theo thứ tự đề.
-// - Cho từng SV làm bài bằng API chấm điểm của Moodle (quiz_attempt::process_finish) – Moodle tự chấm sumgrades.
-// In ra JSON {course_id, quiz_id, attempts}.
 define('CLI_SCRIPT', true);
 $opts = getopt('', ['spec:', 'xml:', 'moodle:']);
 require($opts['moodle'] . '/config.php');
@@ -21,7 +14,6 @@ $spec = json_decode(file_get_contents($opts['spec']), true);
 \core\session\manager::set_user(get_admin());
 $gen = new testing_data_generator();
 
-// 1. khóa học + người dùng + ghi danh
 $course = $DB->get_record('course', ['shortname' => $spec['course']['shortname']]);
 if ($course) { delete_course($course, false); }
 $course = $gen->create_course(['fullname' => $spec['course']['fullname'], 'shortname' => $spec['course']['shortname']]);
@@ -30,15 +22,14 @@ foreach (array_merge($spec['students'], [$spec['teacher']]) as $u) {
     $rec = $DB->get_record('user', ['username' => $u['username']]) ?: $gen->create_user([
         'username' => $u['username'], 'idnumber' => $u['idnumber'] ?? '', 'firstname' => $u['firstname'],
         'lastname' => $u['lastname'], 'email' => $u['username'] . '@example.com',
-        'password' => $u['password'] ?? 'Sv@123456']);   // để SV đăng nhập được cả Moodle lẫn hệ thống
+        'password' => $u['password'] ?? 'Sv@123456']);
     if (!empty($u['password'])) {
-        update_internal_user_password($rec, $u['password']);   // đặt lại mật khẩu demo cho tài khoản đã có
+        update_internal_user_password($rec, $u['password']);
     }
     $users[$u['username']] = $rec;
     $gen->enrol_user($rec->id, $course->id, $u['role'] ?? 'student');
 }
 
-// 2. nhập Moodle XML vào ngân hàng câu hỏi của khóa học
 $ctx = context_course::instance($course->id);
 $contexts = new core_question\local\bank\question_edit_contexts($ctx);
 $defaultcat = question_make_default_categories($contexts->all());
@@ -57,7 +48,6 @@ $ok = $qformat->importpreprocess() && $qformat->importprocess() && $qformat->imp
 $log = ob_get_clean();
 if (!$ok) { fwrite(STDERR, $log); exit(1); }
 
-// 3. Quiz: xáo trộn phương án, phản hồi trì hoãn, không giới hạn số lượt
 $quizgen = $gen->get_plugin_generator('mod_quiz');
 $quiz = $quizgen->create_instance(['course' => $course->id, 'name' => $spec['quiz']['name'], 'grade' => $spec['quiz']['grade'],
     'sumgrades' => 0, 'shuffleanswers' => 1, 'preferredbehaviour' => 'deferredfeedback', 'attempts' => 0, 'questionsperpage' => 1,
@@ -69,11 +59,8 @@ foreach ($qformat->questionids as $qid) {
 $quizobj = quiz_settings::create($quiz->id);
 \mod_quiz\grade_calculator::create($quizobj)->recompute_quiz_sumgrades();
 
-// 4. làm bài: responses = [{ "QB-5": vị trí phương án gốc (0-based) | null }]
 $t0 = time();
 $made = 0;
-// $timing (tùy chọn) = ['offsets' => {"QB-n": giây kể từ lúc bắt đầu}, 'finish' => giây]: SV chọn đáp án từng câu đúng các
-// thời điểm đó (mỗi lần là một lần Moodle lưu đáp án – như SV chuyển trang) rồi nộp; lúc bắt đầu được lùi về quá khứ.
 function take_attempt($quizid, $user, $answers, $time, $timing = null) {
     global $DB;
     \core\session\manager::set_user($user);
@@ -92,9 +79,9 @@ function take_attempt($quizid, $user, $answers, $time, $timing = null) {
         $qa = $ao->get_question_attempt($slot);
         $q = $qa->get_question();
         $pos = $answers[$q->idnumber] ?? null;
-        if ($pos === null) { continue; }               // bỏ trống
-        $ids = array_keys($q->answers); sort($ids);      // thứ tự gốc = thứ tự id (theo XML)
-        $field = array_search($ids[$pos], $q->get_order($qa)); // vị trí sau khi xáo trộn
+        if ($pos === null) { continue; }
+        $ids = array_keys($q->answers); sort($ids);
+        $field = array_search($ids[$pos], $q->get_order($qa));
         $one = [$qa->get_control_field_name('sequencecheck') => (string)$qa->get_sequence_check_count(),
                 $qa->get_qt_field_name('answer') => (string)$field];
         $post += $one;
@@ -117,7 +104,6 @@ foreach ($spec['attempts'] as $i => $a) {
     take_attempt($quiz->id, $users[$a["username"]], $a["answers"], time(), $a["timing"] ?? null);
     $made++;
 }
-// một lượt "xem trước" của giảng viên – phải bị hệ thống loại
 take_attempt($quiz->id, $users[$spec['teacher']['username']], [], $t0);
 echo json_encode(['course_id' => (int)$course->id, 'quiz_id' => (int)$quiz->id, 'attempts' => $made,
                   'questions' => count($qformat->questionids)]), "\n";

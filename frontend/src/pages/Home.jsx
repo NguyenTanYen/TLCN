@@ -1,4 +1,3 @@
-// Trang Tổng quan: người mới vào biết ngay việc cần làm tiếp theo, bấm là tới đúng trang.
 import { Link } from 'react-router-dom'
 import { Loading, Stat } from '../components/ui'
 import { useApi } from '../hooks'
@@ -70,7 +69,6 @@ function Admin({ d }) {
   </>
 }
 
-// Danh mục chức năng theo nhóm: mỗi nhóm liệt kê các việc nhỏ bên trong, để người mới biết hệ thống làm được gì
 function Catalog({ role }) {
   const groups = (MENUS[role] || []).filter(([g]) => g !== 'Bắt đầu')
   return <section className="card home-card">

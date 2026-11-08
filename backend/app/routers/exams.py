@@ -1,4 +1,4 @@
-"""UC-02: Khởi tạo đề thi – xuất Moodle XML; liên kết Quiz; công bố kết quả. (Đề giấy do Moodle Offline Quiz sinh – xem routers/lms.py)"""
+"""UC-02: Khởi tạo đề thi – xuất Moodle XML; liên kết Quiz; công bố kết quả."""
 import math
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -78,7 +78,6 @@ def list_exams(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: 
     return [{**exam_dict(db, e), "timing_alerts": alerts.get(e.id)} for e in exams]
 
 
-# ------------------------------------------------------------------ ma trận đề & sinh đề tự động
 def _pool(db: Session, course_id: int, outline_ids: list[int]):
     """Các câu dùng được để ra đề (đã gán Bloom và CLO, chưa Hủy) kèm chỉ số p, DI trung bình và số lần dùng."""
     rows = db.execute(text("""
@@ -147,8 +146,7 @@ def _blueprint_pool(db: Session, course_id: int, outline_ids: str):
 
 @router.post("/class-sections/{cs_id}/exam-blueprint")
 def blueprint_generate(cs_id: int, body: BlueprintIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Sinh đề theo ma trận: trả về danh sách câu + điểm, ma trận mục tiêu/đạt được, độ phủ CLO, lỗi thiếu câu và cảnh báo.
-    Không ghi CSDL – GV xem, chỉnh tay rồi mới lưu bài kiểm tra (POST /api/exams)."""
+    """Sinh đề theo ma trận: trả về danh sách câu + điểm, ma trận mục tiêu/đạt được, độ phủ CLO, lỗi thiếu câu và cảnh báo."""
     return _blueprint_generate(db, check_section_access(db, u, cs_id).course_id, body)
 
 
@@ -243,7 +241,7 @@ def get_exam(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
 
 @router.delete("/exams/{exam_id}")
 def delete_exam(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Xóa bài KT chưa có kết quả. Xóa đề của môn không ảnh hưởng các bài đã giao cho lớp."""
+    """Xóa bài KT chưa có kết quả."""
     e = get_exam_for(db, u, exam_id, allow_template=True)
     if db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e"), {"e": exam_id}).scalar():
         raise HTTPException(409, "Bài KT đã có kết quả thi, không thể xóa")
@@ -275,7 +273,7 @@ def link_quiz(exam_id: int, body: LinkQuizIn, u: User = Depends(lecturer_only), 
     if not course:
         raise HTTPException(404, f"Không có Quiz id = {body.moodle_quiz_id} trên Moodle")
     cs = e.class_section
-    check_moodle_course(db, u, cs, course)   # Quiz phải thuộc khóa học Moodle của lớp HP và GV phụ trách
+    check_moodle_course(db, u, cs, course)
     cs.moodle_course_id = course
     e.moodle_quiz_id = body.moodle_quiz_id
     db.commit()
@@ -290,7 +288,6 @@ def publish(exam_id: int, body: PublishIn, u: User = Depends(require("admin", "l
     e.publish_flag = body.publish
     db.commit()
     out = {"id": exam_id, "publish_flag": e.publish_flag}
-    # Công bố / thu hồi được đồng bộ ngay sang Moodle – nơi SV xem kết quả (UC-05)
     if not lms.configured():
         out["moodle_error"] = "chưa cấu hình Web Service Moodle (MOODLE_URL, MOODLE_WS_TOKEN)"
     elif not e.class_section.moodle_course_id:
@@ -303,17 +300,14 @@ def publish(exam_id: int, body: PublishIn, u: User = Depends(require("admin", "l
     return out
 
 
-# ------------------------------------------------------------------ dùng một đề cho nhiều lớp HP cùng môn
 class CopyIn(BaseModel):
     class_section_ids: list[int] = Field(min_length=1, max_length=30)
-    create_moodle: bool = True      # bài trực tuyến: tạo luôn Quiz trên khóa học Moodle đã gắn của từng lớp
+    create_moodle: bool = True
 
 
 @router.post("/exams/{exam_id}/copy")
 def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Giao đề cho lớp HP: đề của môn (tạo ở trang môn học) được giao khi xuất cho các lớp GV chọn; bài của một lớp được
-    dùng lại cho các lớp khác cùng môn. Mỗi lớp nhận một bài KT riêng (câu hỏi, điểm, cấu hình, câu/ý nhập điểm) và –
-    với bài trực tuyến – Quiz trên khóa học Moodle đã gắn của lớp."""
+    """Giao đề cho lớp HP: đề của môn (tạo ở trang môn học) được giao khi xuất cho các lớp GV chọn; bài của một lớp được dùng lại cho các lớp khác cùng môn."""
     e = get_exam_for(db, u, exam_id, allow_template=True)
     src_cs = e.class_section
     src_course = src_cs.course_id if src_cs else e.course_id

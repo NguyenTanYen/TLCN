@@ -1,13 +1,4 @@
-"""Xuất báo cáo đo lường CĐR theo đúng bố cục các biểu mẫu HCMUTE đang dùng.
-
-* build_bm6(class_section_id)  -> tệp "Biểu mẫu 6": mục lục, BM6a (kế hoạch + nhận xét), BM6b (kết quả, công thức
-  liên kết tới BM6c/6d), BM6c/6d (minh chứng từng CLO – mỗi bài KT một khối, COUNTIF theo ngưỡng)
-* build_bm6_exam(exam_id)      -> BM6c riêng của MỘT bài kiểm tra: trang tổng hợp các CLO bài đo + BM6c từng CLO (kèm MSSV, họ tên)
-* build_bm3(program_id, year)  -> BM2a (kế hoạch đo CĐR CTĐT), BM2b (báo cáo tổng kết), BM3b/BM3c cho từng CĐR đo trong năm
-* build_assignments(semester)  -> bảng "Phân công đánh giá PIs" của học kỳ
-
-Mỗi biểu mẫu gồm hai bước: hàm *_data đọc CSDL thành dict, hàm render_* dựng tệp từ dict (kiểm thử được không cần CSDL).
-"""
+"""Xuất báo cáo đo lường CĐR theo đúng bố cục các biểu mẫu HCMUTE đang dùng."""
 from __future__ import annotations
 
 import io
@@ -21,19 +12,18 @@ from sqlalchemy.orm import Session
 from ..config import settings
 
 FONT = "Times New Roman"
-BODY, TITLE = 13, 14                      # cỡ chữ của biểu mẫu gốc: nội dung 13, tiêu đề 14
+BODY, TITLE = 13, 14
 THIN = Side(style="thin", color="000000")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 WRAP = Alignment(wrap_text=True, vertical="center")
 LEFT_TOP = Alignment(wrap_text=True, vertical="top")
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
-DATE_LINE = "TP. Hồ Chí Minh, ngày … tháng … năm 20…"   # để trống cho người ký tự điền, như biểu mẫu
+DATE_LINE = "TP. Hồ Chí Minh, ngày … tháng … năm 20…"
 SCHOOL = "TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT\nTHÀNH PHỐ HỒ CHÍ MINH"
 ALL_SUPERVISORS = "Tất cả thầy/cô có hướng dẫn"
 TYPE_NAME = {"process": "Quá trình", "final": "Cuối kỳ"}
 EV_NAME = {"process": "Quá trình", "final": "Cuối kỳ", "any": "Quá trình + Cuối kỳ", None: ""}
 
-# Hướng dẫn in nghiêng dưới mỗi mục nhận xét của BM6a / BM3b (nguyên văn biểu mẫu) – dùng khi mục chưa có nội dung
 GUIDE = {
     "Tổng hợp dữ liệu": "Mô tả kỹ cách tính số liệu tổng hợp từ dữ liệu của từng CĐR và cung cấp con số tính tổng. Sử dụng thêm "
                         "các đồ thị, công thức nếu cần thiết nhưng nhớ trích dẫn cụ thể số lượng sinh viên đã được đánh giá "
@@ -105,7 +95,7 @@ def _row(ws, row: int, values: list, *, wrap_cols=(2,), pct_cols=(), bold=False)
         c = ws.cell(row=row, column=j, value=v)
         c.font = _f(bold); c.border = BOX
         c.alignment = WRAP if j in wrap_cols else CENTER
-        if j in pct_cols:   # chỉ tiêu (số tròn) 0%, tỷ lệ tính ra (công thức / số lẻ) 0.00%
+        if j in pct_cols:
             frac = isinstance(v, str) and v.startswith("=") or isinstance(v, float) and abs(v * 100 - round(v * 100)) > 1e-9
             c.number_format = "0.00%" if frac else "0%"
 
@@ -157,9 +147,6 @@ def _ref(sheet: str, cell: str) -> str:
 def _save(wb) -> bytes:
     bio = io.BytesIO(); wb.save(bio)
     return bio.getvalue()
-
-
-# =====================================================================================  BM6 – CĐR môn học
 
 
 def bm6_data(db: Session, cs_id: int) -> dict:
@@ -219,7 +206,6 @@ def render_bm6(d: dict) -> bytes:
     target_line = f"Chỉ tiêu đạt CĐR môn học: {float(cs['clo_target_pct']):.0f}%"
     wb = Workbook()
 
-    # ---------------- Mục lục "Biểu mẫu 6"
     ws = wb.active; ws.title = "BM6"
     _put(ws, "A1", "Biểu mẫu 6", bold=True, align=Alignment(vertical="center"))
     _put(ws, "A2", f"DỮ LIỆU ĐO LƯỜNG CHI TIẾT CĐR MÔN HỌC {cs['course_name'].upper()}", bold=True, size=TITLE, align=CENTER, merge="A2:K2")
@@ -233,7 +219,6 @@ def render_bm6(d: dict) -> bytes:
         ws.merge_cells(f"C{i}:K{i}"); _box_range(ws, f"C{i}:K{i}"); ws.row_dimensions[i].height = 48
     _widths(ws, [14.6, 15.6] + [9.1] * 9)
 
-    # ---------------- BM6a – kế hoạch + 5 mục nhận xét + chữ ký (bố cục sheet BM6a của biểu mẫu)
     ws = wb.create_sheet("BM6a_KH-KQ CĐR môn học")
     _header(ws, unit, 8, left_cols=4)
     _put(ws, "A5", "BẢNG KẾ HOẠCH KIỂM TRA, ĐÁNH GIÁ MỨC ĐỘ ĐẠT CHO TỪNG CHUẨN ĐẦU RA MÔN HỌC", bold=True, size=TITLE, align=CENTER, merge="A5:H5")
@@ -267,14 +252,12 @@ def render_bm6(d: dict) -> bytes:
     _signer(ws, r + 1, 4, 8, "TRƯỞNG ĐƠN VỊ")
     _widths(ws, [7.7, 42, 16.4, 14, 16, 12, 13, 11])
 
-    # ---------------- BM6c / BM6d – dựng trước để BM6b dùng công thức liên kết như biểu mẫu
     ws6b = wb.create_sheet("BM6b_KH-KQ CĐR môn học")
     links = {}
     for c in clos:
         name = f"BM6{'d' if len(c['tests']) > 1 else 'c'}_{c['clo_code']}"[:31]
         links[c["id"]] = (name, _render_evidence(wb.create_sheet(name), c, cs, unit))
 
-    # ---------------- BM6b – kết quả tổng hợp (tiêu đề 2 tầng, số liệu = công thức trỏ sang sheet minh chứng)
     ws = ws6b
     _header(ws, unit, 8, left_cols=3)
     _put(ws, "A5", "KẾT QUẢ TỔNG HỢP CỦA TỪNG CHUẨN ĐẦU RA MÔN HỌC", bold=True, size=TITLE, align=CENTER, merge="A5:H5")
@@ -309,11 +292,7 @@ def render_bm6(d: dict) -> bytes:
 
 def _render_evidence(ws, c: dict, cs: dict, unit: str, *, with_names=False, extra: list[str] | None = None,
                      concl_suffix: str = "") -> dict | None:
-    """BM6c (1 bài KT) / BM6d (nhiều bài KT): mỗi bài một khối cột TT | Điểm câu hỏi | Điểm bài thi/KT, cách nhau 1 cột.
-
-    with_names: thêm cột MSSV, Họ và tên (tệp BM6c xuất riêng cho một bài KT). Khi điểm tối đa phần câu hỏi của CLO khác nhau
-    giữa các SV (đề rút ngẫu nhiên / nhiều mã đề), khối có thêm cột "Điểm tối đa câu hỏi" và số SV đạt tính theo từng dòng.
-    Trả về ô 'tổng số SV đạt' và 'tổng số SV đánh giá' để BM6b liên kết."""
+    """BM6c (1 bài KT) / BM6d (nhiều bài KT): mỗi bài một khối cột TT | Điểm câu hỏi | Điểm bài thi/KT, cách nhau 1 cột."""
     tests = c["tests"]
     blocks = []
     for t in tests:
@@ -337,15 +316,15 @@ def _render_evidence(ws, c: dict, cs: dict, unit: str, *, with_names=False, extr
         _widths(ws, [6.6, 18, 14, 6.5] * 3)
         _put(ws, f"A{concl_row}", "Kết luận: Chưa đo", bold=True, merge=f"A{concl_row}:{lc}{concl_row}")
         return None
-    top = concl_row + 1                                           # dòng tiêu đề khối (biểu mẫu: dòng 13)
-    end = top + 2 + max(len(t["rows"]) for t in tests)            # dòng dữ liệu cuối chung của mọi khối (như BM6d)
+    top = concl_row + 1
+    end = top + 2 + max(len(t["rows"]) for t in tests)
     cnt, rate = end + 1, end + 2
     n_cells, ok_cells, col = [], [], 1
     for k, (t, varying, cols) in enumerate(blocks):
         L = lambda j, col=col: get_column_letter(col + j)
         jq, je = cols.index("Điểm câu hỏi "), len(cols) - 1
         jm = cols.index("Điểm tối đa câu hỏi") if varying else None
-        _put(ws, f"{L(0)}{top}", f"Bài KT {k + 1}: {t['title']}", bold=True, align=Alignment(vertical="center"))  # tràn sang ô trống bên phải
+        _put(ws, f"{L(0)}{top}", f"Bài KT {k + 1}: {t['title']}", bold=True, align=Alignment(vertical="center"))
         for j, h in enumerate(cols):
             _put(ws, f"{L(j)}{top + 1}", h, bold=True, align=CENTER, box=True)
             ws[f"{L(j)}{top + 2}"].border = BOX
@@ -365,7 +344,7 @@ def _render_evidence(ws, c: dict, cs: dict, unit: str, *, with_names=False, extr
                 cell.alignment = WRAP if with_names and j == 2 else CENTER
         rng = f"{L(jq)}{top + 3}:{L(jq)}{end}"
         n_ref = f"COUNT({L(0)}{top + 3}:{L(0)}{end})"
-        if varying:   # so điểm của từng SV với điểm tối đa của chính SV đó
+        if varying:
             f_cnt = f"=SUMPRODUCT(({rng}<>\"\")*({rng}+1E-9>={L(jm)}{top + 3}:{L(jm)}{end}*{thr:g}/100))"
         else:
             f_cnt = f'=COUNTIF({rng},">={round(t["qmax"] * thr / 100, 4):g}")'
@@ -451,9 +430,6 @@ def build_bm6_exam(db: Session, exam_id: int) -> bytes:
     return render_bm6_exam(bm6_exam_data(db, exam_id))
 
 
-# =====================================================================================  BM2 / BM3 – CĐR chương trình
-
-
 def prev_next_year(year: str) -> tuple[str, str]:
     a, b = (int(x) for x in year.split("-"))
     return f"{a - 1}-{b - 1}", f"{a + 1}-{b + 1}"
@@ -496,7 +472,6 @@ def bm2_summary(d: dict) -> dict:
     target = float(d["prog"]["target_pct"])
     measured = [p for p in d["plos"] if year in p["results"]]
     ok = sum(p["results"][year]["n_achieved"] for p in measured); n = sum(p["results"][year]["n_evaluated"] for p in measured)
-    # Bảng 1: kết quả lần đo gần nhất của mỗi CĐR tới năm báo cáo (giữ kết quả các năm trước – hướng dẫn của BM2b)
     latest = []
     for p in d["plos"]:
         ys = sorted(y for y in p["results"] if y <= year)
@@ -547,7 +522,6 @@ def render_bm3(d: dict) -> bytes:
     vv = f"V/v triển khai đo lường mức độ đạt được chuẩn đầu ra CTĐT {prog['name'].upper()} năm học {year}"
     wb = Workbook()
 
-    # ---------------- BM2a – kế hoạch đo lường CĐR CTĐT
     ws = wb.active; ws.title = "BM2a_KeHoach"
     _header(ws, unit, 7, left_cols=3, doc_no=doc_no)
     _put(ws, "G4", "BM2a", italic=True, align=Alignment(horizontal="right"))
@@ -570,7 +544,6 @@ def render_bm3(d: dict) -> bytes:
     _signer(ws, r + 1, 5, 7, "TRƯỞNG BỘ MÔN")
     _widths(ws, [6, 7, 62, 11, 16, 11, 16])
 
-    # ---------------- BM2b – báo cáo tổng kết
     ws = wb.create_sheet("BM2b_TongKet")
     n_pi = s["n_pi_cols"]
     last_col = 7 + n_pi + 1
@@ -615,7 +588,7 @@ def render_bm3(d: dict) -> bytes:
     def detail_cells(p, rr):
         x = p["results"][year]
         res = [(("Đạt" if q["is_achieved"] else "Không đạt") if q["n_evaluated"] else "") for q in p["pis"][:n_pi]]
-        res += [""] * (n_pi - len(res))                      # cột PI k = PI thứ k của CĐR (PI chưa đo để trống)
+        res += [""] * (n_pi - len(res))
         return [x["n_achieved"], x["n_evaluated"], f'=IF(E{rr}>0,D{rr}/E{rr},"")', ""] + res + ["Đạt" if x["is_achieved"] else "Không đạt"]
     r = _plo_rows(ws, first, s["measured"], detail_cells, pct_cols=(6,), with_row=True)
     if s["measured"]:
@@ -633,7 +606,6 @@ def render_bm3(d: dict) -> bytes:
     _signer(ws, r, last_col - 3, last_col, "TRƯỞNG ĐƠN VỊ")
     _widths(ws, [6, 7, 52] + [11] * (last_col - 3))
 
-    # ---------------- BM3b / BM3c cho từng CĐR có kế hoạch đo PI trong năm
     for p in plos:
         if not p["planned"]:
             continue
@@ -670,7 +642,7 @@ def render_bm3(d: dict) -> bytes:
         _head_cells(ws, 10, ["TT", "Performance indicator (PI)\ncho CĐR này ", "Phương pháp/\nCông cụ đánh giá", "SL SV đạt yêu cầu",
                              "Tổng số SV đánh giá", "Tỷ lệ % đạt yêu cầu", "Chỉ tiêu mong muốn ", "Kết quả\nđạt được"])
         first = r = 11
-        for q in p["pis"]:                                     # đủ mọi PI của CĐR, PI chưa đo để trống số liệu
+        for q in p["pis"]:
             _row(ws, r, [q["pi_code"], q["description"], q["method"] or "", q["n_achieved"] if q["n_evaluated"] else "",
                          q["n_evaluated"] or "", f'=IF(N(E{r})>0,D{r}/E{r},"")', _pct(q["target_pct"]),
                          f'=IF(N(E{r})=0,"",IF(F{r}+1E-9>=G{r},"Đạt","Không đạt"))'], wrap_cols=(2, 3), pct_cols=(6, 7))
@@ -705,9 +677,6 @@ def build_bm3(db: Session, program_id: int, academic_year: str) -> bytes:
     return render_bm3(bm2_data(db, program_id, academic_year))
 
 
-# =====================================================================================  Phân công đánh giá PIs
-
-
 def assignments_data(db: Session, semester_id: int) -> dict:
     sem = dict(db.execute(text("SELECT * FROM semesters WHERE id = :s"), {"s": semester_id}).mappings().one())
     prog = db.execute(text("SELECT name FROM programs ORDER BY id LIMIT 1")).scalar()
@@ -729,7 +698,7 @@ def render_assignments(d: dict) -> bytes:
     _put(ws, "B3", ASSIGN_NOTE, align=LEFT_TOP, merge="B3:E3"); ws.row_dimensions[3].height = 36
     _head_cells(ws, 5, ["STT", "MÃ MH", "TÊN MH", "GV ĐÁNH GIÁ", "GHI CHÚ"])
     groups: list[list[dict]] = []
-    for x in d["rows"]:                                      # một môn có nhiều GV: các dòng liền nhau, gộp ô STT/mã/tên
+    for x in d["rows"]:
         if groups and groups[-1][0]["course_code"] == x["course_code"]:
             groups[-1].append(x)
         else:
@@ -737,10 +706,9 @@ def render_assignments(d: dict) -> bytes:
     r = 6
     for i, g in enumerate(groups, 1):
         for k, x in enumerate(g):
-            # môn giao cho "Tất cả thầy/cô có hướng dẫn" (TLCN, KLTN): ghi rõ ở cột GV đánh giá như biểu mẫu
             gv, note = x["lecturer"], x["note"]
             if x["all_supervisors"] and (note or "").lower().startswith("tất cả thầy/cô"):
-                note = None                                   # ghi chú chỉ nhắc lại "Tất cả thầy/cô có HD"
+                note = None
             _row(ws, r + k, [i if k == 0 else "", x["course_code"] if k == 0 else "", x["course_name"] if k == 0 else "",
                              gv or "", note or ""], wrap_cols=(3, 4, 5))
         if len(g) > 1:

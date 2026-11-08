@@ -1,4 +1,3 @@
-// Trang đề của môn (chưa gắn lớp HP): xem nội dung, giao cho lớp HP khi xuất, tải Moodle XML, xóa.
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, STATUS_VI } from '../api'

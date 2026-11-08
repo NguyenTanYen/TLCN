@@ -39,7 +39,7 @@ def test_progress_before_attempt(client, gv, remedial):
 def test_progress_after_attempt(client, gv, remedial):
     qs = _q("""SELECT eq.question_id, eq.points, (SELECT id FROM question_options o WHERE o.question_id=eq.question_id AND o.is_correct LIMIT 1)
                FROM exam_questions eq WHERE eq.exam_id=:e""", e=remedial["exam"])
-    with engine.begin() as c:   # SV làm bài phụ đạo: đúng hết
+    with engine.begin() as c:
         c.execute(text("""INSERT INTO exam_attempts (exam_id, student_id, source, started_at, finished_at, status, total_score)
                           VALUES (:e, :s, 'moodle', NOW(), NOW(), 'finished', :t)"""),
                   {"e": remedial["exam"], "s": remedial["sid"], "t": sum(float(p) for _, p, _ in qs)})
@@ -55,16 +55,16 @@ def test_progress_after_attempt(client, gv, remedial):
 
 
 def test_restrict_requires_moodle_accounts(client, gv, remedial):
-    assert client.post(f"/api/exams/{remedial['exam']}/moodle/restrict", headers=gv).status_code == 409    # chưa có Quiz
+    assert client.post(f"/api/exams/{remedial['exam']}/moodle/restrict", headers=gv).status_code == 409
     regular = _q("SELECT id FROM exams WHERE class_section_id=:c AND target_students IS NULL LIMIT 1", c=remedial["cs"])[0][0]
-    assert client.post(f"/api/exams/{regular}/moodle/restrict", headers=gv).status_code == 422             # không phải bài phụ đạo
+    assert client.post(f"/api/exams/{regular}/moodle/restrict", headers=gv).status_code == 422
     old = _q("SELECT moodle_user_id FROM students WHERE id=:s", s=remedial["sid"])[0][0]
     db = SessionLocal()
     try:
         e = db.get(Exam, remedial["exam"])
         with engine.begin() as c:
             c.execute(text("UPDATE students SET moodle_user_id=NULL WHERE id=:s"), {"s": remedial["sid"]})
-        db.rollback()          # kết thúc snapshot (REPEATABLE READ) để thấy dữ liệu vừa đổi
+        db.rollback()
         with pytest.raises(HTTPException) as ex:
             target_moodle_users(db, e)
         assert ex.value.status_code == 422 and remedial["code"] in ex.value.detail

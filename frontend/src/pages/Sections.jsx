@@ -34,7 +34,6 @@ export default function Sections() {
   )
 }
 
-// Khóa học trên Moodle (GV là giảng viên của khóa) chưa có lớp HP trong hệ thống → đưa vào bằng một thao tác.
 export function MoodleCourses({ onImported }) {
   const isAdmin = auth.user()?.role === 'admin'
   const mc = useApi('/api/moodle/my-courses')
@@ -42,7 +41,7 @@ export function MoodleCourses({ onImported }) {
   const [dlg, setDlg] = useState(null)
   const focus = Number(sp.get('moodle')) || null
   const pending = (mc.data || []).filter(c => !c.section)
-  useEffect(() => {   // đến từ nút "Phân tích CĐR" của một khóa học chưa có lớp HP
+  useEffect(() => {
     if (focus && mc.data) { const c = mc.data.find(x => x.moodle_course_id === focus); if (c && !c.section) setDlg(c) }
   }, [focus, mc.data])
   if (mc.error) return <div className="alert amber">Không đọc được danh sách khóa học trên Moodle: {mc.error}
@@ -68,7 +67,7 @@ function ImportForm({ c, isAdmin, onClose, onDone }) {
   const lecs = useApi(isAdmin ? '/api/lecturers' : null).data
   const s = c.suggest
   const [f, setF] = useState({ course_id: s.course_id || '', semester_id: s.semester_id || (s.new_semester ? 'new' : ''), section_code: s.section_code, lecturer_id: s.lecturer_id || '' })
-  const [nw, setNw] = useState(null)   // Bộ môn tạo môn học mới ngay trong hộp thoại
+  const [nw, setNw] = useState(null)
   const run = async () => {
     let course_id = Number(f.course_id)
     if (nw) course_id = (await api.post('/api/courses', { ...nw, credits: Number(nw.credits), clo_target_pct: 75 })).id

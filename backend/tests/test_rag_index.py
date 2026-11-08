@@ -1,6 +1,4 @@
-"""Nạp học liệu (services/rag/index): đồng bộ → hàng đợi nạp → đọc PDF → chia đoạn → 'ready' / 'failed' / thử lại.
-Dữ liệu Moodle mô phỏng: cli._simulate_materials, course 50. Không gọi Moodle thật – thay hàm tải (index.fetch).
-Hàng đợi chạy ở luồng riêng; các test luồng API thay enqueue bằng lời gọi đồng bộ cho kết quả xác định."""
+"""Nạp học liệu (services/rag/index): đồng bộ → hàng đợi nạp → đọc PDF → chia đoạn → 'ready' / 'failed' / thử lại."""
 import contextlib
 import hashlib
 import os
@@ -29,7 +27,7 @@ def _pdf(text_on_page: bool = True) -> bytes:
         if text_on_page:
             pg.insert_text((40, 90), title, fontsize=28, fontfile=FONT, fontname="dv")
             pg.insert_text((60, 160), body, fontsize=18, fontfile=FONT, fontname="dv")
-        else:                                                   # "ảnh quét": chỉ có hình, không có chữ
+        else:
             pg.draw_rect(pymupdf.Rect(0, 0, 720, 540), fill=(0.8, 0.8, 0.8))
     return doc.tobytes()
 
@@ -98,7 +96,7 @@ def test_sync_indexes_in_background_each_file_independently(client, gv, cs_id, m
     assert _n_passages(s1["id"]) >= 2
     assert ms["slide_ch2.pdf"]["status"] == "failed" and "Không đọc được PDF" in ms["slide_ch2.pdf"]["error"]
     assert ms["de_on_tap_giua_ky.pdf"]["status"] == "failed" and "OCR" in ms["de_on_tap_giua_ky.pdf"]["error"]
-    book = ms["giao_trinh csdl.pdf"]                         # Moodle không trả lời: chờ lần sau, không coi là lỗi tệp
+    book = ms["giao_trinh csdl.pdf"]
     assert book["status"] == "pending" and "timed out" in book["error"]
 
 
@@ -107,7 +105,7 @@ def test_next_sync_retries_pending_but_not_failed(client, gv, cs_id, moodle):
     client.post(_url(cs_id) + "/sync", headers=gv)
     ms = _materials(client, gv, cs_id)
     assert (ms["giao_trinh csdl.pdf"]["status"], ms["giao_trinh csdl.pdf"]["error"]) == ("ready", None)
-    assert ms["slide_ch2.pdf"]["status"] == "failed"         # lỗi ở tệp: chỉ nạp lại khi GV yêu cầu
+    assert ms["slide_ch2.pdf"]["status"] == "failed"
 
 
 def test_reindex_failed_or_ready_material(client, gv, gv_other, cs_id, moodle):
@@ -120,10 +118,10 @@ def test_reindex_failed_or_ready_material(client, gv, gv_other, cs_id, moodle):
     assert _materials(client, gv, cs_id)["slide_ch2.pdf"]["status"] == "ready"
     n = _n_passages(ready["id"])
     assert client.post(f"{_url(cs_id)}/{ready['id']}/reindex", headers=gv).status_code == 200
-    assert _n_passages(ready["id"]) == n                     # nạp lại thay đoạn cũ, không nhân đôi
+    assert _n_passages(ready["id"]) == n
     client.delete(f"{_url(cs_id)}/{book['id']}", headers=gv)
-    assert client.post(f"{_url(cs_id)}/{book['id']}/reindex", headers=gv).status_code == 409   # đã bỏ chọn
-    assert _n_passages(book["id"]) == 0                      # bỏ chọn xóa đoạn đã nạp
+    assert client.post(f"{_url(cs_id)}/{book['id']}/reindex", headers=gv).status_code == 409
+    assert _n_passages(book["id"]) == 0
 
 
 def test_picking_back_an_excluded_file_indexes_it(client, gv, cs_id, moodle):
@@ -146,7 +144,7 @@ def test_result_discarded_if_material_changed_while_indexing(client, gv, cs_id):
     _set_status(mid, "pending")
 
     def gv_excludes_meanwhile(m):
-        _set_status(m.id, "excluded")                          # GV bỏ chọn trong lúc đang tải / đọc
+        _set_status(m.id, "excluded")
         return PDF
     db = SessionLocal()
     db.execute(text("DELETE FROM material_passages WHERE material_id = :m"), {"m": mid})
@@ -164,7 +162,7 @@ def test_only_one_caller_claims_a_material(client, gv, cs_id):
 
     def second_request_meanwhile(m):
         other = SessionLocal()
-        seen.append(index.index_material(other, m.id, lambda _m: PDF))   # yêu cầu thứ hai: không giữ được chỗ
+        seen.append(index.index_material(other, m.id, lambda _m: PDF))
         other.close()
         return PDF
     db = SessionLocal()
@@ -182,13 +180,13 @@ def _claim_at(material_id, when):
 
 def test_stale_claim_is_taken_over_and_late_result_discarded(client, gv, cs_id):
     mid = _materials(client, gv, cs_id)["slide_ch1.pdf"]["id"]
-    _claim_at(mid, datetime.now() - index.CLAIM_TTL / 2)              # đang nạp, chưa quá hạn: không ai giành
+    _claim_at(mid, datetime.now() - index.CLAIM_TTL / 2)
     db = SessionLocal()
     assert index.index_material(db, mid, lambda _m: PDF) is None
-    _claim_at(mid, datetime.now() - index.CLAIM_TTL - timedelta(minutes=1))   # tiến trình nạp đã chết
+    _claim_at(mid, datetime.now() - index.CLAIM_TTL - timedelta(minutes=1))
     seen = []
 
-    def old_worker_finishes_meanwhile(m):                            # bên cũ "sống lại" ghi kết quả – phải bị bỏ
+    def old_worker_finishes_meanwhile(m):
         other = SessionLocal()
         seen.append(index._still_mine(other, m.id, datetime(2000, 1, 1)))
         other.rollback()
@@ -210,10 +208,10 @@ def test_queue_runs_in_one_background_thread_and_dedupes(monkeypatch):
         release.wait(5)
     monkeypatch.setattr(index, "run_section", slow)
     REAL_ENQUEUE(901)
-    assert started.wait(5)                     # lớp 901 đang nạp
+    assert started.wait(5)
     REAL_ENQUEUE(902)
-    REAL_ENQUEUE(902)                          # lớp đang chờ: không xếp hai lần
-    REAL_ENQUEUE(901)                          # lớp đang nạp: xếp lại được (có thể có tệp mới)
+    REAL_ENQUEUE(902)
+    REAL_ENQUEUE(901)
     release.set()
     for _ in range(50):
         if len(done) == 3:
@@ -260,10 +258,10 @@ def test_fetch_streams_to_temp_file_and_checks_size_hash_pdf(monkeypatch):
     with pytest.raises(index.MaterialError, match="không phải PDF"):
         index.fetch(m(got["data"]))
     got["data"] = PDF
-    monkeypatch.setattr(index, "MAX_BYTES", 5000)       # Moodle báo kích thước nhỏ nhưng tệp thật lớn: cắt khi tải
+    monkeypatch.setattr(index, "MAX_BYTES", 5000)
     with pytest.raises(index.MaterialError, match="quá lớn"):
         index.fetch(SimpleNamespace(**{**vars(m(PDF)), "file_size": 10}))
-    assert set(os.listdir(index.tmp_dir())) == tmp                                  # tệp tạm của lần lỗi đã xóa
+    assert set(os.listdir(index.tmp_dir())) == tmp
     with pytest.raises(index.MaterialError, match="quá lớn"):
         index.fetch(SimpleNamespace(content_hash="x", file_size=5001, moodle_file_url=""))
     with pytest.raises(index.MaterialError, match="không thuộc Moodle"):
@@ -271,17 +269,17 @@ def test_fetch_streams_to_temp_file_and_checks_size_hash_pdf(monkeypatch):
                                     moodle_file_url="http://evil.test/moodle/pluginfile.php/1/a.pdf"))
 
 
-def _die(src, conn):                       # tiến trình con bị hệ điều hành kill (hết RAM) – không gửi gì
+def _die(src, conn):
     os._exit(137)
 
 
-def _hang(src, conn):                      # bộ đọc treo trên tệp lỗi
+def _hang(src, conn):
     time.sleep(60)
 
 
 def test_parse_runs_in_child_process_and_survives_crash_or_hang(monkeypatch):
     pages, passages = index.parse_isolated(PDF)
-    assert len(pages) == 2 and passages and not pages[0].blocks      # trang gửi về không kèm khối chữ
+    assert len(pages) == 2 and passages and not pages[0].blocks
     with pytest.raises(index.MaterialError, match="Không đọc được PDF"):
         index.parse_isolated(b"%PDF-1.7 hong")
     with pytest.raises(index.MaterialError, match="dừng đột ngột"):
@@ -292,7 +290,7 @@ def test_parse_runs_in_child_process_and_survives_crash_or_hang(monkeypatch):
     t = time.monotonic()
     with pytest.raises(index.MaterialError, match="quá"):
         index.parse_isolated(PDF, lambda: beats.append(1), target=_hang)
-    assert time.monotonic() - t < 20 and len(beats) >= 2            # vẫn gia hạn giữ chỗ trong lúc chờ
+    assert time.monotonic() - t < 20 and len(beats) >= 2
 
 
 def test_heartbeat_extends_claim_and_stops_when_claim_taken(client, gv, cs_id, monkeypatch):
@@ -300,22 +298,22 @@ def test_heartbeat_extends_claim_and_stops_when_claim_taken(client, gv, cs_id, m
     _set_status(mid, "pending")
     monkeypatch.setattr(index, "HEARTBEAT_S", 0)
 
-    def taken_by_other_worker(m):           # bên khác giữ chỗ lại trong lúc tải
+    def taken_by_other_worker(m):
         _claim_at(m.id, datetime(2030, 1, 1))
         return PDF
     db = SessionLocal()
     assert index.index_material(db, mid, taken_by_other_worker) is None
     db.close()
     db = SessionLocal()
-    assert db.get(SectionMaterial, mid).claimed_at == datetime(2030, 1, 1)   # không đè lên bên kia
+    assert db.get(SectionMaterial, mid).claimed_at == datetime(2030, 1, 1)
     db.close()
     _set_status(mid, "pending")
     db = SessionLocal()
 
-    def no_open_transaction(m):             # lúc tải / đọc không giữ giao dịch (và kết nối) nào của phiên
+    def no_open_transaction(m):
         assert not db.in_transaction() and m.file_name == "slide_ch1.pdf"
         return PDF
-    assert index.index_material(db, mid, no_open_transaction) == "ready"   # gia hạn liên tục vẫn ghi được kết quả
+    assert index.index_material(db, mid, no_open_transaction) == "ready"
     assert db.get(SectionMaterial, mid).claimed_at is None
     db.close()
 

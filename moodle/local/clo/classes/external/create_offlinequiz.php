@@ -9,14 +9,6 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Bài thi GIẤY qua API: hệ thống phân tích chỉ soạn đề; Moodle (plugin Offline Quiz – mod_offlinequiz) sinh đề in,
- * phiếu trả lời, nhận diện phiếu quét và chấm điểm. Hàm này:
- *  1. nhập đề (Moodle XML, idnumber QB-n) vào ngân hàng câu hỏi của khóa học;
- *  2. tạo Offline Quiz với N nhóm đề (A, B, C…), xáo trộn câu và/hoặc phương án theo từng nhóm;
- *  3. sinh sẵn tệp đề thi, phiếu trả lời và đáp án của từng nhóm để hệ thống tải về cho giảng viên in.
- * Gọi lại với cùng examref trả về Offline Quiz đã tạo (không tạo trùng).
- */
 class create_offlinequiz extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
@@ -58,20 +50,16 @@ class create_offlinequiz extends external_api {
             throw new \invalid_parameter_exception('numgroups phải từ 1 đến 6');
         }
 
-        // Đã tạo trước đó -> trả lại (idempotent).
         $exam = $DB->get_record('local_clo_exam', ['examref' => $p['examref']]);
         if ($exam && !empty($exam->offlinequizid) &&
                 ($cm = get_coursemodule_from_instance('offlinequiz', $exam->offlinequizid, 0, false, IGNORE_MISSING))) {
             return self::describe($exam->offlinequizid, $cm, false);
         }
 
-        // Mọi bước trong một giao dịch: lỗi giữa chừng không để lại Offline Quiz dở dang.
         $tx = $DB->start_delegated_transaction();
 
-        // 1. Nhập câu hỏi.
         $questionids = \local_clo\question_importer::import($course, $p['questionsxml']);
 
-        // 2. Tạo Offline Quiz.
         $config = get_config('offlinequiz');
         $mod = (object)[
             'modulename' => 'offlinequiz', 'course' => $course->id, 'section' => 0, 'visible' => 1,
@@ -85,7 +73,6 @@ class create_offlinequiz extends external_api {
             'printstudycodefield' => 1, 'fontsize' => $config->defaultpdffontsize ?? 10,
             'fileformat' => $p['fileformat'] ? 1 : 0, 'showgrades' => 0, 'showquestioninfo' => 0,
             'disableimgnewlines' => 0, 'grade' => $p['grade'],
-            // SV xem điểm và phiếu đã chấm trên Moodle sau khi GV cho phép xem lại.
             'attemptclosed' => 1, 'marksclosed' => 1, 'correctnessclosed' => 1, 'gradedsheetclosed' => 1,
         ];
         $modinfo = create_module($mod);
@@ -93,7 +80,6 @@ class create_offlinequiz extends external_api {
         $oq->cmid = $modinfo->coursemodule;
         offlinequiz_set_grade($p['grade'], $oq);
 
-        // 3. Thêm cùng bộ câu hỏi vào mọi nhóm (mỗi nhóm được Moodle xáo trộn riêng khi sinh đề).
         $marks = \local_clo\question_importer::marks($p['questionsxml']);
         $maxmarks = [];
         foreach ($questionids as $i => $qid) {
@@ -105,10 +91,8 @@ class create_offlinequiz extends external_api {
             offlinequiz_update_sumgrades($oq, $g->id);
         }
 
-        // 4. Sinh tệp đề thi, phiếu trả lời, đáp án của từng nhóm (như trang "Tạo biểu mẫu" của Offline Quiz).
         self::create_documents($oq, $course);
 
-        // 5. Ghi nhận liên kết bài KT <-> Offline Quiz.
         $now = time();
         if ($exam) {
             $exam->courseid = $course->id; $exam->offlinequizid = $oq->id; $exam->title = $p['name'];
@@ -123,7 +107,6 @@ class create_offlinequiz extends external_api {
         return self::describe($oq->id, get_coursemodule_from_id('offlinequiz', $modinfo->coursemodule), true);
     }
 
-    /** Sinh tệp PDF/DOCX cho mọi nhóm (một lần). */
     public static function create_documents(\stdClass $oq, \stdClass $course): void {
         global $CFG, $DB;
         $cm = get_coursemodule_from_instance('offlinequiz', $oq->id, $course->id, false, MUST_EXIST);
@@ -133,7 +116,6 @@ class create_offlinequiz extends external_api {
             return;
         }
         $DB->set_field('offlinequiz', 'id_digits', get_config('offlinequiz', 'ID_digits'), ['id' => $oq->id]);
-        // Đề/phiếu in theo ngôn ngữ mặc định của site (tiếng Việt), không theo ngôn ngữ của tài khoản gọi API.
         $lang = get_string_manager()->translation_exists($CFG->lang) ? $CFG->lang : 'en';
         force_current_language($lang);
         foreach ($DB->get_records('offlinequiz_groups', ['offlinequizid' => $oq->id], 'groupnumber') as $group) {
@@ -156,7 +138,6 @@ class create_offlinequiz extends external_api {
         force_current_language('');
     }
 
-    /** Thông tin Offline Quiz + đường dẫn tải tệp qua webservice/pluginfile.php (cần token). */
     public static function describe(int $oqid, \stdClass $cm, bool $created): array {
         global $DB, $CFG;
         $context = \context_module::instance($cm->id);

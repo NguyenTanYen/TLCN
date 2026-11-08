@@ -1,9 +1,4 @@
-"""Đề cương chi tiết học phần có phiên bản (góp ý F1): Bộ môn soạn bản nháp, kiểm tra rồi duyệt; GV chỉ xem.
-
-Mỗi môn có nhiều phiên bản (course_syllabi.version_no): đúng một bản `approved` đang áp dụng, bản cũ chuyển `archived`.
-Bản đã duyệt không sửa trực tiếp – tạo phiên bản mới (chép nội dung bản mới nhất) rồi sửa bản nháp đó.
-Thông tin chung (tên, mã, tín chỉ, cấu trúc, tiên quyết, mô tả vắn tắt), chương và CLO dùng chung cho mọi phiên bản.
-"""
+"""Đề cương chi tiết học phần có phiên bản (góp ý F1): Bộ môn soạn bản nháp, kiểm tra rồi duyệt; GV chỉ xem."""
 from datetime import datetime
 from typing import Literal, Optional
 
@@ -160,7 +155,7 @@ def _replace_children(db: Session, s: CourseSyllabus, cid: int, body: SyllabusIn
         if len(codes) != len(set(codes)):
             raise HTTPException(422, "Mã thành phần đánh giá bị trùng")
         total = sum(a.weight_pct for a in body.assessments)
-        if body.assessments and abs(total - 100) > 0.01:     # không lưu kế hoạch đánh giá có tỷ trọng sai
+        if body.assessments and abs(total - 100) > 0.01:
             raise HTTPException(422, f"Tổng tỷ trọng các thành phần đánh giá phải bằng 100% (hiện tại {total:g}%)")
         s.assessments.clear()
         db.flush()
@@ -172,7 +167,7 @@ def _replace_children(db: Session, s: CourseSyllabus, cid: int, body: SyllabusIn
 
 @router.put("/courses/{cid}/syllabus")
 def save_syllabus(cid: int, body: SyllabusIn, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
-    """Lưu bản nháp mới nhất (chưa có thì tạo phiên bản 1). Bản đã duyệt phải tạo phiên bản mới để sửa."""
+    """Lưu bản nháp mới nhất (chưa có thì tạo phiên bản 1)."""
     c = _course(db, cid)
     s = latest(c)
     if s and s.status != "draft":

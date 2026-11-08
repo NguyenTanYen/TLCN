@@ -1,10 +1,4 @@
-"""Tích hợp hai chiều với Moodle qua Web Service (plugin local_clo).
-
-- UC-02 (A2): tạo Quiz trên Moodle trực tiếp từ đề đã soạn – không cần tải XML và import thủ công.
-- UC-02 bài thi giấy: tạo Offline Quiz – Moodle sinh đề in, phiếu trả lời và đáp án theo từng mã đề;
-  hệ thống chỉ chuyển tệp cho giảng viên tải/in. Nhận diện phiếu quét và chấm điểm do Moodle thực hiện.
-- UC-04 (A1) → UC-05: đẩy kết quả phân tích từng SV và trạng thái công bố về Moodle; SV xem kết quả tại Moodle.
-"""
+"""Tích hợp hai chiều với Moodle qua Web Service (plugin local_clo)."""
 import io
 import re
 import zipfile
@@ -75,7 +69,7 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
     if not course_id:
         raise HTTPException(422, "Hãy nhập mã khóa học Moodle (id) của lớp học phần")
     check_moodle_course(db, u, cs, course_id)
-    targets = remedial.target_moodle_users(db, e) if e.target_students else None   # bài phụ đạo: kiểm tra trước khi tạo Quiz
+    targets = remedial.target_moodle_users(db, e) if e.target_students else None
     try:
         res = lms.create_quiz(db, e, course_id)
     except lms.MoodleWSError as ex:
@@ -88,7 +82,7 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
     if e.status == "Draft":
         e.status = "Published"
     db.commit()
-    if targets is not None:      # góp ý F5: chỉ các SV được giao thấy và làm được Quiz phụ đạo
+    if targets is not None:
         try:
             res["restricted"] = lms.restrict_users(course_id, res["quizid"], e.exam_title, targets, cmid=res["cmid"])
         except lms.MoodleWSError as ex:
@@ -111,7 +105,6 @@ def restrict_quiz(exam_id: int, u: User = Depends(lecturer_only), db: Session = 
         raise HTTPException(502, str(ex))
 
 
-# ------------------------------------------------------------------ bài thi giấy (Offline Quiz)
 KIND_VI = {"question": "de_thi", "answer": "phieu_tra_loi", "correction": "dap_an"}
 
 

@@ -1,6 +1,4 @@
 <?php
-// Kiểm tra nút "Phân tích CĐR" từ dòng lệnh: phát vé SSO cho một giảng viên rồi gọi thử hệ thống phân tích.
-//   php local/clo/cli/testsso.php --username=gv.son [--courseid=3]
 define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
