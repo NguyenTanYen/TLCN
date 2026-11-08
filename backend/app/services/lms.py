@@ -91,6 +91,15 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
     return res
 
 
+def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:
+    """Đăng một tệp học liệu lên khóa học Moodle thành hoạt động Tệp (local_clo_add_resource, base64). Gọi lại với cùng
+    tên tệp trong khóa thì Moodle không tạo trùng (created = False)."""
+    import base64
+    return call("local_clo_add_resource", {"courseid": moodle_course_id, "name": name[:250], "filename": filename,
+                                           "content": base64.b64encode(data).decode("ascii"), "section": section},
+                timeout=600)
+
+
 def restrict_users(moodle_course_id: int, quizid: int, groupname: str, userids: list[int], cmid: int = 0) -> dict:
     """Giới hạn Quiz cho đúng các tài khoản Moodle này (gọi lại thì đồng bộ lại thành viên nhóm)."""
     return call("local_clo_restrict_users", {"courseid": moodle_course_id, "cmid": cmid, "quizid": quizid,
