@@ -158,7 +158,7 @@ def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(requ
         {"key": "chapters", "label": "Đề cương: các chương", "ok": n_ch > 0, "detail": f"{n_ch} chương"},
         {"key": "clos", "label": "CLO và ánh xạ PLO (I/R/M)", "ok": n_clo > 0 and n_clo_noplo == 0,
          "detail": f"{n_clo} CLO" + (f", {n_clo_noplo} CLO chưa ánh xạ PLO" if n_clo_noplo else "")},
-        {"key": "plans", "label": "Kế hoạch đánh giá CLO (BM6a)", "ok": n_clo > 0 and n_plan >= n_clo,
+        {"key": "plans", "label": "Kế hoạch đánh giá CLO", "ok": n_clo > 0 and n_plan >= n_clo,
          "detail": f"{n_plan}/{n_clo} CLO có kế hoạch (thiếu thì dùng ngưỡng 60%, chỉ tiêu của môn)"},
         {"key": "questions", "label": "Ngân hàng câu hỏi đã gán CLO/Bloom", "ok": n_tag > 0 and n_clo_noq == 0,
          "detail": f"{n_tag}/{n_q} câu đã gán" + (f"; {n_clo_noq} CLO chưa có câu hỏi" if n_clo_noq else "")},

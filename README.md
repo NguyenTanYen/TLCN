@@ -121,3 +121,11 @@ Nội dung CLO, câu hỏi, danh sách sinh viên và bài làm của môn DBMS3
 - Trang **Hướng dẫn sử dụng** (menu) và khung "Hướng dẫn cho trang này" (thu gọn sẵn) dành cho người mới dùng.
 - Nút/màu thống nhất: một nút chính màu xanh cho mỗi khu vực; biểu đồ chi tiết nằm trong mục "Xem thêm".
 - Nút **In đề cương (xem trước)** (hoặc Ctrl+P) ở trang đề cương mở hộp xem trước PDF A4 theo mẫu đề cương chi tiết của Trường ĐH Công nghệ Kỹ thuật TP.HCM (mục đánh số, bảng CLO, nội dung theo chương, đánh giá, ô ký); từ đó chọn **In** hoặc **Tải PDF**.
+
+## Bản hoàn thiện nhánh Tanyen (sau khi gộp main)
+- **Tổng quan** là trang đầu: việc cần làm, số liệu nhanh, lối tắt tới từng chức năng; menu chia nhóm (Bắt đầu, Giảng dạy, Tra cứu, Trợ giúp), mỗi mục có mô tả ngắn.
+- Bấm cả dòng lớp để vào lớp; câu chữ giao diện dùng tên thông thường thay cho mã biểu mẫu.
+- **Rubric chấm điểm**: tạo bảng tiêu chí theo môn (mỗi tiêu chí đo một CLO), chấm theo mức, điểm và mức đạt CLO tính tự động.
+- **Biểu đồ theo chuẩn**: tỷ lệ đạt CLO có khoảng tin cậy 95% (Wilson) và vạch chỉ tiêu; phổ điểm dạng cột liền; biểu đồ độ khó – độ phân biệt có vùng lý tưởng.
+- **Vòng cải tiến**: hành động cải tiến cho CLO chưa đạt, xu hướng CLO qua các học kỳ, cảnh báo cỡ mẫu nhỏ.
+- **Học liệu theo lớp** (làm lại bởi nhánh QuocThi): lấy PDF từ khóa học Moodle của lớp, gợi ý trang cần đọc cho câu sinh viên làm sai.

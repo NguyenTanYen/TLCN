@@ -28,7 +28,7 @@ def bm6_exam(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
     """BM6c riêng cho một bài kiểm tra – minh chứng từng CLO bài KT đo (kèm MSSV, họ tên)."""
     e = get_exam_for(db, u, exam_id)
     if e.status != "Analyzed":
-        raise HTTPException(409, "Bài kiểm tra chưa được phân tích – đồng bộ/nhập phiếu và phân tích trước khi xuất BM6c")
+        raise HTTPException(409, "Bài kiểm tra chưa được phân tích – đồng bộ/nhập phiếu và phân tích trước khi xuất bảng minh chứng")
     cs = check_section_access(db, u, e.class_section_id)
     return Response(reports_excel.build_bm6_exam(db, exam_id), media_type=XLSX,
                     headers=attachment(f"BM6c_{cs.section_code}_{e.exam_title}.xlsx"))
