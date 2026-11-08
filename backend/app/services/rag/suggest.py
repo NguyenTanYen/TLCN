@@ -92,12 +92,13 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
             .filter(ClassSection.id == cs_id).scalar())
     ranked = rank_passages(search.section_index(db, cs_id), question.content, correct, synonyms=synonyms.for_course(code))
-    try:                                                         # thêm ứng viên GẦN NGHĨA (câu Việt – giáo trình Anh)
+    try:                                                         # bổ sung ứng viên GẦN NGHĨA (câu Việt – giáo trình Anh)
         dense = [pid for pid, _ in semantic.dense_top(db, cs_id, query_text(question.content, correct), DEPTH)]
     except Exception:
         dense = []
-    if dense:
-        ranked = fuse([(ranked, 1.0), (dense, 1.0)])[:DEPTH]
+    if dense:                                                    # thứ hạng BM25 (đã đo) đứng NGUYÊN; gần nghĩa chỉ bổ sung phía sau
+        seen = set(ranked)
+        ranked = (ranked + [pid for pid in dense if pid not in seen])[:DEPTH]
     if not ranked:
         return []
     rows = {p.id: (p, pg, m) for p, pg, m in

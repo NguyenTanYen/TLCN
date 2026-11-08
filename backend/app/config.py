@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # cổng ngữ nghĩa của gợi ý học liệu (cần requirements-semantic.txt; rỗng hoặc chưa cài = tắt, chỉ dùng BM25)
     rag_embed_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     rag_page_margin: float = 0.15       # bỏ trang gợi ý có cos thấp hơn trang gần câu hỏi nhất quá mức này
+    rag_search_similarity: float = 0.40  # ô "Thử tìm" (câu GV tự gõ, có thể tiếng Việt – giáo trình tiếng Anh): cos thấp nhất để tính là gần nghĩa
     rag_min_similarity: float = 0.55    # cos cao nhất (câu hỏi, đoạn ứng viên) dưới mức này → không gợi ý (evaluate --semantic)
     # mô tả hình trong học liệu bằng VLM chạy cục bộ qua Ollama (services/rag/vlm.py); Ollama không chạy / chưa có
     # model / RAG_VLM_MODEL rỗng → bỏ qua, đoạn hình chỉ có chữ đọc được trong PDF
