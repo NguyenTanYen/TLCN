@@ -1,4 +1,4 @@
-"""Chuẩn bị dữ liệu quay video demo – chạy SAU bước 4 (dữ liệu demo trên Moodle), MariaDB và Moodle đang chạy."""
+"""Chuẩn bị dữ liệu quay video demo – chạy SAU scripts/tao_du_lieu_demo.bat, MariaDB và Moodle đang chạy."""
 import os
 import random
 import sys

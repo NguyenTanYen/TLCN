@@ -1,6 +1,6 @@
-# Kịch bản quay video demo (khoảng 12–15 phút)
+# Kịch bản quay video demo (khoảng 16–18 phút)
 
-Quay theo đúng luồng chính: **Bộ môn thiết lập → GV tạo bài → SV làm trên Moodle → phân tích → BM6 → ôn tập**.
+Quay theo đúng luồng chính: **Bộ môn thiết lập → GV đưa học liệu → tạo bài → SV làm trên Moodle → phân tích → BM6 → ôn tập**.
 Mỗi cảnh ghi rõ *bấm gì* và *nói gì*. Thời lượng chỉ là gợi ý.
 
 ## 0. Chuẩn bị (trước khi quay)
@@ -22,7 +22,7 @@ Mỗi cảnh ghi rõ *bấm gì* và *nói gì*. Thời lượng chỉ là gợi
    - Giảng viên: `gv.son` / `Gv@123456`.
    - Sinh viên (Moodle): `22130017`, `22130040` / `Sv@123456`.
 
-> Lưu ý: cảnh 5 (chấm phiếu) và cảnh 3 ghi dữ liệu thật vào CSDL. Muốn quay lại từ đầu thì chạy lại `scripts\cai_dat.bat` và `scripts\tao_du_lieu_demo.bat`.
+> Lưu ý: cảnh 6 (chấm phiếu) và cảnh 4 ghi dữ liệu thật vào CSDL. Muốn quay lại từ đầu thì chạy lại `scripts\cai_dat.bat` và `scripts\tao_du_lieu_demo.bat`.
 
 ---
 
@@ -38,7 +38,22 @@ Mỗi cảnh ghi rõ *bấm gì* và *nói gì*. Thời lượng chỉ là gợi
 | **③ Lớp học phần** → ô **Học kỳ** | "Lọc lớp theo học kỳ; Bộ môn mở lớp và gán giảng viên." |
 | **④ Kết quả CĐR của môn** → chọn học kỳ | "Kết quả CLO của môn theo học kỳ, gộp mọi lớp – BM6b cấp môn." |
 
-## Cảnh 2 – Giảng viên tạo bài kiểm tra (2,5 phút)
+## Cảnh 2 – Học liệu của lớp và gợi ý ôn tập (3 phút)
+
+Đăng nhập **gv.son** → **Môn học của tôi** → lớp **DBMS330284_01** → thẻ **Học liệu** (bước 1 của lớp).
+
+| Bấm | Nói |
+|---|---|
+| Chỉ vào danh sách học liệu (giáo trình đã **Đã nạp**, có số trang) | "Học liệu là bước đầu tiên: giảng viên đưa slide, giáo trình lên cho lớp. Hệ thống tách văn bản theo trang, đề mục, bảng và hình." |
+| **+ Tải học liệu lên** → chọn tệp PDF → chọn các lớp cùng môn → **Tải lên** | "Tải một lần cho nhiều lớp cùng môn, giống cách giao đề. Hệ thống tự đăng lên khóa học Moodle của từng lớp rồi đồng bộ về." Chờ trạng thái chuyển sang **Đã nạp**. |
+| **Sao chép từ lớp khác** | "Lớp mới mở không phải tải lại: chép toàn bộ học liệu từ lớp cũ sang." |
+| Ô **Thử tìm trong học liệu**: gõ *khóa hai pha đảm bảo tính tuần tự của giao tác* → **Tìm** | "Gõ câu hỏi bằng tiếng Việt vẫn tìm ra trang giáo trình tiếng Anh nhờ tìm theo nghĩa (mô hình đa ngôn ngữ đã huấn luyện sẵn) kết hợp từ khóa." |
+| Gõ tiếp *làm sao để lấy lại dữ liệu khi máy chủ bị mất điện đột ngột* → **Tìm** | "Câu hỏi đời thường, không có thuật ngữ, vẫn ra chương Recovery System." |
+| Mở bài **Thi cuối kỳ (Moodle)** → **Kết quả** → **Gợi ý ôn từ học liệu** | "Với từng câu sinh viên làm sai, hệ thống gợi ý trang giáo trình nên đọc lại. Câu nào học liệu không có thì ghi *Không có trang phù hợp*, không bịa." |
+
+> Quay cảnh này trên VM (đã nạp sẵn giáo trình, tìm nhanh): https://app.136.111.18.183.sslip.io. Lần tìm đầu có thể mất vài giây để dựng chỉ mục; cắt đoạn chờ khi dựng phim.
+
+## Cảnh 3 – Giảng viên tạo bài kiểm tra (2,5 phút)
 
 Đăng xuất → đăng nhập **gv.son** → **Môn học của tôi** → bấm tên môn. Trang mở sẵn bước **Lớp học phần** → **Mở lớp** DBMS330284_01.
 
@@ -53,13 +68,13 @@ Mỗi cảnh ghi rõ *bấm gì* và *nói gì*. Thời lượng chỉ là gợi
 | Trang bài KT: bước **Đề thi** → khung **Câu hỏi → CLO → BM6** | "Ngay khi ra đề đã thấy mỗi CLO gồm những câu nào, bao nhiêu điểm." |
 | **Phát hành lên Moodle** → **⇪ Tạo Quiz trên Moodle** | "Hệ thống tạo Quiz trên khóa học Moodle, xáo trộn phương án." |
 
-## Cảnh 3 – Sinh viên làm bài trên Moodle (1,5 phút)
+## Cảnh 4 – Sinh viên làm bài trên Moodle (1,5 phút)
 
 Cửa sổ **(B)**: đăng nhập Moodle bằng **22130040** → khóa học DBMS330284_01 → Quiz "Kiểm tra demo" → **Attempt quiz** → chọn vài đáp án → **Submit all and finish**.
 
 Nói: "Sinh viên chỉ làm bài trên Moodle, không cần tài khoản hệ thống phân tích."
 
-## Cảnh 4 – Thu bài, phân tích, xem kết quả, công bố (3 phút)
+## Cảnh 5 – Thu bài, phân tích, xem kết quả, công bố (3 phút)
 
 Cửa sổ **(A)**: mở bài **Thi cuối kỳ (Moodle)** (`/exams/2` – 38 bài làm, giàu số liệu hơn).
 
@@ -73,7 +88,7 @@ Cửa sổ **(A)**: mở bài **Thi cuối kỳ (Moodle)** (`/exams/2` – 38 b�
 | Ô **Công bố cho SV** ở đầu trang → **Công bố kết quả lên Moodle** | |
 | Cửa sổ (B): đăng nhập SV **22130017** → khóa học → **Learning outcome results** | "Sinh viên xem radar CLO và phần cần ôn ngay trên Moodle." |
 
-## Cảnh 5 – Bài thi giấy: in đề và chấm phiếu bằng ảnh (2 phút)
+## Cảnh 6 – Bài thi giấy: in đề và chấm phiếu bằng ảnh (2 phút)
 
 Mở bài **Kiểm tra giữa kỳ (giấy – chấm trên hệ thống)** (`/exams/4`). Bước **In đề & chấm phiếu** mở sẵn.
 
@@ -84,7 +99,7 @@ Mở bài **Kiểm tra giữa kỳ (giấy – chấm trên hệ thống)** (`/e
 | Soát bảng kết quả → **Lưu kết quả 8 phiếu & phân tích** | "Điểm từ 1 đến 10 tùy SV; hệ thống phân tích ngay." |
 | Bước **Kết quả** → **Câu hỏi → CLO → BM6** | "Bài giấy cũng đi vào cùng một chuỗi CLO → BM6." |
 
-## Cảnh 6 – Kết quả CĐR của lớp (BM6) (1,5 phút)
+## Cảnh 7 – Kết quả CĐR của lớp (BM6) (1,5 phút)
 
 Về trang lớp → bước **Kết quả CĐR (BM6)**.
 
@@ -95,7 +110,7 @@ Về trang lớp → bước **Kết quả CĐR (BM6)**.
 | **BM6c/6d – Minh chứng** → **Xem minh chứng** CLO2 | Điểm từng SV trên các câu thuộc CLO, câu có DI thấp; ghi nhận xét cải tiến. |
 | **⬇ Xuất bộ BM6 của lớp (.xlsx)** | Mở file Excel cho thấy đúng các biểu mẫu. |
 
-## Cảnh 7 – Ôn tập cho sinh viên làm sai (2 phút)
+## Cảnh 8 – Ôn tập cho sinh viên làm sai (2 phút)
 
 Trang lớp → bước **Ôn tập**.
 
@@ -107,7 +122,7 @@ Trang lớp → bước **Ôn tập**.
 | Cửa sổ (B): SV **22130017** → làm Quiz ôn tập và nộp | |
 | (A) mở bài ôn tập → **Thu bài & phân tích** → **⟳ Đồng bộ & phân tích** → quay lại trang Ôn tập, mở khung tiến bộ | "Cột *Thay đổi* cho thấy SV tiến bộ trên chính các câu từng làm sai." |
 
-## Cảnh 8 – Kết (30 giây)
+## Cảnh 9 – Kết (30 giây)
 
 Đăng nhập **admin** → **Tổng hợp PLO** (hoặc trang môn → **Kết quả CĐR của môn**).
 Nói: "Từ câu hỏi → CLO → PI → PLO, Bộ môn có số liệu đo chuẩn đầu ra theo học kỳ cho cả chương trình."
