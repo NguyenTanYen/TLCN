@@ -109,6 +109,17 @@ Kịch bản E2E dùng chính API của Moodle 4.5.14 để nhập tệp XML do 
 kết quả đồng bộ khớp 100% với điểm Moodle tự chấm (760/760 câu trả lời, 38/38 tổng điểm) ở cả 3 cách tính điểm của quiz
 (điểm cao nhất, lượt đầu, lượt cuối).
 
+## Cách tính CLO, PI, PLO
+
+Cả ba mức dùng cùng một quy tắc đếm lượt sinh viên đạt (`analysis.aggregate`, `services/results.py`):
+
+1. **Điểm CLO của một bài làm** = tổng (điểm đạt × trọng số câu–CLO) / tổng (điểm tối đa × trọng số) × 100. Bài làm **đạt CLO** khi điểm này không thấp hơn ngưỡng của CLO (mặc định 60%, chỉnh trong kế hoạch CLO).
+2. **CLO của lớp học phần (BM6b, BM6d)** = số bài làm đạt / số bài làm được đánh giá, cộng dồn qua các bài kiểm tra được chọn làm minh chứng (có thể lọc theo loại bài). Đạt khi tỷ lệ không thấp hơn chỉ tiêu (mặc định 70%).
+3. **PI (BM3c)** = cộng dồn (số được đánh giá, số đạt) của các CLO minh chứng trong kế hoạch đo PI, ở môn và học kỳ đã khai báo. Nếu kế hoạch không chọn CLO thì lấy các CLO của môn gắn với PI đó, rồi đến các CLO gắn với PLO của PI.
+4. **PLO (BM2, BM3c dòng tổng)** = cộng dồn kết quả các PI thuộc PLO trong một năm học; đạt khi không thấp hơn chỉ tiêu của PLO (kế hoạch đo năm học, nếu không có thì chỉ tiêu mặc định của PLO).
+
+Các tầng cộng dồn theo lượt sinh viên, không lấy trung bình các tỷ lệ và không có trọng số riêng giữa các PI. Nếu trường quy định cách khác (trọng số, trung bình có trọng số), chỉ cần đổi `analysis.aggregate` và `recompute_pi_plans` / `recompute_plo`.
+
 ## Dữ liệu minh họa
 
 Danh sách PLO/PI, kế hoạch đo và phân công lấy từ biểu mẫu BM2 và bảng phân công đánh giá PIs của Bộ môn.
