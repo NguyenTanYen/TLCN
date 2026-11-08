@@ -135,3 +135,9 @@ Tab **Học liệu** của lớp có nút **Tải học liệu lên** (chọn PD
 bằng `local_clo_add_resource` rồi đồng bộ và nạp), **Dùng cho lớp khác** ở từng học liệu và **Sao chép từ lớp khác** (lấy toàn bộ
 học liệu của lớp cũ sang lớp mới). Moodle phải nhận được tệp lớn: `docker/moodle/Dockerfile` nâng `post_max_size`/`upload_max_filesize`
 lên 256 MB (cần dựng lại ảnh Moodle). Từ điển thuật ngữ Việt–Anh theo môn: `backend/app/services/rag/synonyms/<mã môn>.txt`.
+
+### Tìm theo nghĩa và gợi ý ôn từ học liệu
+- `semantic.dense_top`: tìm đoạn GẦN NGHĨA bằng vector MiniLM đa ngôn ngữ (đã nạp sẵn trong ảnh Docker, `SEMANTIC=1`), trộn với BM25 bằng RRF
+  ở ô "Thử tìm trong học liệu" và ở gợi ý cho sinh viên – câu tiếng Việt vẫn tìm được trong giáo trình tiếng Anh. Không có thư viện
+  hoặc đoạn chưa có vector thì chỉ dùng BM25 như cũ. Model có sẵn, KHÔNG phải huấn luyện.
+- Trang bài kiểm tra → Kết quả → **Gợi ý ôn từ học liệu**: giảng viên xem trước từng câu sinh viên sai sẽ được gợi ý đọc trang nào.

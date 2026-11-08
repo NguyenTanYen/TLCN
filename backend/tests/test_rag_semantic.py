@@ -180,3 +180,42 @@ def test_unrelated_question_gets_no_pages_related_one_does(material):
         assert suggest.for_question(db, cs, off) == []                          # ... nhưng cổng chặn
     finally:
         db.close()
+
+
+@pytest.fixture()
+def fake_dense(material, monkeypatch):
+    """Vector giả: đoạn 1 (Recovery model) gần câu hỏi, đoạn 2 (Trigger) xa; model giả luôn mã hóa câu hỏi thành (1,0,0)."""
+    mid, cs = material
+    monkeypatch.setattr(semantic, "enabled", lambda: True)
+    monkeypatch.setattr(semantic, "encode", lambda texts: np.array([[1.0, 0.0, 0.0]] * len(texts), dtype=np.float32))
+    db = SessionLocal()
+    ids = [r[0] for r in db.execute(text("SELECT id FROM material_passages WHERE material_id = :m ORDER BY seq"), {"m": mid})]
+    for pid, v in zip(ids, (_vec(0.95, 0.1, 0), _vec(0.1, 1, 0))):
+        db.execute(text("UPDATE material_passages SET embedding = :e WHERE id = :i"), {"e": v, "i": pid})
+    db.execute(text("UPDATE section_materials SET embed_model = :n WHERE id = :m"), {"n": semantic.model_name(), "m": mid})
+    db.commit()
+    semantic._dense_cache.clear()
+    search.warm(db, cs)
+    yield mid, cs, ids, db
+    semantic._dense_cache.clear()
+    db.close()
+
+
+def test_dense_search_finds_vietnamese_question_without_shared_words(fake_dense):
+    mid, cs, ids, db = fake_dense
+    q = "Hoàn nguyên sự cố bằng cách nào?"                       # không từ nào trùng với đoạn: BM25 không ra gì
+    assert search.section_index(db, cs).score(q, 5) == []
+    hits = [h for h in search.search(db, cs, q, 5) if h.material_id == mid]
+    assert hits and hits[0].passage_id == ids[0]                  # đoạn gần nghĩa lên đầu
+    assert ids[1] not in [h.passage_id for h in hits]             # đoạn xa (cos 0,10) bị bỏ
+
+
+def test_dense_search_silent_when_nothing_is_close_or_gate_off(fake_dense, monkeypatch):
+    mid, cs, ids, db = fake_dense
+    db.execute(text("UPDATE material_passages SET embedding = :e WHERE material_id = :m"), {"e": _vec(0, 1, 0), "m": mid})
+    db.commit()
+    semantic._dense_cache.clear()
+    assert semantic.dense_top(db, cs, "Hoàn nguyên sự cố bằng cách nào?") == []      # cos 0 < ngưỡng: không nói về câu hỏi
+    monkeypatch.setattr(semantic, "enabled", lambda: False)
+    assert semantic.dense_top(db, cs, "Hoàn nguyên sự cố bằng cách nào?") == []
+    assert semantic.dense_top(db, cs, "hoan nguyen su co bang cach nao") == []        # tiếng Việt không dấu: bỏ qua
