@@ -2,7 +2,7 @@
 export const MENUS = {
   lecturer: [
     ['Bắt đầu', [['/', 'Tổng quan', [], 'Việc cần làm tiếp theo và đường tắt tới từng chức năng']]],
-    ['Giảng dạy', [['/courses', 'Môn học của tôi', ['/sections', '/exams'], 'Các lớp bạn dạy: tạo bài kiểm tra, chấm điểm, xem kết quả, ôn tập cho sinh viên yếu'],
+    ['Giảng dạy', [['/courses', 'Môn học của tôi', ['/sections', '/exams'], 'Các lớp bạn dạy: tạo bài kiểm tra, chấm điểm (kể cả bằng rubric), xem kết quả, học liệu, ôn tập cho sinh viên yếu'],
       ['/questions', 'Ngân hàng câu hỏi', [], 'Soạn, nhập từ Word/Excel và quản lý câu hỏi của môn']]],
     ['Tra cứu', [['/programs', 'Chương trình đào tạo', [], 'Xem chuẩn đầu ra, chỉ báo và các học phần của chương trình']]],
     ['Trợ giúp', [['/huong-dan', 'Hướng dẫn sử dụng', [], 'Cách làm từng việc, giải thích các thuật ngữ']]],

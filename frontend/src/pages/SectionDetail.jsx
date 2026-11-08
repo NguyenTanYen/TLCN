@@ -52,7 +52,7 @@ export default function SectionDetail() {
           {!isAdmin && <button className="btn primary" onClick={() => setCreating(true)}>+ Tạo bài kiểm tra</button>}</div>
       </div>
       <PageHelp id="section"><p>Đây là trang làm việc của một lớp học phần. Đi lần lượt các bước: <b>tạo bài kiểm tra</b> → <b>lấy bài làm và phân tích</b> → xem <b>kết quả chuẩn đầu ra của lớp</b> → <b>ôn tập</b> cho sinh viên còn yếu.</p>
-      <p>Cột "Bước tiếp theo" trong bảng cho biết việc nên làm tiếp với từng bài kiểm tra.</p></PageHelp>
+      <p>Cột "Bước tiếp theo" trong bảng cho biết việc nên làm tiếp với từng bài kiểm tra. Thẻ <b>Học liệu</b> cho biết tệp PDF nào của khóa học Moodle được dùng để gợi ý trang cần đọc khi sinh viên làm sai.</p></PageHelp>
       {/* luồng công việc của lớp: tạo bài → thu bài & phân tích → kết quả CĐR → ôn tập */}
       <Flow steps={[
         !isAdmin && { label: 'Tạo bài kiểm tra', sub: 'Trực tuyến, trên giấy hoặc nhập điểm', done: ex.length > 0, onClick: () => setCreating(true) },

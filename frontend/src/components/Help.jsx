@@ -33,6 +33,10 @@ export const GLOSSARY = [
   ['Minh chứng', 'Bài kiểm tra được dùng làm căn cứ để kết luận kết quả CLO của lớp. Giảng viên chọn bài nào được tính.'],
   ['Biểu mẫu BM6 (6a, 6b, 6c)', 'Biểu mẫu của nhà trường báo cáo kết quả đo chuẩn đầu ra môn học: 6a là kế hoạch kiểm tra, 6b là kết quả tổng hợp của lớp, 6c là bảng minh chứng điểm.'],
   ['Biểu mẫu BM2, BM3 (b, c)', 'Biểu mẫu của bộ môn/chương trình: BM3b là kế hoạch đo PI, BM3c là kết quả từng PLO, BM2 là tổng kết chương trình.'],
+  ['Rubric (bảng tiêu chí chấm)', 'Bảng tiêu chí để chấm đồ án, báo cáo, thực hành. Mỗi tiêu chí đo một CLO và có các mức (Tốt, Khá, Đạt, Chưa đạt) quy ra % điểm. Khi chấm, giảng viên chỉ chọn mức cho từng tiêu chí; điểm và mức đạt CLO được tính tự động.'],
+  ['Học liệu và gợi ý đọc', 'Slide, giáo trình dạng PDF trong khóa học Moodle của lớp. Khi sinh viên làm sai một câu, hệ thống gợi ý đúng những trang học liệu nên đọc lại, hiện trên trang kết quả ở Moodle.'],
+  ['Hành động cải tiến', 'Với CLO chưa đạt chỉ tiêu, giảng viên ghi việc sẽ làm, người phụ trách và hạn. Kỳ sau ghi kết quả kiểm chứng (CLO có tăng không) để đóng vòng đánh giá.'],
+  ['Khoảng tin cậy 95%', 'Râu trên biểu đồ cột tỷ lệ đạt CLO. Râu càng dài nghĩa là số sinh viên được đánh giá càng ít, kết luận càng kém chắc chắn.'],
   ['Ôn tập', 'Sau khi có kết quả, hệ thống chỉ ra sinh viên còn yếu ở chương nào, rồi tạo bài kiểm tra lại gồm các câu đã sai và câu tương tự cho từng sinh viên hoặc cả nhóm.'],
 ]
 
@@ -43,7 +47,10 @@ const STEPS = {
     ['Tạo bài kiểm tra', 'Bấm "Tạo bài kiểm tra" ở trang môn hoặc trang lớp. Chọn hình thức (trực tuyến, trên giấy, nhập điểm), để hệ thống chọn câu theo ma trận đề hoặc tự chọn câu, rồi lưu.'],
     ['Đưa bài cho sinh viên', 'Bài trực tuyến: bấm "Tạo bài trắc nghiệm trên Moodle". Bài giấy: sinh mã đề, in đề và phiếu trả lời. Nếu tạo ở trang môn, bạn chọn giao cho lớp nào ở bước này.'],
     ['Lấy kết quả và phân tích', 'Sau khi sinh viên làm xong, bấm "Lấy bài làm từ Moodle" (hoặc chấm phiếu) rồi "Phân tích". Xem điểm, câu hỏi, thời gian làm bài và cảnh báo bất thường.'],
+    ['Chấm đồ án, báo cáo bằng rubric', 'Ở trang môn, thẻ "Rubric chấm điểm": tạo bảng tiêu chí. Ở trang lớp, bấm "Tạo bài kiểm tra" → "Chấm theo rubric", chọn mức cho từng sinh viên rồi "Lưu và phân tích".'],
     ['Xem kết quả chuẩn đầu ra của lớp', 'Vào "Kết quả chuẩn đầu ra của lớp" để xem tỷ lệ sinh viên đạt từng CLO và xuất biểu mẫu BM6.'],
+    ['Ghi hành động cải tiến', 'Cuối trang "Kết quả chuẩn đầu ra của lớp": với CLO chưa đạt, ghi việc sẽ làm, người phụ trách, hạn. Kỳ sau ghi kết quả kiểm chứng.'],
+    ['Học liệu của lớp', 'Ở trang lớp, thẻ "Học liệu": hệ thống tự lấy các tệp PDF trong khóa học Moodle của lớp. Bỏ chọn tệp không phải học liệu (đề cũ, đáp án). Sinh viên làm sai sẽ được gợi ý trang cần đọc.'],
     ['Ôn tập cho sinh viên còn yếu', 'Vào "Ôn tập" để xem sinh viên yếu ở chương nào và tạo bài kiểm tra lại cho một sinh viên hoặc cả nhóm.'],
   ],
   admin: [
