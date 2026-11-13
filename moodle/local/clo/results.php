@@ -30,12 +30,43 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         return html_writer::div(get_string('insufficient', 'local_clo'), 'alert alert-secondary mb-0');
     }
     $d = json_decode($res->data ?? '{}') ?: new stdClass();
+    $clos = $d->clos ?? [];
     $o = html_writer::start_div('local-clo-result');
     $o .= html_writer::start_div('local-clo-head');
     $o .= html_writer::div(html_writer::span(format_float($res->score, 2), 'local-clo-score') .
         html_writer::span(' / ' . format_float($res->maxscore, 0), 'local-clo-max'), 'local-clo-scorebox');
-    $o .= html_writer::div(get_string('reference', 'local_clo'), 'local-clo-sub');
+    $ok = count(array_filter($clos, fn($c) => !empty($c->achieved)));
+    $o .= html_writer::div($clos ? get_string('clos_achieved', 'local_clo', (object)['ok' => $ok, 'n' => count($clos)])
+        : get_string('reference', 'local_clo'), 'local-clo-sub');
     $o .= html_writer::end_div();
+    if ($clos) {
+        $o .= html_writer::tag('h4', get_string('radar', 'local_clo'), ['class' => 'h6 mt-3']);
+        $o .= html_writer::tag('p', get_string('radar_help', 'local_clo'), ['class' => 'small text-muted']);
+        $o .= html_writer::start_div('local-clo-grid');
+        $radar = \local_clo\radar::svg($clos);
+        if ($radar) {
+            $legend = html_writer::tag('ul',
+                html_writer::tag('li', html_writer::span('', 'sw me') . get_string('legend_me', 'local_clo')) .
+                html_writer::tag('li', html_writer::span('', 'sw avg') . get_string('legend_avg', 'local_clo')),
+                ['class' => 'local-clo-legend']);
+            $o .= html_writer::div($radar . $legend, 'local-clo-chart');
+        }
+        $table = new html_table();
+        $table->attributes['class'] = 'generaltable local-clo-table';
+        $table->head = [get_string('clo', 'local_clo'), get_string('yourscore', 'local_clo'), get_string('target', 'local_clo'),
+            get_string('classavg', 'local_clo'), get_string('status')];
+        foreach ($clos as $c) {
+            $table->data[] = [
+                html_writer::tag('strong', s($c->code)) . html_writer::div(s($c->description ?? ''), 'small text-muted'),
+                format_float($c->pct, 1) . '%', format_float($c->threshold, 0) . '%',
+                isset($c->class_avg) ? format_float($c->class_avg, 1) . '%' : '–',
+                !empty($c->achieved) ? html_writer::span(get_string('achieved', 'local_clo'), 'badge bg-success') :
+                    html_writer::span(get_string('notachieved', 'local_clo'), 'badge bg-danger'),
+            ];
+        }
+        $o .= html_writer::div(html_writer::table($table), 'local-clo-tablewrap');
+        $o .= html_writer::end_div();
+    }
     if (!empty($d->summary)) {
         $o .= html_writer::tag('h4', get_string('summary', 'local_clo'), ['class' => 'h6 mt-3']);
         $o .= html_writer::tag('p', s($d->summary));
@@ -52,19 +83,31 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
     }
-    $pages = local_clo_reading_pages($d->materials ?? []);
-    if ($pages) {
+    $mats = $d->materials ?? [];
+    usort($mats, fn($x, $y) => (int)$x->question <=> (int)$y->question);
+    $rows = '';
+    foreach ($mats as $m) {
+        $pgs = local_clo_reading_pages([$m]);
+        if (!$pgs) {
+            continue;
+        }
+        $li = '';
+        foreach ($pgs as $p) {
+            $li .= html_writer::tag('li', local_clo_reading_line($p));
+        }
+        $rows .= html_writer::tag('tr', html_writer::tag('td', html_writer::tag('strong',
+            get_string('question_no', 'local_clo', (int)$m->question)), ['class' => 'text-nowrap']) .
+            html_writer::tag('td', html_writer::tag('ul', $li, ['class' => 'mb-0 ps-3'])));
+    }
+    if ($rows !== '') {
         $o .= html_writer::tag('h4', get_string('readings', 'local_clo'), ['class' => 'h6 mt-3']);
         $o .= html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']);
-        $li = '';
-        foreach ($pages as $p) {
-            $line = local_clo_reading_line($p);
-            $qs = count($p->questions) > 1 ? 'readings_questions_many' : 'readings_questions';
-            $line .= ' ' . html_writer::span(get_string($qs, 'local_clo', implode(', ', $p->questions)),
-                'badge bg-light text-dark');
-            $li .= html_writer::tag('li', $line);
-        }
-        $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
+        $o .= html_writer::tag('table', html_writer::tag('thead', html_writer::tag('tr',
+            html_writer::tag('th', get_string('wrongquestion', 'local_clo')) .
+            html_writer::tag('th', get_string('readpages', 'local_clo')))) . html_writer::tag('tbody', $rows),
+            ['class' => 'generaltable local-clo-readings']);
+    } else if ($mats === [] && !empty($d->items)) {
+        $o .= html_writer::tag('p', get_string('noreadings', 'local_clo'), ['class' => 'small text-muted mt-3']);
     }
     return $o . html_writer::end_div();
 }

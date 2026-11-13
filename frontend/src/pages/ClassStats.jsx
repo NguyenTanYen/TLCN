@@ -18,7 +18,9 @@ export default function ClassStats() {
   const { data: d, ...st } = useApi(`/api/class-sections/${id}/stats${examId ? `?exam_id=${examId}` : ''}`)
   const [onlyRisk, setOnlyRisk] = useState(false)
   const [sort, setSort] = useState('score')
+  const [by, setBy] = useState('chapter')
   const nav = useNavigate()
+  const labels = by === 'clo' ? (d?.clo_labels || []) : (d?.chapter_labels || [])
   const heatRows = useMemo(() => {
     if (!d?.heatmap) return []
     const r = onlyRisk ? d.at_risk : d.heatmap
@@ -95,17 +97,19 @@ export default function ClassStats() {
       <Card title="Phổ điểm">
         <Histogram labels={d.score_hist.map(h => h.range)} counts={d.score_hist.map(h => h.count)} />
       </Card>
-      <Card title="Bản đồ điểm theo chương của từng sinh viên" actions={<>
+      <Card title="Lưới điểm của từng sinh viên (bản đồ nhiệt)" actions={<>
+        <button className={`chip ${by === 'chapter' ? 'on' : ''}`} onClick={() => setBy('chapter')}>Theo chương</button>
+        <button className={`chip ${by === 'clo' ? 'on' : ''}`} onClick={() => setBy('clo')}>Theo CLO</button>
         <label className="row gap small"><input type="checkbox" checked={onlyRisk} onChange={ev => setOnlyRisk(ev.target.checked)} /> Chỉ SV cần hỗ trợ</label>
         <select value={sort} onChange={ev => setSort(ev.target.value)}><option value="score">Xếp theo điểm tăng dần</option><option value="code">Xếp theo MSSV</option></select></>}>
         <div className="row gap wrap small mb"><span className="muted">Tỷ lệ điểm (%):</span>
           {[0, 25, 50, 75, 100].map(v => <span key={v} className="heat-key" style={heat(v)}>{v}</span>)}
-          <span className="muted">· giúp giảng viên thấy sinh viên nào yếu chương nào. Chuẩn đầu ra (CLO) chỉ được kết luận cho cả lớp, không chấm riêng từng sinh viên.</span></div>
+          <span className="muted">· mỗi hàng là một sinh viên, mỗi cột là một chương hoặc một CLO; ô càng đỏ là càng yếu. Bấm vào hàng để xem biểu đồ mạng nhện (radar) của sinh viên đó. Kết luận đạt CLO/PI/PLO vẫn tính theo tỷ lệ sinh viên đạt của cả lớp.</span></div>
         <div className="scroll tall">
-          <table className="tbl heat"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Điểm</th>{d.chapter_labels.map(c => <th key={c} className="c">{c}</th>)}</tr></thead>
+          <table className="tbl heat"><thead><tr><th>MSSV</th><th>Họ tên</th><th>Điểm</th>{labels.map(c => <th key={c} className="c">{c}</th>)}</tr></thead>
             <tbody>{heatRows.map(s => <tr key={s.student_code} className="click" onClick={() => nav(`/sections/${id}/students/${s.student_id}?exam=${e.id}`)}>
               <td>{s.student_code}</td><td>{s.full_name}</td><td>{s.score}</td>
-              {d.chapter_labels.map(c => { const v = s.chapters[c]; return <td key={c} className="c cell" style={v != null ? heat(v) : {}}
+              {labels.map(c => { const v = (by === 'clo' ? s.clo_pct : s.chapters)[c]; return <td key={c} className="c cell" style={v != null ? heat(v) : {}}
                 title={v != null ? `${s.full_name} · ${c}: ${v}%` : ''}>{v != null ? Math.round(v) : '—'}</td> })}</tr>)}</tbody></table>
         </div>
       </Card>
