@@ -66,7 +66,7 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
                       "status": mine["status"], "score": mine["score"], "source": att["source"] if att else None,
                       "rank": rank, "n_finished": len(scores),
                       "class_mean": round(sum(scores) / len(scores) * float(ex["max_score"]) / _raw_max(db, ex["id"]), 2) if scores else None,
-                      **{k: v for k, v in mine["data"].items() if k != "clos"},
+                      **mine["data"],
                       "answers": answers})
 
     review: dict[str, dict] = {}
@@ -159,7 +159,8 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
         weak = [k for k, v in mine.items() if v < 50]
         heat.append({"student_id": sid.get(r["student_code"]), "student_code": r["student_code"], "full_name": r["full_name"],
                      "score": r["score"], "n_review": len({i["chapter"] for i in r["data"].get("items", [])}),
-                     "weak_chapters": sorted(weak, key=_code_key), "chapters": mine})
+                     "weak_chapters": sorted(weak, key=_code_key), "chapters": mine,
+                     "clo_pct": {c["code"]: c["pct"] for c in r["data"].get("clos", [])}})
     at_risk = sorted([h for h in heat if h["score"] < maxs / 2 or len(h["weak_chapters"]) >= 2],
                      key=lambda h: (h["score"], -len(h["weak_chapters"])))
 
@@ -183,7 +184,7 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
                 "pass_rate": round(100 * sum(1 for s in scores if s >= maxs / 2) / len(scores), 2) if scores else None,
                 "n_at_risk": len(at_risk), "n_clos": len(codes)},
         "clos": clos, "chapters": chapters, "chapter_labels": chapter_labels,
-        "bloom": bloom,
+        "clo_labels": codes, "bloom": bloom,
         "score_hist": [{"range": f"{i * maxs / 10:g}–{(i + 1) * maxs / 10:g}", "count": c} for i, c in enumerate(bins)],
         "heatmap": heat, "at_risk": at_risk,
         "absent": [{"student_id": sid.get(r["student_code"]), "student_code": r["student_code"], "full_name": r["full_name"]}

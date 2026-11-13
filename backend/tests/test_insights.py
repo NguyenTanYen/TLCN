@@ -15,7 +15,7 @@ def test_section_stats(client, gv):
     k = d["kpi"]
     assert d["exam"] and k["n_finished"] + k["n_absent"] == k["n_students"]
     assert k["n_finished"] == len(d["heatmap"]) and "clo_count_hist" not in d
-    assert d["chapter_labels"] and all("chapters" in h and "clos" not in h for h in d["heatmap"])
+    assert d["chapter_labels"] and all("chapters" in h and "clo_pct" in h for h in d["heatmap"])
     for c in d["clos"]:
         assert 0 <= c["achieved_pct"] <= 100 and c["n_achieved"] <= c["n"]
     assert all(0 < ch["n_students"] <= k["n_finished"] for ch in d["chapters"])
@@ -35,7 +35,8 @@ def test_student_profile(client, gv):
     ex = next(e for e in p["exams"] if e["id"] == stats["exam"]["id"])
     assert ex["score"] == weak["score"] and ex["answers"]
     assert {a["result"] for a in ex["answers"]} <= {"correct", "wrong", "blank"}
-    assert p["review"] and ex["items"] and "clos" not in ex and all("clos" not in r for r in p["review"])
+    assert p["review"] and ex["items"] and all("clos" not in r for r in p["review"])
+    assert ex["clos"] and all(0 <= c["pct"] <= 100 and {"code", "threshold", "class_avg", "achieved"} <= set(c) for c in ex["clos"])
     assert "overall_clos" not in p
 
 

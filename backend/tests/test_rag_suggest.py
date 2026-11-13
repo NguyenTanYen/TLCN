@@ -92,7 +92,9 @@ def test_wrong_answers_get_material_pages_in_results_sent_to_moodle(material):
                 assert next(iter(no_pitr)) not in mats
                 n_without += 1
         assert n_with == 25 and n_without > 0
-        assert all("clos" not in lms.public_data(r["data"]) for r in rows)
+        done = [r for r in rows if r["status"] == "finished"]
+        assert all(lms.public_data(r["data"]).get("clos") for r in done)
+        assert all("clo" not in i for r in done for i in lms.public_data(r["data"]).get("items", []))
         assert any(lms.public_data(r["data"]).get("materials") for r in rows)
     finally:
         db.close()

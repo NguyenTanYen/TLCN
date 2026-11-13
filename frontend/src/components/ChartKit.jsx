@@ -1,4 +1,4 @@
-import { Bar, Scatter } from 'react-chartjs-2'
+import { Bar, Radar, Scatter } from 'react-chartjs-2'
 import '../charts'
 
 export const OK = { ok: '#0072B2', no: '#D55E00', warn: '#E69F00', neutral: '#56B4E9', ink: '#344054', target: '#101828' }
@@ -111,5 +111,19 @@ export function ItemScatter({ data, height = 360 }) {
         plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } },
           tooltip: { callbacks: { label: c => `Câu ${c.raw.q}: p = ${c.raw.x}, DI = ${c.raw.y}` } } } }} /></div>
     <figcaption className="muted small">Mỗi điểm là một câu. Vùng xanh nhạt là vùng lý tưởng (p từ 0,25 đến 0,85 và DI ≥ 0,3). Các đường nét đứt ngang ở DI = 0,2 và 0,3. Câu nằm dưới 0 nghĩa là sinh viên giỏi làm sai nhiều hơn sinh viên yếu: nên kiểm tra lại đáp án.</figcaption>
+  </figure>
+}
+
+export function RadarChart({ labels, mine, avg, threshold, height = 340, mineName = 'Sinh viên', avgName = 'Trung bình lớp', thrName = 'Ngưỡng đạt' }) {
+  const ds = [{ label: mineName, data: mine, borderColor: OK.ok, backgroundColor: 'rgba(0,114,178,.22)', borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: OK.ok }]
+  if (avg) ds.push({ label: avgName, data: avg, borderColor: '#98a2b3', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0 })
+  if (threshold) ds.push({ label: thrName, data: threshold, borderColor: OK.warn, backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [6, 3], pointRadius: 0 })
+  return <figure className="chart-fig">
+    <div className="chart" style={{ height }}><Radar data={{ labels, datasets: ds }}
+      options={{ maintainAspectRatio: false, animation: false,
+        scales: { r: { min: 0, max: 100, beginAtZero: true, ticks: { stepSize: 25, backdropColor: 'transparent' }, grid, angleLines: grid,
+          pointLabels: { color: OK.ink, font: { weight: '600', size: 12 } } } },
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.formattedValue}%` } } } }} /></div>
   </figure>
 }

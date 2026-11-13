@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Badge, Card, Loading, Stat } from '../components/ui'
+import { RadarChart } from '../components/ChartKit'
 import { useApi } from '../hooks'
 
 const RES = { correct: ['Đúng', 'ans-ok', '✓'], wrong: ['Sai', 'ans-bad', '✗'], blank: ['Bỏ trống', 'ans-blank', '–'] }
@@ -73,6 +74,8 @@ function ExamBlock({ e }) {
         <Stat label="Trả lời" value={`${cnt('correct')} đúng`} sub={`${cnt('wrong')} sai · ${cnt('blank')} bỏ trống`} />
         <Stat label="Hiển thị cho SV trên Moodle" value={e.publish_flag ? 'Đã công bố' : 'Đang bảo lưu'} sub={e.source === 'paper' ? 'bài làm trên giấy' : 'bài làm Moodle'} tone={e.publish_flag ? 'green' : ''} />
       </div>
+      <Mesh e={e} byChap={byChap} />
+      <Readings e={e} />
       <div className="grid2">
         <Card title="Kết quả theo từng chương">
           {byChap.length === 0 ? <p className="muted">Chưa có dữ liệu.</p> :
@@ -102,5 +105,44 @@ function ExamBlock({ e }) {
       </Card>
       </details>
     </>
+  )
+}
+
+function Mesh({ e, byChap }) {
+  const [by, setBy] = useState('clo')
+  const clos = e.clos || []
+  const useClo = by === 'clo' && clos.length > 0
+  const labels = useClo ? clos.map(c => c.code) : byChap.map(c => c.name)
+  const mine = useClo ? clos.map(c => c.pct) : byChap.map(c => c.pct)
+  const avg = useClo ? clos.map(c => c.class_avg ?? 0) : null
+  const thr = useClo ? clos.map(c => c.threshold) : null
+  return (
+    <Card title="Biểu đồ mạng nhện (radar): sinh viên mạnh – yếu ở đâu" actions={[['clo', 'Theo CLO'], ['chap', 'Theo chương']].map(([k, l]) =>
+      <button key={k} className={`chip ${(by === k || (k === 'chap' && !clos.length)) ? 'on' : ''}`} onClick={() => setBy(k)}>{l}</button>)}>
+      {labels.length < 3 ? <p className="muted">Cần ít nhất 3 {useClo ? 'CLO' : 'chương'} để vẽ biểu đồ mạng nhện.</p> : <div className="grid2">
+        <RadarChart labels={labels} mine={mine} avg={avg} threshold={thr} mineName="Sinh viên này" />
+        <div>
+          <table className="tbl"><thead><tr><th>{useClo ? 'CLO' : 'Chương'}</th><th className="num-c">{useClo ? 'Mức đạt' : 'Tỷ lệ đúng'}</th>
+            {useClo && <><th className="num-c">Ngưỡng</th><th className="num-c">TB lớp</th><th>Kết quả</th></>}</tr></thead>
+            <tbody>{useClo ? clos.map(c => <tr key={c.code}><td><b>{c.code}</b><div className="muted small">{c.description}</div></td>
+              <td className="num-c">{c.pct}%</td><td className="num-c">{c.threshold}%</td><td className="num-c">{c.class_avg ?? '—'}%</td>
+              <td>{c.achieved ? <Badge tone="green">Đạt</Badge> : <Badge tone="red">Chưa đạt</Badge>}</td></tr>)
+              : byChap.map(c => <tr key={c.name}><td><b>{c.name}</b></td><td className="num-c">{c.pct}%</td></tr>)}</tbody></table>
+          <p className="muted small mt">Mỗi trục là một {useClo ? 'chuẩn đầu ra (CLO)' : 'chương'}; càng xa tâm càng đạt cao (0–100%). Vùng xanh là sinh viên này; đường chấm xám là trung bình lớp{useClo ? '; đường nét đứt cam là ngưỡng đạt' : ''}. Trục nào lõm vào trong là phần sinh viên còn yếu.</p>
+        </div>
+      </div>}
+    </Card>
+  )
+}
+
+function Readings({ e }) {
+  const ms = [...(e.materials || [])].sort((a, b) => a.question - b.question)
+  return (
+    <Card title="Câu làm sai và trang tài liệu cần đọc lại">
+      {ms.length === 0 ? <p className="muted">Chưa có gợi ý: lớp chưa nạp học liệu (tab Học liệu của lớp học phần), hoặc các câu sai chưa khớp được trang nào. Sinh viên thấy đúng danh sách này trên Moodle sau khi công bố kết quả.</p> :
+        <table className="tbl"><thead><tr><th>Câu</th><th>Trang tài liệu nên đọc lại</th></tr></thead>
+          <tbody>{ms.map(m => <tr key={m.question_id}><td><b>Câu {m.question}</b></td>
+            <td>{m.pages.map((p, i) => <div key={i}>{p.url ? <a href={p.url} target="_blank" rel="noreferrer">{p.material} – trang {p.page}</a> : <span>{p.material} – trang {p.page}</span>}{p.heading ? <span className="muted"> · {p.heading}</span> : null}</div>)}</td></tr>)}</tbody></table>}
+    </Card>
   )
 }

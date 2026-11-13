@@ -241,8 +241,8 @@ def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[i
 
 
 def public_data(data: dict) -> dict:
-    """Dữ liệu gửi cho SV: điểm, chẩn đoán và gợi ý ôn tập theo chương – KHÔNG kèm mức CLO riêng của từng SV."""
-    d = {k: v for k, v in data.items() if k != "clos"}
+    """Dữ liệu gửi cho SV trên Moodle: điểm, mức đạt từng CLO của chính SV (radar), chẩn đoán, lộ trình ôn tập theo chương, trang tài liệu nên đọc lại."""
+    d = dict(data)
     if "items" in d:
         d["items"] = [{k: v for k, v in i.items() if k not in ("clo", "clo_description")} for i in d["items"]]
     return d
