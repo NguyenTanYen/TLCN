@@ -62,7 +62,7 @@ def read_table(data: bytes, filename: str) -> list[dict]:
         from openpyxl import load_workbook
         try:
             wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             raise ImportError_(f"Không mở được file Excel: {ex}")
         sheets = wb.worksheets
         for ws in sheets:
@@ -122,7 +122,7 @@ def parse_questions(data: bytes, filename: str) -> tuple[str, list[dict]]:
         from docx import Document
         try:
             doc = Document(io.BytesIO(data))
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             raise ImportError_(f"Không mở được file Word: {ex}")
         return "Aiken (Word)", _from_aiken([p.text for p in doc.paragraphs])
     if name.endswith((".txt", ".gift", ".aiken")):

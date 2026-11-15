@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Triển khai giai đoạn 1 (HTTP) rồi tự bật HTTPS.   Cách dùng:  bash trien_khai.sh email_cua_ban@gmail.com
 set -euo pipefail
 cd "$(dirname "$0")"
 EMAIL="${1:?Dùng: bash trien_khai.sh <email_cua_ban>}"

@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import create_engine
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-from app.config import settings  # noqa: E402  (đọc DATABASE_URL trong backend/cau_hinh.env)
+from app.config import settings
 E = create_engine(sys.argv[1] if len(sys.argv) > 1 else settings.database_url)
 q = lambda s: pd.read_sql(s, E)
 bad = []

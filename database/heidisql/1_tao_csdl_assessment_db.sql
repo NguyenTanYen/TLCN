@@ -1,41 +1,3 @@
--- =============================================================
--- Chạy trong HeidiSQL (F9) – tạo CSDL assessment_db: 49 bảng + dữ liệu tham chiếu + CTĐT CNTT 2026, KTDL 2026
--- (tương đương lệnh: python -m app.cli init-db)
--- =============================================================
--- =====================================================================
---  HỆ THỐNG HỖ TRỢ GIẢNG VIÊN KIỂM TRA, ĐÁNH GIÁ VÀ PHÂN TÍCH
---  MỨC ĐỘ ĐẠT CHUẨN ĐẦU RA  –  CSDL phiên bản 2 (theo biểu mẫu HCMUTE)
---  Nhóm 01 – Tiểu luận chuyên ngành
---  DBMS: MySQL 8.0.16+
---
---  Căn cứ nghiệp vụ:
---   * BM2  : Kế hoạch & báo cáo tổng kết đo lường CĐR CTĐT (PLO, PI, chỉ tiêu, chu kỳ)
---   * BM3b : Kế hoạch KT-ĐG mức độ đạt cho từng CĐR CTĐT (PI, môn lấy minh chứng, GV)
---   * BM3c : Kết quả tổng hợp của từng PI cho CĐR CTĐT
---   * BM6a : Kế hoạch KT-ĐG mức độ đạt cho từng CĐR môn học (CLO)
---   * BM6b : Kết quả tổng hợp của từng CĐR môn học
---   * BM6c/6d : Bảng minh chứng đo lường từ kết quả kiểm tra (1 hoặc nhiều bài KT)
---   * Phân công đánh giá PIs theo học kỳ
---
---  49 bảng, 8 nhóm:
---   A. Người dùng & tổ chức      (4)  users, lecturers, students, semesters
---   B. Chương trình & CĐR CTĐT   (6)  programs, plos, plo_measurement_plans,
---                                     performance_indicators, program_courses, pi_courses
---   C. Học phần & CĐR môn học    (11) courses, course_outlines, bloom_levels, clos, clo_plo_mapping,
---                                     clo_pi_mapping, course_syllabi, syllabus_references,
---                                     syllabus_assessments, syllabus_assessment_clos, outline_clos
---   D. Kế hoạch đo lường         (4)  clo_assessment_plans, pi_assessment_plans,
---                                     pi_plan_clos, assessment_assignments
---   E. Lớp học phần & ngân hàng  (6)  class_sections, enrollments,
---                                     question_bank, question_options, question_clo_mapping,
---                                     question_moodle_links
---   F. Đề thi                    (5)  exams, exam_questions, exam_versions,
---                                     exam_version_questions, exam_version_options
---   G. Kết quả & báo cáo         (10) exam_attempts, item_level_results, item_statistics,
---                                     attempt_clo_results, clo_results, pi_results, plo_results,
---                                     personalized_learning_paths, learning_path_items, sync_runs
---   H. Học liệu & gợi ý đọc      (3)  section_materials, material_pages, material_passages
--- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS assessment_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -56,9 +18,6 @@ DROP TABLE IF EXISTS material_passages, material_pages, section_materials,
   semesters, students, lecturers, users;
 SET FOREIGN_KEY_CHECKS = 1;
 
--- =====================================================================
--- A. NGƯỜI DÙNG & TỔ CHỨC
--- =====================================================================
 CREATE TABLE users (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   username       VARCHAR(50)  NOT NULL COMMENT 'Tên đăng nhập (trùng tài khoản Moodle để SSO)',
@@ -110,9 +69,6 @@ CREATE TABLE semesters (
   CONSTRAINT ck_semester_dates CHECK (end_date > start_date)
 ) ENGINE=InnoDB COMMENT='Học kỳ';
 
--- =====================================================================
--- B. CHƯƠNG TRÌNH ĐÀO TẠO & CĐR CTĐT (BM2, BM3b)
--- =====================================================================
 CREATE TABLE programs (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
   code               VARCHAR(20)  NOT NULL COMMENT 'Mã CTĐT',
@@ -166,9 +122,6 @@ CREATE TABLE performance_indicators (
   CONSTRAINT uq_pi_code UNIQUE (plo_id, pi_code)
 ) ENGINE=InnoDB COMMENT='Chỉ số đánh giá (PI) của CĐR CTĐT';
 
--- =====================================================================
--- C. HỌC PHẦN & CĐR MÔN HỌC
--- =====================================================================
 CREATE TABLE courses (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   course_code    VARCHAR(20)  NOT NULL COMMENT 'Mã môn học, VD DBMS330284',
@@ -260,8 +213,6 @@ CREATE TABLE clo_pi_mapping (
 ) ENGINE=InnoDB COMMENT='CLO đóng góp cho chỉ số PI nào của CĐR CTĐT (góp ý F2a); clo_plo_mapping được suy ra từ bảng này';
 CREATE INDEX ix_cpi_pi ON clo_pi_mapping (pi_id);
 
--- Đề cương chi tiết học phần có phiên bản, Bộ môn soạn và duyệt; GV chỉ xem (góp ý F1).
--- Tên, mã, số tín chỉ, cấu trúc, học phần tiên quyết và mô tả vắn tắt vẫn nằm ở bảng courses.
 CREATE TABLE course_syllabi (
   id                    INT AUTO_INCREMENT PRIMARY KEY,
   course_id             INT          NOT NULL,
@@ -327,10 +278,6 @@ CREATE TABLE outline_clos (
   CONSTRAINT fk_oc_clo     FOREIGN KEY (clo_id)     REFERENCES clos(id)            ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='CLO mà chương góp phần đạt được';
 
-
--- =====================================================================
--- D. KẾ HOẠCH ĐO LƯỜNG
--- =====================================================================
 CREATE TABLE clo_assessment_plans (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   clo_id              INT          NOT NULL,
@@ -389,9 +336,6 @@ CREATE TABLE assessment_assignments (
   CONSTRAINT ck_aa_assignee CHECK ((all_supervisors = 1 AND lecturer_id IS NULL) OR (all_supervisors = 0 AND lecturer_id IS NOT NULL))
 ) ENGINE=InnoDB COMMENT='Phân công đánh giá PIs theo học kỳ (một GV, hoặc tất cả GV hướng dẫn với môn TLCN/KLTN)';
 
--- =====================================================================
--- E. LỚP HỌC PHẦN & NGÂN HÀNG CÂU HỎI
--- =====================================================================
 CREATE TABLE class_sections (
   id                INT AUTO_INCREMENT PRIMARY KEY,
   course_id         INT          NOT NULL,
@@ -467,8 +411,6 @@ CREATE TABLE question_clo_mapping (
   CONSTRAINT ck_qcm_weight CHECK (weight > 0 AND weight <= 1)
 ) ENGINE=InnoDB COMMENT='Câu hỏi đo CLO nào (ma trận đề thi)';
 
--- Đồng bộ câu hỏi hai chiều (góp ý F3): mỗi câu có thể nằm trong ngân hàng câu hỏi của nhiều khóa học Moodle (nhiều lớp HP).
--- sync_hash = dấu vân tay nội dung + phương án lúc hai bên giống nhau lần cuối → biết bên nào đã sửa (hoặc cả hai = xung đột).
 CREATE TABLE question_moodle_links (
   question_id         INT       NOT NULL,
   moodle_course_id    BIGINT    NOT NULL COMMENT 'mdl_course.id',
@@ -479,9 +421,6 @@ CREATE TABLE question_moodle_links (
   CONSTRAINT fk_qml_question FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Trạng thái đồng bộ của câu hỏi với ngân hàng câu hỏi của từng khóa học Moodle';
 
--- =====================================================================
--- F. ĐỀ THI
--- =====================================================================
 CREATE TABLE exams (
   id                INT AUTO_INCREMENT PRIMARY KEY,
   class_section_id  INT          NULL COMMENT 'Lớp HP của bài KT; NULL = đề của môn chưa giao lớp (course_id)',
@@ -561,9 +500,6 @@ CREATE TABLE exam_version_options (
   CONSTRAINT uq_evo_option UNIQUE (version_id, option_id)
 ) ENGINE=InnoDB COMMENT='Hoán vị phương án của từng mã đề';
 
--- =====================================================================
--- G. KẾT QUẢ & BÁO CÁO
--- =====================================================================
 CREATE TABLE exam_attempts (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
   exam_id            INT          NOT NULL,
@@ -730,10 +666,6 @@ CREATE TABLE sync_runs (
   CONSTRAINT ck_sync_status CHECK (status IN ('running','success','failed'))
 ) ENGINE=InnoDB COMMENT='Nhật ký đồng bộ / nhập kết quả / phân tích';
 
--- =====================================================================
--- H. HỌC LIỆU & GỢI Ý ĐỌC (RAG)
--- Học liệu thuộc LỚP HỌC PHẦN: chỉ gợi ý tài liệu của chính lớp SV đang học (lấy từ course Moodle của lớp hoặc GV tải lên)
--- =====================================================================
 CREATE TABLE section_materials (
   id                   INT AUTO_INCREMENT PRIMARY KEY,
   class_section_id     INT           NOT NULL,
@@ -802,10 +734,6 @@ CREATE TABLE material_passages (
   CONSTRAINT ck_mps_bboxes CHECK (JSON_VALID(bboxes) AND JSON_LENGTH(bboxes) >= 1)
 ) ENGINE=InnoDB COMMENT='Đoạn học liệu – đơn vị tìm kiếm và trích dẫn';
 
--- =====================================================================
--- VIEW
--- =====================================================================
--- Câu hỏi vi phạm ràng buộc nhiều dòng (tổng trọng số CLO ≠ 1; câu trắc nghiệm không đúng 1 đáp án đúng hoặc < 2 phương án)
 CREATE OR REPLACE VIEW v_question_integrity AS
 SELECT q.id AS question_id, q.question_type,
        (SELECT COALESCE(SUM(weight),0) FROM question_clo_mapping m WHERE m.question_id = q.id) AS total_weight,
@@ -814,12 +742,10 @@ SELECT q.id AS question_id, q.question_type,
 FROM question_bank q
 HAVING total_weight <> 1.00 OR (question_type = 'multichoice' AND (n_options < 2 OR n_correct <> 1));
 
--- Ma trận CLO – PLO của một môn
 CREATE OR REPLACE VIEW v_clo_plo_matrix AS
 SELECT c.course_id, c.clo_code, p.plo_code, m.level
 FROM clo_plo_mapping m JOIN clos c ON c.id = m.clo_id JOIN plos p ON p.id = m.plo_id;
 
--- Tổng hợp CĐR môn học theo học phần + học kỳ (gộp các lớp HP) – BM6b cấp môn
 CREATE OR REPLACE VIEW v_course_clo_summary AS
 SELECT cs.course_id, cs.semester_id, r.clo_id, c.clo_code,
        SUM(r.n_evaluated) AS n_evaluated, SUM(r.n_achieved) AS n_achieved,
@@ -830,7 +756,6 @@ JOIN class_sections cs ON cs.id = r.class_section_id
 JOIN clos c ON c.id = r.clo_id
 GROUP BY cs.course_id, cs.semester_id, r.clo_id, c.clo_code;
 
--- Dữ liệu Radar Chart của SV: điểm từng CLO so với ngưỡng đạt
 CREATE OR REPLACE VIEW v_student_clo_radar AS
 SELECT a.id AS attempt_id, a.exam_id, a.student_id, c.clo_code, r.score_pct, r.is_achieved,
        COALESCE(p.pass_threshold_pct, 60.00) AS pass_threshold_pct
@@ -840,8 +765,6 @@ JOIN exams e ON e.id = a.exam_id
 JOIN class_sections cs ON cs.id = e.class_section_id
 JOIN clos c ON c.id = r.clo_id
 LEFT JOIN clo_assessment_plans p ON p.clo_id = r.clo_id AND p.semester_id = cs.semester_id;
-
--- Dữ liệu tham chiếu sinh tự động từ BM2 (KTDL) và bảng phân công đánh giá PIs HKI 2023-2024
 
 USE assessment_db;
 
@@ -1046,12 +969,8 @@ INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, all_sup
  ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,5,0,NULL),
  ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),9,6,0,NULL);
 
--- Hai chương trình đào tạo 2026 (CNTT, KTDL) đọc từ file PDF bằng tools/ctdt_2026/doc_ctdt.py.
--- Chạy lại an toàn: chỉ thêm phần còn thiếu, không ghi đè dữ liệu đã chỉnh trên hệ thống.
-
 SET NAMES utf8mb4;
 
--- ===================== CNTT-2026: Công nghệ thông tin
 INSERT IGNORE INTO programs (code, name, name_en, level, department, faculty, major_code, cohort_year, total_credits, decision_no, objective, target_pct) VALUES ('CNTT-2026', 'Công nghệ thông tin', 'Information Technology', 'Đại học', NULL, 'Khoa Công nghệ Thông Tin', '7480201', 2026, 150, '3052/QĐ-ĐHCNKT ngày 14/8/2026', 'Đào tạo kỹ sư ngành Công nghệ thông tin (CNTT) phát triển toàn diện, có đạo đức, tri thức, sức khỏe, thẩm mỹ, trung thành với lý tưởng dân tộc và chủ nghĩa xã hội, có kiến thức khoa học cơ bản, kiến thức cơ sở và chuyên ngành về CNTT, có khả năng phân tích, giải quyết vấn đề, có khả năng đánh giá và lựa chọn các giải pháp phù hợp, có năng lực xây dựng và quản trị các hệ thống dữ liệu lớn, có kỹ năng giao tiếp và làm việc nhóm, có thái độ nghề nghiệp phù hợp và năng lực tự học để đáp ứng được các yêu cầu phát triển của ngành và xã hội. Với kiến thức cơ sở ngành và chuyên ngành Công nghệ thông tin được trang bị, học viên có khả năng nghiên cứu một cách độc lập, sáng tạo, có năng lực phát hiện và giải quyết vấn đề kỹ thuật phức tạp. Ngoài ra, chương trình cung cấp nền tảng kiến thức vững chắc để học viên có thể tiếp tục nâng cao và mở rộng kiến thức nhằm thích ứng với nhu cầu phát triển kinh tế - xã hội trong nước và quốc tế.', 75.00);
 SET @p := (SELECT id FROM programs WHERE code = 'CNTT-2026');
 INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 1, 'PLO1', 'Khả năng áp dụng các nguyên tắc toán học, thuật toán, cũng như khoa học để xác định giải pháp cho vấn đề trong công nghệ thông tin.', 75.00, 3, 'CĐR chung');
@@ -1409,7 +1328,6 @@ INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, 'M' 
 INSERT INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites, description) VALUES ('DICO132585', 'Chuyên đề nâng cao năng lực số', 3, NULL, NULL, NULL, NULL, NULL) ON DUPLICATE KEY UPDATE credits_theory = COALESCE(credits_theory, VALUES(credits_theory)), credits_practice = COALESCE(credits_practice, VALUES(credits_practice)), course_structure = COALESCE(course_structure, VALUES(course_structure)), prerequisites = COALESCE(prerequisites, VALUES(prerequisites)), description = COALESCE(description, VALUES(description));
 INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Chuyên đề bổ trợ', 0 FROM courses WHERE course_code = 'DICO132585';
 
--- ===================== KTDL-2026: Kỹ thuật dữ liệu
 INSERT IGNORE INTO programs (code, name, name_en, level, department, faculty, major_code, cohort_year, total_credits, decision_no, objective, target_pct) VALUES ('KTDL-2026', 'Kỹ thuật dữ liệu', 'Data Engineering', 'Đại học', NULL, 'Khoa Công nghệ thông tin', '7480203', 2026, 150, '3050/QĐ-ĐHCNKT ngày 14/8/2026', 'Đào tạo kỹ sư ngành Kỹ thuật dữ liệu (KTDL) phát triển toàn diện, có đạo đức, tri thức, sức khỏe, thẩm mỹ, trung thành với lý tưởng dân tộc và chủ nghĩa xã hội, có kiến thức khoa học cơ bản, kiến thức cơ sở và chuyên ngành về KTDL, có khả năng phân tích, giải quyết vấn đề, có khả năng đánh giá và lựa chọn các giải pháp phù hợp, có năng lực xây dựng và quản trị các hệ thống dữ liệu lớn, có kỹ năng giao tiếp và làm việc nhóm, có thái độ nghề nghiệp phù hợp và năng lực tự học để đáp ứng được các yêu cầu phát triển của ngành và xã hội. Với kiến thức cơ sở ngành và chuyên ngành Kỹ thuật dữ liệu được trang bị, học viên có khả năng nghiên cứu một cách độc lập, sáng tạo, có năng lực phát hiện và giải quyết vấn đề kỹ thuật phức tạp. Ngoài ra, chương trình cung cấp nền tảng kiến thức vững chắc để học viên có thể tiếp tục nâng cao và mở rộng kiến thức nhằm thích ứng với nhu cầu phát triển kinh tế - xã hội trong nước và quốc tế.', 75.00);
 SET @p := (SELECT id FROM programs WHERE code = 'KTDL-2026');
 INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 1, 'PLO1', 'Khả năng áp dụng các nguyên tắc toán học, thuật toán, cũng như khoa học để xác định giải pháp cho vấn đề trong công nghệ thông tin.', 75.00, 3, 'CĐR chung');

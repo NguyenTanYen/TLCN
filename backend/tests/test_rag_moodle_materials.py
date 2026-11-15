@@ -184,8 +184,8 @@ def test_pdf_detected_by_extension_when_moodle_mimetype_is_wrong():
 def test_availability_tree_evaluation():
     now = time.time()
     past, future = int(now) - 3600, int(now) + 3600
-    date = lambda d, t: {"type": "date", "d": d, "t": t}                                  # noqa: E731
-    tree = lambda op, *c: __import__("json").dumps({"op": op, "c": list(c), "showc": [True] * len(c)})  # noqa: E731
+    date = lambda d, t: {"type": "date", "d": d, "t": t}
+    tree = lambda op, *c: __import__("json").dumps({"op": op, "c": list(c), "showc": [True] * len(c)})
     ok = moodle_files.available_now
     assert ok(None) and ok("") and ok(tree("&"))
     assert ok(tree("&", date(">=", past)), now)

@@ -213,7 +213,7 @@ def _find_header(ws):
 def parse_sheet(data: bytes) -> dict:
     try:
         wb = load_workbook(io.BytesIO(data), data_only=True)
-    except Exception as ex:   # noqa: BLE001
+    except Exception as ex:
         raise GradeError(f"Không đọc được file Excel (.xlsx): {ex}")
     ws = wb.worksheets[0]
     hr, head = _find_header(ws)

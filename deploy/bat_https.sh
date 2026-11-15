@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Lấy chứng chỉ HTTPS miễn phí (Let's Encrypt) cho 2 địa chỉ sslip.io rồi chuyển Nginx sang HTTPS.
-# Chạy MỘT LẦN sau khi `docker compose up -d` đã chạy ở giai đoạn HTTP:   bash bat_https.sh you@email.com
 set -euo pipefail
 cd "$(dirname "$0")"
 EMAIL="${1:?Dùng: bash bat_https.sh <email_cua_ban>}"

@@ -84,7 +84,7 @@ def test_create_exam_from_any_excel(client, gv):
         ws.append([i + 1, c, f"SV {i}", i % 6, 5 - (i % 6), 5])
     ws.append([7, "99999901", "Sinh viên ngoài danh sách", 4, 4, 8])
     buf = io.BytesIO(); wb.save(buf)
-    f = lambda: {"file": ("th.xlsx", buf.getvalue(), "application/octet-stream")}   # noqa: E731
+    f = lambda: {"file": ("th.xlsx", buf.getvalue(), "application/octet-stream")}
     form = {"exam_title": "Thực hành tuần 1–5", "assessment_type": "process", "max_score": "10"}
     pre = client.post("/api/class-sections/1/manual-exams/import?dry_run=true", headers=gv, files=f(), data=form).json()
     assert [i["points"] for i in pre["items"]] == [5, 5] and not pre["problems"] and pre["n_rows"] == 7

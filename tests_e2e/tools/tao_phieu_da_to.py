@@ -6,10 +6,10 @@ BACKEND = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND))
 os.chdir(BACKEND)
 
-import fitz  # noqa: E402
-from app.database import SessionLocal  # noqa: E402
-from app.models import Exam  # noqa: E402
-from app.services import paper  # noqa: E402
+import fitz
+from app.database import SessionLocal
+from app.models import Exam
+from app.services import paper
 
 
 def main():

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Chạy MỘT LẦN sau trien_khai.sh (và chạy lại an toàn sau mỗi lần cập nhật mã nguồn):
-#   nâng cấp plugin local_clo, bật giao diện UTE + tiếng Việt, nối hệ thống với Moodle (token Web Service + khóa SSO).
-# Cách dùng:  cd /opt/tlcn/deploy && sudo bash sau_cai_dat.sh
 set -uo pipefail
 cd "$(dirname "$0")"
 set -a; . ./.env; set +a

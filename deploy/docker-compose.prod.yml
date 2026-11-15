@@ -1,8 +1,3 @@
-# Triển khai thật (miễn phí trên VPS bất kỳ có Docker)
-#   1) cp .env.example .env  rồi sửa IP_CONG_KHAI và mật khẩu
-#   2) bash deploy/trien_khai.sh email_cua_ban@gmail.com
-# Địa chỉ (HTTPS tự động qua Let's Encrypt, dùng sslip.io nên KHÔNG cần mua tên miền):
-#   Hệ thống: https://app.<IP>.sslip.io      Moodle: https://lms.<IP>.sslip.io
 services:
   db:
     image: mysql:8.0

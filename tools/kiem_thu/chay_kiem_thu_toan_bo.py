@@ -14,7 +14,7 @@ ROOT = HERE.parents[1]
 BACKEND = ROOT / "backend"
 OUT_DIR = ROOT / "docs" / "kiem_thu"
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(BACKEND))
-from mo_ta_ca_kiem_thu import M, NHOM  # noqa: E402
+from mo_ta_ca_kiem_thu import M, NHOM
 
 GIAO_DIEN = [
     ("GV", "Đăng nhập", "Mở http://localhost:8000, đăng nhập gv.son / Gv@123456", "Vào trang 'Môn học của tôi'; tên GV ở góc trên bên phải"),
@@ -67,7 +67,7 @@ def run_pytest(out_json: Path, junit: Path) -> int:
 
 
 def all_routes() -> list[dict]:
-    import app.main  # noqa: F401
+    import app.main
     from app.routers import (analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync,
                              question_io, questions, remedial, reports, sync)
     out = []

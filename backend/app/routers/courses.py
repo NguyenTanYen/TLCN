@@ -130,7 +130,7 @@ def update_course(cid: int, body: CourseUpd, db: Session = Depends(get_db), _=De
 def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
     _course(db, cid)
     check_course_access(db, u, cid)
-    q = lambda sql: db.execute(text(sql), {"c": cid}).scalar()  # noqa: E731
+    q = lambda sql: db.execute(text(sql), {"c": cid}).scalar()
     n_ch = q("SELECT COUNT(*) FROM course_outlines WHERE course_id=:c")
     n_clo = q("SELECT COUNT(*) FROM clos WHERE course_id=:c")
     n_clo_noplo = q("SELECT COUNT(*) FROM clos c WHERE c.course_id=:c AND NOT EXISTS (SELECT 1 FROM clo_plo_mapping m WHERE m.clo_id=c.id)")
