@@ -8,12 +8,12 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 os.chdir(BACKEND)
 
-import fitz  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from app.database import SessionLocal  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Exam  # noqa: E402
-from app.services import paper  # noqa: E402
+import fitz
+from fastapi.testclient import TestClient
+from app.database import SessionLocal
+from app.main import app
+from app.models import Exam
+from app.services import paper
 
 SECTION = "DBMS330284_01"
 FINAL = "Thi cuối kỳ (Moodle)"

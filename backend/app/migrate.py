@@ -239,7 +239,7 @@ def run() -> None:
         done = upgrade_schema()
         if done:
             print("Đã nâng cấp CSDL:", "; ".join(done))
-    except Exception as ex:  # noqa: BLE001 – CSDL chưa khởi tạo: bước 2 sẽ tạo đúng lược đồ
+    except Exception as ex:
         print("Bỏ qua nâng cấp CSDL:", ex)
         return
     try:
@@ -247,5 +247,5 @@ def run() -> None:
             n = moodle.install_bridge()
             print(f"Cầu nối Moodle: {n} câu lệnh" + ("" if moodle.offlinequiz_available()
                   else " (Moodle chưa cài Offline Quiz – chưa đọc được bài thi giấy)"))
-    except Exception as ex:  # noqa: BLE001
+    except Exception as ex:
         print("Chưa cài được cầu nối Moodle:", ex)

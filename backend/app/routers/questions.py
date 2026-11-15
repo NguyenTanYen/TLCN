@@ -205,7 +205,7 @@ def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: 
         try:
             results.analyze_exam(db, exam_id)
             done.append(exam_id)
-        except Exception:  # noqa: BLE001 – một bài lỗi không được chặn các bài còn lại
+        except Exception:
             db.rollback()
             log.exception("Phân tích lại bài KT %s sau khi hủy câu %s thất bại", exam_id, qid)
             failed.append(exam_id)

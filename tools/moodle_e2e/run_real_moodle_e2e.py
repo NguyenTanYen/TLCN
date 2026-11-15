@@ -4,12 +4,12 @@ from pathlib import Path
 from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
-from app import cli, demo_data as D  # noqa: E402
-from app.config import settings  # noqa: E402
-from app.database import SessionLocal, engine  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from app.models import Exam  # noqa: E402
-from app.services import lms, moodle, results, xml_export  # noqa: E402
+from app import cli, demo_data as D
+from app.config import settings
+from app.database import SessionLocal, engine
+from sqlalchemy import create_engine
+from app.models import Exam
+from app.services import lms, moodle, results, xml_export
 
 MOODLE = Path(sys.argv[1] if len(sys.argv) > 1 else "/var/www/moodle").resolve()
 HERE = Path(__file__).resolve().parent
@@ -151,7 +151,7 @@ def paper_on_moodle(db, info, php):
     print("Đồng bộ:", moodle.sync_exam(db, exam.id))
     print("Phân tích:", results.analyze_exam(db, exam.id))
     with engine.connect() as c:
-        q = lambda sql, **p: c.execute(text(sql), p).fetchall()  # noqa: E731
+        q = lambda sql, **p: c.execute(text(sql), p).fetchall()
         rows = q(f"""SELECT s.student_code, a.total_score, r.sumgrades, v.version_code, CHAR(64 + g.groupnumber USING utf8mb4)
                      FROM exam_attempts a JOIN students s ON s.id = a.student_id
                      JOIN {MDL}offlinequiz_results r ON r.id = a.moodle_attempt_id AND r.offlinequizid = :oq
@@ -221,7 +221,7 @@ def push_to_moodle(db, exam):
 def verify(exam_id, quiz_id, spec, grademethod):
     MDL = f"{settings.moodle_db_name}.{settings.moodle_prefix}"
     with engine.connect() as c:
-        q = lambda sql, **p: c.execute(text(sql), p).fetchall()  # noqa: E731
+        q = lambda sql, **p: c.execute(text(sql), p).fetchall()
         rows = q(f"""SELECT s.student_code, a.total_score, ma.sumgrades, ma.attempt, ma.preview FROM exam_attempts a
                     JOIN students s ON s.id=a.student_id JOIN {MDL}quiz_attempts ma ON ma.id=a.moodle_attempt_id
                     WHERE a.exam_id=:e""", e=exam_id)

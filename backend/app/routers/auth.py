@@ -144,7 +144,7 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
             target = f"/sections/{cs.id}"
         else:
             target = f"/?moodle={int(claims['courseid'])}"
-    js = lambda v: json.dumps(v).replace("</", "<\\/")  # noqa: E731 – an toàn khi nhúng vào <script>
+    js = lambda v: json.dumps(v).replace("</", "<\\/")
     script = ("<script>localStorage.setItem('tlcn_token'," + json.dumps(t["access_token"]) + ");"
               "localStorage.setItem('tlcn_user'," + js(json.dumps(t["user"], ensure_ascii=False)) + ");"
               "location.replace(" + js(target) + ");</script>")
