@@ -1,6 +1,4 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
-
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/behat/lib.php');
