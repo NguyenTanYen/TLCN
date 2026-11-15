@@ -1,4 +1,3 @@
-"""Nạp học liệu: tải tệp từ Moodle → đọc PDF (ingest) → chia đoạn (chunk) → lưu trang / đoạn (store)."""
 from __future__ import annotations
 
 import hashlib
@@ -36,11 +35,11 @@ Fetcher = Callable[[SectionMaterial], "bytes | str"]
 
 
 class MaterialError(ValueError):
-    """Lỗi ở chính tệp học liệu – nạp lại cũng vẫn lỗi cho tới khi GV sửa tệp."""
+    pass
 
 
 class _LostClaim(Exception):
-    """Gia hạn giữ chỗ thất bại – bên khác đã nhận nạp học liệu này."""
+    pass
 
 
 def tmp_dir() -> str:
@@ -50,7 +49,6 @@ def tmp_dir() -> str:
 
 
 def clean_tmp(max_age: float = TMP_MAX_AGE) -> int:
-    """Xóa tệp tạm sót lại (tiến trình bị kill – SIGKILL / hết RAM – thì finally không chạy)."""
     n, now = 0, time.time()
     for f in os.scandir(tmp_dir()):
         try:
@@ -63,7 +61,6 @@ def clean_tmp(max_age: float = TMP_MAX_AGE) -> int:
 
 
 def download_url(m: SectionMaterial) -> str:
-    """Liên kết pluginfile (SV mở) → webservice/pluginfile (tải bằng token)."""
     base = settings.moodle_url.rstrip("/")
     url = m.moodle_file_url or ""
     if not url.startswith(base + "/pluginfile.php/"):
@@ -72,7 +69,6 @@ def download_url(m: SectionMaterial) -> str:
 
 
 def fetch(m: SectionMaterial, beat: Callable[[], None] = lambda: None) -> str:
-    """Tải tệp về một tệp tạm, kiểm trong lúc tải; trả về đường dẫn (nơi gọi xóa sau khi đọc)."""
     if m.file_size and m.file_size > MAX_BYTES:
         raise MaterialError(f"Tệp quá lớn ({m.file_size // 1048576} MB, tối đa {MAX_BYTES // 1048576} MB)")
     url = download_url(m)
@@ -110,7 +106,6 @@ def parse(src: bytes | str):
 
 
 def _child(src: bytes | str, conn) -> None:
-    """Chạy trong tiến trình con: đọc + chia đoạn, gửi kết quả qua pipe."""
     try:
         pages, passages = parse(src)
         for p in pages:
@@ -129,7 +124,6 @@ def _child(src: bytes | str, conn) -> None:
 
 
 def parse_isolated(src: bytes | str, beat: Callable[[], None] = lambda: None, target=_child):
-    """parse() trong tiến trình con (spawn – an toàn khi tiến trình cha có nhiều luồng)."""
     ctx = multiprocessing.get_context("spawn")
     recv, send = ctx.Pipe(duplex=False)
     proc = ctx.Process(target=target, args=(src, send), name="rag-parse", daemon=True)
@@ -159,7 +153,6 @@ def parse_isolated(src: bytes | str, beat: Callable[[], None] = lambda: None, ta
 
 
 def _claimable():
-    """Chờ nạp, hoặc đang nạp nhưng quá hạn (tiến trình nạp đã chết)."""
     return or_(SectionMaterial.status == "pending",
                (SectionMaterial.status == "indexing") & (SectionMaterial.claimed_at < datetime.now() - CLAIM_TTL))
 
@@ -178,14 +171,12 @@ def _still_mine(db: Session, material_id: int, stamp: datetime) -> SectionMateri
 
 
 def index_material(db: Session, material_id: int, fetcher: Fetcher | None = None) -> str | None:
-    """Nạp một học liệu đang chờ."""
     stamp = _claim(db, material_id)
     if not stamp:
         return None
     claim = {"stamp": stamp, "at": time.monotonic()}
 
     def beat() -> None:
-        """Gia hạn giữ chỗ (tối đa một lần mỗi HEARTBEAT_S giây); bên khác đã giữ chỗ lại → _LostClaim."""
         if time.monotonic() - claim["at"] < HEARTBEAT_S:
             return
         new = datetime.now().replace(microsecond=0)
@@ -255,7 +246,6 @@ def index_pending(db: Session, cs_id: int, fetcher: Fetcher | None = None) -> di
 
 
 def run_section(cs_id: int) -> None:
-    """Nạp các tệp chờ của một lớp – phiên CSDL riêng – rồi dựng sẵn chỉ mục tìm kiếm của lớp (dựng khi GHI: lần tìm sau không phải dựng) và tính vector cho cổng ngữ nghĩa (sau khi đoạn đã commit; cổng tắt thì bỏ qua)."""
     db = SessionLocal()
     try:
         index_pending(db, cs_id)
@@ -287,7 +277,6 @@ def _work() -> None:
 
 
 def enqueue(cs_id: int) -> None:
-    """Xếp lớp vào hàng đợi nạp (lớp đã đang chờ thì thôi) – trả về ngay."""
     global _worker
     with _guard:
         if cs_id in _waiting:
@@ -300,7 +289,6 @@ def enqueue(cs_id: int) -> None:
 
 
 def run_all() -> bool:
-    """Đồng bộ học liệu của mọi lớp có gắn khóa học Moodle rồi xếp vào hàng đợi nạp (chạy định kỳ)."""
     with engine.connect() as lock:
         if not lock.execute(text("SELECT GET_LOCK(:n, 0)"), {"n": SYNC_LOCK}).scalar():
             return False

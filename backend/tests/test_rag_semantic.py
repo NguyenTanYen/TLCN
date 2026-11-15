@@ -1,4 +1,3 @@
-"""Cổng ngữ nghĩa của gợi ý học liệu: tài liệu của lớp không nói về câu hỏi → không gợi ý (semantic.py)."""
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -184,7 +183,6 @@ def test_unrelated_question_gets_no_pages_related_one_does(material):
 
 @pytest.fixture()
 def fake_dense(material, monkeypatch):
-    """Vector giả: đoạn 1 (Recovery model) gần câu hỏi, đoạn 2 (Trigger) xa; model giả luôn mã hóa câu hỏi thành (1,0,0)."""
     mid, cs = material
     monkeypatch.setattr(semantic, "enabled", lambda: True)
     monkeypatch.setattr(semantic, "encode", lambda texts: np.array([[1.0, 0.0, 0.0]] * len(texts), dtype=np.float32))

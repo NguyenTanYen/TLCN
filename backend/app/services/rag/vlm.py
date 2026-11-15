@@ -1,4 +1,3 @@
-"""Mô tả HÌNH trong học liệu bằng VLM chạy cục bộ (Ollama, mặc định qwen2.5vl:3b) – điền material_passages.vlm_desc."""
 from __future__ import annotations
 
 import base64
@@ -37,7 +36,6 @@ def _url(path: str) -> str:
 
 
 def available() -> bool:
-    """Ollama đang chạy và đã có model (ollama pull) – hỏi nhanh, không nạp model."""
     if not model_name():
         return False
     try:
@@ -55,7 +53,6 @@ def available() -> bool:
 
 
 def describe(png: bytes, prompt: str) -> str:
-    """Hỏi VLM về một ảnh."""
     r = httpx.post(_url("/api/chat"), timeout=TIMEOUT_S, json={
         "model": model_name(), "stream": False, "keep_alive": "10m",
         "options": OPTIONS,
@@ -76,7 +73,6 @@ def prompt_for(course: str, slide: bool, breadcrumb: str, body: str) -> str:
 
 
 def describe_missing(db: Session, cs_id: int, fetcher=None) -> int:
-    """Mô tả hình cho các học liệu 'ready' của lớp chưa mô tả (hoặc mô tả bằng model khác)."""
     if not model_name():
         return 0
     name = model_name()

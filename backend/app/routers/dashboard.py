@@ -1,4 +1,3 @@
-"""Trang Tổng quan: danh sách "việc cần làm" theo vai trò, mỗi việc kèm đường dẫn đến đúng trang để làm."""
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session

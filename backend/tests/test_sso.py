@@ -1,4 +1,3 @@
-"""Đăng nhập một lần từ nút "Phân tích CĐR" trên Moodle (vé JWT HS256 do plugin local_clo ký)."""
 import time, uuid
 
 import jwt
@@ -50,7 +49,6 @@ def test_sso_provisions_declared_lecturer(client):
 
 
 def test_sso_sang_moodle_cap_ve_dung_tai_khoan(client, monkeypatch):
-    """Từ hệ thống mở Moodle: vé mang đúng tên đăng nhập đang dùng, 120 giây, chỉ cho Moodle kiểm tra."""
     from app.config import settings
     monkeypatch.setattr(settings, "moodle_url", "http://moodle.test")
     assert client.post("/api/auth/moodle-ticket", json={"next": "/"}).status_code in (401, 403)

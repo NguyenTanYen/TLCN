@@ -1,4 +1,3 @@
-"""Bước 7: đo chất lượng tìm học liệu trên bộ câu hỏi chuẩn (eval/rag_gold.json)."""
 from __future__ import annotations
 
 import argparse
@@ -30,7 +29,6 @@ class Doc:
 
 
 def load_corpus(pdf_dir: Path, files: list[str], vlm: bool = False) -> tuple[list[Doc], Index]:
-    """Đọc + chia đoạn các PDF (lưu đệm theo cỡ / thời điểm sửa tệp – chạy lại không phải đọc PDF)."""
     cache_path = pdf_dir / CACHE
     try:
         cache = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -58,7 +56,6 @@ def load_corpus(pdf_dir: Path, files: list[str], vlm: bool = False) -> tuple[lis
 
 
 def describe_corpus(pdf_dir: Path, files: list[str], cache: dict) -> dict[str, dict[str, str]]:
-    """Mô tả VLM của các đoạn hình: {tệp: {thứ tự đoạn: mô tả}} – lưu đệm cạnh PDF theo model + tham số gọi + phiên bản tệp (mỗi tệp xong là ghi lại – dừng giữa chừng chạy lại không mất phần đã làm)."""
     from . import vlm
     from .ingest import render_regions
     path = pdf_dir / f".rag_eval_vlm_{''.join(c if c.isalnum() else '_' for c in vlm.model_name())}.json"
@@ -87,12 +84,10 @@ def describe_corpus(pdf_dir: Path, files: list[str], cache: dict) -> dict[str, d
 
 
 def query_text(q: dict, mode: str) -> str:
-    """stem – chỉ thân câu hỏi; stem+answer – thân câu + nội dung đáp án đúng."""
     return q["stem"] if mode == "stem" else f'{q["stem"]}\n{q["options"][q["answer"]]}'
 
 
 def ndcg(pages: list[tuple[str, int]], rel: set[tuple[str, int]], k: int = 10) -> float:
-    """nDCG@k nhị phân theo TRANG: mỗi trang đúng được tính ở lần xuất hiện đầu tiên (đoạn sau cùng trang = 0)."""
     seen, dcg = set(), 0.0
     for r, pg in enumerate(pages[:k], 1):
         if pg in rel and pg not in seen:
@@ -127,7 +122,6 @@ def run(questions: list[dict], docs: list[Doc], ix: Index, mode: str = "stem+ans
 
 
 def embeddings(pdf_dir: Path, docs: list[Doc], questions: list[dict]) -> tuple[np.ndarray, dict] | None:
-    """Vector MiniLM của các đoạn (lưu đệm theo model + nội dung) và của từng câu hỏi; None nếu chưa cài thư viện."""
     from . import semantic, suggest
     if not semantic.enabled():
         return None
@@ -146,7 +140,6 @@ def embeddings(pdf_dir: Path, docs: list[Doc], questions: list[dict]) -> tuple[n
 def run_suggest(questions: list[dict], docs: list[Doc], ix: Index, synonyms=None,
                 wrong_weight: float | None = None, gate: tuple | None = None, margin: float | None = None,
                 floor: float | None = None) -> dict:
-    """Bước 8 – gợi ý theo TRANG cho từng cặp (câu, phương án SAI sinh viên chọn)."""
     from . import suggest
     ranks, neg, prec, shown = [], [], [], []
     for q in questions:

@@ -1,4 +1,3 @@
-"""UC-07: Báo cáo đo lường CĐR – xuất BM6 (lớp HP, từng bài KT), BM2/BM3 (CTĐT, Excel + Word BM2), phân công đánh giá PIs; tổng hợp PLO."""
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy import text
@@ -25,7 +24,6 @@ def bm6(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session
 
 @router.get("/exams/{exam_id}/bm6c.xlsx")
 def bm6_exam(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """BM6c riêng cho một bài kiểm tra – minh chứng từng CLO bài KT đo (kèm MSSV, họ tên)."""
     e = get_exam_for(db, u, exam_id)
     if e.status != "Analyzed":
         raise HTTPException(409, "Bài kiểm tra chưa được phân tích – đồng bộ/nhập phiếu và phân tích trước khi xuất bảng minh chứng")
@@ -42,14 +40,12 @@ def bm3(pid: int, academic_year: str, _=Depends(require("admin")), db: Session =
 
 @router.get("/programs/{pid}/bm2.docx")
 def bm2_docx(pid: int, academic_year: str, _=Depends(require("admin")), db: Session = Depends(get_db)):
-    """BM2 dạng Word như biểu mẫu gốc: BM2a (kế hoạch) + BM2b (báo cáo tổng kết)."""
     return Response(reports_word.build_bm2_docx(db, pid, academic_year), media_type=DOCX,
                     headers=attachment(f"BM2_{academic_year}.docx"))
 
 
 @router.get("/semesters/{sem_id}/assignments.xlsx")
 def assignments_xlsx(sem_id: int, _=Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Bảng "Phân công đánh giá PIs" của một học kỳ."""
     name = db.execute(text("SELECT name FROM semesters WHERE id=:s"), {"s": sem_id}).scalar()
     if not name:
         raise HTTPException(404, "Không tìm thấy học kỳ")

@@ -1,4 +1,3 @@
-"""Công cụ dòng lệnh: khởi tạo CSDL, tạo dữ liệu minh họa, mô phỏng bài làm."""
 from __future__ import annotations
 
 import math
@@ -151,7 +150,6 @@ def seed_demo() -> None:
 
 
 def _seed_second_section(db, course, sem, lecturer, clo_ids, user_id) -> str:
-    """GV dạy nhiều lớp của cùng một môn: lớp DBMS330284_02 (35 SV) với một bài tự luận nhập điểm từng câu."""
     from .services import manual
     cs = ClassSection(course_id=course.id, semester_id=sem, lecturer_id=lecturer.id, section_code="DBMS330284_02"); db.add(cs); db.flush()
     rng = random.Random(23)
@@ -203,7 +201,6 @@ IDLE_UNTIL_TIMEOUT = (5, 22)
 
 
 def timing_plan(trng: random.Random, i: int, n_answered: int, limit: int = QUIZ_TIME_LIMIT, last_attempt: bool = True):
-    """Thời điểm (giây kể từ lúc bắt đầu) SV thứ i chọn đáp án từng câu đã trả lời và lúc nộp bài."""
     t, offs = 0.0, []
     if last_attempt and i in RAPID_GUESSERS:
         for _ in range(n_answered):
@@ -221,7 +218,6 @@ def timing_plan(trng: random.Random, i: int, n_answered: int, limit: int = QUIZ_
 
 
 def simulate_moodle() -> None:
-    """Chỉ dùng cho môi trường thử: tạo CSDL `moodle` mô phỏng (bảng Moodle 4.4 + Offline Quiz) có bài làm đã xáo đáp án."""
     conn = _raw_conn(); cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_name=%s",
                 (settings.moodle_db_name, f"{settings.moodle_prefix}config"))
@@ -336,7 +332,6 @@ def simulate_moodle() -> None:
 
 
 def _simulate_materials(cur, t0: int) -> None:
-    """Tài nguyên của khóa học 50 (học liệu): slide, đề ôn tập (SV đang xem được → là học liệu), thư mục tài liệu tham khảo (PDF + Word), slide chương 2 "mở khóa theo tuần" đã qua mốc ngày (được lấy); một slide đang ẩn, một ĐÁP ÁN giới hạn truy cập "chỉ mở sau ngày thi" và một bài đọc thêm chỉ mở khi SV hoàn thành hoạt động khác (cả ba không được lấy)."""
     now = int(datetime.now().timestamp())
     cur.execute("INSERT INTO mdl_modules (id, name) VALUES (17,'resource'),(8,'folder')")
     cur.execute("INSERT INTO mdl_course_sections (id, course, section, name, visible) VALUES "
@@ -375,7 +370,6 @@ def _simulate_materials(cur, t0: int) -> None:
 
 
 def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> None:
-    """Offline Quiz 910: Moodle sinh 2 mã đề (A, B) – mỗi mã đề một thứ tự câu và thứ tự phương án (template usage); phiếu quét của mỗi SV được Moodle nhận diện thành bước 'answer' trên bản sao usage của mã đề, rồi chấm (status=complete)."""
     rng = random.Random(11)
     theta = _abilities(len(studs))
     cur.execute("""INSERT INTO mdl_offlinequiz (id, course, name, intro, grade, numgroups, shufflequestions, shuffleanswers, docscreated)
@@ -426,7 +420,6 @@ def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> N
 
 
 def bootstrap() -> None:
-    """Dùng khi khởi động container: chờ MySQL, tạo CSDL nếu chưa có, (tùy chọn) nạp dữ liệu minh họa, cài cầu nối Moodle."""
     import os, time
     for _ in range(60):
         try:

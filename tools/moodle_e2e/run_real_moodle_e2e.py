@@ -1,4 +1,3 @@
-"""Kiểm thử đầu-cuối với Moodle THẬT (không dùng CSDL Moodle mô phỏng)."""
 import contextlib, io, json, os, random, shutil, subprocess, sys
 from pathlib import Path
 
@@ -82,7 +81,6 @@ def main():
 
 
 def paper_on_moodle(db, info, php):
-    """Bài thi giấy: Moodle (Offline Quiz) sinh đề + phiếu, nhận diện phiếu quét và chấm; hệ thống chỉ ra đề và kéo kết quả."""
     from fill_answer_sheets import fill_sheet
     if not lms.configured():
         print("\n(Bỏ qua bài thi giấy: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
@@ -177,7 +175,6 @@ def paper_on_moodle(db, info, php):
 
 
 def materials_on_moodle(db, exam, info):
-    """Tải bài giảng mẫu lên khóa học (Tài nguyên) -> đồng bộ + nạp học liệu của lớp -> kiểm tra gợi ý trang cho câu sai."""
     import base64
     from hoc_lieu_mau import FILENAME, TITLE, build_pdf
     from app.models import ClassSection, SectionMaterial
@@ -203,7 +200,6 @@ def materials_on_moodle(db, exam, info):
 
 
 def push_to_moodle(db, exam):
-    """Công bố kết quả -> đẩy qua Web Service local_clo -> kiểm tra Moodle đã lưu đủ kết quả cho SV xem."""
     if not lms.configured():
         print("\n(Bỏ qua bước đẩy kết quả lên Moodle: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
         return None

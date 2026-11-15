@@ -1,4 +1,3 @@
-"""Ánh xạ ORM cho 57 bảng của assessment_db (xem database/01_schema.sql)."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -175,7 +174,6 @@ class CLO(Base):
 
 
 class CLOPLOMapping(Base):
-    """Ma trận CLO – PLO: suy ra từ clo_pi_mapping (mức cao nhất trong các PI cùng PLO) để các báo cáo cũ không đổi."""
     __tablename__ = "clo_plo_mapping"
     clo_id: Mapped[int] = mapped_column(ForeignKey("clos.id"), primary_key=True)
     plo_id: Mapped[int] = mapped_column(ForeignKey("plos.id"), primary_key=True)
@@ -183,7 +181,6 @@ class CLOPLOMapping(Base):
 
 
 class CLOPIMapping(Base):
-    """CLO đóng góp cho PI nào của CĐR CTĐT (góp ý F2a: quản lý thêm một mức trên CLO)."""
     __tablename__ = "clo_pi_mapping"
     clo_id: Mapped[int] = mapped_column(ForeignKey("clos.id"), primary_key=True)
     pi_id: Mapped[int] = mapped_column(ForeignKey("performance_indicators.id"), primary_key=True)
@@ -282,7 +279,6 @@ class PIPlanCLO(Base):
 
 
 class AssessmentAssignment(Base):
-    """Phân công đánh giá PI: một GV cụ thể, hoặc tất cả GV hướng dẫn (all_supervisors, lecturer_id NULL) với môn TLCN/KLTN."""
     __tablename__ = "assessment_assignments"
     id: Mapped[int] = mapped_column(primary_key=True)
     semester_id: Mapped[int] = mapped_column(ForeignKey("semesters.id"))

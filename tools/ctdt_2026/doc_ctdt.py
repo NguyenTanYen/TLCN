@@ -1,4 +1,3 @@
-"""Đọc file PDF chương trình đào tạo (mẫu ĐH Công nghệ Kỹ thuật TP.HCM 2026) -> JSON + SQL nạp vào assessment_db."""
 from __future__ import annotations
 
 import difflib

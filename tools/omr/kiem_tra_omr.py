@@ -1,4 +1,3 @@
-"""Kiểm tra độ bền của bộ chấm phiếu (OMR) của hệ thống trên ảnh phiếu tổng hợp."""
 import random, sys, time
 from pathlib import Path
 import numpy as np, cv2, fitz

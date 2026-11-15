@@ -1,4 +1,3 @@
-"""Đề của môn: tạo bài kiểm tra ở trang môn học (chưa gắn lớp HP), khi xuất mới chọn giao cho lớp học phần nào."""
 from sqlalchemy import text
 
 from app.database import engine

@@ -1,4 +1,3 @@
-"""Hủy câu sau khi bài KT đã phân tích → minh chứng CLO được tính lại ngay (không chờ GV bấm "Phân tích lại")."""
 from sqlalchemy import text
 
 from app.database import SessionLocal
@@ -6,7 +5,6 @@ from app.services import qsync, results
 
 
 def _pick(db):
-    """Một câu (có gắn CLO) trong bài KT đã phân tích, có bài làm, của lớp do gv.son dạy."""
     return db.execute(text("""
         SELECT eq.question_id, e.id FROM exams e
         JOIN exam_questions eq ON eq.exam_id = e.id

@@ -1,4 +1,3 @@
-"""Vòng cải tiến (closing the loop): hành động cải tiến có người phụ trách, hạn, trạng thái và kết quả kiểm chứng; so sánh kết quả CLO của một học phần qua các học kỳ."""
 from datetime import date
 from typing import Optional
 
@@ -110,7 +109,6 @@ def delete_action(aid: int, u: User = Depends(require("admin", "lecturer")), db:
 
 @router.get("/courses/{course_id}/clo-trend")
 def clo_trend(course_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Tỷ lệ SV đạt từng CLO của học phần qua các học kỳ (gộp các lớp HP cùng học kỳ), kèm chỉ tiêu và hành động cải tiến."""
     check_course_access(db, u, course_id)
     data = _rows(db, """SELECT s.id AS semester_id, s.name AS semester, s.start_date, c.id AS clo_id, c.clo_code,
                                SUM(r.n_evaluated) AS n_evaluated, SUM(r.n_achieved) AS n_achieved, MAX(r.target_pct) AS target_pct

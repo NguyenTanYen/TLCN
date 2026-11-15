@@ -1,4 +1,3 @@
-"""Đề giấy sinh & chấm trên hệ thống: mã đề, xem trước, xuất PDF/Word, phiếu trả lời, chấm ảnh phiếu (OMR)."""
 import io
 import random
 import zipfile
@@ -103,7 +102,6 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
 
 
 def test_omr_crossed_out_and_scribbles():
-    """Gạch chéo ô cũ rồi tô ô mới → lấy ô mới; nét bút đè lên ô định vị không làm lệch phiếu; tô 2 ô → cảnh báo."""
     from app.services import omr
     o = P.SheetOptions(n_questions=10, student_digits=8, version_codes=["01", "02"])
     L = P.sheet_layout(o)
@@ -128,7 +126,6 @@ def test_omr_crossed_out_and_scribbles():
 
 
 def test_doc_anh_chup_that_phieu_ban_cu():
-    """Ảnh chụp thật (nền tối dính ô định vị góc, ánh sáng không đều, phiếu in bản cũ không có vạch nhận chiều)."""
     import os
     import cv2
     from app.services import omr, paper as pp
@@ -140,7 +137,6 @@ def test_doc_anh_chup_that_phieu_ban_cu():
 
 
 def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
-    """Quét là chấm & lưu ngay: phiếu hợp lệ vào kết quả lớp; MSSV sai/thiếu được lưu ở danh sách cần xử lý để GV sửa sau."""
     from app.database import SessionLocal
     from app.models import Exam
     qs = [q for q in client.get("/api/questions?course_id=5", headers=gv).json() if q["tagged"] is not False][:6]

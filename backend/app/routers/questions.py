@@ -1,4 +1,3 @@
-"""UC-01: Quản lý câu hỏi & gán CLO; cây CTĐT → PLO → PI → CLO → câu hỏi (góp ý F2a)."""
 import logging
 from collections import defaultdict
 
@@ -18,7 +17,6 @@ log = logging.getLogger(__name__)
 
 
 def outcome_paths(db: Session, clo_ids) -> dict[int, list[dict]]:
-    """Với mỗi CLO: các PI (kèm PLO, CTĐT) mà CLO đóng góp – để hiện chuỗi PLO › PI › CLO của câu hỏi."""
     out: dict[int, list[dict]] = defaultdict(list)
     ids = list(set(clo_ids))
     if not ids:
@@ -103,13 +101,11 @@ def list_questions(course_id: int, clo_id: int | None = None, bloom_level_id: in
 
 
 def _code_key(code: str) -> list:
-    """Sắp mã PLO/PI theo số: PLO2 < PLO10, PI1.2 < PI1.10."""
     return [int(t) if t.isdigit() else t for t in code.replace("PLO", " ").replace("PI", " ").replace(".", " ").split()]
 
 
 @router.get("/tree")
 def outcome_tree(course_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Cây CTĐT → PLO → PI → CLO của học phần với số câu hỏi đang dùng ở mỗi nút (góp ý F2a); một câu đo nhiều CLO chỉ được đếm một lần ở nút cha."""
     check_course_access(db, u, course_id)
     by_clo: dict[int, set] = defaultdict(set)
     for qid, clo_id in db.execute(text("""SELECT m.question_id, m.clo_id FROM question_clo_mapping m JOIN question_bank q ON q.id = m.question_id

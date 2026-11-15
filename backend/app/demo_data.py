@@ -1,4 +1,3 @@
-"""Dữ liệu minh họa cho môn DBMS330284 – Hệ quản trị cơ sở dữ liệu (HKI 2024-2025)."""
 
 CHAPTERS = [
     (1, "Tổng quan hệ quản trị CSDL và SQL Server"),

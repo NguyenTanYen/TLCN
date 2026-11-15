@@ -1,4 +1,3 @@
-"""Sinh đề theo ma trận (UC-02): hàm thuần và API."""
 from sqlalchemy import text
 
 from app.database import engine

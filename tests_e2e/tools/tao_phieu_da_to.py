@@ -1,4 +1,3 @@
-"""Tạo ảnh phiếu trả lời ĐÃ TÔ cho một bài thi giấy (dùng trong kịch bản GV8 – tải phiếu quét lên để hệ thống chấm)."""
 import os
 import sys
 from pathlib import Path

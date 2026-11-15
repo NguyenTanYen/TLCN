@@ -1,5 +1,4 @@
 @echo off
-rem Tu do XAMPP, PHP, Moodle 4.5; goi tu cac tep khac. Ghi de bang scripts\cau_hinh_may.bat (mau: cau_hinh_may.example.bat).
 set "ROOT=%~dp0.."
 if exist "%~dp0cau_hinh_may.bat" call "%~dp0cau_hinh_may.bat"
 if not defined APP_PORT set "APP_PORT=8000"

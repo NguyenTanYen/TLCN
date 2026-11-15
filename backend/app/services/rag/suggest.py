@@ -1,4 +1,3 @@
-"""Bước 8: sinh viên làm SAI một câu → gợi ý các TRANG học liệu của lớp nên đọc lại."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -14,7 +13,6 @@ SNIPPET = 240
 
 
 def fuse(lists: list[tuple[list, float]], k: int = RRF_K) -> list:
-    """Reciprocal Rank Fusion có trọng số: Σ w / (k + hạng) – trộn theo HẠNG (điểm BM25 không có trần, hai truy vấn dài ngắn khác nhau không so được)."""
     score: dict = {}
     for items, w in lists:
         for r, x in enumerate(items, 1):
@@ -28,7 +26,6 @@ def query_text(stem: str, correct: list[str]) -> str:
 
 def rank_passages(ix, stem: str, correct: list[str], wrong: str | None = None, synonyms=None,
                   wrong_weight: float = 0.0) -> list[int]:
-    """Id đoạn theo thứ tự gợi ý (ix: search.Index của lớp)."""
     first = [i for i, _, _ in ix.score(query_text(stem, correct), DEPTH, synonyms)]
     if not wrong or not wrong_weight:
         return first
@@ -36,7 +33,6 @@ def rank_passages(ix, stem: str, correct: list[str], wrong: str | None = None, s
 
 
 def close_pages(pages: list[tuple], margin: float | None, floor: float | None = None) -> list:
-    """[(trang, cos cao nhất của các đoạn ứng viên trên trang)] theo thứ tự gợi ý → các trang giữ lại (giữ thứ tự): bỏ trang có cos thấp hơn trang gần câu hỏi nhất quá margin, hoặc thấp hơn floor."""
     if not pages:
         return []
     top = max(c for _, c in pages)
@@ -44,7 +40,6 @@ def close_pages(pages: list[tuple], margin: float | None, floor: float | None = 
 
 
 def pages_of(ranked: list[int], page_of) -> list:
-    """Gom đoạn theo trang, giữ thứ tự xuất hiện đầu tiên: [(trang, id đoạn tốt nhất của trang)]."""
     seen, out = set(), []
     for pid in ranked:
         pg = page_of(pid)
@@ -67,7 +62,6 @@ class PageSuggestion:
 
 
 def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) -> list[PageSuggestion]:
-    """Các trang học liệu của lớp nên đọc lại khi làm sai câu hỏi (chỉ học liệu 'ready' của đúng lớp)."""
     from ...config import settings
     from . import search, semantic, synonyms
 
@@ -114,6 +108,5 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
 
 
 def for_questions(db: Session, cs_id: int, question_ids: list[int], k: int = PAGES) -> dict[int, list]:
-    """Gợi ý cho từng câu (tính MỘT lần mỗi câu, dùng chung cho mọi SV làm sai câu đó)."""
     qs = db.query(Question).filter(Question.id.in_(question_ids)).all() if question_ids else []
     return {q.id: for_question(db, cs_id, q, k) for q in qs}

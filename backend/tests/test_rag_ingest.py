@@ -1,4 +1,3 @@
-"""Đọc PDF học liệu thành trang + khối chữ (app.services.rag.ingest)."""
 
 import os
 

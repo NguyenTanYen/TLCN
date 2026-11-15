@@ -1,4 +1,3 @@
-"""Chuẩn bị dữ liệu quay video demo – chạy SAU scripts/tao_du_lieu_demo.bat, MariaDB và Moodle đang chạy."""
 import os
 import random
 import sys

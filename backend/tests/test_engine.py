@@ -1,4 +1,3 @@
-"""Kiểm thử đơn vị Analysis Engine – đối chiếu với số liệu mẫu trong biểu mẫu BM06 của HCMUTE."""
 import math
 
 import pandas as pd

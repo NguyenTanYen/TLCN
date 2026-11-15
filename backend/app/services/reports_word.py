@@ -1,4 +1,3 @@
-"""Xuất BM2 (kế hoạch BM2a + báo cáo tổng kết BM2b) ra tệp Word theo bố cục biểu mẫu HCMUTE (A4 ngang, Times New Roman 13)."""
 from __future__ import annotations
 
 import io
@@ -47,7 +46,6 @@ def _cell(cell, text, *, bold=False, italic=False, align=CENTER, size=12):
 
 
 def _style_runs(cell, bold=(), italic=()) -> None:
-    """Đặt đậm/nghiêng theo NỘI DUNG từng dòng (không theo vị trí run – ô có thêm run rỗng và run xuống dòng)."""
     for run in cell.paragraphs[0].runs:
         run.bold = run.text in bold
         run.italic = run.text in italic
@@ -74,7 +72,6 @@ def _merge(t, r1, c1, r2, c2, text=None, **kw):
 
 
 def _pct(v) -> str:
-    """Chỉ tiêu tròn hiển thị 75%; tỷ lệ tính ra giữ 2 chữ số thập phân như bản Excel (70,53%)."""
     if v is None:
         return ""
     v = float(v)
@@ -86,7 +83,6 @@ def _ok(flag) -> str:
 
 
 def _plo_block(t, first_row: int, plos: list[dict]) -> None:
-    """Cột 0 = nhóm CĐR (gộp ô theo nhóm), cột 1 = mã, cột 2 = nội dung."""
     start, prev = first_row, None
     for i, p in enumerate(plos):
         r = first_row + i

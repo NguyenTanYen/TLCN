@@ -1,4 +1,3 @@
-"""UC-04 (mở rộng): giảng viên xem hồ sơ kết quả từng sinh viên và thống kê lớp theo bài kiểm tra."""
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -83,7 +82,6 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
 
 
 def _code_key(label: str) -> list:
-    """Sắp "Chương 2" < "Chương 10" theo số."""
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", label)]
 
 

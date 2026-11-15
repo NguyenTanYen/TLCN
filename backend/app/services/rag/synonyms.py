@@ -1,4 +1,3 @@
-"""Từ điển đồng nghĩa theo MÔN HỌC cho tìm kiếm học liệu (bước 7) – mở rộng câu truy vấn, KHÔNG đụng chỉ mục (sửa từ điển có tác dụng ngay, không dựng lại chỉ mục)."""
 from __future__ import annotations
 
 import threading
@@ -32,7 +31,6 @@ class Synonyms:
         return self._tries[plain_query]
 
     def find(self, ws: list[str], plain_query: bool = False) -> list[tuple[int, int, list[list[str]]]]:
-        """[(đầu, cuối, các cách nói KHÁC của nhóm)] – cụm khớp dài nhất từ trái sang, không chồng nhau."""
         root, out, i = self._trie(plain_query), [], 0
         while i < len(ws):
             node, best, j = root, None, i
@@ -61,7 +59,6 @@ _lock = threading.Lock()
 
 
 def for_course(course_code: str | None) -> Synonyms | None:
-    """Từ điển của môn (None nếu môn chưa có)."""
     if not course_code:
         return None
     path = DIR / f"{course_code}.txt"

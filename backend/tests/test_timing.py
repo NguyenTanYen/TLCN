@@ -1,4 +1,3 @@
-"""Thời gian làm bài trên Moodle Quiz: phát hiện SV chọn đại rồi nộp, chọn xong không nộp để hết giờ (dữ liệu mô phỏng có 2 SV chọn đại 20 câu trong ~1 phút và 2 SV chọn xong trong ~6 phút rồi để Moodle tự nộp khi hết 45 phút)."""
 import io
 from datetime import datetime, timedelta
 

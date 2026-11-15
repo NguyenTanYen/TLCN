@@ -1,4 +1,3 @@
-"""Mô phỏng sinh viên làm bài thi giấy: tô phiếu trả lời do Moodle (Offline Quiz) sinh ra rồi xuất ảnh "quét"."""
 from __future__ import annotations
 
 import pymupdf

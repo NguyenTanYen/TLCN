@@ -1,4 +1,3 @@
-"""Analysis Engine (Pandas) – tính chỉ số CTT và mức độ đạt CĐR theo biểu mẫu HCMUTE."""
 from __future__ import annotations
 
 import math
@@ -8,7 +7,6 @@ import pandas as pd
 
 
 def item_statistics(items: pd.DataFrame) -> pd.DataFrame:
-    """items: cột attempt_id, question_id, is_correct (0/1), total_score – chỉ SV dự thi."""
     if items.empty:
         return pd.DataFrame(columns=["question_id", "n_students", "p_value", "di_value"])
     scores = (items[["attempt_id", "total_score"]].drop_duplicates("attempt_id")
@@ -35,7 +33,6 @@ def item_statistics(items: pd.DataFrame) -> pd.DataFrame:
 
 def attempt_clo_scores(items: pd.DataFrame, mapping: pd.DataFrame, thresholds: dict[int, float],
                        default_threshold: float = 60.0) -> pd.DataFrame:
-    """Điểm từng CLO cho từng lượt thi (minh chứng BM6c)."""
     if items.empty or mapping.empty:
         return pd.DataFrame(columns=["attempt_id", "clo_id", "score_earned", "score_max", "score_pct", "is_achieved"])
     df = items.merge(mapping, on="question_id")
@@ -66,13 +63,11 @@ class Aggregate:
 
 
 def aggregate(counts: list[tuple[int, int]], target_pct: float) -> Aggregate:
-    """Cộng dồn (số đánh giá, số đạt) – quy tắc chung của BM6d, BM3c và BM2."""
     return Aggregate(sum(c[0] for c in counts), sum(c[1] for c in counts), float(target_pct))
 
 
 def learning_path(clo_scores: pd.DataFrame, lost: pd.DataFrame, thresholds: dict[int, float],
                   default_threshold: float = 60.0) -> list[dict]:
-    """Khuyến nghị ôn tập cho MỘT lượt thi."""
     weak = clo_scores[~clo_scores.is_achieved.astype(bool)].copy()
     if weak.empty:
         return []
@@ -89,7 +84,6 @@ def learning_path(clo_scores: pd.DataFrame, lost: pd.DataFrame, thresholds: dict
 
 
 def kr20(correct: "pd.DataFrame") -> float | None:
-    """Độ tin cậy của đề (Kuder–Richardson 20) trên ma trận đúng/sai."""
     if correct is None or correct.empty:
         return None
     m = correct.pivot_table(index="attempt_id", columns="question_id", values="is_correct", aggfunc="max").fillna(0)
@@ -104,7 +98,6 @@ def kr20(correct: "pd.DataFrame") -> float | None:
 
 
 def cronbach_alpha(scores: "pd.DataFrame") -> float | None:
-    """Độ tin cậy Cronbach's alpha cho bài nhiều mức điểm (nhập điểm từng câu/ý)."""
     if scores is None or scores.empty:
         return None
     m = scores.pivot_table(index="attempt_id", columns="question_id", values="score_earned", aggfunc="max").fillna(0).astype(float)

@@ -1,4 +1,3 @@
-"""Phân tích THỜI GIAN LÀM BÀI trên Moodle Quiz để cảnh báo giảng viên các lượt làm bài bất thường."""
 from __future__ import annotations
 
 import statistics
@@ -11,7 +10,6 @@ from sqlalchemy.orm import Session
 DEFAULTS = {"min_sec_per_q": 6.0, "rapid_sec": 3.0, "rapid_share": 0.25, "idle_min": 10.0, "idle_share": 0.30}
 
 def _n(x, d=1):
-    """Số kiểu Việt Nam trong câu chữ: 0,7 – bỏ ,0 thừa khi là số nguyên."""
     if x is None:
         return "—"
     if d == 0 or float(x) == int(x):
@@ -32,7 +30,6 @@ def _secs(a: datetime | None, b: datetime | None) -> float | None:
 
 
 def response_times(started: datetime | None, first_times: list[datetime]) -> list[float]:
-    """Thời gian trả lời từng câu (giây) từ các thời điểm chọn đáp án lần đầu ĐÃ SẮP TĂNG DẦN của một lượt làm bài."""
     out, prev, i = [], started or (first_times[0] if first_times else None), 0
     while i < len(first_times):
         j = i
@@ -45,7 +42,6 @@ def response_times(started: datetime | None, first_times: list[datetime]) -> lis
 
 
 def compute_response_times(db: Session, exam_id: int) -> int:
-    """Tính response_time_sec cho mọi câu đã trả lời của bài (gọi sau mỗi lần đồng bộ)."""
     rows = db.execute(text("""SELECT r.id, r.attempt_id, r.first_answer_at, a.started_at
                               FROM item_level_results r JOIN exam_attempts a ON a.id = r.attempt_id
                               WHERE a.exam_id = :e AND a.status = 'finished' AND r.first_answer_at IS NOT NULL
@@ -72,7 +68,6 @@ def _thresholds(th: dict | None) -> dict:
 
 
 def report(db: Session, exam_id: int, th: dict | None = None) -> dict:
-    """Báo cáo thời gian làm bài và các dấu hiệu bất thường của một bài KT trực tuyến."""
     th = _thresholds(th)
     ex = db.execute(text("SELECT id, exam_type, status, max_score, duration_minutes FROM exams WHERE id = :e"), {"e": exam_id}).one()
     if ex.exam_type != "online":
@@ -204,7 +199,6 @@ def student_timeline(db: Session, exam_id: int, student_id: int) -> dict:
 
 
 def alerts_for_exams(db: Session, exam_ids: list[int]) -> dict[int, dict]:
-    """Số lượt có cảnh báo / lưu ý của từng bài trực tuyến (ngưỡng mặc định) – hiển thị ở danh sách bài KT."""
     if not exam_ids:
         return {}
     ids = [r[0] for r in db.execute(text("""SELECT DISTINCT a.exam_id FROM exam_attempts a JOIN item_level_results r ON r.attempt_id = a.id

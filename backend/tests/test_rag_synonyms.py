@@ -1,4 +1,3 @@
-"""Bước 7: từ điển đồng nghĩa theo môn (nhóm cách nói, trie khớp dài nhất), minimum_should_match, công cụ đo."""
 import json
 import math
 import os

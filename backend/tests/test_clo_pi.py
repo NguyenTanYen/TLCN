@@ -1,4 +1,3 @@
-"""Góp ý F2a: CLO ánh xạ tới PI (PI thuộc PLO); ma trận CLO – PLO được suy ra; cây PLO → PI → CLO trong ngân hàng câu hỏi."""
 from sqlalchemy import text
 
 from app.database import engine

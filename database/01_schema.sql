@@ -1,37 +1,3 @@
--- =====================================================================
---  HỆ THỐNG HỖ TRỢ GIẢNG VIÊN KIỂM TRA, ĐÁNH GIÁ VÀ PHÂN TÍCH
---  MỨC ĐỘ ĐẠT CHUẨN ĐẦU RA  –  CSDL phiên bản 2 (theo biểu mẫu HCMUTE)
---  Nhóm 01 – Tiểu luận chuyên ngành
---  DBMS: MySQL 8.0.16+
---
---  Căn cứ nghiệp vụ:
---   * BM2  : Kế hoạch & báo cáo tổng kết đo lường CĐR CTĐT (PLO, PI, chỉ tiêu, chu kỳ)
---   * BM3b : Kế hoạch KT-ĐG mức độ đạt cho từng CĐR CTĐT (PI, môn lấy minh chứng, GV)
---   * BM3c : Kết quả tổng hợp của từng PI cho CĐR CTĐT
---   * BM6a : Kế hoạch KT-ĐG mức độ đạt cho từng CĐR môn học (CLO)
---   * BM6b : Kết quả tổng hợp của từng CĐR môn học
---   * BM6c/6d : Bảng minh chứng đo lường từ kết quả kiểm tra (1 hoặc nhiều bài KT)
---   * Phân công đánh giá PIs theo học kỳ
---
---  49 bảng, 8 nhóm:
---   A. Người dùng & tổ chức      (4)  users, lecturers, students, semesters
---   B. Chương trình & CĐR CTĐT   (6)  programs, plos, plo_measurement_plans,
---                                     performance_indicators, program_courses, pi_courses
---   C. Học phần & CĐR môn học    (11) courses, course_outlines, bloom_levels, clos, clo_plo_mapping,
---                                     clo_pi_mapping, course_syllabi, syllabus_references,
---                                     syllabus_assessments, syllabus_assessment_clos, outline_clos
---   D. Kế hoạch đo lường         (4)  clo_assessment_plans, pi_assessment_plans,
---                                     pi_plan_clos, assessment_assignments
---   E. Lớp học phần & ngân hàng  (6)  class_sections, enrollments,
---                                     question_bank, question_options, question_clo_mapping,
---                                     question_moodle_links
---   F. Đề thi                    (5)  exams, exam_questions, exam_versions,
---                                     exam_version_questions, exam_version_options
---   G. Kết quả & báo cáo         (10) exam_attempts, item_level_results, item_statistics,
---                                     attempt_clo_results, clo_results, pi_results, plo_results,
---                                     personalized_learning_paths, learning_path_items, sync_runs
---   H. Học liệu & gợi ý đọc      (3)  section_materials, material_pages, material_passages
--- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS assessment_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -53,9 +19,6 @@ DROP TABLE IF EXISTS material_passages, material_pages, section_materials,
   semesters, students, lecturers, users;
 SET FOREIGN_KEY_CHECKS = 1;
 
--- =====================================================================
--- A. NGƯỜI DÙNG & TỔ CHỨC
--- =====================================================================
 CREATE TABLE users (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   username       VARCHAR(50)  NOT NULL COMMENT 'Tên đăng nhập (trùng tài khoản Moodle để SSO)',
@@ -107,9 +70,6 @@ CREATE TABLE semesters (
   CONSTRAINT ck_semester_dates CHECK (end_date > start_date)
 ) ENGINE=InnoDB COMMENT='Học kỳ';
 
--- =====================================================================
--- B. CHƯƠNG TRÌNH ĐÀO TẠO & CĐR CTĐT (BM2, BM3b)
--- =====================================================================
 CREATE TABLE programs (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
   code               VARCHAR(20)  NOT NULL COMMENT 'Mã CTĐT',
@@ -163,9 +123,6 @@ CREATE TABLE performance_indicators (
   CONSTRAINT uq_pi_code UNIQUE (plo_id, pi_code)
 ) ENGINE=InnoDB COMMENT='Chỉ số đánh giá (PI) của CĐR CTĐT';
 
--- =====================================================================
--- C. HỌC PHẦN & CĐR MÔN HỌC
--- =====================================================================
 CREATE TABLE courses (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   course_code    VARCHAR(20)  NOT NULL COMMENT 'Mã môn học, VD DBMS330284',
@@ -257,8 +214,6 @@ CREATE TABLE clo_pi_mapping (
 ) ENGINE=InnoDB COMMENT='CLO đóng góp cho chỉ số PI nào của CĐR CTĐT (góp ý F2a); clo_plo_mapping được suy ra từ bảng này';
 CREATE INDEX ix_cpi_pi ON clo_pi_mapping (pi_id);
 
--- Đề cương chi tiết học phần có phiên bản, Bộ môn soạn và duyệt; GV chỉ xem (góp ý F1).
--- Tên, mã, số tín chỉ, cấu trúc, học phần tiên quyết và mô tả vắn tắt vẫn nằm ở bảng courses.
 CREATE TABLE course_syllabi (
   id                    INT AUTO_INCREMENT PRIMARY KEY,
   course_id             INT          NOT NULL,
@@ -324,10 +279,6 @@ CREATE TABLE outline_clos (
   CONSTRAINT fk_oc_clo     FOREIGN KEY (clo_id)     REFERENCES clos(id)            ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='CLO mà chương góp phần đạt được';
 
-
--- =====================================================================
--- D. KẾ HOẠCH ĐO LƯỜNG
--- =====================================================================
 CREATE TABLE clo_assessment_plans (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   clo_id              INT          NOT NULL,
@@ -386,9 +337,6 @@ CREATE TABLE assessment_assignments (
   CONSTRAINT ck_aa_assignee CHECK ((all_supervisors = 1 AND lecturer_id IS NULL) OR (all_supervisors = 0 AND lecturer_id IS NOT NULL))
 ) ENGINE=InnoDB COMMENT='Phân công đánh giá PIs theo học kỳ (một GV, hoặc tất cả GV hướng dẫn với môn TLCN/KLTN)';
 
--- =====================================================================
--- E. LỚP HỌC PHẦN & NGÂN HÀNG CÂU HỎI
--- =====================================================================
 CREATE TABLE class_sections (
   id                INT AUTO_INCREMENT PRIMARY KEY,
   course_id         INT          NOT NULL,
@@ -464,8 +412,6 @@ CREATE TABLE question_clo_mapping (
   CONSTRAINT ck_qcm_weight CHECK (weight > 0 AND weight <= 1)
 ) ENGINE=InnoDB COMMENT='Câu hỏi đo CLO nào (ma trận đề thi)';
 
--- Đồng bộ câu hỏi hai chiều (góp ý F3): mỗi câu có thể nằm trong ngân hàng câu hỏi của nhiều khóa học Moodle (nhiều lớp HP).
--- sync_hash = dấu vân tay nội dung + phương án lúc hai bên giống nhau lần cuối → biết bên nào đã sửa (hoặc cả hai = xung đột).
 CREATE TABLE question_moodle_links (
   question_id         INT       NOT NULL,
   moodle_course_id    BIGINT    NOT NULL COMMENT 'mdl_course.id',
@@ -476,9 +422,6 @@ CREATE TABLE question_moodle_links (
   CONSTRAINT fk_qml_question FOREIGN KEY (question_id) REFERENCES question_bank(id) ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Trạng thái đồng bộ của câu hỏi với ngân hàng câu hỏi của từng khóa học Moodle';
 
--- =====================================================================
--- F. ĐỀ THI
--- =====================================================================
 CREATE TABLE exams (
   id                INT AUTO_INCREMENT PRIMARY KEY,
   class_section_id  INT          NULL COMMENT 'Lớp HP của bài KT; NULL = đề của môn chưa giao lớp (course_id)',
@@ -558,9 +501,6 @@ CREATE TABLE exam_version_options (
   CONSTRAINT uq_evo_option UNIQUE (version_id, option_id)
 ) ENGINE=InnoDB COMMENT='Hoán vị phương án của từng mã đề';
 
--- =====================================================================
--- G. KẾT QUẢ & BÁO CÁO
--- =====================================================================
 CREATE TABLE exam_attempts (
   id                 INT AUTO_INCREMENT PRIMARY KEY,
   exam_id            INT          NOT NULL,
@@ -827,10 +767,6 @@ CREATE TABLE rubric_grades (
   CONSTRAINT fk_rg_level FOREIGN KEY (level_id)     REFERENCES rubric_levels(id)   ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Mức đạt đã chọn cho từng sinh viên và tiêu chí';
 
--- =====================================================================
--- H. HỌC LIỆU & GỢI Ý ĐỌC (RAG)
--- Học liệu thuộc LỚP HỌC PHẦN: chỉ gợi ý tài liệu của chính lớp SV đang học (lấy từ course Moodle của lớp hoặc GV tải lên)
--- =====================================================================
 CREATE TABLE section_materials (
   id                   INT AUTO_INCREMENT PRIMARY KEY,
   class_section_id     INT           NOT NULL,
@@ -899,10 +835,6 @@ CREATE TABLE material_passages (
   CONSTRAINT ck_mps_bboxes CHECK (JSON_VALID(bboxes) AND JSON_LENGTH(bboxes) >= 1)
 ) ENGINE=InnoDB COMMENT='Đoạn học liệu – đơn vị tìm kiếm và trích dẫn';
 
--- =====================================================================
--- VIEW
--- =====================================================================
--- Câu hỏi vi phạm ràng buộc nhiều dòng (tổng trọng số CLO ≠ 1; câu trắc nghiệm không đúng 1 đáp án đúng hoặc < 2 phương án)
 CREATE OR REPLACE VIEW v_question_integrity AS
 SELECT q.id AS question_id, q.question_type,
        (SELECT COALESCE(SUM(weight),0) FROM question_clo_mapping m WHERE m.question_id = q.id) AS total_weight,
@@ -911,12 +843,10 @@ SELECT q.id AS question_id, q.question_type,
 FROM question_bank q
 HAVING total_weight <> 1.00 OR (question_type = 'multichoice' AND (n_options < 2 OR n_correct <> 1));
 
--- Ma trận CLO – PLO của một môn
 CREATE OR REPLACE VIEW v_clo_plo_matrix AS
 SELECT c.course_id, c.clo_code, p.plo_code, m.level
 FROM clo_plo_mapping m JOIN clos c ON c.id = m.clo_id JOIN plos p ON p.id = m.plo_id;
 
--- Tổng hợp CĐR môn học theo học phần + học kỳ (gộp các lớp HP) – BM6b cấp môn
 CREATE OR REPLACE VIEW v_course_clo_summary AS
 SELECT cs.course_id, cs.semester_id, r.clo_id, c.clo_code,
        SUM(r.n_evaluated) AS n_evaluated, SUM(r.n_achieved) AS n_achieved,
@@ -927,7 +857,6 @@ JOIN class_sections cs ON cs.id = r.class_section_id
 JOIN clos c ON c.id = r.clo_id
 GROUP BY cs.course_id, cs.semester_id, r.clo_id, c.clo_code;
 
--- Dữ liệu Radar Chart của SV: điểm từng CLO so với ngưỡng đạt
 CREATE OR REPLACE VIEW v_student_clo_radar AS
 SELECT a.id AS attempt_id, a.exam_id, a.student_id, c.clo_code, r.score_pct, r.is_achieved,
        COALESCE(p.pass_threshold_pct, 60.00) AS pass_threshold_pct

@@ -1,4 +1,3 @@
-"""Kiểm thử xác thực bằng mật khẩu Moodle (SHA-512 crypt cài đặt thuần Python, chạy được trên Windows)."""
 from app.moodle_auth import sha512_crypt, verify_moodle_password
 
 VEC = "$6$rounds=10000$abcdefghijklmnop$iWj8RNtPPzdGH.vSE6JQd2O8xmwB05CWv8kigAmxOUvhM4qFG3rWwGqO7IHf9DpvPNhH6LAUsQO/AbTrFfDo3."

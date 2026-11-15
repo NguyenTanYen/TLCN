@@ -1,4 +1,3 @@
-"""Góp ý F1: đề cương chi tiết có phiên bản – Bộ môn soạn bản nháp, kiểm tra, duyệt; GV chỉ xem bản đang áp dụng."""
 from sqlalchemy import text
 
 from app.database import engine
@@ -22,7 +21,6 @@ def test_demo_syllabus_approved(client, gv):
 
 
 def test_syllabus_word_export(client, gv):
-    """In đề cương = tệp Word theo mẫu (quốc hiệu, tiêu đề, 11 mục, chữ ký), đúng phiên bản đang áp dụng."""
     import io
     from docx import Document
     cid = _demo_course()

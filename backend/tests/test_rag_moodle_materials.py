@@ -1,4 +1,3 @@
-"""Học liệu lớp học phần lấy TỰ ĐỘNG từ khóa học Moodle của lớp (dữ liệu mô phỏng: cli._simulate_materials, course 50)."""
 import time
 
 import pytest
@@ -31,7 +30,6 @@ def cs_id():
 
 @pytest.fixture(autouse=True)
 def no_background_indexing(monkeypatch):
-    """Tệp này kiểm logic ĐỒNG BỘ; việc tải + nạp ở nền (gọi Moodle thật) kiểm ở test_rag_index."""
     monkeypatch.setattr(index, "enqueue", lambda *a, **k: None)
 
 
@@ -44,7 +42,6 @@ def _materials(client, gv, cs):
 
 
 def _moodle(sql: str, **params) -> None:
-    """Giả lập GV thao tác trên Moodle (CSDL Moodle mô phỏng)."""
     db = SessionLocal()
     db.execute(text(sql.format(files=moodle_files._t("files"), cm=moodle_files._t("course_modules"),
                                resource=moodle_files._t("resource"))), params)
@@ -204,7 +201,6 @@ def test_availability_tree_evaluation():
 
 
 def test_new_content_and_new_name_in_same_file_activity_is_a_replacement(client, gv, cs_id):
-    """Kịch bản reviewer: GV tải bản PDF sửa lỗi (nội dung khác) VÀ đổi tên tệp trong cùng hoạt động File → vẫn là THAY THẾ (bản cũ bị bỏ, liên kết mới đúng), không có bản cũ 'missing' treo lại."""
     client.post(_url(cs_id) + "/sync", headers=gv)
     _moodle("UPDATE {files} SET contenthash=:h, filename='slide_ch1_sua_loi.pdf' WHERE contextid=1800 "
             "AND filename='slide_ch1.pdf'", h="97" + "cd" * 19)

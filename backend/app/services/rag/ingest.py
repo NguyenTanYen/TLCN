@@ -1,4 +1,3 @@
-"""Đọc một tệp PDF học liệu (slide xuất PDF, giáo trình, tài liệu tham khảo) thành danh sách trang."""
 from __future__ import annotations
 
 import logging
@@ -61,7 +60,6 @@ _COMMENT = re.compile(r"/\*.*?\*/|(--|//|#(?!include)).*?$", re.M | re.S)
 
 
 def looks_like_code(text: str) -> bool:
-    """Code dán bằng font thường (Arial, Calibri) mất cờ monospace → nhận theo nội dung."""
     code = _COMMENT.sub(" ", text)
     if not _STRONG_KW.search(code):
         return False
@@ -152,7 +150,6 @@ def _horizontal(ln: dict) -> bool:
 
 
 def _line_text(ln: dict) -> str:
-    """Chữ của một dòng dựng lại từ TỪNG KÝ TỰ (rawdict): chèn dấu cách khi khoảng trống giữa hai ký tự lớn hơn (khoảng cách ký tự thường gặp của dòng + SPACE_GAP × cỡ chữ) mà PDF không có ký tự dấu cách ("Tìm hiểu vềApache" → "Tìm hiểu về Apache"; chữ giãn "H A D O O P" vẫn là "HADOOP")."""
     chars = [(c, s["size"]) for s in ln["spans"] for c in s["chars"]]
     gaps = sorted(b[0]["bbox"][0] - a[0]["bbox"][2] for a, b in zip(chars, chars[1:])
                   if a[0]["c"] != " " and b[0]["c"] != " ")
@@ -170,7 +167,6 @@ def _line_text(ln: dict) -> str:
 
 
 def _chars(raw: dict) -> list[tuple[str, tuple, float, int]]:
-    """Mọi ký tự của trang (ký tự, bbox, cỡ chữ, số thứ tự dòng) theo thứ tự đọc – để chia chữ vào các ô bảng."""
     out, n = [], 0
     for b in raw["blocks"]:
         for ln in b.get("lines", []):
@@ -183,7 +179,6 @@ def _chars(raw: dict) -> list[tuple[str, tuple, float, int]]:
 
 
 def _cell_text(chars: list, rect) -> str:
-    """Chữ trong một ô: các ký tự có tâm nằm trong ô, giữ thứ tự đọc của trang (không sắp lại theo tọa độ y – dấu tiếng Việt hơi lệch dòng sẽ tách chữ "Kiể\\nu"); xuống dòng hoặc khoảng trống lớn → dấu cách."""
     x0, y0, x1, y1 = rect
     out: list[str] = []
     prev = None
@@ -250,13 +245,11 @@ def _style(spans: list[dict], bit: int, name: re.Pattern | None = None) -> bool:
 
 
 def _clean_code_line(s: str) -> str:
-    """Như clean() nhưng GIỮ khoảng trắng đầu dòng và giữa dòng (thụt lề, căn cột của code)."""
     s = unicodedata.normalize("NFC", s).translate(_DIRTY).replace("\t", "    ").replace(chr(0xA0), " ")
     return _CONTROL.sub("", _PUA.sub("• ", s)).rstrip()
 
 
 def _code_text(lines: list[dict]) -> tuple[str, float]:
-    """Khối code: giữ XUỐNG DÒNG và dựng lại THỤT LỀ."""
     rows = []
     for ln in lines:
         text = _line_text(ln)
@@ -272,7 +265,6 @@ def _code_text(lines: list[dict]) -> tuple[str, float]:
 
 
 def _codey(text: str) -> bool:
-    """Khối CÓ THỂ là một phần của code (dấu hiệu yếu): ít chữ có dấu, có từ khóa hoặc ký hiệu lập trình."""
     if len(text) > CODEY_MAX:
         return False
     code = _COMMENT.sub(" ", text)
@@ -284,7 +276,6 @@ def _codey(text: str) -> bool:
 
 
 def _indent_levels(lines: list[tuple[float, str]]) -> str:
-    """Code font THƯỜNG (Arial, Calibri): bề rộng ký tự thay đổi (i hẹp, W rộng) nên không chia tọa độ x cho bề rộng ký tự được – mỗi mức lùi x khác nhau là một CẤP thụt lề (4 dấu cách): 50 pt → 0, 64 pt → 4, 78 pt → 8 ..."""
     levels: list[float] = []
     for x in sorted(x for x, _ in lines):
         if not levels or x - levels[-1] > INDENT_TOL:
@@ -295,7 +286,6 @@ def _indent_levels(lines: list[tuple[float, str]]) -> str:
 
 
 def _mark_code_runs(blocks: list[Block]) -> None:
-    """Code dán bằng font thường mất cờ monospace, và dòng lùi vào bị PyMuPDF tách thành khối riêng – từng khối lẻ ("tong = 0", "for x in ds:") không đủ dấu hiệu."""
     def candidate(b: Block) -> bool:
         return not b.mono and (_codey(b.text) or _looks_like_code_lines(b.lines))
 
@@ -331,14 +321,12 @@ def _set_code(run: list[Block]) -> None:
 
 
 def _textbox(region: BBox, blocks: list[Block]) -> bool:
-    """Vùng "hình" mà chữ bên trong phủ phần lớn diện tích là HỘP CHỮ CÓ NỀN (tiêu đề slide trong shape) – không phải hình."""
     area = (region[2] - region[0]) * (region[3] - region[1])
     covered = sum((b.bbox[2] - b.bbox[0]) * (b.bbox[3] - b.bbox[1]) for b in blocks if _center_in(b.bbox, region))
     return area > 0 and covered >= TEXTBOX_SHARE * area
 
 
 def _frame_candidates(page: pymupdf.Page, drawings: list[dict], whole: bool = False) -> list[pymupdf.Rect]:
-    """Hình chữ nhật đơn lẻ tỷ lệ slide, đủ lớn – ứng viên khung slide của bản in handout."""
     area, out = abs(page.rect), []
     lo, hi = (FRAME_MAX_SHARE, FIG_MAX_SHARE) if whole else (FRAME_MIN_SHARE, FRAME_MAX_SHARE)
     for d in drawings:
@@ -357,7 +345,6 @@ def _same_rect(a, b) -> bool:
 
 
 def _handout_frames(cands: list[list[pymupdf.Rect]]) -> list[list[pymupdf.Rect]]:
-    """Khung của TỪNG TRANG: ứng viên của chính trang đó lặp cùng vị trí trên ≥ 2 trang và ≥ FRAME_PAGES số trang có ứng viên – trang không có khung (bài tập A4 gộp chung tệp) không bị cắt."""
     with_cands = [rs for rs in cands if rs]
     out = []
     for rs in cands:
@@ -370,7 +357,6 @@ def _handout_frames(cands: list[list[pymupdf.Rect]]) -> list[list[pymupdf.Rect]]
 
 
 def _sub_page(p: Page, region: BBox, images: list[pymupdf.Rect], drawings: list[dict], taken: list[Block]) -> Page:
-    """Trang con của bản in handout: phần của trang p nằm trong khung slide region, tọa độ tính từ góc khung."""
     dx, dy = region[0], region[1]
     w, h = region[2] - region[0], region[3] - region[1]
     def move(b):
@@ -389,7 +375,6 @@ def _sub_page(p: Page, region: BBox, images: list[pymupdf.Rect], drawings: list[
 
 def _read_page(page: pymupdf.Page, drawings: list[dict] | None = None,
                frames: list[pymupdf.Rect] | None = None, borders: list[pymupdf.Rect] | None = None) -> list[Page]:
-    """Một trang PDF → một Page; bản in handout (frames) → mỗi khung slide một trang con + phần còn lại ngoài khung."""
     if drawings is None:
         drawings = page.get_drawings()
     d = page.get_text("rawdict", sort=True, flags=pymupdf.TEXTFLAGS_RAWDICT | pymupdf.TEXT_INHIBIT_SPACES)
@@ -477,7 +462,6 @@ def _strip_running(pages: list[Page]) -> None:
 
 
 def _strip_page_heads(pages: list[Page]) -> None:
-    """Đầu / chân trang MANG SỐ TRANG mà không lặp đủ nhiều để _strip_running nhận ra (sách đổi đầu trang chẵn/lẻ và theo từng chương: "3 NoSQL Database 54", "3.7 NoSQL Not Only SQL 61")."""
     cands = []
     for p in pages:
         for b in p.blocks:
@@ -503,7 +487,6 @@ def _iou(a: BBox, b: BBox) -> float:
 
 
 def _drop_decorations(pages: list[Page]) -> None:
-    """Vùng hình lặp ở CÙNG VỊ TRÍ trên ≥ DECOR_SHARE số trang là trang trí của mẫu slide (logo, banner chứa tiêu đề) → bỏ, để chữ nằm trên đó (tiêu đề slide) trở về luồng chữ thường và được nhận là tiêu đề."""
     if len(pages) < REPEAT_MIN_PAGES:
         return
     def at_edge(r: BBox, p: Page) -> bool:
@@ -528,7 +511,6 @@ def _open(src: str | bytes) -> pymupdf.Document:
 
 
 def read_pdf(src: str | bytes) -> list[Page]:
-    """src: đường dẫn tệp hoặc nội dung PDF (bytes)."""
     with _open(src) as doc:
         drawings = [pg.get_drawings() for pg in doc]
         frames = _handout_frames([_frame_candidates(pg, d) for pg, d in zip(doc, drawings)])
@@ -552,14 +534,12 @@ def read_pdf(src: str | bytes) -> list[Page]:
 
 
 def render_page(src: str | bytes, page_no: int, dpi: int = 110) -> bytes:
-    """Ảnh PNG của một trang (page_no bắt đầu từ 1) – để hiển thị khung tô và cho VLM nhìn."""
     with _open(src) as doc:
         return doc[page_no - 1].get_pixmap(dpi=dpi).tobytes("png")
 
 
 def render_regions(src: str | bytes, regions: list[tuple[int, BBox]], dpi: int = 144,
                    max_side: int = 1280) -> list[bytes]:
-    """Ảnh PNG của từng vùng (số trang, bbox tọa độ trang thật) – mở PDF MỘT lần cho cả học liệu."""
     out = []
     with _open(src) as doc:
         for page_no, (x0, y0, x1, y1) in regions:

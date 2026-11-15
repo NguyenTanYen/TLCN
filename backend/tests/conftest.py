@@ -1,4 +1,3 @@
-"""Kiểm thử tích hợp chạy trên MySQL thật: dựng lại CSDL + dữ liệu minh họa trước phiên kiểm thử."""
 import contextlib, io, os
 
 os.environ["MOODLE_DB_NAME"] = "moodle_sim"

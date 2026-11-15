@@ -1,4 +1,3 @@
-"""Gom khối chữ thành đoạn chữ / đoạn hình (app.services.rag.chunk)."""
 import os
 
 import pymupdf
@@ -822,7 +821,6 @@ PARTS = ["MỞ ĐẦU", "BẢN CHẤT ETL", "ĐỘ PHỨC TẠP", "YÊU CẦU", 
 
 
 def _handout(n_slides: int, frame=True) -> pymupdf.Document:
-    """Bản in handout kiểu "Microsoft Print to PDF": trang A4 dọc, 2 slide / trang, mỗi slide trong khung viền 16:9; ngoài khung là ngày in, số trang, số slide."""
     doc = pymupdf.open()
     boxes = [pymupdf.Rect(66, 89, 546, 359), pymupdf.Rect(66, 433, 546, 703)]
     for k in range(n_slides):
@@ -875,7 +873,6 @@ def test_framed_box_not_repeated_on_pages_is_not_a_handout():
 
 
 def test_mixed_file_only_handout_pages_are_split_in_both_directions():
-    """Tệp gộp: handout chiếm phần lớn + vài trang bài tập A4 không khung → trang A4 giữ nguyên; handout chiếm phần NHỎ sau nhiều slide thường → phần handout vẫn được nhận."""
     def a4(doc, k):
         pg = doc.new_page(width=612, height=792)
         _t(pg, (72, 80), f"Bài tập {['khóa', 'chuẩn hóa', 'truy vấn'][k - 1]}", 16)
@@ -903,7 +900,6 @@ def test_mixed_file_only_handout_pages_are_split_in_both_directions():
 
 
 def test_repeated_table_or_page_border_is_not_a_handout_frame():
-    """Giáo trình: bảng lớn tỷ lệ ngang cùng chỗ trên nhiều trang, và slide có viền trang trí bao gần hết trang – không phải khung handout, chữ ngoài bảng / viền vẫn giữ nguyên."""
     doc = pymupdf.open()
     for i in range(4):
         pg = doc.new_page(width=612, height=792)

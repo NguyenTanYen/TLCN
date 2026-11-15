@@ -1,4 +1,3 @@
-"""Lược đồ dữ liệu vào (request body) – kiểm tra hợp lệ bằng Pydantic."""
 from datetime import date
 from typing import Literal, Optional
 
@@ -150,7 +149,6 @@ class MatrixCellIn(BaseModel):
 
 
 class BlueprintIn(BaseModel):
-    """Sinh đề theo ma trận: nhập số câu (tự lập ma trận) hoặc ma trận chi tiết chương × mức Bloom."""
     n_questions: Optional[int] = Field(default=None, ge=1, le=200)
     total_points: float = Field(default=10, gt=0, le=999)
     outline_ids: list[int] = []

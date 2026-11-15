@@ -1,4 +1,3 @@
-"""Kiểm thử tích hợp API theo các ca sử dụng UC-01 … UC-07 (kịch bản chính + ngoại lệ)."""
 import io
 
 from openpyxl import load_workbook
@@ -286,7 +285,6 @@ def test_bm6_workbook(client, gv):
 
 
 def test_bm6_evidence_follows_plan_and_matches_bm6b(client, gv):
-    """Sheet minh chứng của mỗi CLO chỉ chứa các bài KT đúng loại minh chứng trong BM6a và tổng khớp BM6b."""
     wb = load_workbook(io.BytesIO(client.get("/api/reports/class-sections/1/bm6.xlsx", headers=gv).content))
     plans = dict(q("""SELECT c.clo_code, COALESCE(p.evidence_type,'any') FROM clos c JOIN class_sections cs ON cs.course_id=c.course_id
                       LEFT JOIN clo_assessment_plans p ON p.clo_id=c.id AND p.semester_id=cs.semester_id WHERE cs.id=1"""))

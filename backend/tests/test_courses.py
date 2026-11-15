@@ -1,4 +1,3 @@
-"""UC-12: khai báo học phần mới – môn học, lớp HP, chương, CLO–PLO và bảng kiểm tra tình trạng."""
 from sqlalchemy import text
 
 from app.database import engine
@@ -84,7 +83,6 @@ def test_new_course_setup_flow(client, admin, gv):
 
 
 def test_import_moodle_course(client, admin, gv, gv_other):
-    """Khóa học mới tạo trên Moodle (gv.son là giảng viên) xuất hiện ở hệ thống và được đưa vào thành lớp HP kèm danh sách SV."""
     from app.config import settings
     from tests.test_hardening import ex
     M = settings.moodle_db_name
@@ -147,7 +145,6 @@ def test_import_moodle_course(client, admin, gv, gv_other):
 
 
 def test_programs_ctdt_2026(client, admin, gv):
-    """Hai CTĐT 2026 nạp từ PDF: PLO/PI, học phần theo học kỳ, ma trận học phần – PI; GV chỉ xem, Bộ môn chỉnh."""
     progs = {p["code"]: p for p in client.get("/api/programs", headers=gv).json()}
     assert {"CNTT-2026", "KTDL-2026"} <= set(progs)
     k = progs["KTDL-2026"]
@@ -180,7 +177,6 @@ def test_programs_ctdt_2026(client, admin, gv):
 
 
 def test_syllabus_pdf_mau_in(client, gv):
-    """Đề cương chi tiết xuất PDF theo bố cục biểu mẫu (có quốc hiệu, mục đánh số, chỗ ký), không phải in trang web."""
     cid = client.get("/api/courses", headers=gv).json()[0]["id"] if client.get("/api/courses", headers=gv).status_code == 200 else 5
     r = client.get(f"/api/courses/{cid}/syllabus.pdf", headers=gv)
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf" and r.content[:4] == b"%PDF"

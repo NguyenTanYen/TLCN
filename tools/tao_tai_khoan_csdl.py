@@ -1,4 +1,3 @@
-"""Tạo tài khoản MySQL/MariaDB đặc quyền tối thiểu cho hệ thống phân tích CĐR và chuyển cấu hình sang tài khoản đó."""
 import re
 import secrets
 import sys
