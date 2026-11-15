@@ -1,4 +1,3 @@
-"""Sinh đề theo ma trận đề thi (UC-02)."""
 from __future__ import annotations
 
 import math
@@ -33,7 +32,6 @@ class Result:
 
 
 def largest_remainder(total: int, weights: dict, caps: dict | None = None) -> dict:
-    """Chia `total` thành các phần nguyên theo tỷ lệ `weights` bằng phương pháp phần dư lớn nhất (Hamilton): lấy phần nguyên của phần lý tưởng, phần còn lại cấp cho khóa có phần lẻ lớn nhất (hòa thì khóa có trọng số lớn hơn)."""
     out = {k: 0 for k in weights}
     cap = lambda k: caps.get(k, 0) if caps is not None else 10 ** 9
     remaining = max(total, 0)
@@ -71,7 +69,6 @@ def _quality(q: Q, prefer_unused: bool) -> float:
 
 
 def auto_matrix(pool: list[Q], n: int, bloom_mix: dict[int, float]) -> dict[tuple, int]:
-    """Lập ma trận chương × Bloom tự động cho `n` câu từ các câu sẵn có."""
     avail: dict[tuple, int] = {}
     for q in pool:
         avail[(q.outline_id, q.bloom)] = avail.get((q.outline_id, q.bloom), 0) + 1
@@ -114,7 +111,6 @@ def auto_matrix(pool: list[Q], n: int, bloom_mix: dict[int, float]) -> dict[tupl
 def generate(pool: list[Q], n: int | None = None, matrix: dict[tuple, int] | None = None, scope_clos: list[int] | None = None,
              bloom_mix: dict[int, float] | None = None, min_per_clo: int | None = None, fixed: list[int] | None = None,
              prefer_unused: bool = True, seed: int | None = None, names: dict | None = None) -> Result:
-    """Chọn câu theo ma trận."""
     names = names or {}
     ch_name = names.get("chapter", lambda c: f"chương {c}")
     bl_name = names.get("bloom", lambda b: f"mức {b}")

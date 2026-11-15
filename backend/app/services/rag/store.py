@@ -1,4 +1,3 @@
-"""Ghi kết quả đọc PDF (ingest) + gom đoạn (chunk) của MỘT học liệu vào CSDL: material_pages, material_passages."""
 from __future__ import annotations
 
 from datetime import datetime

@@ -1,4 +1,3 @@
-"""Vòng cải tiến: hành động có người phụ trách/hạn/trạng thái, kiểm chứng, quyền, so sánh CLO qua các học kỳ."""
 from datetime import date, timedelta
 
 
@@ -41,7 +40,6 @@ def test_giang_vien_khac_khong_sua_duoc(client, gv, gv_other):
 
 
 def test_so_sanh_hai_hoc_ky(client, gv):
-    """Dựng thêm một học kỳ cũ có kết quả CLO rồi kiểm tra chênh lệch và chiều hướng."""
     from sqlalchemy import text
     from app.database import SessionLocal
     cs = _section(client, gv)

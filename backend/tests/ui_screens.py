@@ -1,4 +1,3 @@
-"""Chụp màn hình giao diện (Playwright) phục vụ báo cáo + phát hiện lỗi console."""
 import io
 import sys
 from pathlib import Path
@@ -39,7 +38,6 @@ def api_token(u, p):
 
 
 def sample_questions() -> Path:
-    """Tệp Excel minh họa: 5 câu chưa gán CLO/Bloom, 1 câu trùng, 1 câu thiếu đáp án."""
     wb = Workbook(); ws = wb.active
     ws.append(["STT", "Nội dung câu hỏi", "Phương án A", "Phương án B", "Phương án C", "Phương án D", "Đáp án đúng"])
     rows = [("Hàm nào trả về số dòng bị ảnh hưởng bởi câu lệnh gần nhất?", "@@ROWCOUNT", "@@ERROR", "@@IDENTITY", "SCOPE_IDENTITY()", "A"),

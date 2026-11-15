@@ -1,4 +1,3 @@
-"""Bài kiểm tra nhập điểm (tự luận, thực hành, đồ án, bài làm ngoài hệ thống…)."""
 from __future__ import annotations
 
 import io
@@ -25,7 +24,6 @@ def _nfc(s) -> str:
 
 
 def _num(v):
-    """'7,5' / 7.5 / '' -> float | None."""
     if v is None:
         return None
     if isinstance(v, (int, float)):
@@ -40,7 +38,6 @@ def _num(v):
 
 
 def add_items(db: Session, exam: Exam, course_id: int, items: list[dict], user_id: int | None) -> None:
-    """items: [{title, points, clos: [{clo_id, weight}], outline_id?, bloom_level_id?}] – thêm vào cuối đề."""
     clo_ids = {r[0] for r in db.execute(text("SELECT id FROM clos WHERE course_id=:c"), {"c": course_id})}
     start = len(exam.questions)
     for i, it in enumerate(items, start + 1):
@@ -94,7 +91,6 @@ def gradebook(db: Session, exam: Exam) -> dict:
 
 
 def save_grades(db: Session, exam: Exam, rows: list[dict]) -> dict:
-    """rows: [{student_id, absent: bool, scores: {question_id: điểm|None}}] - absent = true -> lượt 'absent' (không tính vào mẫu số); - mọi ô trống và không vắng -> xóa điểm của SV (chưa nhập); - còn lại: ô trống tính 0 điểm."""
     items = {i["question_id"]: i for i in items_of(db, exam.id)}
     if not items:
         raise GradeError("Bài kiểm tra chưa có câu/ý để nhập điểm")
@@ -144,7 +140,6 @@ HEAD = PatternFill("solid", fgColor="DCE6F1")
 
 
 def template_xlsx(db: Session, exam: Exam) -> bytes:
-    """Bảng điểm mẫu của bài: MSSV, Họ tên, Vắng, mỗi câu/ý một cột (dòng 2: điểm tối đa, dòng 3 ẩn: mã câu QB-n)."""
     gb = gradebook(db, exam)
     wb = Workbook()
     ws = wb.active
@@ -216,7 +211,6 @@ def _find_header(ws):
 
 
 def parse_sheet(data: bytes) -> dict:
-    """Đọc bảng điểm Excel bất kỳ: dòng tiêu đề có MSSV; các cột còn lại có số là câu/ý (trừ STT, Tổng, Ghi chú…)."""
     try:
         wb = load_workbook(io.BytesIO(data), data_only=True)
     except Exception as ex:   # noqa: BLE001

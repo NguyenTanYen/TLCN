@@ -1,4 +1,3 @@
-"""Rubric chấm điểm: tiêu chí × mức, gắn CLO, chấm sinh viên theo mức, điểm vào phân tích CLO như bài nhập điểm."""
 import pytest
 
 LEVELS = [{"label": "Tốt", "score_pct": 100}, {"label": "Khá", "score_pct": 75}, {"label": "Đạt", "score_pct": 50}, {"label": "Chưa đạt", "score_pct": 0}]
@@ -13,7 +12,6 @@ def ctx(client, gv):
 
 @pytest.fixture(scope="module", autouse=True)
 def _don_dep(client, gv, ctx):
-    """Xóa bài và rubric do test tạo, để không làm lệch số liệu của các test sau."""
     yield
     cs = ctx["cs"]
     for e in client.get(f"/api/class-sections/{cs['id']}/exams", headers=gv).json():

@@ -1,4 +1,3 @@
-"""Liệt kê tệp trong khóa học Moodle của một lớp học phần – để GV chọn tệp nào là HỌC LIỆU."""
 from __future__ import annotations
 
 import json
@@ -16,7 +15,6 @@ SUPPORTED_EXT = (".pdf",)
 
 
 def _condition_open(node: dict, now: float) -> bool:
-    """Một nút trong cây điều kiện "Giới hạn truy cập" (Restrict access) của Moodle đã mở với MỌI SV chưa."""
     if "c" in node:
         op = node.get("op", "&")
         parts = [_condition_open(c, now) for c in node.get("c") or []]
@@ -34,7 +32,6 @@ def _condition_open(node: dict, now: float) -> bool:
 
 
 def available_now(availability: str | None, now: float | None = None) -> bool:
-    """Tệp / chủ đề có điều kiện truy cập đã mở chưa (Moodle lưu NULL khi không giới hạn)."""
     if not availability or not availability.strip():
         return True
     try:
@@ -49,7 +46,6 @@ def supported(mimetype: str, filename: str) -> bool:
 
 
 def file_url(contextid: int, modname: str, revision: int, filepath: str, filename: str) -> str:
-    """Liên kết pluginfile của Moodle: tệp của hoạt động File nằm ở gốc (Moodle bỏ đường dẫn con), tệp trong Thư mục giữ đường dẫn con."""
     path = "/" if modname == "resource" else filepath
     rel = f"/pluginfile.php/{contextid}/mod_{modname}/content/{revision}{quote(path)}{quote(filename)}"
     return settings.moodle_url.rstrip("/") + rel

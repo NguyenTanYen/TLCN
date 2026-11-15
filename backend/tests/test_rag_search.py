@@ -1,4 +1,3 @@
-"""Bước 6: tìm đoạn học liệu bằng BM25 – tách từ tiếng Việt, chỉ trong học liệu 'ready' của đúng lớp học phần."""
 import hashlib
 import threading
 import time
@@ -85,7 +84,6 @@ def sections():
 
 
 def _warm(cs: int) -> None:
-    """Như luồng nạp: dựng sẵn chỉ mục của lớp sau khi học liệu đổi."""
     db = SessionLocal()
     try:
         search.warm(db, cs)
@@ -114,7 +112,6 @@ def _material(cs: int, name: str, passages: list[tuple[str, str]], status="ready
 
 
 def _search(cs, q, k=10):
-    """Chỉ giữ học liệu của tệp test này (lớp có thể còn học liệu của test khác)."""
     db = SessionLocal()
     try:
         return [h for h in search.search(db, cs, q, k) if h.file_name.startswith("test_search_")]

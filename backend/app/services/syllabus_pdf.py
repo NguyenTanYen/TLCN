@@ -1,4 +1,3 @@
-"""Xuất đề cương chi tiết học phần ra PDF theo mẫu đề cương của Trường (15 mục: tên môn học, mô tả, mục tiêu, chuẩn đầu ra, nội dung chi tiết, đánh giá, tài liệu, phê duyệt, tiến trình cập nhật) để in và ký – không phải ảnh chụp trang web."""
 import io
 
 from reportlab.lib import colors

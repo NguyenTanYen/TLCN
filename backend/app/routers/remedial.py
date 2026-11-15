@@ -1,4 +1,3 @@
-"""Phụ đạo (góp ý 15/10): mỗi SV trả lời sai bao nhiêu câu → bấm vào SV xem danh sách câu sai → tạo bài KT phụ đạo riêng cho một SV hoặc một nhóm SV (câu đã sai + câu tương tự cùng CLO/chương trong ngân hàng câu hỏi)."""
 import random
 from typing import Literal, Optional
 
@@ -45,7 +44,6 @@ def _chapter_label(r: dict) -> str:
 
 
 def _wrong_rows(db: Session, exam_ids: list[int], student_id: int | None = None):
-    """Mọi câu (không bị Hủy) SV làm chưa đúng/chưa đủ điểm: sai, bỏ trống, hoặc câu nhập điểm chưa đạt điểm tối đa."""
     if not exam_ids:
         return []
     q = text("""SELECT a.exam_id, e.exam_title, a.student_id, r.question_id, r.response_status, r.score_earned, eq.points, eq.order_index,
@@ -68,7 +66,6 @@ def _wrong_rows(db: Session, exam_ids: list[int], student_id: int | None = None)
 
 @router.get("/class-sections/{cs_id}/remedial")
 def remedial_overview(cs_id: int, exam_ids: str = "", u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Bảng tổng hợp: mỗi SV sai bao nhiêu câu (trên các bài chọn), CLO chưa đạt; mỗi câu bao nhiêu SV sai."""
     check_section_access(db, u, cs_id)
     ids = _exam_ids(db, cs_id, [int(x) for x in exam_ids.split(",") if x.strip().isdigit()])
     exams = [dict(r) for r in db.execute(text("""SELECT id, exam_title, exam_type, parent_exam_id, counts_for_clo,
@@ -127,7 +124,6 @@ def remedial_overview(cs_id: int, exam_ids: str = "", u: User = Depends(require(
 
 
 def target_moodle_users(db: Session, e: Exam) -> list[int]:
-    """Tài khoản Moodle của các SV được giao bài phụ đạo; thiếu tài khoản thì báo lỗi trước khi tạo gì trên Moodle."""
     codes = [x.strip() for x in (e.target_students or "").split(",") if x.strip()]
     if not codes:
         return []
@@ -142,7 +138,6 @@ def target_moodle_users(db: Session, e: Exam) -> list[int]:
 
 
 def _pct(db: Session, exam_ids: list[int], student_id: int, qids: list[int]):
-    """Tỷ lệ điểm (%) của SV trên các câu qids ở các bài exam_ids (bài đã nộp); chưa làm câu nào → None."""
     if not exam_ids or not qids:
         return None
     r = db.execute(text("""SELECT SUM(r.score_earned), SUM(eq.points) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
@@ -155,7 +150,6 @@ def _pct(db: Session, exam_ids: list[int], student_id: int, qids: list[int]):
 
 @router.get("/class-sections/{cs_id}/remedial-exams")
 def remedial_progress(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Các bài phụ đạo của lớp và tiến bộ của từng SV được giao (góp ý F5): - before_pct: điểm trên các câu của bài phụ đạo mà SV đã làm ở các bài KT chính thức trước đó (câu đã sai được đưa lại); - after_same_pct: điểm trên chính các câu đó ở bài phụ đạo; after_pct: điểm cả bài phụ đạo (gồm câu tương tự)."""
     check_section_access(db, u, cs_id)
     regular = [r[0] for r in db.execute(text("""SELECT id FROM exams WHERE class_section_id=:cs AND target_students IS NULL
                                                 AND status IN ('Synced','Analyzed')"""), {"cs": cs_id})]
@@ -192,7 +186,6 @@ def remedial_progress(cs_id: int, u: User = Depends(require("admin", "lecturer")
 @router.get("/class-sections/{cs_id}/remedial/students/{student_id}")
 def student_wrong(cs_id: int, student_id: int, exam_ids: str = "", u: User = Depends(require("admin", "lecturer")),
                   db: Session = Depends(get_db)):
-    """Danh sách câu SV trả lời sai/bỏ trống (kèm phương án đã chọn, đáp án đúng, chương)."""
     check_section_access(db, u, cs_id)
     st = db.execute(text("SELECT id, student_code, full_name FROM students WHERE id=:s"), {"s": student_id}).mappings().first()
     if not st:
@@ -206,7 +199,6 @@ def student_wrong(cs_id: int, student_id: int, exam_ids: str = "", u: User = Dep
 
 @router.post("/class-sections/{cs_id}/remedial-exams", status_code=201)
 def create_remedial(cs_id: int, body: RemedialIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Tạo bài KT phụ đạo: câu trắc nghiệm các SV đã chọn làm sai (+ câu tương tự cùng chương chưa gặp)."""
     cs = check_section_access(db, u, cs_id)
     ids = _exam_ids(db, cs_id, body.exam_ids)
     enrolled = {r[0]: r[1] for r in db.execute(text("""SELECT s.id, s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id

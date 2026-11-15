@@ -1,4 +1,3 @@
-"""UC-01 (mở rộng): nhập hàng loạt câu hỏi và gán CLO / Bloom / chương từ file."""
 from __future__ import annotations
 
 import csv
@@ -13,18 +12,16 @@ MAX_OPTIONS = 10
 
 
 class ImportError_(ValueError):
-    """File không đọc được hoặc sai định dạng."""
+    pass
 
 
 def norm(s) -> str:
-    """Bỏ dấu, chữ thường, chỉ giữ chữ-số (so khớp tiêu đề cột, tên mức Bloom...)."""
     s = unicodedata.normalize("NFD", str(s or "")).replace("đ", "d").replace("Đ", "D")
     s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
 def norm_content(s: str) -> str:
-    """Chuẩn hóa nội dung để phát hiện câu trùng."""
     return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
 
@@ -59,7 +56,6 @@ def _map_header(h: str) -> str | None:
 
 
 def read_table(data: bytes, filename: str) -> list[dict]:
-    """Đọc sheet đầu tiên (hoặc sheet có cột Nội dung/ID) thành danh sách dict {khóa chuẩn: giá trị}."""
     name = filename.lower()
     rows: list[list] = []
     if name.endswith((".xlsx", ".xlsm")):
@@ -117,7 +113,6 @@ def _decode(data: bytes) -> str:
 
 
 def parse_questions(data: bytes, filename: str) -> tuple[str, list[dict]]:
-    """Trả về (tên định dạng, danh sách câu thô {row, content, options[], answer, chapter, bloom, clo, errors[]})."""
     name = filename.lower()
     if name.endswith((".xlsx", ".xlsm", ".csv")):
         return "Excel/CSV", _from_table(read_table(data, filename))
@@ -155,7 +150,6 @@ META_RE = re.compile(r"^\s*(CHƯƠNG|CHUONG|CHAPTER|BLOOM|CLO|CĐR)\s*[:：]\s*(
 
 
 def _from_aiken(lines: list[str]) -> list[dict]:
-    """Aiken: mỗi câu = nội dung (có thể nhiều dòng) + các dòng 'A."""
     out, cur, line_no = [], None, 0
 
     def new(n):
@@ -250,7 +244,6 @@ def _from_moodle_xml(data: bytes) -> list[dict]:
 
 
 def parse_chapter(v: str, chapters: dict[int, int]) -> tuple[int | None, str | None]:
-    """'3', 'Chương 3', '3."""
     if not cell(v):
         return None, None
     m = re.search(r"\d+", str(v))
@@ -264,7 +257,6 @@ def parse_chapter(v: str, chapters: dict[int, int]) -> tuple[int | None, str | N
 
 
 def parse_bloom(v: str, levels: list[dict]) -> tuple[int | None, str | None]:
-    """'3', '3 - Vận dụng', 'Vận dụng', 'Apply' → bloom_level_id."""
     s = cell(v)
     if not s:
         return None, None
@@ -279,7 +271,6 @@ def parse_bloom(v: str, levels: list[dict]) -> tuple[int | None, str | None]:
 
 
 def parse_clos(v: str, clos: dict[str, int]) -> tuple[list[tuple[int, float]] | None, str | None]:
-    """'CLO2' | 'CLO1; CLO3' (chia đều) | 'CLO1:0.6; CLO3:0.4' | 'CLO1(0.6), CLO3(0.4)' → [(clo_id, weight)]."""
     s = cell(v)
     if not s:
         return None, None
@@ -322,7 +313,6 @@ def parse_clos(v: str, clos: dict[str, int]) -> tuple[list[tuple[int, float]] | 
 
 
 def clo_text(links: list[tuple[str, float]]) -> str:
-    """[('CLO1', 1.0)] → 'CLO1'; nhiều CLO → 'CLO1:0.6; CLO3:0.4' (định dạng đọc lại được)."""
     if not links:
         return ""
     if len(links) == 1:

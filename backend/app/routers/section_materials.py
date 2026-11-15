@@ -1,4 +1,3 @@
-"""Học liệu của lớp học phần (RAG): tệp trong khóa học Moodle của lớp."""
 from dataclasses import asdict
 from typing import Literal, Optional
 
@@ -31,7 +30,6 @@ class CopyMaterialIn(BaseModel):
 
 
 def _targets(db: Session, u: User, cs_id: int, ids: list[int]):
-    """Các lớp nhận học liệu: cùng môn với lớp nguồn, GV phụ trách (không kể lớp nguồn)."""
     src = check_section_access(db, u, cs_id)
     out = []
     for i in dict.fromkeys(ids):
@@ -68,7 +66,6 @@ def _material(m: SectionMaterial) -> dict:
 
 @router.get("/{cs_id}/materials")
 def list_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tệp trong khóa học Moodle của lớp (kèm học liệu tương ứng nếu có) + toàn bộ học liệu của lớp."""
     cs = check_section_access(db, u, cs_id)
     chosen = db.query(SectionMaterial).filter_by(class_section_id=cs_id).order_by(SectionMaterial.id).all()
     by_hash = {m.content_hash: m for m in chosen}
@@ -83,7 +80,6 @@ def list_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
 @router.get("/{cs_id}/materials/search")
 def search_materials(cs_id: int, q: str = Query(min_length=1, max_length=2000), k: int = Query(10, ge=1, le=50),
                      db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tìm đoạn trong học liệu đã nạp của lớp (BM25) – để GV / Bộ môn thử truy vấn, dựng bộ câu hỏi chuẩn."""
     check_section_access(db, u, cs_id)
     from ..config import settings
     return [asdict(h) for h in search.search(db, cs_id, q, k, floor=settings.rag_search_similarity)]
@@ -92,7 +88,6 @@ def search_materials(cs_id: int, q: str = Query(min_length=1, max_length=2000), 
 @router.get("/{cs_id}/materials/semantic-info")
 def semantic_info(cs_id: int, q: str = Query("", max_length=2000), db: Session = Depends(get_db),
                   u: User = Depends(require("admin", "lecturer"))):
-    """Chẩn đoán tìm theo nghĩa của lớp: bật chưa, số đoạn có vector, độ gần nghĩa cao nhất với câu q, các ngưỡng."""
     from ..services.rag import semantic
     check_section_access(db, u, cs_id)
     return semantic.dense_info(db, cs_id, q)
@@ -100,7 +95,6 @@ def semantic_info(cs_id: int, q: str = Query("", max_length=2000), db: Session =
 
 @router.post("/{cs_id}/materials/sync")
 def sync_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Đồng bộ học liệu từ khóa học Moodle của lớp (giao diện gọi khi GV mở trang học liệu), rồi nạp ở nền các tệp chờ."""
     cs = check_section_access(db, u, cs_id)
     if not cs.moodle_course_id:
         raise HTTPException(409, "Lớp học phần chưa gắn với khóa học Moodle")
@@ -111,7 +105,6 @@ def sync_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
 
 @router.post("/{cs_id}/materials/moodle", status_code=201)
 def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Chọn (hoặc chọn LẠI tệp đã bỏ chọn) một tệp của khóa học Moodle làm học liệu."""
     cs = check_section_access(db, u, cs_id)
     if not cs.moodle_course_id:
         raise HTTPException(409, "Lớp học phần chưa gắn với khóa học Moodle")
@@ -139,7 +132,6 @@ def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_d
 
 @router.post("/{cs_id}/materials/{material_id}/reindex")
 def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Nạp lại học liệu đã nạp hoặc bị lỗi (GV sửa xong tệp, hoặc bộ đọc PDF được cải tiến)."""
     check_section_access(db, u, cs_id)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
@@ -154,7 +146,6 @@ def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db)
 
 @router.delete("/{cs_id}/materials/{material_id}")
 def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Bỏ chọn học liệu."""
     check_section_access(db, u, cs_id)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
@@ -173,7 +164,6 @@ def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db),
 @router.patch("/{cs_id}/materials/{material_id}")
 def update_material(cs_id: int, material_id: int, body: MaterialPatchIn, db: Session = Depends(get_db),
                     u: User = Depends(lecturer_only)):
-    """GV sửa loại học liệu (slide / tài liệu tham khảo – mặc định chỉ đoán theo hoạt động Moodle) và tên hiển thị."""
     check_section_access(db, u, cs_id)
     if body.material_type is None and body.title is None:
         raise HTTPException(422, "Không có thông tin nào để sửa (material_type hoặc title)")
@@ -194,7 +184,6 @@ async def upload_material(cs_id: int, file: UploadFile = File(...), title: str =
                           material_type: Literal["slide", "reference"] = Form("slide"),
                           class_section_ids: str = Form(""), week: int = Form(0),
                           db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """GV tải PDF học liệu lên hệ thống và chọn các lớp cùng môn (kể cả lớp này) sẽ nhận: tệp được đăng lên khóa Moodle của từng lớp, đồng bộ thành học liệu và nạp ở nền."""
     ids = [int(x) for x in class_section_ids.replace(" ", "").split(",") if x.isdigit()]
     src, others = _targets(db, u, cs_id, ids)
     targets = [src] + others
@@ -211,7 +200,6 @@ async def upload_material(cs_id: int, file: UploadFile = File(...), title: str =
 @router.post("/{cs_id}/materials/{material_id}/copy")
 def copy_material(cs_id: int, material_id: int, body: CopyMaterialIn, db: Session = Depends(get_db),
                   u: User = Depends(lecturer_only)):
-    """Dùng một học liệu của lớp này cho các lớp khác cùng môn (đăng tệp lên khóa Moodle của từng lớp)."""
     _, targets = _targets(db, u, cs_id, body.class_section_ids)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id or m.status in ("excluded", "missing") or m.source != "moodle":
@@ -226,7 +214,6 @@ def copy_material(cs_id: int, material_id: int, body: CopyMaterialIn, db: Sessio
 
 @router.post("/{cs_id}/materials/copy-from/{src_id}")
 def copy_from_section(cs_id: int, src_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Lớp mới: sao chép TOÀN BỘ học liệu đang dùng của một lớp cùng môn (vd học kỳ trước) sang lớp này."""
     dst, srcs = _targets(db, u, cs_id, [src_id])
     if not srcs:
         raise HTTPException(422, "Chọn một lớp khác để sao chép học liệu")

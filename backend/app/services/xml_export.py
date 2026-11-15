@@ -1,4 +1,3 @@
-"""Xuất đề thi sang định dạng Moodle XML (UC-02)."""
 from xml.sax.saxutils import escape
 
 from ..models import Exam

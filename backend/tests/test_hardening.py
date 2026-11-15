@@ -1,4 +1,3 @@
-"""Kiểm thử các ràng buộc an toàn & toàn vẹn bổ sung: phân quyền theo môn học và khóa học Moodle, áp dụng lại kế hoạch CLO, xử lý dữ liệu vào và lỗi HTTP chuẩn."""
 from sqlalchemy import create_engine, text
 
 from app.config import settings
@@ -33,7 +32,6 @@ def test_course_level_access(client, gv, gv_other, admin):
 
 
 def test_admin_cannot_author_questions_or_exams(client, admin):
-    """Bộ môn chỉ xem: soạn câu hỏi, ra đề, nhập điểm, chấm phiếu, bài ôn tập là việc của giảng viên (403)."""
     qid = q("SELECT id FROM question_bank WHERE course_id=:c LIMIT 1", c=COURSE)[0][0]
     calls = [
         ("post", "/api/questions", {"course_id": COURSE}),
@@ -157,7 +155,6 @@ def test_import_parsers_edge_cases():
 
 
 def test_assignment_all_supervisors(client, admin, gv, gv_other):
-    """Phân công đánh giá PI cho môn TLCN/KLTN: "Tất cả thầy/cô có hướng dẫn" thay vì một GV."""
     rows = client.get("/api/assignments", headers=gv).json()
     tl = [r for r in rows if r["course_code"] in ("PODE434277", "POIS431184")]
     assert len(tl) == 2 and all(r["all_supervisors"] and r["lecturer_id"] is None and r["lecturer"] == "Tất cả thầy/cô có hướng dẫn" for r in tl)

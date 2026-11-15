@@ -1,4 +1,3 @@
-"""Giao tiếp với Moodle qua Web Service (plugin local_clo) – chiều GHI của tích hợp."""
 from __future__ import annotations
 
 import json
@@ -22,7 +21,7 @@ log = logging.getLogger(__name__)
 
 
 class MoodleWSError(RuntimeError):
-    """Lỗi khi gọi Web Service của Moodle (mất kết nối, token sai, Moodle báo lỗi...)."""
+    pass
 
 
 def configured() -> bool:
@@ -30,7 +29,6 @@ def configured() -> bool:
 
 
 def _flatten(prefix: str, value, out: list[tuple[str, str]]) -> None:
-    """Chuyển tham số lồng nhau sang dạng form của REST Moodle: results[0][username]=..."""
     if isinstance(value, dict):
         for k, v in value.items():
             _flatten(f"{prefix}[{k}]" if prefix else k, v, out)
@@ -82,7 +80,6 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
 
 
 def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:
-    """Đăng một tệp học liệu lên khóa học Moodle thành hoạt động Tệp (local_clo_add_resource, base64)."""
     import base64
     return call("local_clo_add_resource", {"courseid": moodle_course_id, "name": name[:250], "filename": filename,
                                            "content": base64.b64encode(data).decode("ascii"), "section": section},
@@ -90,7 +87,6 @@ def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, s
 
 
 def restrict_users(moodle_course_id: int, quizid: int, groupname: str, userids: list[int], cmid: int = 0) -> dict:
-    """Giới hạn Quiz cho đúng các tài khoản Moodle này (gọi lại thì đồng bộ lại thành viên nhóm)."""
     return call("local_clo_restrict_users", {"courseid": moodle_course_id, "cmid": cmid, "quizid": quizid,
                                              "groupname": groupname[:250], "userids": userids})
 
@@ -111,12 +107,10 @@ def get_offlinequiz(exam: Exam) -> dict:
 
 
 def process_scans(exam: Exam) -> dict:
-    """Moodle nhận diện & chấm ngay các phiếu đã tải lên đang chờ (không phải đợi cron của Moodle)."""
     return call("local_clo_process_scans", {"examref": exam.id}, timeout=600)
 
 
 def download(url: str) -> tuple[bytes, str]:
-    """Tải tệp Moodle qua webservice/pluginfile.php bằng token (chỉ nhận URL thuộc Moodle đã cấu hình)."""
     _check_url(url)
     try:
         with httpx.Client(timeout=120, trust_env=False) as client:
@@ -136,7 +130,6 @@ def _check_url(url: str) -> None:
 
 @contextmanager
 def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
-    """Tải tệp Moodle qua webservice/pluginfile.php theo TỪNG KHÚC (tệp lớn không phải nằm trọn trong RAM)."""
     _check_url(url)
     try:
         with httpx.Client(timeout=120, trust_env=False) as client:
@@ -151,7 +144,6 @@ def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
 
 
 def student_results(db: Session, exam_id: int) -> list[dict]:
-    """Kết quả phân tích của từng SV trong bài KT – dữ liệu SV sẽ xem trên Moodle."""
     e = db.execute(text("""SELECT e.id, e.max_score, e.class_section_id, cs.course_id,
                                   (SELECT SUM(points) FROM exam_questions WHERE exam_id=e.id) AS raw_max
                            FROM exams e JOIN class_sections cs ON cs.id=e.class_section_id WHERE e.id=:e"""),
@@ -204,7 +196,6 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
 
 
 def wrong_items(db: Session, exam_id: int) -> list:
-    """(lượt làm, câu hỏi, số thứ tự câu SV thấy) của các câu làm sai / bỏ trống – số thứ tự theo mã đề nếu bài có nhiều mã đề (thứ tự câu bị trộn)."""
     return db.execute(text("""
         SELECT r.attempt_id, r.question_id, COALESCE(vq.position, eq.order_index) AS no
         FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
@@ -216,7 +207,6 @@ def wrong_items(db: Session, exam_id: int) -> list:
 
 
 def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[int, list]:
-    """Lượt làm → [{câu SV làm sai, các trang học liệu của lớp nên đọc lại}] (RAG bước 8)."""
     from ..models import SectionMaterial
     from .rag import suggest
 
@@ -241,7 +231,6 @@ def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[i
 
 
 def public_data(data: dict) -> dict:
-    """Dữ liệu gửi cho SV trên Moodle: điểm, mức đạt từng CLO của chính SV (radar), chẩn đoán, lộ trình ôn tập theo chương, trang tài liệu nên đọc lại."""
     d = dict(data)
     if "items" in d:
         d["items"] = [{k: v for k, v in i.items() if k not in ("clo", "clo_description")} for i in d["items"]]
@@ -264,13 +253,11 @@ def push_results(db: Session, exam: Exam) -> dict:
 
 
 def _split_name(full: str) -> tuple[str, str]:
-    """Tên người Việt: tên = từ cuối, họ và tên đệm = phần còn lại."""
     parts = (full or "").split()
     return (parts[-1], " ".join(parts[:-1])) if len(parts) > 1 else ((parts[0] if parts else "-"), "-")
 
 
 def provision_section(db: Session, cs) -> dict:
-    """Tạo (hoặc bổ sung) khóa học Moodle cho lớp học phần: khóa học mang mã lớp, ghi danh GV phụ trách và SV đang học."""
     lec = cs.lecturer
     lec_user = db.execute(text("SELECT username, email FROM users WHERE id=:i"), {"i": lec.user_id}).first() if lec.user_id else None
     if not lec_user:

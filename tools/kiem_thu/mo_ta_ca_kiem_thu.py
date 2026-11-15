@@ -1,4 +1,3 @@
-"""Mô tả từng ca kiểm thử tự động: (nhóm chức năng, tên ca, nội dung kiểm tra, kết quả mong đợi)."""
 
 NHOM = [
     "1. Đăng nhập, phân quyền, bảo mật",

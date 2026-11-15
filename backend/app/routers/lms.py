@@ -1,4 +1,3 @@
-"""Tích hợp hai chiều với Moodle qua Web Service (plugin local_clo)."""
 import io
 import re
 import zipfile
@@ -92,7 +91,6 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
 
 @router.post("/exams/{exam_id}/moodle/restrict")
 def restrict_quiz(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Bài phụ đạo đã có Quiz: (đồng bộ lại) nhóm Moodle gồm đúng các SV được giao và điều kiện truy cập của Quiz."""
     e = get_exam_for(db, u, exam_id)
     if not e.target_students:
         raise HTTPException(422, "Chỉ bài ôn tập (có danh sách SV được giao) mới giới hạn SV")
@@ -109,7 +107,6 @@ KIND_VI = {"question": "de_thi", "answer": "phieu_tra_loi", "correction": "dap_a
 
 
 def _oq_view(exam_id: int, oq: dict) -> dict:
-    """Ẩn URL/token Moodle: giao diện tải tệp qua hệ thống (proxy)."""
     for g in oq["groups"]:
         for f in g["files"]:
             f["download"] = f"/api/exams/{exam_id}/moodle/offlinequiz/files/{f['filename']}"

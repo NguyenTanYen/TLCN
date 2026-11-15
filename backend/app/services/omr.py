@@ -1,4 +1,3 @@
-"""Chấm phiếu trả lời trắc nghiệm bằng ảnh quét / ảnh chụp điện thoại (OpenCV) – không cần Moodle."""
 from __future__ import annotations
 
 import base64
@@ -17,7 +16,6 @@ class OMRError(ValueError):
 
 
 def load_pages(data: bytes, filename: str = "") -> list[np.ndarray]:
-    """Ảnh (jpg/png/…) hoặc PDF nhiều trang -> danh sách ảnh xám."""
     import cv2
     if data[:4] == b"%PDF" or filename.lower().endswith(".pdf"):
         import fitz
@@ -41,13 +39,11 @@ def _exif_free_resize(g: np.ndarray, target: int = 2200) -> np.ndarray:
 
 
 def _four_corners(cand, w, h):
-    """Có ứng viên ở cả 4 góc ảnh (mỗi góc một ô trong phần tư tương ứng)?"""
     q = {(c[0] > w / 2, c[1] > h / 2) for c in cand if min(c[0], w - c[0]) < 0.25 * w and min(c[1], h - c[1]) < 0.25 * h}
     return len(q) == 4
 
 
 def find_fiducials(g: np.ndarray) -> np.ndarray:
-    """Tâm 4 ô định vị theo thứ tự trên-trái, trên-phải, dưới-phải, dưới-trái."""
     import cv2
     h, w = g.shape
     blur = cv2.GaussianBlur(g, (5, 5), 0)
@@ -146,7 +142,6 @@ def _fill(bw: np.ndarray, x: float, y: float, r: float) -> float:
 
 
 def _cover(bw: np.ndarray, x: float, y: float, r: float) -> float:
-    """Tỷ lệ điểm ảnh có mực trong ô: ô tô kín ≈ 1, ô bị gạch chéo (dấu X) chỉ ≈ 0,4 dù độ đậm trung bình tương đương bút chì nhạt."""
     cx, cy, rr = int(round(x * PX)), int(round(y * PX)), max(2, int(r * PX * 0.70))
     y0, y1, x0, x1 = max(cy - rr, 0), cy + rr + 1, max(cx - rr, 0), cx + rr + 1
     patch = bw[y0:y1, x0:x1]
@@ -159,7 +154,6 @@ SOLID = 0.45
 
 
 def _pick(fills: dict) -> tuple[list, float]:
-    """fills: {nhãn: tỷ lệ mực} của một hàng -> (các nhãn được tô, độ tin cậy 0..1)."""
     vals = sorted(fills.values())
     base = vals[0] if len(vals) > 1 else 0.1
     marked = [k for k, v in fills.items() if v >= FILL_MIN and v - base >= FILL_GAP]
@@ -176,7 +170,6 @@ def read_sheet(g: np.ndarray, o: SheetOptions) -> dict:
     wimg0 = warp(g, has_bar=False)
 
     def ring(img, L):
-        """Điểm khớp: viền các ô tròn in sẵn nằm đúng vị trí bố cục -> điểm cao; sai bố cục/chiều -> thấp."""
         inv = 255 - cv2.GaussianBlur(img, (3, 3), 0).astype(np.float32)
         rr = L["r"] * PX
         cells = L["answers"] + L["student"] + L["version"]

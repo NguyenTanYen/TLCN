@@ -1,4 +1,3 @@
-"""Xuất đề cương chi tiết học phần ra tệp Word theo bố cục mẫu đề cương của trường (A4 đứng, Times New Roman 13): quốc hiệu – tiêu đề – 11 mục như trang Đề cương chi tiết – chữ ký Trưởng khoa / Trưởng bộ môn / Người biên soạn."""
 from __future__ import annotations
 
 import io
@@ -19,7 +18,6 @@ def _h(doc, text: str) -> None:
 
 
 def _rows(doc, head: list[str], widths: list[float], data: list[list], aligns: list | None = None, size=11):
-    """Bảng có dòng tiêu đề đậm; aligns: căn lề từng cột (mặc định giữa, cột chữ dài căn trái)."""
     t = _table(doc, len(data) + 1, widths)
     for j, h in enumerate(head):
         _cell(t.cell(0, j), h, bold=True, size=size)

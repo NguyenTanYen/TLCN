@@ -1,4 +1,3 @@
-"""KIỂM THỬ TOÀN BỘ CHỨC NĂNG – chạy mọi ca kiểm thử tự động, đo độ phủ API và xuất bảng kết quả Excel."""
 from __future__ import annotations
 
 import datetime as dt

@@ -1,4 +1,3 @@
-"""UC-01 (mở rộng): nhập hàng loạt câu hỏi, rồi gán CLO / Bloom / chương cho từng câu bằng file Excel."""
 from datetime import datetime
 from io import BytesIO
 

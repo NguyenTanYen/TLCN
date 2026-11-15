@@ -1,4 +1,3 @@
-"""Gom khối chữ của các trang (ingest.Page) thành ĐOẠN (Passage) – đơn vị để tìm kiếm và trích dẫn."""
 from __future__ import annotations
 
 import re
@@ -60,12 +59,10 @@ class Passage:
 
     @property
     def text(self) -> str:
-        """Chữ dùng để lập chỉ mục tìm kiếm."""
         return "\n".join(s for s in (self.breadcrumb or self.title, self.caption, self.body, self.vlm_desc) if s)
 
     @property
     def bbox(self) -> BBox:
-        """Khung bao cả đoạn – để tô 'khúc cần đọc' trên ảnh trang."""
         xs0, ys0, xs1, ys1 = zip(*self.bboxes)
         return min(xs0), min(ys0), max(xs1), max(ys1)
 
@@ -92,7 +89,6 @@ def sentences(text: str) -> list[str]:
 
 
 def _hard_split(s: str, limit: int = MAX) -> list[str]:
-    """Câu dài hơn limit mà không có dấu câu (gạch đầu dòng liệt kê dài) → cắt theo từ, chồng lấn tối đa OVERLAP_WORDS từ (và không quá 1/4 phần, để giới hạn nhỏ không sinh ra quá nhiều phần lặp)."""
     words = [w[i:i + limit] for w in s.split() for i in range(0, len(w), limit)]
     parts, start = [], 0
     while start < len(words):
@@ -108,7 +104,6 @@ def _hard_split(s: str, limit: int = MAX) -> list[str]:
 
 
 def _tail(s: str, limit: int) -> str:
-    """Đuôi dài ≤ limit ký tự của s, bắt đầu ở ranh giới từ."""
     if len(s) <= limit:
         return s
     if limit <= 0:
@@ -119,13 +114,11 @@ def _tail(s: str, limit: int) -> str:
 
 
 def _overlap(prev: str, nxt: str) -> str:
-    """Phần lặp lại của prev ở đầu phần mới: cả câu nếu câu ngắn, nếu không thì OVERLAP_CHARS ký tự cuối; luôn chừa đủ chỗ cho câu tiếp theo trong MAX."""
     ov = prev if len(prev) <= OVERLAP_SENTENCE else _tail(prev, OVERLAP_CHARS)
     return _tail(ov, MAX - len(nxt) - 1)
 
 
 def _split_long(text: str) -> list[str]:
-    """Cắt theo câu thành các phần ≤ MAX; phần sau luôn mở đầu bằng phần chồng lấn của phần trước."""
     parts: list[str] = []
     cur: list[str] = []
     fresh = 0
@@ -157,7 +150,6 @@ def _esc(s: str) -> str:
 
 
 def _cells(line: str) -> list[str]:
-    """Nội dung các ô của một hàng Markdown (đã bỏ escape)."""
     cells: list[str] = []
     cur: list[str] = []
     escaped = False
@@ -180,7 +172,6 @@ def _row(cells: list[str]) -> str:
 
 
 def _split_row(line: str, budget: int) -> list[str]:
-    """Hàng Markdown dài hơn budget → nhiều hàng con ĐÚNG CẤU TRÚC |..|..|: các ô ngắn (tổng ≤ nửa chỗ) lặp lại ở mọi hàng con, chỉ các ô dài bị chia; ô dài hết chữ thì để trống ở các hàng con sau."""
     cells = _cells(line)
     size = [len(_esc(c)) for c in cells]
     room = budget - (len(cells) + 1)
@@ -209,7 +200,6 @@ def _split_row(line: str, budget: int) -> list[str]:
 
 
 def _table_parts(md: str, rows: list[BBox]) -> list[tuple[str, list[BBox]]]:
-    """Bảng dài hơn MAX → cắt theo nhóm hàng; mỗi phần LẶP LẠI dòng header để giữ ngữ cảnh cột."""
     if len(md) <= MAX:
         return [(md, rows)]
     lines = md.split("\n")
@@ -243,7 +233,6 @@ def _ends_sentence(s: str) -> bool:
 
 
 def _chapter_no(text: str) -> int | None:
-    """Số của đề mục cấp chương ("Chapter 1 ..." → 1, "Chương IV" → 4); không phải đề mục chương → None."""
     m = _CHAPTER.match(text)
     if not m:
         return None
@@ -267,7 +256,6 @@ def _is_heading(b: Block, body_size: float) -> bool:
 
 
 def _numbered_title_with_period(text: str) -> bool:
-    """Đề mục đánh số lỡ có dấu chấm cuối ("1."""
     if not (_NUMBERED.match(text) or _CHAPTER.match(text) or _ROMAN.match(text) or _LETTER.match(text)):
         return False
     title = text.split(None, 1)[1] if " " in text else ""
@@ -284,7 +272,6 @@ def _roman_value(s: str) -> int:
 
 
 def _schemes(heads: list[Block]) -> dict[int, str | None]:
-    """Kiểu đánh số của từng đề mục (theo id khối), xét theo THỨ TỰ trong tài liệu: "I." "V." "X." "L." "C." vừa là số La Mã vừa là chữ cái → là chữ cái nếu đề mục chữ cái liền trước là chữ đứng ngay trước nó (B."""
     out: dict[int, str | None] = {}
     last_letter, last_roman = "", 0
     for b in heads:
@@ -315,7 +302,6 @@ def _schemes(heads: list[Block]) -> dict[int, str | None]:
 
 
 def _join_code(blocks: list[Block]) -> str:
-    """Nối các khối code liền nhau bằng xuống dòng; dòng lùi vào (PyMuPDF tách thành khối riêng) được thêm thụt lề = (x của khối − x của khối lùi trái nhất) / bề rộng ký tự."""
     widths = sorted(b.char_w for b in blocks if b.char_w > 0)
     char_w = widths[len(widths) // 2] if widths else 0.0
     base = min(b.bbox[0] for b in blocks)
@@ -327,7 +313,6 @@ def _join_code(blocks: list[Block]) -> str:
 
 
 def _body_size(pages: list[Page]) -> float:
-    """Cỡ chữ thân bài = cỡ chiếm NHIỀU KÝ TỰ nhất, không tính code (không dùng trung vị số khối: slide ít chữ thì tiêu đề chiếm nửa số khối; không tính code: slide nhiều code chữ nhỏ sẽ kéo mốc xuống)."""
     chars = Counter()
     for p in pages:
         for b in p.blocks:
@@ -337,7 +322,6 @@ def _body_size(pages: list[Page]) -> float:
 
 
 class _Builder:
-    """Duyệt các trang theo thứ tự, giữ chuỗi đề mục (stack) xuyên trang."""
 
     def __init__(self, pages: list[Page]):
         self.body_size = _body_size(pages)
@@ -359,7 +343,6 @@ class _Builder:
         self.pending: Passage | None = None
 
     def local_body(self, p: Page) -> float:
-        """Mốc cỡ chữ thân bài của một trang: slide có ≥ 2 cỡ chữ → mốc riêng của trang; slide chỉ một cỡ chữ (slide chuyển chương "Chương 5."""
         sizes = {round(b.size) for b in p.blocks if not b.mono}
         if p.width > p.height and len(sizes) >= 2:
             return _body_size([p])
@@ -374,7 +357,6 @@ class _Builder:
                 and not _SYMBOL_BULLET.match(b.text) and len(_AGENDA.findall(b.text)) < 2)
 
     def ctx(self) -> tuple[str, str, int]:
-        """(đề mục gần nhất, breadcrumb, cấp) đang hiệu lực ở vị trí hiện tại."""
         top = self.stack[0][1] if self.stack else None
         crumbs = [r for r in self.page.running if r != top] + [h for _, h, _ in self.stack]
         title = self.stack[-1][1] if self.stack else ""
@@ -434,7 +416,6 @@ class _Builder:
         self.buf.append(b)
 
     def split_objects(self, p: Page) -> tuple[list[Passage], list[Passage], list[Block]]:
-        """Tách khối thuộc hình (chữ trong hình) và chú thích hình / bảng khỏi các khối chữ thường."""
         figs = [Passage(p.no, "figure", "", "", [r]) for r in p.figures]
         if p.scanned:
             figs.append(Passage(p.no, "figure", "", "", [(0.0, 0.0, p.width, p.height)]))
@@ -456,7 +437,6 @@ class _Builder:
         return figs, tabs, text_blocks
 
     def continue_sentence(self, text_blocks: list[Block]) -> None:
-        """Câu vắt sang trang mới: nối phần còn thiếu (tới hết câu đầu tiên của trang này) vào cuối đoạn đang dở của trang trước."""
         pending, self.pending = self.pending, None
         if not pending or not text_blocks:
             return
@@ -472,7 +452,6 @@ class _Builder:
         pending.body += " " + rest
 
     def title_first(self, p: Page, blocks: list[Block]) -> list[Block]:
-        """Slide có dòng nhỏ NẰM TRÊN tiêu đề (tên phần "TIẾT 1 • BẢN CHẤT ETL", tên môn): xét tiêu đề trước – nếu không, các dòng đó bị gán vào đề mục của slide TRƯỚC."""
         t = next((b for b in blocks if id(b) == self.page_title[id(p)]), None)
         if p.width <= p.height or t is None or blocks[0] is t or not self.is_heading(t, p):
             return blocks

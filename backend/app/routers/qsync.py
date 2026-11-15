@@ -1,4 +1,3 @@
-"""Đồng bộ ngân hàng câu hỏi hai chiều với Moodle (xem services/qsync.py)."""
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text

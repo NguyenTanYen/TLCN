@@ -1,4 +1,3 @@
-"""UC-02: Khởi tạo đề thi – xuất Moodle XML; liên kết Quiz; công bố kết quả."""
 import math
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,7 +45,6 @@ def exam_dict(db: Session, e: Exam) -> dict:
 
 
 def deployments(db: Session, exam_id: int) -> list[dict]:
-    """Các bài KT đã giao cho lớp HP từ một đề của môn."""
     return [dict(r) for r in db.execute(text("""
         SELECT e.id AS exam_id, e.class_section_id, cs.section_code, s.name AS semester, e.status, e.moodle_quiz_id,
                (SELECT COUNT(*) FROM exam_attempts a WHERE a.exam_id=e.id AND a.status='finished') AS n_attempts
@@ -56,7 +54,6 @@ def deployments(db: Session, exam_id: int) -> list[dict]:
 
 @router.get("/courses/{course_id}/exams")
 def course_exams(course_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Đề của môn (tạo ở trang môn học, chưa gắn lớp) kèm các lớp đã giao; và các lớp HP của người dùng để giao đề."""
     check_course_access(db, u, course_id)
     exams = db.query(Exam).filter(Exam.course_id == course_id, Exam.class_section_id.is_(None)).order_by(Exam.id.desc()).all()
     q = db.query(ClassSection).filter(ClassSection.course_id == course_id)
@@ -79,7 +76,6 @@ def list_exams(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: 
 
 
 def _pool(db: Session, course_id: int, outline_ids: list[int]):
-    """Các câu dùng được để ra đề (đã gán Bloom và CLO, chưa Hủy) kèm chỉ số p, DI trung bình và số lần dùng."""
     rows = db.execute(text("""
         SELECT q.id, q.outline_id, q.bloom_level_id,
                (SELECT AVG(p_value) FROM item_statistics s WHERE s.question_id=q.id) AS avg_p,
@@ -124,13 +120,11 @@ def _avail_view(pool, chapters, blooms, clos):
 
 @router.get("/class-sections/{cs_id}/exam-blueprint/pool")
 def blueprint_pool(cs_id: int, outline_ids: str = "", u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Số câu sẵn có theo từng ô ma trận (chương × mức Bloom) và theo CLO – để GV lập ma trận đề."""
     return _blueprint_pool(db, check_section_access(db, u, cs_id).course_id, outline_ids)
 
 
 @router.get("/courses/{course_id}/exam-blueprint/pool")
 def course_blueprint_pool(course_id: int, outline_ids: str = "", u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Như trên, cho đề của môn (tạo ở trang môn học)."""
     check_course_access(db, u, course_id)
     return _blueprint_pool(db, course_id, outline_ids)
 
@@ -146,13 +140,11 @@ def _blueprint_pool(db: Session, course_id: int, outline_ids: str):
 
 @router.post("/class-sections/{cs_id}/exam-blueprint")
 def blueprint_generate(cs_id: int, body: BlueprintIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Sinh đề theo ma trận: trả về danh sách câu + điểm, ma trận mục tiêu/đạt được, độ phủ CLO, lỗi thiếu câu và cảnh báo."""
     return _blueprint_generate(db, check_section_access(db, u, cs_id).course_id, body)
 
 
 @router.post("/courses/{course_id}/exam-blueprint")
 def course_blueprint_generate(course_id: int, body: BlueprintIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Như trên, cho đề của môn (tạo ở trang môn học)."""
     check_course_access(db, u, course_id)
     return _blueprint_generate(db, course_id, body)
 
@@ -212,7 +204,6 @@ def _blueprint_generate(db: Session, course_id: int, body: BlueprintIn):
 
 @router.post("/exams", status_code=201)
 def create_exam(body: ExamIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Bài KT của một lớp HP, hoặc đề của môn (course_id) – giao cho các lớp HP khi xuất (POST /exams/{id}/copy)."""
     if body.class_section_id is not None:
         cs = check_section_access(db, u, body.class_section_id); course_id = cs.course_id
     else:
@@ -241,7 +232,6 @@ def get_exam(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
 
 @router.delete("/exams/{exam_id}")
 def delete_exam(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Xóa bài KT chưa có kết quả."""
     e = get_exam_for(db, u, exam_id, allow_template=True)
     if db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e"), {"e": exam_id}).scalar():
         raise HTTPException(409, "Bài KT đã có kết quả thi, không thể xóa")
@@ -307,7 +297,6 @@ class CopyIn(BaseModel):
 
 @router.post("/exams/{exam_id}/copy")
 def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Giao đề cho lớp HP: đề của môn (tạo ở trang môn học) được giao khi xuất cho các lớp GV chọn; bài của một lớp được dùng lại cho các lớp khác cùng môn."""
     e = get_exam_for(db, u, exam_id, allow_template=True)
     src_cs = e.class_section
     src_course = src_cs.course_id if src_cs else e.course_id

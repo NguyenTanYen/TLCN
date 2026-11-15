@@ -1,4 +1,3 @@
-"""Kiểm thử phủ TOÀN BỘ chức năng còn lại của API (chạy sau cùng – tên tệp bắt đầu bằng test_z)."""
 import io
 import zipfile
 
@@ -81,7 +80,6 @@ def moodle_ws(monkeypatch):
 
 @pytest.fixture()
 def gv_teacher_of_course_50():
-    """gv.son là giảng viên (editingteacher) của khóa học Moodle 50 trong CSDL Moodle mô phỏng."""
     ex(f"INSERT INTO `{M}`.mdl_role_assignments (id, roleid, contextid, userid) VALUES (9101, 3, 70, 99)")
     yield
     ex(f"DELETE FROM `{M}`.mdl_role_assignments WHERE id=9101")

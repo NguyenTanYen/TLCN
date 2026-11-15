@@ -1,4 +1,3 @@
-"""Đồng bộ ngân hàng câu hỏi HAI CHIỀU giữa hệ thống và Moodle (góp ý 15/10)."""
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +20,6 @@ def norm(s: str | None) -> str:
 
 
 def moodle_questions(db: Session, moodle_course_id: int) -> list[dict]:
-    """Bản mới nhất của các câu multichoice (một đáp án) trong các danh mục câu hỏi của khóa học Moodle."""
     rows = db.execute(text(f"""
         SELECT qbe.id AS entry_id, qbe.idnumber, q.id AS questionid, q.name, q.questiontext, q.defaultmark, q.timemodified,
                qv.version, qc.name AS category
@@ -71,7 +69,6 @@ def _links(db: Session, moodle_course_id: int) -> dict[int, tuple[int, str]]:
 
 
 def _save_link(db: Session, qid: int, moodle_course_id: int, moodle_qid: int, h: str) -> None:
-    """Ghi nhận hai bên đang giống nhau (dấu vân tay h) – mốc để lần sau biết bên nào sửa."""
     db.execute(text("""INSERT INTO question_moodle_links (question_id, moodle_course_id, moodle_question_id, sync_hash, synced_at)
                        VALUES (:q, :m, :mq, :h, NOW())
                        ON DUPLICATE KEY UPDATE moodle_question_id=VALUES(moodle_question_id), sync_hash=VALUES(sync_hash), synced_at=NOW()"""),
@@ -142,7 +139,6 @@ def compare(db: Session, course_id: int, moodle_course_id: int) -> dict:
 
 
 def push(db: Session, course_id: int, moodle_course_id: int, qids: list[int], call) -> list[dict]:
-    """Đẩy câu của hệ thống lên Moodle (call = lms.call)."""
     sysq = _sys_questions(db, course_id)
     payload = []
     for qid in qids:
@@ -161,7 +157,6 @@ def push(db: Session, course_id: int, moodle_course_id: int, qids: list[int], ca
 
 
 def _relink(db: Session, results: list[dict], moodle_course_id: int) -> None:
-    """Ghi lại id câu / id phương án phiên bản mới nhất trên Moodle cho câu bên hệ thống (và mốc đồng bộ của khóa học)."""
     for r in results:
         qid = int(r["idnumber"][3:])
         db.execute(text("UPDATE question_bank SET moodle_question_id=:m WHERE id=:q"), {"m": r["questionid"], "q": qid})
@@ -186,7 +181,6 @@ def _set_options(db: Session, q: Question, answers: list[dict]) -> None:
 
 
 def pull(db: Session, course_id: int, moodle_course_id: int, qids: list[int], moodle_new: list[int], user_id: int | None, call) -> dict:
-    """Kéo về: cập nhật câu đã nối (bản mới trên Moodle) và nhập câu soạn trên Moodle (rồi gắn idnumber QB-n lên Moodle)."""
     mq = moodle_questions(db, moodle_course_id)
     by_idn = {int(m["idnumber"][3:]): m for m in mq if re.fullmatch(r"QB-\d+", m["idnumber"] or "")}
     by_mid = {int(m["questionid"]): m for m in mq}

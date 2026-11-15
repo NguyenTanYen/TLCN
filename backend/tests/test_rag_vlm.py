@@ -1,4 +1,3 @@
-"""Mô tả hình trong học liệu bằng VLM (vlm.py) – Ollama được giả lập, không gọi model thật."""
 from datetime import datetime, timedelta
 
 import pymupdf
@@ -141,7 +140,6 @@ def test_stops_without_writing_when_vlm_fails(material, fake_vlm, monkeypatch):
 
 
 def test_figure_refused_by_ollama_is_skipped_not_blocking(material, fake_vlm, monkeypatch):
-    """Ollama trả HTTP 500 cho riêng một hình (vd."""
     mid, cs = material
     import httpx
 

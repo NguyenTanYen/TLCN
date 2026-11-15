@@ -1,4 +1,3 @@
-"""Gộp 2, 3… bài kiểm tra (cùng môn, có thể khác lớp HP của GV) để đánh giá CĐR môn học (CLO) và CĐR CTĐT (PI/PLO)."""
 from __future__ import annotations
 
 from collections import defaultdict

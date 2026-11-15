@@ -1,4 +1,3 @@
-"""Nâng cấp CSDL từ bản cũ và cài cầu nối khi Moodle chưa có plugin Offline Quiz."""
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -63,7 +62,6 @@ def _fk_att_exam_rule(c):
 
 
 def test_db_rejects_deleting_exam_with_attempts(client, gv):
-    """fk_att_exam = RESTRICT: xóa bài KT đã có kết quả bằng SQL trực tiếp bị CSDL từ chối (không xóa dây chuyền bài làm)."""
     with engine.connect() as c:
         assert _fk_att_exam_rule(c) == "RESTRICT"
         n1 = c.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=1")).scalar()
@@ -92,7 +90,6 @@ def test_db_rejects_deleting_exam_with_attempts(client, gv):
 
 
 def test_upgrade_fk_att_exam_cascade_to_restrict():
-    """CSDL cũ (fk_att_exam ON DELETE CASCADE) được nâng cấp sang RESTRICT; chạy lại không đổi gì."""
     with engine.begin() as c:
         c.execute(text("ALTER TABLE exam_attempts DROP FOREIGN KEY fk_att_exam"))
         c.execute(text("ALTER TABLE exam_attempts ADD CONSTRAINT fk_att_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE"))

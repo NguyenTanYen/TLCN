@@ -1,4 +1,3 @@
-"""Tải học liệu lên từ hệ thống: đăng lên khóa Moodle của nhiều lớp cùng môn, sao chép từ lớp khác (Moodle giả lập)."""
 import hashlib
 
 import pytest
@@ -15,7 +14,6 @@ HASH = hashlib.sha1(PDF).hexdigest()
 
 @pytest.fixture(scope="module")
 def sections():
-    """Lớp nguồn (khóa 50) + hai lớp cùng môn: một gắn Moodle (khóa 951), một chưa gắn."""
     db = SessionLocal()
     src = db.query(ClassSection).filter(ClassSection.moodle_course_id == 50).first()
     ids = [src.id]

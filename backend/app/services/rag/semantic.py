@@ -1,4 +1,3 @@
-"""Cổng chặn ngữ nghĩa cho gợi ý học liệu (MiniLM đa ngôn ngữ, CPU)."""
 from __future__ import annotations
 
 import logging
@@ -24,7 +23,6 @@ def model_name() -> str:
 
 
 def _load():
-    """Nạp model một lần cho cả tiến trình (~5 s, ~470 MB RAM)."""
     global _model, _loaded
     with _lock:
         if not _loaded:
@@ -44,7 +42,6 @@ def enabled() -> bool:
 
 
 def encode(texts: list[str]) -> np.ndarray | None:
-    """Vector đã chuẩn hóa (cos = tích vô hướng); None nếu cổng tắt."""
     m = _load()
     if m is None:
         return None
@@ -60,7 +57,6 @@ def unpack(b: bytes) -> np.ndarray:
 
 
 def scores(query: str, embeddings: list[bytes | None]) -> list[float] | None:
-    """cos(câu hỏi, từng đoạn ứng viên); None = không đánh giá được (cổng tắt, tiếng Việt không dấu, không có ứng viên, có ứng viên chưa có vector / vector của model khác – chưa tính lại xong) → không chặn, không lọc gì."""
     from .search import looks_english, plain
     if not embeddings or not all(embeddings) or (plain(query) and not looks_english(query)):
         return None
@@ -74,7 +70,6 @@ def scores(query: str, embeddings: list[bytes | None]) -> list[float] | None:
 
 
 def related(query: str, embeddings: list[bytes | None], threshold: float | None = None) -> bool:
-    """Câu hỏi có liên quan tới các đoạn ứng viên không: cos cao nhất ≥ ngưỡng (không đánh giá được → True)."""
     threshold = settings.rag_min_similarity if threshold is None else threshold
     s = scores(query, embeddings)
     return s is None or max(s) >= threshold
@@ -84,7 +79,6 @@ _dense_cache: dict = {}
 
 
 def _matrix(db: Session, cs_id: int):
-    """Ma trận vector đoạn của lớp (chỉ học liệu 'ready' đã tính bằng model hiện tại), nhớ tạm theo khóa học liệu."""
     name = model_name()
     mats = db.query(SectionMaterial.id, SectionMaterial.indexed_at).filter(
         SectionMaterial.class_section_id == cs_id, SectionMaterial.status == "ready",
@@ -108,7 +102,6 @@ def _matrix(db: Session, cs_id: int):
 
 
 def dense_info(db: Session, cs_id: int, query: str) -> dict:
-    """Chẩn đoán tìm theo nghĩa cho một câu hỏi: cổng bật chưa, số đoạn đã có vector, cos cao nhất và các ngưỡng đang dùng (để giảng viên / Bộ môn thấy vì sao không ra kết quả và chỉnh ngưỡng theo số đo thật)."""
     out = {"enabled": bool(enabled()), "model": model_name(), "vectors": 0, "top_cos": None,
            "gate_threshold": settings.rag_min_similarity, "search_threshold": settings.rag_search_similarity}
     if not out["enabled"]:
@@ -125,7 +118,6 @@ def dense_info(db: Session, cs_id: int, query: str) -> dict:
 
 def dense_top(db: Session, cs_id: int, query: str, k: int = 30, margin: float | None = None,
               floor: float | None = None) -> list[tuple[int, float]]:
-    """k đoạn của lớp GẦN NGHĨA nhất với câu hỏi (cos MiniLM đa ngôn ngữ) – tìm được cả khi câu hỏi tiếng Việt không có từ nào trùng với giáo trình tiếng Anh."""
     from .search import looks_english, plain
     if not query.strip() or (plain(query) and not looks_english(query)) or not enabled():
         return []
@@ -145,7 +137,6 @@ def dense_top(db: Session, cs_id: int, query: str, k: int = 30, margin: float | 
 
 
 def embed_missing(db: Session, cs_id: int) -> int:
-    """Tính vector cho các học liệu 'ready' của lớp chưa có vector (hoặc tính bằng model khác)."""
     if not enabled():
         return 0
     from .search import _doc_text

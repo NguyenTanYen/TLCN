@@ -1,4 +1,3 @@
-"""Cấu hình ứng dụng, đọc từ biến môi trường (hoặc tệp .env)."""
 import secrets
 from pathlib import Path
 
@@ -32,7 +31,6 @@ class Settings(BaseSettings):
 
     @property
     def app_db_name(self) -> str:
-        """Tên CSDL của hệ thống lấy từ DATABASE_URL (mặc định assessment_db)."""
         from urllib.parse import urlparse
         return urlparse(self.database_url.replace("mysql+pymysql", "mysql")).path.lstrip("/") or "assessment_db"
 

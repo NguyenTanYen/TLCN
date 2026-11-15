@@ -1,4 +1,3 @@
-"""Rubric chấm điểm theo tiêu chí: mỗi tiêu chí gắn một CLO, mỗi mức quy ra % điểm tối đa của tiêu chí."""
 from datetime import date
 from typing import Literal, Optional
 

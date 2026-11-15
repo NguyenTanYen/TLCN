@@ -1,4 +1,3 @@
-"""Bảng học liệu theo lớp học phần (section_materials, material_pages, material_passages) + ghi kết quả chunking."""
 import os
 
 import pymupdf

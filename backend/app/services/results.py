@@ -1,4 +1,3 @@
-"""Chạy Analysis Engine trên CSDL: ghi item_statistics, attempt_clo_results, lộ trình học, clo_results (BM6b), pi_results (BM3c) và plo_results (BM2)."""
 from __future__ import annotations
 
 import pandas as pd
@@ -15,7 +14,6 @@ def _df(db: Session, sql: str, **params) -> pd.DataFrame:
 
 
 def clo_thresholds(db: Session, class_section_id: int) -> tuple[dict[int, float], dict[int, float], dict[int, str]]:
-    """Ngưỡng đạt, chỉ tiêu và loại bài KT minh chứng của từng CLO (BM6a) cho lớp HP."""
     df = _df(db, """
         SELECT c.id AS clo_id, p.pass_threshold_pct, p.target_pct, p.evidence_type, co.clo_target_pct
         FROM class_sections cs
@@ -32,7 +30,6 @@ def clo_thresholds(db: Session, class_section_id: int) -> tuple[dict[int, float]
 
 
 def analyze_exam(db: Session, exam_id: int) -> dict:
-    """Phân tích một bài KT (UC-03 bước 5–6) rồi cập nhật các tầng tổng hợp."""
     run_id = db.execute(text("INSERT INTO sync_runs (exam_id, kind) VALUES (:e, 'analyze')"), {"e": exam_id}).lastrowid
     db.commit()
     try:
@@ -123,7 +120,6 @@ def analyze_exam(db: Session, exam_id: int) -> dict:
 
 
 def recompute_class_section(db: Session, cs_id: int) -> None:
-    """BM6b: tổng hợp từng CLO của lớp HP từ các bài KT lấy minh chứng (cộng dồn – BM6d)."""
     thr, tgt, ev = clo_thresholds(db, cs_id)
     rows = _df(db, """
         SELECT r.clo_id, e.assessment_type, COUNT(*) AS n_eval, SUM(r.is_achieved) AS n_ok
@@ -154,7 +150,6 @@ def recompute_class_section(db: Session, cs_id: int) -> None:
 
 
 def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: int | None = None) -> None:
-    """BM3c: kết quả từng PI = cộng dồn kết quả các CLO minh chứng ở môn/học kỳ kế hoạch."""
     plans = _df(db, """SELECT p.id, p.pi_id, p.course_id, p.semester_id, p.target_pct, pi.plo_id
                        FROM pi_assessment_plans p JOIN performance_indicators pi ON pi.id = p.pi_id
                        WHERE (:c IS NULL OR p.course_id = :c) AND (:s IS NULL OR p.semester_id = :s)""",
@@ -191,7 +186,6 @@ def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: i
 
 
 def recompute_plo(db: Session, plo_id: int, academic_year: str) -> None:
-    """BM3c dòng tổng + BM2: tổng hợp PLO trong năm học từ các PI đã đo."""
     counts = [(int(a), int(b)) for a, b in db.execute(text("""
         SELECT r.n_evaluated, r.n_achieved FROM pi_results r
         JOIN pi_assessment_plans p ON p.id = r.plan_id
@@ -218,7 +212,6 @@ def recompute_plo(db: Session, plo_id: int, academic_year: str) -> None:
 
 
 def reanalyze_course(db: Session, course_id: int, semester_id: int | None = None) -> int:
-    """Kế hoạch CLO (ngưỡng/chỉ tiêu/loại minh chứng) thay đổi → phân tích lại các bài KT đã phân tích của môn trong học kỳ để kết quả CLO–PI–PLO nhất quán với kế hoạch mới."""
     ids = [r[0] for r in db.execute(text("""SELECT e.id FROM exams e JOIN class_sections cs ON cs.id = e.class_section_id
                                              WHERE cs.course_id = :c AND (:s IS NULL OR cs.semester_id = :s)
                                                AND e.status = 'Analyzed' ORDER BY e.id"""), {"c": course_id, "s": semester_id})]

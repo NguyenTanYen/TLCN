@@ -1,4 +1,3 @@
-"""Kiểm tra độc lập các độ đo: tính lại từ dữ liệu bài làm gốc (item_level_results) theo đúng công thức trong báo cáo, KHÔNG dùng mã của hệ thống, rồi so với số liệu hệ thống đã lưu."""
 import math, sys
 from pathlib import Path
 import pandas as pd

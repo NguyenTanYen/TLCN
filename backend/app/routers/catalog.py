@@ -1,4 +1,3 @@
-"""Danh mục: học kỳ, CTĐT–PLO–PI, kế hoạch đo PI (BM3b), phân công, môn học–CLO, kế hoạch CLO (BM6a), lớp học phần và danh sách SV (UC-06)."""
 import csv
 import io
 import unicodedata
@@ -137,7 +136,6 @@ def assignments(semester_id: int | None = None, db: Session = Depends(get_db), _
 
 @router.post("/assignments", status_code=201)
 def create_assignment(body: AssignmentIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
-    """Phân công đánh giá PI: chọn một GV, hoặc all_supervisors = true cho môn không có GV phụ trách riêng (TLCN, KLTN)."""
     if body.all_supervisors == (body.lecturer_id is not None):
         raise HTTPException(422, "Chọn một giảng viên hoặc \"Tất cả thầy/cô có hướng dẫn\" (không chọn cả hai)")
     for t, i, msg in (("semesters", body.semester_id, "Học kỳ"), ("courses", body.course_id, "Môn học"), ("lecturers", body.lecturer_id, "Giảng viên")):
@@ -173,7 +171,6 @@ def courses(program_id: int | None = None, db: Session = Depends(get_db), _=Depe
 
 @router.get("/courses/{cid}")
 def course_detail(cid: int, semester_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
-    """Đề cương môn (CLO, ma trận CLO–PLO, kế hoạch đo) là thông tin công khai trong trường – mọi tài khoản đều xem được."""
     c = db.get(Course, cid)
     if not c:
         raise HTTPException(404, "Không tìm thấy môn học")
@@ -199,7 +196,6 @@ def course_detail(cid: int, semester_id: int | None = None, db: Session = Depend
 
 @router.post("/clos")
 def create_clo(body: CLOIn, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
-    """CLO do Bộ môn quản lý theo CTĐT – giảng viên chỉ xem (góp ý 15/10)."""
     if not db.get(Course, body.course_id):
         raise HTTPException(404, "Không tìm thấy môn học")
     if db.query(CLO).filter_by(course_id=body.course_id, clo_code=body.clo_code).first():
@@ -265,7 +261,6 @@ def section_students(cs_id: int, u: User = Depends(require("admin", "lecturer"))
 @router.post("/class-sections/{cs_id}/students/import")
 async def import_students(cs_id: int, file: UploadFile = File(...), u: User = Depends(require("admin", "lecturer")),
                           db: Session = Depends(get_db)):
-    """Nhập danh sách lớp HP từ CSV: student_code, full_name, class_name (UTF-8/UTF-8 BOM/Windows-1258; dấu , hoặc ;)."""
     check_section_access(db, u, cs_id)
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024:

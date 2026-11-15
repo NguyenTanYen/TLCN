@@ -1,4 +1,3 @@
-"""Nhập điểm thủ công / Excel (bài làm ngoài hệ thống) và gộp nhiều bài KT để đánh giá CLO, PLO (góp ý 15/10)."""
 import io
 
 from openpyxl import Workbook, load_workbook
@@ -12,7 +11,6 @@ from app.services import results
 
 @pytest.fixture(scope="module", autouse=True)
 def _cleanup():
-    """Các bài nhập điểm tạo trong tệp này bị xóa sau cùng để không ảnh hưởng kiểm thử khác (thống kê lớp, BM6…)."""
     yield
     with engine.begin() as c:
         c.execute(text("DELETE a FROM exam_attempts a JOIN exams e ON e.id=a.exam_id WHERE e.exam_type='manual' AND e.class_section_id=1"))
@@ -77,7 +75,6 @@ def test_manual_exam_grid_excel_and_analysis(client, gv, gv_other):
 
 
 def test_create_exam_from_any_excel(client, gv):
-    """Bài làm ngoài hệ thống: file Excel tự soạn – tiêu đề ghi điểm tối đa và CLO; SV lạ được ghi danh khi đồng ý."""
     codes = [r[0] for r in _q("""SELECT s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id
                                  WHERE e.class_section_id=1 ORDER BY s.student_code LIMIT 6""")]
     wb = Workbook(); ws = wb.active

@@ -1,4 +1,3 @@
-"""Sinh 03_seed_reference.sql từ dữ liệu trích xuất của biểu mẫu BM2 và bảng phân công đánh giá PIs."""
 import json, re
 d = json.load(open('bm2_extract.json', encoding='utf-8'))
 q = lambda s: "'" + str(s).replace("\\", "\\\\").replace("'", "''") + "'" if s is not None else 'NULL'

@@ -1,4 +1,3 @@
-"""UC-12: Khai báo học phần (Bộ môn; giảng viên chỉ xem học phần, chương, CLO) – môn học, đề cương (chương), CLO và ánh xạ CLO–PLO, lớp học phần."""
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -120,7 +119,6 @@ def create_course(body: CourseIn, db: Session = Depends(get_db), _=Depends(requi
 
 @router.put("/courses/{cid}")
 def update_course(cid: int, body: CourseUpd, db: Session = Depends(get_db), _=Depends(require("admin"))):
-    """Thông tin học phần (đề cương) do Bộ môn quản lý – giảng viên chỉ xem."""
     c = _course(db, cid)
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(c, k, v)
@@ -130,7 +128,6 @@ def update_course(cid: int, body: CourseUpd, db: Session = Depends(get_db), _=De
 
 @router.get("/courses/{cid}/setup")
 def course_setup(cid: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tình trạng khai báo của học phần: những bước đã xong / còn thiếu trước khi ra đề và đo CĐR."""
     _course(db, cid)
     check_course_access(db, u, cid)
     q = lambda sql: db.execute(text(sql), {"c": cid}).scalar()  # noqa: E731
@@ -238,7 +235,6 @@ def delete_clo(clo_id: int, db: Session = Depends(get_db), _=Depends(require("ad
 
 
 def _auto_provision(db: Session, cs: ClassSection) -> dict:
-    """Tạo khóa học Moodle + ghi danh GV/SV ngay khi Bộ môn tạo/phân công lớp."""
     from ..services import lms
     if not lms.configured():
         return {"status": "skipped", "message": "Chưa cấu hình kết nối Moodle – lớp chỉ có trên hệ thống"}
@@ -253,7 +249,6 @@ def _auto_provision(db: Session, cs: ClassSection) -> dict:
 
 @router.post("/class-sections/{cs_id}/moodle-provision")
 def provision_moodle_course(cs_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tạo khóa học Moodle cho lớp (nếu chưa có) và ghi danh GV phụ trách + SV đang học; gọi lại để bổ sung người còn thiếu."""
     from ..services import lms
     cs = check_section_access(db, u, cs_id)
     if not lms.configured():
@@ -329,7 +324,6 @@ def _norm(s) -> str:
 
 
 def _semester_of(ts: int) -> dict:
-    """Năm học/học kỳ chứa thời điểm ts theo lịch chuẩn: HKI 05/9–20/01, HKII 10/02–30/06, hè 01/7–31/8."""
     import datetime as dt
     d = dt.date.fromtimestamp(ts)
     y0 = d.year if d.month >= 8 else d.year - 1
@@ -352,7 +346,6 @@ def _get_or_create_semester(db: Session, s: "NewSemesterIn") -> int:
 
 
 def _sync_roster(db: Session, cs_id: int, moodle_course_id: int) -> int:
-    """Đưa SV đang ghi danh trên Moodle vào danh sách lớp HP (cùng quy tắc với thủ tục đồng bộ: khớp mdl_user.id, rồi mã SV)."""
     from ..services import moodle
     n = 0
     for r in moodle.course_roster(db, moodle_course_id):
@@ -379,7 +372,6 @@ def _need_moodle():
 
 @router.get("/moodle/my-courses")
 def my_moodle_courses(db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Khóa học trên Moodle của GV (Bộ môn: mọi khóa học) kèm lớp HP đã gắn, hoặc gợi ý môn học / học kỳ / GV để đưa vào hệ thống."""
     moodle = _need_moodle()
     rows = moodle.teacher_courses(db, None if u.role == "admin" else u.username)
     linked = {r[0]: r for r in db.execute(text("""SELECT cs.moodle_course_id, cs.id, cs.section_code, l.full_name FROM class_sections cs
@@ -417,7 +409,6 @@ def my_moodle_courses(db: Session = Depends(get_db), u: User = Depends(require("
 
 @router.post("/moodle/courses/{mid}/import", status_code=201)
 def import_moodle_course(mid: int, body: MoodleImportIn, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tạo lớp HP từ một khóa học Moodle và lấy danh sách SV đang ghi danh."""
     moodle = _need_moodle()
     if not moodle.course_exists(db, mid):
         raise HTTPException(404, f"Không có khóa học Moodle id = {mid}")
@@ -453,7 +444,6 @@ def import_moodle_course(mid: int, body: MoodleImportIn, db: Session = Depends(g
 
 @router.post("/class-sections/{cs_id}/moodle-roster")
 def refresh_roster(cs_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Cập nhật danh sách SV của lớp HP theo ghi danh hiện tại của khóa học Moodle đã gắn (chỉ thêm, không xóa)."""
     cs = check_section_access(db, u, cs_id)
     if not cs.moodle_course_id:
         raise HTTPException(422, "Lớp học phần chưa gắn khóa học Moodle")
@@ -465,7 +455,6 @@ def refresh_roster(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
 
 
 def _autolink(db: Session, u: User, cs: ClassSection) -> dict:
-    """Gắn lớp HP với khóa học Moodle có shortname/idnumber trùng mã lớp (nếu chưa gắn)."""
     from ..deps import check_moodle_course
     from ..services import moodle
     if cs.moodle_course_id:
@@ -499,7 +488,6 @@ def moodle_autolink(cs_id: int, db: Session = Depends(get_db), u: User = Depends
 
 @router.post("/courses/{cid}/moodle-sync-sections")
 def sync_course_sections(cid: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Một lần bấm cho cả môn: gắn các lớp HP (của GV) với khóa học Moodle trùng mã lớp và cập nhật danh sách SV từ Moodle."""
     _course(db, cid)
     check_course_access(db, u, cid)
     _need_moodle()

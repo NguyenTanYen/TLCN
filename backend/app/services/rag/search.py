@@ -1,4 +1,3 @@
-"""Bước 6: tìm đoạn học liệu bằng BM25 – CHỈ trong học liệu đã nạp ('ready') của MỘT lớp học phần."""
 from __future__ import annotations
 
 import logging
@@ -33,7 +32,6 @@ the a an of and or to in on for is are be by with as at from that this these tho
 
 
 def _syllable(w: str) -> str:
-    """Âm tiết → dạng chuẩn: bỏ dấu thanh, ghép ký tự Telex của dấu thanh vào cuối."""
     tone, out = "", []
     for ch in unicodedata.normalize("NFD", w):
         if ch in TONES:
@@ -47,13 +45,11 @@ STOP = frozenset(_syllable(w) for w in _STOP_TEXT.split())
 
 
 def fold(s: str) -> str:
-    """Bỏ hết dấu: dấu thanh (chữ in hoa của dạng chuẩn) và dấu nguyên âm, đ → d."""
     s = "".join(ch for ch in unicodedata.normalize("NFD", s) if not ch.isupper() and not unicodedata.combining(ch))
     return s.replace("đ", "d")
 
 
 def plain(query: str) -> bool:
-    """Câu truy vấn không có chữ nào mang dấu tiếng Việt."""
     q = query.lower()
     return fold(q) == unicodedata.normalize("NFD", q)
 
@@ -66,7 +62,6 @@ def looks_english(query: str) -> bool:
 
 
 def tokens(text: str) -> list[str]:
-    """Từ để chấm điểm: âm tiết (bỏ hư từ) + cặp âm tiết liền nhau trong cùng một cụm."""
     out: list[str] = []
     for part in _BREAK.split(unicodedata.normalize("NFC", text.lower())):
         ws = [_syllable(w) for w in _WORD.findall(part)]
@@ -86,7 +81,6 @@ class Query:
 
 
 def _weights(ws: list[str], plain_query: bool) -> tuple[list[float], list[bool]]:
-    """Trọng số từng âm tiết + có tạo cặp với âm tiết sau hay không."""
     if plain_query:
         single = [w not in STOP_PLAIN for w in ws]
         pairs = [single[i] or single[i + 1] for i in range(len(ws) - 1)]
@@ -111,7 +105,6 @@ def _phrase_terms(ws: list[str], plain_query: bool) -> Counter:
 
 
 def syllables(text: str, plain_query: bool = False) -> list[list[str]]:
-    """Các cụm (tách ở dấu câu / xuống dòng), mỗi cụm là dãy âm tiết dạng chuẩn (bỏ dấu nếu plain_query)."""
     out = []
     for part in _BREAK.split(unicodedata.normalize("NFC", text.lower())):
         ws = [_syllable(w) for w in _WORD.findall(part)]
@@ -120,7 +113,6 @@ def syllables(text: str, plain_query: bool = False) -> list[list[str]]:
 
 
 def analyze(text: str, plain_query: bool = False, synonyms=None) -> Query:
-    """Câu truy vấn → từ (kèm trọng số) + khái niệm."""
     terms: Counter[str] = Counter()
     concepts: list[frozenset[str]] = []
     for ws in syllables(text, plain_query):
@@ -153,7 +145,6 @@ def query_terms(text: str, plain_query: bool = False) -> dict[str, float]:
 
 
 def required(n: int, spec: str | None) -> int:
-    """Số khái niệm phải khớp theo minimum_should_match dạng "2<70%": câu ≤ 2 khái niệm phải khớp hết, dài hơn khớp ít nhất 70% (làm tròn xuống, tối thiểu 1)."""
     if not spec or n == 0:
         return 0
     head, pct = spec.split("<")
@@ -185,7 +176,6 @@ class Index:
         return ix
 
     def _folded(self) -> dict[str, list[tuple[int, int]]]:
-        """Gộp các từ cùng dạng bỏ dấu ("banF", "banS", "banJ" → "ban"): tần suất cộng lại theo từng văn bản."""
         if self.folded is None:
             acc: dict[str, dict[int, int]] = {}
             for t, post in self.postings.items():
@@ -196,7 +186,6 @@ class Index:
         return self.folded
 
     def score(self, query: str, k: int, synonyms=None, msm: str | None = None) -> list[tuple[int, float, list[str]]]:
-        """[(id đoạn, điểm, các từ khớp)] cao nhất trước; chỉ đoạn có khớp."""
         n = len(self.ids)
         if not n:
             return []
@@ -273,7 +262,6 @@ def _build(db: Session, cs_id: int, key: tuple) -> Index:
 
 
 def _refresh(bind, cs_id: int) -> None:
-    """Dựng lại ở nền (phiên CSDL riêng); đang có bên khác dựng thì thôi."""
     building = _building_lock(cs_id)
     if not building.acquire(blocking=False):
         return
@@ -294,7 +282,6 @@ def _building_lock(cs_id: int) -> threading.Lock:
 
 
 def section_index(db: Session, cs_id: int, wait: bool = False) -> Index:
-    """Chỉ mục BM25 của lớp."""
     key = _ready(db, cs_id)
     if (ix := _cached(cs_id, key)) is not None:
         return ix
@@ -312,12 +299,10 @@ def section_index(db: Session, cs_id: int, wait: bool = False) -> Index:
 
 
 def warm(db: Session, cs_id: int) -> None:
-    """Dựng sẵn chỉ mục của lớp sau khi học liệu đổi (luồng nạp gọi) – lần tìm sau không phải dựng."""
     section_index(db, cs_id, wait=True)
 
 
 def search(db: Session, cs_id: int, query: str, k: int = 10, msm: str | None = None, floor: float | None = None) -> list[Hit]:
-    """k đoạn học liệu của lớp khớp nhất với query (BM25 + từ điển đồng nghĩa của môn)."""
     from . import synonyms
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
             .filter(ClassSection.id == cs_id).scalar())

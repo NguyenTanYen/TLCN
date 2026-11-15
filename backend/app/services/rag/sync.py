@@ -1,4 +1,3 @@
-"""Đồng bộ học liệu của lớp học phần từ khóa học Moodle của lớp – TỰ ĐỘNG, GV không phải tick từng tệp."""
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -20,13 +19,11 @@ def new_material(cs_id: int, f: dict, material_type: str, title: str | None, use
 
 
 def delete_indexed(db: Session, material_id: int) -> None:
-    """Xóa trang + đoạn đã nạp của một học liệu – xóa đoạn TƯỜNG MINH rồi mới xóa trang (như store.save_document), không phụ thuộc ràng buộc ON DELETE CASCADE của CSDL."""
     db.query(MaterialPassage).filter_by(material_id=material_id).delete()
     db.query(MaterialPage).filter_by(material_id=material_id).delete()
 
 
 def _refresh(m: SectionMaterial, f: dict) -> bool:
-    """Cập nhật thông tin đổi được mà nội dung không đổi (đổi tên tệp, đổi tên hoạt động, chuyển chỗ)."""
     new = {"file_name": f["file_name"], "moodle_file_url": f["url"], "moodle_timemodified": f["timemodified"],
            "moodle_cmid": f["cmid"]}
     if not m.title_custom:

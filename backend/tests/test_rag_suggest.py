@@ -1,4 +1,3 @@
-"""Bước 8: SV làm sai câu nào → các trang học liệu của lớp nên đọc lại (gửi kèm kết quả về Moodle, GV xem trước)."""
 from datetime import datetime
 
 import pytest
@@ -63,7 +62,6 @@ def material():
 
 
 def _ours(pages, mid):
-    """Chỉ trang của học liệu test này (dữ liệu gửi Moodle có tên học liệu, API GV có id)."""
     return [p for p in pages if p.get("material_id") == mid or p.get("material") == "Slide sao lưu và trigger"]
 
 

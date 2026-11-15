@@ -1,4 +1,3 @@
-"""Nâng cấp CSDL assessment_db đã cài từ phiên bản trước (chạy tự động mỗi khi hệ thống khởi động, an toàn khi chạy lại)."""
 from sqlalchemy import text
 
 from .database import engine
@@ -10,7 +9,6 @@ def _col(c, table, col):
 
 
 def _ddl(name: str) -> str:
-    """Lấy câu CREATE TABLE của một bảng từ database/01_schema.sql (một nguồn duy nhất cho lược đồ)."""
     from pathlib import Path
     import re
     sql = (Path(__file__).resolve().parents[2] / "database" / "01_schema.sql").read_text(encoding="utf-8")
@@ -82,7 +80,6 @@ def _check_clause(c, table, name):
 
 
 def _upgrade_clo_pi(c, done: list) -> None:
-    """Góp ý F2a: thêm bảng clo_pi_mapping; CLO cũ (chỉ có CLO → PLO) được gắn PI tương ứng để ma trận CLO – PLO không đổi."""
     from .services.outcomes import backfill_clo_pi
     if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='clo_pi_mapping'")).scalar():
         c.execute(text(_ddl("clo_pi_mapping")))
@@ -92,7 +89,6 @@ def _upgrade_clo_pi(c, done: list) -> None:
 
 
 def _upgrade_new_tables(c, done: list) -> None:
-    """Bảng mới: đồng bộ câu hỏi theo khóa Moodle (F3), đề cương có phiên bản (F1; cột mới của course_outlines ở NEW_COLUMNS), học liệu của lớp học phần cho gợi ý đọc (RAG)."""
     for t in NEW_TABLES:
         if not c.execute(text("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:t"), {"t": t}).scalar():
             c.execute(text(_ddl(t)))
@@ -124,7 +120,6 @@ def _upgrade_new_tables(c, done: list) -> None:
 
 
 def _upgrade_v3(c, done: list) -> None:
-    """Các cột/ràng buộc của bản quản lý theo CTĐT, nhập điểm, chấm phiếu, phụ đạo."""
     for table, col, ddl in NEW_COLUMNS:
         if _col(c, table, col) is None:
             c.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
@@ -165,7 +160,6 @@ def _schema_sql() -> str:
 
 
 def load_ctdt_2026() -> int:
-    """Nạp hai CTĐT 2026 (CNTT, KTDL) nếu CSDL chưa có – chạy lại an toàn (INSERT IGNORE / không ghi đè)."""
     from pathlib import Path
     from .services.moodle import split_statements
     f = Path(__file__).resolve().parents[2] / "database" / "04_ctdt_2026.sql"

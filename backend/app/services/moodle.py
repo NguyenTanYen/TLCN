@@ -1,4 +1,3 @@
-"""Cầu nối CSDL Moodle: cài đặt view/thủ tục (database/02_moodle_bridge.sql) và gọi đồng bộ."""
 from __future__ import annotations
 
 import re
@@ -17,7 +16,6 @@ OQ_BLOCK = re.compile(r"^-- >>> offlinequiz\n.*?^-- <<< offlinequiz\n", re.S | r
 
 
 def render_bridge_sql(with_offlinequiz: bool = True, db_name: str | None = None, prefix: str | None = None) -> str:
-    """Thay tên CSDL/tiền tố Moodle; bỏ phần đọc bài thi giấy nếu Moodle chưa cài plugin Offline Quiz."""
     sql = BRIDGE_SQL.read_text(encoding="utf-8")
     if not with_offlinequiz:
         sql = OQ_BLOCK.sub("", sql)
@@ -26,7 +24,6 @@ def render_bridge_sql(with_offlinequiz: bool = True, db_name: str | None = None,
 
 
 def split_statements(sql: str) -> list[str]:
-    """Tách script có DELIMITER $$ thành các câu lệnh riêng."""
     stmts, delim, buf = [], ";", []
     for line in sql.splitlines():
         s = line.strip()
@@ -57,7 +54,6 @@ def moodle_available() -> bool:
 
 
 def offlinequiz_available() -> bool:
-    """Moodle đã cài plugin Offline Quiz (mod_offlinequiz) – nơi chấm bài thi giấy."""
     return _has_table("offlinequiz_results")
 
 
@@ -77,7 +73,6 @@ def install_bridge() -> int:
 
 
 def sync_exam(db: Session, exam_id: int) -> dict:
-    """Gọi thủ tục trên kết nối AUTOCOMMIT để nhật ký sync_runs được giữ lại cả khi thủ tục ROLLBACK."""
     db.commit()
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         conn.execute(text("CALL sp_sync_exam(:e)"), {"e": exam_id})
@@ -99,14 +94,12 @@ def course_exists(db: Session, course_id: int) -> bool:
 
 
 def activity_course(db: Session, kind: str, instance_id: int) -> int | None:
-    """Khóa học Moodle chứa Quiz (kind='quiz') hoặc Offline Quiz (kind='offlinequiz')."""
     if kind == "offlinequiz" and not offlinequiz_available():
         return None
     return db.execute(text(f"SELECT course FROM {_t(kind)} WHERE id=:i"), {"i": instance_id}).scalar()
 
 
 def is_course_teacher(db: Session, username: str, course_id: int) -> bool:
-    """Người dùng Moodle cùng tên đăng nhập có vai trò giảng viên/quản lý trong khóa học (hoặc toàn hệ thống)."""
     return bool(db.execute(text(f"""
         SELECT 1 FROM {_t('role_assignments')} ra
         JOIN {_t('user')} u ON u.id = ra.userid AND u.username = :u AND u.deleted = 0
@@ -120,7 +113,6 @@ TEACHER_ROLES = "('editingteacher', 'teacher')"
 
 
 def teacher_courses(db: Session, username: str | None) -> list[dict]:
-    """Khóa học Moodle mà `username` là giảng viên (vai trò Teacher/Non-editing teacher trong khóa học); username=None (Bộ môn): mọi khóa học."""
     where, params = "c.id <> 1", {}
     if username is not None:
         where += f""" AND EXISTS (SELECT 1 FROM {_t('role_assignments')} ra JOIN {_t('user')} u ON u.id = ra.userid AND u.deleted = 0
@@ -158,7 +150,6 @@ def teacher_courses(db: Session, username: str | None) -> list[dict]:
 
 
 def course_roster(db: Session, course_id: int) -> list[dict]:
-    """SV đang ghi danh (vai trò student) của một khóa học Moodle – cùng quy tắc mã SV với cầu nối (idnumber, nếu trống thì username)."""
     return [dict(r) for r in db.execute(text(f"""
         SELECT DISTINCT u.id AS mdl_user_id, COALESCE(NULLIF(TRIM(u.idnumber), ''), u.username) AS student_code,
                TRIM(CONCAT(u.lastname, ' ', u.firstname)) AS full_name
@@ -172,6 +163,5 @@ def course_roster(db: Session, course_id: int) -> list[dict]:
 
 
 def find_course_by_code(db: Session, code: str) -> list[int]:
-    """Khóa học Moodle có tên rút gọn (shortname) hoặc mã khóa học (idnumber) trùng mã lớp học phần."""
     return [int(r[0]) for r in db.execute(text(f"""SELECT id FROM {_t('course')} WHERE id<>1 AND (shortname=:c OR idnumber=:c)
                                                     ORDER BY id"""), {"c": code.strip()})]

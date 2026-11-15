@@ -1,4 +1,3 @@
-"""Góp ý F5: bài phụ đạo chỉ giao cho SV được chọn (giới hạn trên Moodle) và theo dõi tiến bộ trước → sau."""
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -79,7 +78,6 @@ def test_restrict_requires_moodle_accounts(client, gv, remedial):
 
 
 def test_overview_theo_chuong_va_loc_chuong(client, gv, remedial):
-    """Nhóm SV yếu gom theo chương (không theo CLO từng SV); tạo bài ôn có thể giới hạn theo chương."""
     ov = client.get(f"/api/class-sections/{remedial['cs']}/remedial", headers=gv).json()
     assert ov["chapters"] and all({"label", "n_students", "student_ids", "n_wrong"} <= set(c) for c in ov["chapters"])
     assert all("weak_chapters" in s and "weak_clos" not in s for s in ov["students"])

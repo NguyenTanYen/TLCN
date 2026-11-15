@@ -1,4 +1,3 @@
-"""Nạp học liệu (services/rag/index): đồng bộ → hàng đợi nạp → đọc PDF → chia đoạn → 'ready' / 'failed' / thử lại."""
 import contextlib
 import hashlib
 import os
@@ -56,7 +55,6 @@ def cs_id():
 
 @pytest.fixture()
 def moodle(monkeypatch):
-    """Moodle giả: tên tệp → nội dung trả về (bytes) hoặc ngoại lệ."""
     files = {}
 
     def fake_fetch(m, beat=None):

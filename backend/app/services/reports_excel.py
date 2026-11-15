@@ -1,4 +1,3 @@
-"""Xuất báo cáo đo lường CĐR theo đúng bố cục các biểu mẫu HCMUTE đang dùng."""
 from __future__ import annotations
 
 import io
@@ -63,7 +62,6 @@ def _box_range(ws, rng: str) -> None:
 
 
 def _header(ws, unit: str, last_col: int, *, left_cols: int | None = None, doc_no: str | None = None) -> None:
-    """Khối tiêu đề của mọi biểu mẫu: trường + đơn vị bên trái, quốc hiệu + ngày tháng bên phải."""
     lc = get_column_letter(last_col)
     split = left_cols or max(3, last_col // 2)
     lm, rs = get_column_letter(split), get_column_letter(split + 1)
@@ -101,7 +99,6 @@ def _row(ws, row: int, values: list, *, wrap_cols=(2,), pct_cols=(), bold=False)
 
 
 def _narratives(ws, row: int, last_col: int, items: list[tuple[str, str | None]], unit_word: str = "CĐR") -> int:
-    """Các mục nhận xét: tiêu đề in đậm + nội dung (chưa có nội dung thì in nghiêng lời hướng dẫn của biểu mẫu)."""
     lc = get_column_letter(last_col)
     for title, body in items:
         _put(ws, f"A{row}", title, bold=True, merge=f"A{row}:{lc}{row}")
@@ -126,7 +123,6 @@ def _widths(ws, widths: list[float]) -> None:
 
 
 def _print_setup(wb, landscape=True) -> None:
-    """In A4 (ngang như biểu mẫu), vừa 1 trang bề ngang."""
     for ws in wb.worksheets:
         ws.page_setup.orientation = "landscape" if landscape else "portrait"
         ws.page_setup.paperSize = ws.PAPERSIZE_A4
@@ -183,7 +179,6 @@ def exam_label(e) -> str:
 
 
 def _exam_test(db: Session, e, clo_id: int) -> dict | None:
-    """Điểm phần câu hỏi của một CLO trong một bài KT cho từng SV đã làm bài (đúng tập dữ liệu tính BM6b)."""
     pts = db.execute(text("""SELECT r.score_earned, r.score_max, r.is_achieved, a.total_score,
                                     COALESCE(st.student_code, '') AS code, COALESCE(st.full_name, '') AS name
                              FROM attempt_clo_results r JOIN exam_attempts a ON a.id = r.attempt_id
@@ -292,7 +287,6 @@ def render_bm6(d: dict) -> bytes:
 
 def _render_evidence(ws, c: dict, cs: dict, unit: str, *, with_names=False, extra: list[str] | None = None,
                      concl_suffix: str = "") -> dict | None:
-    """BM6c (1 bài KT) / BM6d (nhiều bài KT): mỗi bài một khối cột TT | Điểm câu hỏi | Điểm bài thi/KT, cách nhau 1 cột."""
     tests = c["tests"]
     blocks = []
     for t in tests:
@@ -378,7 +372,6 @@ def build_bm6(db: Session, cs_id: int) -> bytes:
 
 
 def bm6_exam_data(db: Session, exam_id: int) -> dict:
-    """Dữ liệu BM6c của MỘT bài KT: mọi CLO bài đo (kể cả CLO mà kế hoạch BM6a không lấy minh chứng từ loại bài này)."""
     e = db.execute(text("SELECT id, class_section_id FROM exams WHERE id = :e"), {"e": exam_id}).mappings().one()
     d = bm6_data(db, e["class_section_id"])
     ex = _analyzed_exams(db, e["class_section_id"], exam_id)
@@ -393,7 +386,6 @@ def bm6_exam_data(db: Session, exam_id: int) -> dict:
 
 
 def render_bm6_exam(d: dict) -> bytes:
-    """Tệp BM6c riêng cho một bài KT: sheet tổng hợp (kết quả từng CLO theo riêng bài này) + một sheet BM6c cho mỗi CLO bài đo."""
     cs, e = d["cs"], d["exam"]
     unit = cs["department"] or "Bộ môn"
     measured = [c for c in d["clos"] if c["tests"]]
@@ -436,7 +428,6 @@ def prev_next_year(year: str) -> tuple[str, str]:
 
 
 def bm2_data(db: Session, program_id: int, year: str) -> dict:
-    """Dữ liệu chung cho BM2 (Excel + Word) và BM3b/BM3c."""
     prog = dict(db.execute(text("SELECT * FROM programs WHERE id = :p"), {"p": program_id}).mappings().one())
     plos = [dict(p) for p in db.execute(text("SELECT * FROM plos WHERE program_id = :p ORDER BY group_no, id"), {"p": program_id}).mappings()]
     ids = [p["id"] for p in plos] or [0]
@@ -467,7 +458,6 @@ def bm2_data(db: Session, program_id: int, year: str) -> dict:
 
 
 def bm2_summary(d: dict) -> dict:
-    """Số liệu và nhận xét tự sinh của BM2b (dùng chung cho Excel và Word)."""
     year = d["year"]; prev, nxt = prev_next_year(year)
     target = float(d["prog"]["target_pct"])
     measured = [p for p in d["plos"] if year in p["results"]]
@@ -507,7 +497,6 @@ def bm2_summary(d: dict) -> dict:
 
 
 def _plo_head(ws, row: int, first_label: str) -> None:
-    """Tiêu đề 2 tầng: CĐR (2 cột: nhóm, mã) | Nội dung | ..."""
     ws.merge_cells(f"A{row}:B{row + 1}"); ws.merge_cells(f"C{row}:C{row + 1}")
     _put(ws, f"A{row}", first_label, bold=True, align=CENTER, box=True)
     _box_range(ws, f"A{row}:C{row + 1}")
@@ -658,7 +647,6 @@ def render_bm3(d: dict) -> bytes:
 
 
 def _plo_rows(ws, row: int, plos: list[dict], cells, *, pct_cols=(), with_row=False) -> int:
-    """Các dòng CĐR: cột A = nhóm CĐR (gộp ô theo nhóm), cột B = mã, cột C = nội dung, sau đó là cells(p)."""
     start, prev = row, None
     for p in plos:
         vals = cells(p, row) if with_row else cells(p)

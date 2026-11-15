@@ -1,4 +1,3 @@
-"""Trang Tổng quan: việc cần làm theo vai trò."""
 
 
 def test_giang_vien_thay_viec_can_lam(client, gv):

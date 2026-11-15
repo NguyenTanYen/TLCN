@@ -1,4 +1,3 @@
-"""Hồ sơ kết quả từng SV và thống kê lớp (giảng viên xem)."""
 
 
 def _analyzed_section(client, gv):

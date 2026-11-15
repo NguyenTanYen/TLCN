@@ -1,4 +1,3 @@
-"""Đề thi giấy do HỆ THỐNG sinh và chấm (không cần Moodle) – góp ý 15/10, tham khảo cách làm của TNMaker."""
 from __future__ import annotations
 
 import html
@@ -54,14 +53,12 @@ def fonts() -> dict:
 
 
 def plain(s: str) -> str:
-    """Nội dung câu hỏi (có thể là HTML từ Moodle) -> văn bản thuần."""
     s = re.sub(r"<\s*br\s*/?>|</p>", "\n", s or "", flags=re.I)
     s = re.sub(r"<[^>]+>", "", s)
     return html.unescape(s).strip()
 
 
 def para(s: str) -> str:
-    """Văn bản thuần -> markup an toàn cho Paragraph của ReportLab."""
     return html.escape(plain(s)).replace("\n", "<br/>")
 
 
@@ -104,7 +101,6 @@ def generate_versions(db: Session, exam: Exam, n_versions: int, shuffle_question
 
 
 def version_view(db: Session, version_id: int) -> list[dict]:
-    """Câu hỏi của một mã đề theo thứ tự in, phương án theo nhãn in (A, B, …) và đáp án đúng."""
     rows = db.execute(text("""SELECT vq.position, q.id AS question_id, q.content, eq.points, vo.displayed_label, o.content AS opt, o.is_correct, o.id AS option_id
                               FROM exam_version_questions vq JOIN question_bank q ON q.id=vq.question_id
                               JOIN exam_versions v ON v.id=vq.version_id
@@ -273,13 +269,11 @@ def _y(v: float) -> float:
 
 
 def _dots(c, font, size, x0: float, x1: float, y: float) -> None:
-    """Dòng chấm để điền tay từ x0 tới x1 (mm)."""
     w = c.stringWidth(".", font, size) / MM
     c.setFont(font, size); c.drawString(x0 * MM, _y(y), "." * max(1, int((x1 - x0) / w)))
 
 
 def draw_sheet(c, o: SheetOptions, L: dict, prefill: dict | None = None) -> None:
-    """Vẽ một phiếu lên canvas ReportLab."""
     from reportlab.lib.colors import Color, black
     F = fonts()
     S, SB = F["sans"], F["sansB"]
@@ -451,7 +445,6 @@ class PaperOptions:
 
 
 def _option_cols(opts: list[dict], mode: str, width_pt: float, font: str, size: float) -> int:
-    """Số cột phương án: đặt 4 (hoặc 2) phương án trên một dòng khi đủ chỗ – đo bằng độ rộng chữ thật của phông."""
     from reportlab.pdfbase.pdfmetrics import stringWidth
     if mode in ("1", "2", "4"):
         return min(int(mode), len(opts))
@@ -536,7 +529,6 @@ def exam_pdf(exam: Exam, version: dict, p: PaperOptions, semester_name: str = ""
 
 
 def exam_docx(exam: Exam, versions: list[dict], p: PaperOptions, semester_name: str = "") -> bytes:
-    """Đề thi dạng Word (sửa được trước khi in); chia 2 cột bằng section 2 cột của Word."""
     from docx import Document
     from docx.enum.section import WD_SECTION
     from docx.enum.text import WD_ALIGN_PARAGRAPH

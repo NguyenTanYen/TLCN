@@ -1,4 +1,3 @@
-"""Xác thực bằng tài khoản Moodle (chỉ đọc bảng mdl_user)."""
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +20,6 @@ def _b64(b2: int, b1: int, b0: int, n: int) -> str:
 
 
 def sha512_crypt(password: str, setting: str) -> str:
-    """Tính lại chuỗi băm theo 'setting' dạng $6$[rounds=N$]salt[$...]."""
     pw = password.encode("utf-8")
     parts = setting.split("$")
     if len(parts) < 3 or parts[1] != "6":

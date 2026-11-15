@@ -1,4 +1,3 @@
-"""Lớp học phần ⇄ Moodle: Bộ môn tạo/phân công lớp thì khóa học Moodle được tạo và GV/SV được ghi danh (không để lệch luồng)."""
 import pytest
 from sqlalchemy import bindparam, text
 

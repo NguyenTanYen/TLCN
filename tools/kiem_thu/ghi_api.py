@@ -1,4 +1,3 @@
-"""Plugin pytest: ghi lại mọi endpoint API được gọi trong lúc kiểm thử (đường dẫn mẫu, phương thức, mã trả về, ca kiểm thử)."""
 import json
 import os
 

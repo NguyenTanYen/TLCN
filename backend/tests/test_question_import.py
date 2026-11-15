@@ -1,4 +1,3 @@
-"""Nhập hàng loạt câu hỏi (Excel / Aiken / Moodle XML) và gán CLO / Bloom / chương từ file Excel."""
 import io
 
 from openpyxl import Workbook, load_workbook

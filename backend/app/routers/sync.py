@@ -1,4 +1,3 @@
-"""UC-03: Đồng bộ kết quả từ Moodle (bài online: Quiz; bài giấy: Offline Quiz đã chấm) và phân tích dữ liệu."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError

@@ -1,4 +1,3 @@
-"""Kiểm thử đồng bộ ngân hàng câu hỏi HAI CHIỀU với Moodle THẬT (cần hệ thống đang chạy, Moodle có plugin local_clo ≥ 1.3)."""
 import sys
 
 import httpx

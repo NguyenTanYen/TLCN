@@ -1,4 +1,3 @@
-"""Bài giảng tóm tắt MẪU của môn demo (Hệ quản trị CSDL – DBMS330284) dạng slide PDF – tải lên khóa học Moodle demo để có học liệu cho gợi ý "nên đọc lại ở đâu" (RAG)."""
 from __future__ import annotations
 
 import os
@@ -110,7 +109,6 @@ def _head(page, reg, bold, chapter, title):
 
 
 def _bullets(page, font: pymupdf.Font, lines: list[str], size: float = 17) -> None:
-    """Mỗi ý một gạch đầu dòng, tự xuống dòng theo bề rộng chữ đo bằng phông thật."""
     y, x0, x1 = 140, 60, W - 50
     for ln in lines:
         words, cur, rows = ln.split(), "", []

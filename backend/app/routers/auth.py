@@ -1,4 +1,3 @@
-"""Xác thực: đăng nhập tài khoản của hệ thống và đăng nhập một lần (SSO) từ nút "Phân tích CĐR" trên Moodle."""
 import html
 import json
 import os
@@ -56,7 +55,6 @@ class SSOError(Exception):
 
 
 def verify_moodle_ticket(token: str) -> dict:
-    """Kiểm tra vé JWT HS256 do plugin local_clo ký bằng khóa dùng chung."""
     if len(settings.moodle_sso_secret) < 32:
         raise SSOError("Hệ thống chưa cấu hình MOODLE_SSO_SECRET")
     try:
@@ -80,7 +78,6 @@ def verify_moodle_ticket(token: str) -> dict:
 
 
 def sso_user(db: Session, claims: dict) -> User:
-    """Tìm/khởi tạo tài khoản ứng với người dùng Moodle."""
     u = db.query(User).filter_by(username=claims["sub"]).first()
     if u:
         if not u.is_active:
@@ -119,7 +116,6 @@ h1{{font-size:20px;color:#0b3d91;margin:0 0 10px}}p{{color:#475467;line-height:1
 
 @router.get("/moodle-sso", response_class=HTMLResponse, include_in_schema=True)
 def moodle_sso(token: str, db: Session = Depends(get_db)):
-    """Đích của nút "Phân tích CĐR" trên Moodle: kiểm tra vé, cấp phiên đăng nhập rồi vào thẳng lớp học phần tương ứng."""
     try:
         claims = verify_moodle_ticket(token)
         u = sso_user(db, claims)
@@ -157,7 +153,6 @@ def moodle_sso(token: str, db: Session = Depends(get_db)):
 
 @router.post("/moodle-ticket")
 def moodle_ticket(next: str = Body("/", embed=True), u: User = Depends(current_user)):
-    """Vé đăng nhập một lần (120 giây) để mở Moodle bằng đúng tài khoản đang dùng ở hệ thống này."""
     base = (settings.moodle_url or "").rstrip("/")
     if not base:
         raise HTTPException(409, "Hệ thống chưa cấu hình địa chỉ Moodle")
