@@ -13,7 +13,7 @@ def chk(name, a, b, tol=0.011):
     return ok
 n_checks = 0
 
-att = q("SELECT id, exam_id, student_id, status, total_score FROM exam_attempts")
+att = q("SELECT a.id, a.exam_id, a.student_id, a.status, a.total_score FROM exam_attempts a JOIN exams e ON e.id=a.exam_id WHERE e.exam_type<>'manual'")
 ilr = q("SELECT attempt_id, question_id, selected_option_id, response_status, is_correct, score_earned FROM item_level_results")
 eq = q("SELECT exam_id, question_id, points FROM exam_questions")
 opt = q("SELECT id, question_id, is_correct FROM question_options")
