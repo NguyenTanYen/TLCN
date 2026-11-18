@@ -274,6 +274,8 @@ if ($canall && local_clo_can_launch($course->id)) {
     echo html_writer::div(html_writer::link(new moodle_url('/local/clo/launch.php', ['courseid' => $course->id]),
         get_string('launch', 'local_clo'), ['class' => 'btn btn-primary']), 'mb-3');
 }
+echo html_writer::div(html_writer::tag('h4', get_string('searchmaterials', 'local_clo'), ['class' => 'local-clo-card-title']) .
+    local_clo_search_form($course->id), 'local-clo-card');
 if (!$exams) {
     echo $OUTPUT->notification(get_string('noexams', 'local_clo'), 'info', false);
     echo $OUTPUT->footer();

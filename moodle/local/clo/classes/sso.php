@@ -45,6 +45,16 @@ class sso {
         return "$head.$body.$sig";
     }
 
+    public static function make_search_token(\stdClass $user, int $courseid): string {
+        global $CFG;
+        $now = time();
+        $payload = ['iss' => $CFG->wwwroot, 'aud' => 'clo-search', 'sub' => $user->username, 'courseid' => $courseid,
+            'iat' => $now, 'exp' => $now + 60];
+        $head = self::b64url(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+        $body = self::b64url(json_encode($payload));
+        return "$head.$body." . self::b64url(hash_hmac('sha256', "$head.$body", self::secret(), true));
+    }
+
     public static function verify_incoming(string $token, string $secret): array {
         $parts = explode('.', $token);
         if (count($parts) !== 3) {

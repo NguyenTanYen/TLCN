@@ -26,6 +26,35 @@ function local_clo_appurl(): string {
     return rtrim($url !== '' ? $url : 'http://localhost:8000', '/');
 }
 
+function local_clo_search_form(int $courseid, string $q = ''): string {
+    return html_writer::tag('form', html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'id', 'value' => $courseid]) .
+        html_writer::empty_tag('input', ['type' => 'search', 'name' => 'q', 'value' => $q, 'class' => 'form-control',
+            'placeholder' => get_string('searchplaceholder', 'local_clo'), 'maxlength' => 300, 'required' => 'required']) .
+        html_writer::tag('button', get_string('search'), ['type' => 'submit', 'class' => 'btn btn-primary']),
+        ['method' => 'get', 'action' => (new moodle_url('/local/clo/search.php'))->out(false), 'class' => 'local-clo-searchform']);
+}
+
+function local_clo_search_materials(int $courseid, string $q, string &$err): array {
+    global $USER, $CFG;
+    require_once($CFG->libdir . '/filelib.php');
+    try {
+        $token = \local_clo\sso::make_search_token($USER, $courseid);
+    } catch (\Throwable $e) {
+        $err = get_string('searchfail', 'local_clo');
+        return [];
+    }
+    $curl = new curl(['ignoresecurity' => true]);
+    $curl->setopt(['CURLOPT_TIMEOUT' => 25, 'CURLOPT_CONNECTTIMEOUT' => 5]);
+    $body = $curl->get(local_clo_appurl() . '/api/lms/materials/search', ['token' => $token, 'q' => $q, 'k' => 8]);
+    $code = (int)($curl->get_info()['http_code'] ?? 0);
+    $data = $code === 200 ? json_decode((string)$body) : null;
+    if (!is_array($data)) {
+        $err = get_string('searchfail', 'local_clo');
+        return [];
+    }
+    return $data;
+}
+
 function local_clo_extend_navigation_course(navigation_node $navigation, stdClass $course, context $context) {
     if ($course->id == SITEID) {
         return;
@@ -33,6 +62,10 @@ function local_clo_extend_navigation_course(navigation_node $navigation, stdClas
     if (has_any_capability(['local/clo:viewown', 'local/clo:viewall'], $context)) {
         $navigation->add(get_string('results', 'local_clo'), new moodle_url('/local/clo/results.php', ['id' => $course->id]),
             navigation_node::TYPE_CUSTOM, null, 'local_clo_results', new pix_icon('i/report', ''));
+    }
+    if (has_any_capability(['local/clo:viewown', 'local/clo:viewall'], $context)) {
+        $navigation->add(get_string('searchmaterials', 'local_clo'), new moodle_url('/local/clo/search.php', ['id' => $course->id]),
+            navigation_node::TYPE_CUSTOM, null, 'local_clo_search', new pix_icon('i/search', ''));
     }
     if (local_clo_can_launch($course->id)) {
         $navigation->add(get_string('launch', 'local_clo'), new moodle_url('/local/clo/launch.php', ['courseid' => $course->id]),

@@ -30,3 +30,6 @@
 .local-clo-wrong td{vertical-align:top}
 .local-clo-summary{cursor:pointer;font-weight:700;color:#0b3d91;margin-bottom:.5rem}
 .local-clo-answers tr[hidden]{display:none}
+.local-clo-searchform{display:flex;gap:.5rem;margin-bottom:1rem}
+.local-clo-hit{padding:.6rem 0;border-bottom:1px solid #eaecf0}
+.local-clo-hit-snippet{color:#475467;font-size:.9rem;margin-top:.2rem}
