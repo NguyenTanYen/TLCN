@@ -46,7 +46,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
 
     $score = (float)$res->score;
     $max = (float)$res->maxscore;
-    $stats = local_clo_stat(get_string('yourscore', 'local_clo'), format_float($score, 2) . ' / ' . format_float($max, 0), '',
+    $stats = local_clo_stat(get_string('scorelabel', 'local_clo'), format_float($score, 2) . ' / ' . format_float($max, 0), '',
         $max > 0 && $score >= $max / 2 ? 'good' : 'bad');
     if (isset($d->class_mean)) {
         $stats .= local_clo_stat(get_string('classavg', 'local_clo'), format_float($d->class_mean, 2), get_string('classmean_sub', 'local_clo'));
@@ -183,7 +183,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     if ($nums) {
         $t = new html_table();
         $t->attributes['class'] = 'generaltable local-clo-table local-clo-wrong';
-        $t->head = [get_string('wrongquestion', 'local_clo'), get_string('questiontext', 'local_clo'),
+        $t->head = [get_string('wrongquestion_short', 'local_clo'), get_string('questiontext', 'local_clo'),
             get_string('youranswer', 'local_clo'), get_string('rightanswer', 'local_clo'), get_string('readpages', 'local_clo')];
         foreach ($nums as $n) {
             $w = $wrongrows[$n] ?? ['', '', ''];
@@ -223,6 +223,47 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                     html_writer::tag('ul', $mods));
             }
         }
+    }
+    $ans = $d->answers ?? [];
+    if ($ans) {
+        usort($ans, fn($x, $y) => (int)$x->no <=> (int)$y->no);
+        $icons = ['correct' => ['✓', 'text-success', 'ans_correct'], 'wrong' => ['✗', 'text-danger', 'ans_wrong'],
+            'blank' => ['–', 'text-muted', 'ans_blank']];
+        $cnt = ['correct' => 0, 'wrong' => 0, 'blank' => 0];
+        $t = new html_table();
+        $t->attributes['class'] = 'generaltable local-clo-table local-clo-answers';
+        $t->head = [get_string('wrongquestion_short', 'local_clo'), get_string('chaptercol', 'local_clo'), get_string('clo', 'local_clo'),
+            get_string('level', 'local_clo'), get_string('result', 'local_clo'), get_string('score', 'local_clo'),
+            get_string('classcorrect', 'local_clo')];
+        foreach ($ans as $x) {
+            $cnt[$x->result]++;
+            $label = get_string('question_no', 'local_clo', (int)$x->no);
+            if ($attemptid) {
+                $label = html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid, 'page' => (int)$x->no - 1],
+                    'question-' . $attemptid . '-' . (int)$x->no), $label);
+            }
+            [$ic, $cls, $str] = $icons[$x->result] ?? $icons['blank'];
+            $row = new html_table_row([html_writer::tag('strong', $label), s($x->chapter ?? '–'), s($x->clos ?? '–'), s($x->bloom ?? '–'),
+                html_writer::span($ic . ' ' . get_string($str, 'local_clo'), $cls),
+                format_float($x->score, 2) . '/' . format_float($x->points, 2), isset($x->p) ? (int)$x->p . '%' : '–']);
+            $row->attributes['data-result'] = $x->result;
+            $t->data[] = $row;
+        }
+        $id = 'localcloans' . $exam->id;
+        $btns = html_writer::tag('button', get_string('all') . ' (' . count($ans) . ')', ['type' => 'button',
+            'class' => 'local-clo-tab on', 'data-f' => 'all']);
+        foreach (['wrong', 'blank', 'correct'] as $k) {
+            $btns .= html_writer::tag('button', get_string('ans_' . $k, 'local_clo') . ' (' . $cnt[$k] . ')',
+                ['type' => 'button', 'class' => 'local-clo-tab', 'data-f' => $k]);
+        }
+        $body = html_writer::div($btns, 'local-clo-tabs justify-content-start') .
+            html_writer::div(html_writer::table($t), 'local-clo-tablewrap');
+        $body .= html_writer::script("(function(){var w=document.getElementById('$id');if(!w){return;}" .
+            "w.querySelectorAll('.local-clo-tab').forEach(function(b){b.addEventListener('click',function(){" .
+            "w.querySelectorAll('.local-clo-tab').forEach(function(x){x.classList.toggle('on',x===b)});" .
+            "w.querySelectorAll('tbody tr').forEach(function(r){r.hidden=b.dataset.f!=='all'&&r.dataset.result!==b.dataset.f})})});})();");
+        $o .= html_writer::tag('details', html_writer::tag('summary', get_string('answerdetail', 'local_clo'),
+            ['class' => 'local-clo-summary']) . html_writer::div($body, '', ['id' => $id]), ['class' => 'local-clo-card']);
     }
     return $o . html_writer::end_div();
 }
