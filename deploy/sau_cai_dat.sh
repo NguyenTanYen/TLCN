@@ -37,6 +37,7 @@ $C exec -T -u www-data moodle bash -c 'mkdir -p /var/www/moodledata/lang && cd /
 $C exec -T moodle php admin/cli/cfg.php --name=lang --set=vi
 $C exec -T -u www-data moodle php local/clo/cli/vi_hoa.php
 $C exec -T moodle php admin/cli/purge_caches.php
+$C exec -T -u www-data moodle php local/clo/cli/kiem_tra_ket_qua.php
 echo "== Áp token vào app"; $C up -d app
 $C ps
 echo "XONG. Moodle: https://lms.${IP_CONG_KHAI}.sslip.io   App: https://app.${IP_CONG_KHAI}.sslip.io"
