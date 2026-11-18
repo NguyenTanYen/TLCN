@@ -182,6 +182,26 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
     wrong_by: dict[int, list] = {}
     for attempt_id, _qid, no in wrong_items(db, exam_id):
         wrong_by.setdefault(attempt_id, []).append(int(no))
+    chapters: dict[int, list] = {}
+    counts: dict[int, dict] = {}
+    for r in db.execute(text("""
+        SELECT r.attempt_id, o.chapter_number, COUNT(*) AS n, SUM(r.is_correct=1) AS ok,
+               SUM(r.response_status='blank' OR r.selected_option_id IS NULL) AS blank
+        FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+        JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
+        JOIN question_bank q ON q.id=r.question_id LEFT JOIN course_outlines o ON o.id=q.outline_id
+        WHERE a.exam_id=:e AND a.status='finished' GROUP BY r.attempt_id, o.chapter_number
+        ORDER BY r.attempt_id, o.chapter_number"""), {"e": exam_id}).mappings():
+        n, ok, blank = int(r["n"]), int(r["ok"] or 0), int(r["blank"] or 0)
+        name = f"Chương {r['chapter_number']}" if r["chapter_number"] else "Chưa gắn chương"
+        chapters.setdefault(r["attempt_id"], []).append({"name": name, "n": n, "ok": ok, "pct": round(100 * ok / n)})
+        c = counts.setdefault(r["attempt_id"], {"correct": 0, "wrong": 0, "blank": 0})
+        c["correct"] += ok
+        c["blank"] += blank
+        c["wrong"] += n - ok - blank
+    finished_scores = [float(x[0]) for x in db.execute(text(
+        "SELECT total_score FROM exam_attempts WHERE exam_id=:e AND status='finished'"), {"e": exam_id})]
+    class_mean = round(sum(finished_scores) / len(finished_scores) * float(e["max_score"]) / raw_max, 2) if finished_scores else None
     out = []
     for a in db.execute(text("""SELECT a.id, a.status, a.total_score, s.student_code, s.full_name, s.moodle_user_id
                                 FROM exam_attempts a JOIN students s ON s.id=a.student_id
@@ -191,7 +211,10 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         data = {} if absent else {"clos": radar.get(a["id"], []), "summary": p["diagnostic_summary"] if p else None,
                                   "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], []),
                                   "materials": materials.get(a["id"], []),
-                                  "wrong": sorted(set(wrong_by.get(a["id"], [])))}
+                                  "wrong": sorted(set(wrong_by.get(a["id"], []))),
+                                  "chapters": sorted(chapters.get(a["id"], []), key=lambda c: c["pct"]),
+                                  "counts": counts.get(a["id"], {"correct": 0, "wrong": 0, "blank": 0}),
+                                  "class_mean": class_mean}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
                     "score": None if absent else round(float(a["total_score"]) * float(e["max_score"]) / raw_max, 2),
