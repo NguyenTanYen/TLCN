@@ -28,3 +28,5 @@
 .local-clo-tab.on{background:#0b3d91;border-color:#0b3d91;color:#fff}
 .local-clo-pane[hidden]{display:none}
 .local-clo-wrong td{vertical-align:top}
+.local-clo-summary{cursor:pointer;font-weight:700;color:#0b3d91;margin-bottom:.5rem}
+.local-clo-answers tr[hidden]{display:none}

@@ -182,23 +182,32 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
     wrong_by: dict[int, list] = {}
     for attempt_id, _qid, no in wrong_items(db, exam_id):
         wrong_by.setdefault(attempt_id, []).append(int(no))
-    chapters: dict[int, list] = {}
-    counts: dict[int, dict] = {}
+    answers: dict[int, list] = {}
     for r in db.execute(text("""
-        SELECT r.attempt_id, o.chapter_number, COUNT(*) AS n, SUM(r.is_correct=1) AS ok,
-               SUM(r.response_status='blank' OR r.selected_option_id IS NULL) AS blank
+        SELECT r.attempt_id, COALESCE(vq.position, eq.order_index) AS no, r.is_correct, r.response_status, r.selected_option_id,
+               r.score_earned, eq.points, st.p_value, b.name_vi AS bloom,
+               (SELECT CONCAT('Chương ', o.chapter_number) FROM course_outlines o WHERE o.id=q.outline_id) AS chapter,
+               (SELECT GROUP_CONCAT(c.clo_code ORDER BY c.clo_code) FROM question_clo_mapping m JOIN clos c ON c.id=m.clo_id
+                 WHERE m.question_id=q.id) AS clos
         FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
         JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
-        JOIN question_bank q ON q.id=r.question_id LEFT JOIN course_outlines o ON o.id=q.outline_id
-        WHERE a.exam_id=:e AND a.status='finished' GROUP BY r.attempt_id, o.chapter_number
-        ORDER BY r.attempt_id, o.chapter_number"""), {"e": exam_id}).mappings():
-        n, ok, blank = int(r["n"]), int(r["ok"] or 0), int(r["blank"] or 0)
-        name = f"Chương {r['chapter_number']}" if r["chapter_number"] else "Chưa gắn chương"
-        chapters.setdefault(r["attempt_id"], []).append({"name": name, "n": n, "ok": ok, "pct": round(100 * ok / n)})
-        c = counts.setdefault(r["attempt_id"], {"correct": 0, "wrong": 0, "blank": 0})
-        c["correct"] += ok
-        c["blank"] += blank
-        c["wrong"] += n - ok - blank
+        JOIN question_bank q ON q.id=r.question_id JOIN bloom_levels b ON b.id=q.bloom_level_id
+        LEFT JOIN exam_version_questions vq ON vq.version_id=a.version_id AND vq.question_id=r.question_id
+        LEFT JOIN item_statistics st ON st.exam_id=a.exam_id AND st.question_id=q.id
+        WHERE a.exam_id=:e AND a.status='finished' ORDER BY r.attempt_id, no"""), {"e": exam_id}).mappings():
+        res = "blank" if r["response_status"] == "blank" or not r["selected_option_id"] else ("correct" if r["is_correct"] else "wrong")
+        answers.setdefault(r["attempt_id"], []).append({
+            "no": int(r["no"]), "result": res, "chapter": r["chapter"], "clos": r["clos"], "bloom": r["bloom"],
+            "score": float(r["score_earned"] or 0), "points": float(r["points"] or 0),
+            "p": None if r["p_value"] is None else round(float(r["p_value"]) * 100)})
+    chapters: dict[int, list] = {}
+    counts: dict[int, dict] = {}
+    for att, lst in answers.items():
+        by: dict[str, list] = {}
+        for x in lst:
+            by.setdefault(x["chapter"] or "Chưa gắn chương", []).append(x["result"] == "correct")
+        chapters[att] = [{"name": k, "n": len(v), "ok": sum(v), "pct": round(100 * sum(v) / len(v))} for k, v in by.items()]
+        counts[att] = {r: sum(1 for x in lst if x["result"] == r) for r in ("correct", "wrong", "blank")}
     finished_scores = [float(x[0]) for x in db.execute(text(
         "SELECT total_score FROM exam_attempts WHERE exam_id=:e AND status='finished'"), {"e": exam_id})]
     class_mean = round(sum(finished_scores) / len(finished_scores) * float(e["max_score"]) / raw_max, 2) if finished_scores else None
@@ -214,6 +223,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
                                   "wrong": sorted(set(wrong_by.get(a["id"], []))),
                                   "chapters": sorted(chapters.get(a["id"], []), key=lambda c: c["pct"]),
                                   "counts": counts.get(a["id"], {"correct": 0, "wrong": 0, "blank": 0}),
+                                  "answers": answers.get(a["id"], []),
                                   "class_mean": class_mean}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
