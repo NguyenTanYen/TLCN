@@ -8,7 +8,9 @@ $q = trim(optional_param('q', '', PARAM_TEXT));
 $course = get_course($courseid);
 require_login($course);
 $context = context_course::instance($course->id);
-require_any_capability(['local/clo:viewown', 'local/clo:viewall'], $context);
+if (!has_any_capability(['local/clo:viewown', 'local/clo:viewall'], $context)) {
+    throw new required_capability_exception($context, 'local/clo:viewown', 'nopermissions', '');
+}
 
 $PAGE->set_url(new moodle_url('/local/clo/search.php', ['id' => $course->id, 'q' => $q]));
 $PAGE->set_context($context);
