@@ -179,6 +179,9 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
                                                       "clo_description": r["description"], "chapter": chap,
                                                       "gap": float(r["gap_pct"])})
     materials = material_suggestions(db, exam_id, e["class_section_id"])
+    wrong_by: dict[int, list] = {}
+    for attempt_id, _qid, no in wrong_items(db, exam_id):
+        wrong_by.setdefault(attempt_id, []).append(int(no))
     out = []
     for a in db.execute(text("""SELECT a.id, a.status, a.total_score, s.student_code, s.full_name, s.moodle_user_id
                                 FROM exam_attempts a JOIN students s ON s.id=a.student_id
@@ -187,7 +190,8 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         p = paths.get(a["id"])
         data = {} if absent else {"clos": radar.get(a["id"], []), "summary": p["diagnostic_summary"] if p else None,
                                   "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], []),
-                                  "materials": materials.get(a["id"], [])}
+                                  "materials": materials.get(a["id"], []),
+                                  "wrong": sorted(set(wrong_by.get(a["id"], [])))}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
                     "score": None if absent else round(float(a["total_score"]) * float(e["max_score"]) / raw_max, 2),

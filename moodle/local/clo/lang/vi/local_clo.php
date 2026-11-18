@@ -72,3 +72,5 @@ $string['question_no'] = 'Câu {$a}';
 $string['wrongquestion'] = 'Câu bạn làm sai';
 $string['readpages'] = 'Trang tài liệu nên đọc lại (bấm để mở đúng trang)';
 $string['noreadings'] = 'Chưa có gợi ý trang tài liệu: giảng viên chưa nạp học liệu cho lớp này hoặc các câu sai chưa khớp được trang nào.';
+$string['wronglist'] = 'Các câu bạn làm sai';
+$string['reviewattempt'] = 'Xem lại bài làm';

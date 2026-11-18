@@ -23,6 +23,7 @@ $PAGE->navbar->add(get_string('results', 'local_clo'), new moodle_url('/local/cl
 $exams = $DB->get_records('local_clo_exam', ['courseid' => $course->id], 'timecreated DESC, id DESC');
 
 function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
+    global $DB;
     if (!$exam->published) {
         return html_writer::div(get_string('reserved', 'local_clo'), 'alert alert-warning mb-0');
     }
@@ -82,6 +83,22 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
+    }
+    $wrong = array_values(array_unique(array_map('intval', $d->wrong ?? [])));
+    sort($wrong);
+    if ($wrong) {
+        $o .= html_writer::tag('h4', get_string('wronglist', 'local_clo'), ['class' => 'h6 mt-3']);
+        $o .= html_writer::tag('p', implode(', ', array_map(fn($n) => get_string('question_no', 'local_clo', $n), $wrong)));
+    }
+    $attemptid = 0;
+    if (!empty($exam->quizid)) {
+        $attemptid = (int)$DB->get_field_sql("SELECT id FROM {quiz_attempts}
+                                               WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
+                                            ORDER BY attempt DESC", [$exam->quizid, $res->userid], IGNORE_MULTIPLE);
+    }
+    if ($attemptid) {
+        $o .= html_writer::div(html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid]),
+            get_string('reviewattempt', 'local_clo'), ['class' => 'btn btn-secondary']), 'mt-2');
     }
     $mats = $d->materials ?? [];
     usort($mats, fn($x, $y) => (int)$x->question <=> (int)$y->question);
