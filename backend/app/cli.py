@@ -446,8 +446,54 @@ def _install_bridge() -> None:
           else " (Moodle chưa có Offline Quiz: phần bài thi giấy sẽ được cài khi chạy hệ thống sau bước 3)"))
 
 
+def kiem_tra_ket_qua() -> None:
+    from .models import Exam
+    from .services import lms
+    db = SessionLocal()
+    for e in db.query(Exam).filter_by(status="Analyzed").order_by(Exam.id).all():
+        rows = [r for r in lms.student_results(db, e.id) if r["status"] == "finished"]
+        n = len(rows)
+        has = lambda k: sum(1 for r in rows if r["data"].get(k))
+        ready = db.execute(text("SELECT COUNT(*) FROM section_materials WHERE class_section_id=:c AND status='ready'"),
+                           {"c": e.class_section_id}).scalar()
+        clo_rows = db.execute(text("""SELECT COUNT(*) FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                                      WHERE a.exam_id=:e"""), {"e": e.id}).scalar()
+        print(f"Bai {e.id} '{e.exam_title}' lop {e.class_section_id}: cong bo={int(bool(e.publish_flag))}, "
+              f"moodle_course={e.class_section.moodle_course_id}, quiz={e.moodle_quiz_id}, SV={n}, "
+              f"attempt_clo_results={clo_rows}, co CLO={has('clos')}, co chuong={has('chapters')}, "
+              f"co cau sai={has('wrong')}, co hoc lieu={has('materials')}, hoc lieu san sang cua lop={ready}")
+
+
+def dong_bo_hoc_lieu() -> None:
+    from .models import ClassSection
+    from .services.rag import index, sync
+    db = SessionLocal()
+    for cs in db.query(ClassSection).filter(ClassSection.moodle_course_id.isnot(None)).order_by(ClassSection.id).all():
+        try:
+            out = sync.sync_section(db, cs, None)
+            db.commit()
+            res = index.index_pending(db, cs.id)
+            print(f"Lop {cs.id}: dong bo {({k: len(v) for k, v in out.items() if v})}, nap {res}")
+        except Exception as ex:
+            db.rollback()
+            print(f"Lop {cs.id}: LOI {ex}")
+
+
+def day_ket_qua() -> None:
+    from .models import Exam
+    from .services import lms
+    db = SessionLocal()
+    for e in db.query(Exam).filter_by(status="Analyzed", publish_flag=True).order_by(Exam.id).all():
+        if not e.class_section.moodle_course_id:
+            continue
+        try:
+            print(f"Bai {e.id}:", lms.push_results(db, e))
+        except Exception as ex:
+            print(f"Bai {e.id}: LOI {ex}")
+
+
 def main(argv: list[str]) -> None:
-    cmds = {"bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
+    cmds = {"kiem-tra-ket-qua": kiem_tra_ket_qua, "dong-bo-hoc-lieu": dong_bo_hoc_lieu, "day-ket-qua": day_ket_qua, "bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
             "simulate-moodle": simulate_moodle, "install-bridge": _install_bridge}
     if len(argv) < 2 or argv[1] not in cmds:
         print(__doc__); sys.exit(1)
