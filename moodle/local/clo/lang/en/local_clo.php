@@ -72,3 +72,5 @@ $string['question_no'] = 'Question {$a}';
 $string['wrongquestion'] = 'Question you got wrong';
 $string['readpages'] = 'Pages to read again (click to open at that page)';
 $string['noreadings'] = 'No page suggestions yet: the lecturer has not loaded materials for this class, or none of the wrong questions matched a page.';
+$string['wronglist'] = 'Questions you got wrong';
+$string['reviewattempt'] = 'Review my attempt';
