@@ -22,6 +22,15 @@ $PAGE->navbar->add(get_string('results', 'local_clo'), new moodle_url('/local/cl
 
 $exams = $DB->get_records('local_clo_exam', ['courseid' => $course->id], 'timecreated DESC, id DESC');
 
+function local_clo_card(string $title, string $body, string $extra = ''): string {
+    return html_writer::div(html_writer::tag('h4', $title, ['class' => 'local-clo-card-title']) . $body, 'local-clo-card ' . $extra);
+}
+
+function local_clo_stat(string $label, string $value, string $sub = '', string $tone = ''): string {
+    return html_writer::div(html_writer::div($label, 'local-clo-stat-l') . html_writer::div($value, 'local-clo-stat-v') .
+        ($sub !== '' ? html_writer::div($sub, 'local-clo-stat-s') : ''), 'local-clo-stat ' . $tone);
+}
+
 function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     global $DB;
     if (!$exam->published) {
@@ -32,22 +41,54 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     }
     $d = json_decode($res->data ?? '{}') ?: new stdClass();
     $clos = $d->clos ?? [];
+    $chapters = $d->chapters ?? [];
     $o = html_writer::start_div('local-clo-result');
-    $o .= html_writer::start_div('local-clo-head');
-    $o .= html_writer::div(html_writer::span(format_float($res->score, 2), 'local-clo-score') .
-        html_writer::span(' / ' . format_float($res->maxscore, 0), 'local-clo-max'), 'local-clo-scorebox');
-    $ok = count(array_filter($clos, fn($c) => !empty($c->achieved)));
-    $o .= html_writer::div($clos ? get_string('clos_achieved', 'local_clo', (object)['ok' => $ok, 'n' => count($clos)])
-        : get_string('reference', 'local_clo'), 'local-clo-sub');
-    $o .= html_writer::end_div();
+
+    $score = (float)$res->score;
+    $max = (float)$res->maxscore;
+    $stats = local_clo_stat(get_string('yourscore', 'local_clo'), format_float($score, 2) . ' / ' . format_float($max, 0), '',
+        $max > 0 && $score >= $max / 2 ? 'good' : 'bad');
+    if (isset($d->class_mean)) {
+        $stats .= local_clo_stat(get_string('classavg', 'local_clo'), format_float($d->class_mean, 2), get_string('classmean_sub', 'local_clo'));
+    }
+    if (!empty($d->counts)) {
+        $stats .= local_clo_stat(get_string('answers', 'local_clo'), get_string('n_correct', 'local_clo', (int)$d->counts->correct),
+            get_string('n_wrongblank', 'local_clo', (object)['w' => (int)$d->counts->wrong, 'b' => (int)$d->counts->blank]));
+    }
     if ($clos) {
-        $o .= html_writer::tag('h4', get_string('radar', 'local_clo'), ['class' => 'h6 mt-3']);
-        $o .= html_writer::tag('p', get_string('radar_help', 'local_clo'), ['class' => 'small text-muted']);
-        $o .= html_writer::start_div('local-clo-grid');
-        $radar = \local_clo\radar::svg($clos);
-        if ($radar) {
-            $o .= html_writer::div($radar, 'local-clo-chart');
+        $ok = count(array_filter($clos, fn($c) => !empty($c->achieved)));
+        $stats .= local_clo_stat(get_string('clo', 'local_clo'), $ok . '/' . count($clos), get_string('clos_short', 'local_clo'),
+            $ok == count($clos) ? 'good' : 'bad');
+    }
+    $o .= html_writer::div($stats, 'local-clo-stats');
+
+    $views = [];
+    if (count($clos) >= 3) {
+        $views['clo'] = ['label' => get_string('byclo', 'local_clo'), 'svg' => \local_clo\radar::svg($clos)];
+    }
+    if (count($chapters) >= 3) {
+        $rows = array_map(fn($c) => (object)['code' => $c->name, 'pct' => $c->pct], $chapters);
+        $views['chap'] = ['label' => get_string('bychapter', 'local_clo'), 'svg' => \local_clo\radar::svg($rows)];
+    }
+    if ($views) {
+        $id = 'localclo' . $exam->id;
+        $tabs = '';
+        $panes = '';
+        $first = true;
+        foreach ($views as $k => $v) {
+            $tabs .= html_writer::tag('button', $v['label'], ['type' => 'button', 'class' => 'local-clo-tab' . ($first ? ' on' : ''),
+                'data-pane' => "$id-$k"]);
+            $panes .= html_writer::div($v['svg'], 'local-clo-pane', ['id' => "$id-$k"] + ($first ? [] : ['hidden' => 'hidden']));
+            $first = false;
         }
+        $body = html_writer::tag('p', get_string('radar_help', 'local_clo'), ['class' => 'small text-muted']);
+        $body .= html_writer::div($tabs, 'local-clo-tabs') . html_writer::div($panes, 'local-clo-chart');
+        $body .= html_writer::script("document.querySelectorAll('#$id-wrap .local-clo-tab').forEach(function(b){b.addEventListener('click',function(){" .
+            "document.querySelectorAll('#$id-wrap .local-clo-tab').forEach(function(x){x.classList.toggle('on',x===b)});" .
+            "document.querySelectorAll('#$id-wrap .local-clo-pane').forEach(function(p){p.hidden=p.id!==b.dataset.pane})})});");
+        $o .= html_writer::div(local_clo_card(get_string('radar', 'local_clo'), $body), '', ['id' => "$id-wrap"]);
+    }
+    if ($clos) {
         $table = new html_table();
         $table->attributes['class'] = 'generaltable local-clo-table';
         $table->head = [get_string('clo', 'local_clo'), get_string('yourscore', 'local_clo'), get_string('target', 'local_clo'),
@@ -61,32 +102,58 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                     html_writer::span(get_string('notachieved', 'local_clo'), 'badge bg-danger'),
             ];
         }
-        $o .= html_writer::div(html_writer::table($table), 'local-clo-tablewrap');
-        $o .= html_writer::end_div();
+        $o .= local_clo_card(get_string('closresult', 'local_clo'), html_writer::div(html_writer::table($table), 'local-clo-tablewrap'));
     }
+    if ($chapters) {
+        $t = new html_table();
+        $t->attributes['class'] = 'generaltable local-clo-table';
+        $t->head = [get_string('chaptercol', 'local_clo'), get_string('nquestions', 'local_clo'), get_string('ncorrect', 'local_clo'),
+            get_string('pctcorrect', 'local_clo'), get_string('comment', 'local_clo')];
+        foreach ($chapters as $c) {
+            $badge = $c->pct < 50 ? html_writer::span(get_string('review_now', 'local_clo'), 'badge bg-danger') :
+                ($c->pct < 70 ? html_writer::span(get_string('review_more', 'local_clo'), 'badge bg-warning text-dark') :
+                html_writer::span(get_string('good', 'local_clo'), 'badge bg-success'));
+            $t->data[] = [html_writer::tag('strong', s($c->name)), (int)$c->n, (int)$c->ok, (int)$c->pct . '%', $badge];
+        }
+        $o .= local_clo_card(get_string('chapterresult', 'local_clo'), html_writer::div(html_writer::table($t), 'local-clo-tablewrap'));
+    }
+
+    $plan = '';
     if (!empty($d->summary)) {
-        $o .= html_writer::tag('h4', get_string('summary', 'local_clo'), ['class' => 'h6 mt-3']);
-        $o .= html_writer::tag('p', s($d->summary));
+        $plan .= html_writer::tag('p', html_writer::tag('strong', get_string('summary', 'local_clo') . ': ') . s($d->summary));
     }
     if (!empty($d->items)) {
-        $o .= html_writer::tag('h4', get_string('studyplan', 'local_clo'), ['class' => 'h6 mt-3']);
-        $li = '';
+        $groups = [];
         foreach ($d->items as $it) {
-            $chap = !empty($it->chapter) ? get_string('chapter', 'local_clo', s($it->chapter)) : get_string('chapterunknown', 'local_clo');
-            $li .= html_writer::tag('li', html_writer::tag('strong', $chap) . ' ' .
-                html_writer::span(get_string('gap', 'local_clo', format_float($it->gap, 1)), 'badge bg-warning text-dark'));
+            $groups[(int)$it->priority][] = $it;
         }
-        $o .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
+        ksort($groups);
+        $li = '';
+        foreach ($groups as $pr => $its) {
+            $inner = '';
+            foreach ($its as $it) {
+                $chap = !empty($it->chapter) ? s($it->chapter) : get_string('chapterunknown', 'local_clo');
+                $inner .= html_writer::tag('li', get_string('reviewagain', 'local_clo') . ' ' . html_writer::tag('strong', $chap));
+            }
+            $li .= html_writer::tag('li', html_writer::span(get_string('priority', 'local_clo', $pr), 'badge bg-warning text-dark') . ' ' .
+                html_writer::span(get_string('gap', 'local_clo', format_float($its[0]->gap, 1)), 'small text-muted') .
+                html_writer::tag('ul', $inner));
+        }
+        $plan .= html_writer::tag('ol', $li, ['class' => 'local-clo-plan']);
     } else if (!empty($d->study_plan)) {
-        $o .= html_writer::tag('p', s($d->study_plan));
+        $plan .= html_writer::tag('p', s($d->study_plan));
     }
+    if ($plan !== '') {
+        $o .= local_clo_card(get_string('studyplan', 'local_clo'), $plan);
+    }
+
     $attemptid = 0;
     if (!empty($exam->quizid)) {
         $attemptid = (int)$DB->get_field_sql("SELECT id FROM {quiz_attempts}
                                                WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
                                             ORDER BY attempt DESC", [$exam->quizid, $res->userid], IGNORE_MULTIPLE);
     }
-    $rows = [];
+    $wrongrows = [];
     if ($attemptid) {
         $uniqueid = (int)$DB->get_field('quiz_attempts', 'uniqueid', ['id' => $attemptid]);
         $frac = [];
@@ -98,74 +165,63 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         foreach ($steps as $st) {
             $frac[$st->questionattemptid] = (float)$st->fraction;
         }
-        $qas = $DB->get_records('question_attempts', ['questionusageid' => $uniqueid], 'slot');
-        foreach ($qas as $qa) {
+        foreach ($DB->get_records('question_attempts', ['questionusageid' => $uniqueid], 'slot') as $qa) {
             if (isset($frac[$qa->id]) && $frac[$qa->id] >= 0.999) {
                 continue;
             }
-            $rows[] = [(int)$qa->slot, trim((string)$qa->questionsummary), trim((string)$qa->responsesummary),
+            $wrongrows[(int)$qa->slot] = [trim((string)$qa->questionsummary), trim((string)$qa->responsesummary),
                 trim((string)$qa->rightanswer)];
         }
-    } else {
-        foreach (array_unique(array_map('intval', $d->wrong ?? [])) as $n) {
-            $rows[] = [$n, '', '', ''];
-        }
-        sort($rows);
-    }
-    if ($rows) {
-        $o .= html_writer::tag('h4', get_string('wronglist', 'local_clo') . ' (' . count($rows) . ')', ['class' => 'h6 mt-3']);
-        $t = new html_table();
-        $t->attributes['class'] = 'generaltable local-clo-wrong';
-        $t->head = [get_string('wrongquestion', 'local_clo'), get_string('questiontext', 'local_clo'),
-            get_string('youranswer', 'local_clo'), get_string('rightanswer', 'local_clo')];
-        foreach ($rows as $r) {
-            $link = $attemptid ? html_writer::link(new moodle_url('/mod/quiz/review.php',
-                ['attempt' => $attemptid, 'page' => $r[0] - 1], 'question-' . $attemptid . '-' . $r[0]),
-                get_string('question_no', 'local_clo', $r[0])) : get_string('question_no', 'local_clo', $r[0]);
-            $t->data[] = [html_writer::tag('strong', $link, ['class' => 'text-nowrap']), s(shorten_text($r[1], 160)),
-                $r[2] !== '' ? s($r[2]) : html_writer::span(get_string('notanswered', 'local_clo'), 'text-muted'),
-                html_writer::span(s($r[3]), 'text-success')];
-        }
-        $o .= html_writer::div(html_writer::table($t), 'local-clo-tablewrap');
-    }
-    if ($attemptid) {
-        $o .= html_writer::div(html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid]),
-            get_string('reviewattempt', 'local_clo'), ['class' => 'btn btn-secondary']), 'mt-2');
     }
     $mats = $d->materials ?? [];
-    usort($mats, fn($x, $y) => (int)$x->question <=> (int)$y->question);
-    $rows = '';
+    $bynum = [];
     foreach ($mats as $m) {
-        $pgs = local_clo_reading_pages([$m]);
-        if (!$pgs) {
-            continue;
-        }
-        $li = '';
-        foreach ($pgs as $p) {
-            $li .= html_writer::tag('li', local_clo_reading_line($p));
-        }
-        $rows .= html_writer::tag('tr', html_writer::tag('td', html_writer::tag('strong',
-            get_string('question_no', 'local_clo', (int)$m->question)), ['class' => 'text-nowrap']) .
-            html_writer::tag('td', html_writer::tag('ul', $li, ['class' => 'mb-0 ps-3'])));
+        $bynum[(int)$m->question] = $m;
     }
-    if ($rows !== '') {
-        $o .= html_writer::tag('h4', get_string('readings', 'local_clo'), ['class' => 'h6 mt-3']);
-        $o .= html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']);
-        $o .= html_writer::tag('table', html_writer::tag('thead', html_writer::tag('tr',
-            html_writer::tag('th', get_string('wrongquestion', 'local_clo')) .
-            html_writer::tag('th', get_string('readpages', 'local_clo')))) . html_writer::tag('tbody', $rows),
-            ['class' => 'generaltable local-clo-readings']);
-    } else if ($mats === [] && !empty($d->items)) {
-        $mods = '';
-        foreach (get_fast_modinfo($exam->courseid)->get_cms() as $cm) {
-            if (in_array($cm->modname, ['resource', 'url', 'page', 'folder', 'book']) && $cm->uservisible && $cm->url) {
-                $mods .= html_writer::tag('li', html_writer::link($cm->url, format_string($cm->name)));
+    $nums = $wrongrows ? array_keys($wrongrows) : array_values(array_unique(array_map('intval', $d->wrong ?? [])));
+    sort($nums);
+    if ($nums) {
+        $t = new html_table();
+        $t->attributes['class'] = 'generaltable local-clo-table local-clo-wrong';
+        $t->head = [get_string('wrongquestion', 'local_clo'), get_string('questiontext', 'local_clo'),
+            get_string('youranswer', 'local_clo'), get_string('rightanswer', 'local_clo'), get_string('readpages', 'local_clo')];
+        foreach ($nums as $n) {
+            $w = $wrongrows[$n] ?? ['', '', ''];
+            $label = get_string('question_no', 'local_clo', $n);
+            if ($attemptid) {
+                $label = html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid, 'page' => $n - 1],
+                    'question-' . $attemptid . '-' . $n), $label);
             }
+            $pages = '';
+            if (isset($bynum[$n])) {
+                foreach (local_clo_reading_pages([$bynum[$n]]) as $p) {
+                    $pages .= html_writer::tag('li', local_clo_reading_line($p));
+                }
+            }
+            $t->data[] = [html_writer::tag('strong', $label, ['class' => 'text-nowrap']), s(shorten_text($w[0], 200)),
+                $w[1] !== '' ? s($w[1]) : html_writer::span(get_string('notanswered', 'local_clo'), 'text-muted'),
+                html_writer::span(s($w[2]), 'text-success'),
+                $pages !== '' ? html_writer::tag('ul', $pages, ['class' => 'mb-0 ps-3']) : '–'];
         }
-        if ($mods !== '') {
-            $o .= html_writer::tag('h4', get_string('coursematerials', 'local_clo'), ['class' => 'h6 mt-3']);
-            $o .= html_writer::tag('p', get_string('coursematerials_help', 'local_clo'), ['class' => 'small text-muted']);
-            $o .= html_writer::tag('ul', $mods);
+        $body = html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']) .
+            html_writer::div(html_writer::table($t), 'local-clo-tablewrap');
+        if ($attemptid) {
+            $body .= html_writer::div(html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid]),
+                get_string('reviewattempt', 'local_clo'), ['class' => 'btn btn-primary']), 'mt-2');
+        }
+        $o .= local_clo_card(get_string('wronglist', 'local_clo') . ' (' . count($nums) . ')', $body);
+        if (!$mats) {
+            $mods = '';
+            foreach (get_fast_modinfo($exam->courseid)->get_cms() as $cm) {
+                if (in_array($cm->modname, ['resource', 'url', 'page', 'folder', 'book']) && $cm->uservisible && $cm->url) {
+                    $mods .= html_writer::tag('li', html_writer::link($cm->url, format_string($cm->name)));
+                }
+            }
+            if ($mods !== '') {
+                $o .= local_clo_card(get_string('coursematerials', 'local_clo'),
+                    html_writer::tag('p', get_string('coursematerials_help', 'local_clo'), ['class' => 'small text-muted']) .
+                    html_writer::tag('ul', $mods));
+            }
         }
     }
     return $o . html_writer::end_div();
