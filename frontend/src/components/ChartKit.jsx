@@ -1,4 +1,4 @@
-import { Bar, Scatter } from 'react-chartjs-2'
+import { Bar, Radar, Scatter } from 'react-chartjs-2'
 import '../charts'
 
 export const OK = { ok: '#0072B2', no: '#D55E00', warn: '#E69F00', neutral: '#56B4E9', ink: '#344054', target: '#101828' }
@@ -114,29 +114,19 @@ export function ItemScatter({ data, height = 360 }) {
   </figure>
 }
 
-const barLabels = {
-  id: 'barLabels',
-  afterDatasetsDraw(chart) {
-    const { ctx } = chart
-    chart.getDatasetMeta(0).data.forEach((bar, i) => {
-      const v = chart.data.datasets[0].data[i]
-      if (v == null) return
-      ctx.save(); ctx.fillStyle = '#344054'; ctx.font = "12px Georgia, 'Times New Roman', serif"; ctx.textAlign = 'center'
-      ctx.fillText(String(v), bar.x, bar.y - 8); ctx.restore()
-    })
-  },
-}
-
-export function ScoreChart({ labels, mine, avg, height = 340, mineName = 'Điểm của bạn', avgName = 'Trung bình lớp', title = 'Kết quả học tập', unit = '%' }) {
-  const ds = [{ type: 'bar', label: mineName, data: mine, backgroundColor: '#516cc6', borderWidth: 0, maxBarThickness: 120, order: 2 }]
-  if (avg) ds.push({ type: 'line', label: avgName, data: avg, borderColor: '#91cc75', backgroundColor: '#ffffff', borderWidth: 2.5, pointRadius: 5, pointBorderWidth: 2.5,
-    pointBackgroundColor: '#ffffff', pointBorderColor: '#91cc75', tension: 0, order: 1 })
+export function RadarChart({ labels, mine, avg, threshold, height = 380, mineName = 'Sinh viên', avgName = 'Trung bình lớp', thrName = 'Ngưỡng đạt' }) {
+  const wrap = t => { const out = []; let cur = ''; String(t).split(/\s+/).forEach(w => { if (cur && (cur + ' ' + w).length > 16) { out.push(cur); cur = w } else cur = cur ? cur + ' ' + w : w }); if (cur) out.push(cur); return out }
+  const ds = []
+  if (threshold) ds.push({ label: thrName, data: threshold, borderColor: '#ed7d31', backgroundColor: 'transparent', borderWidth: 2, pointStyle: 'rect', pointRadius: 5, pointBackgroundColor: '#ed7d31', pointBorderColor: '#ed7d31' })
+  if (avg) ds.push({ label: avgName, data: avg, borderColor: '#a5a5a5', backgroundColor: 'transparent', borderWidth: 2, pointStyle: 'triangle', pointRadius: 6, pointBackgroundColor: '#a5a5a5', pointBorderColor: '#a5a5a5' })
+  ds.push({ label: mineName, data: mine, borderColor: '#4472c4', backgroundColor: 'transparent', borderWidth: 2.5, pointStyle: 'rectRot', pointRadius: 6, pointBackgroundColor: '#4472c4', pointBorderColor: '#4472c4' })
   return <figure className="chart-fig">
-    <div className="chart" style={{ height }}><Bar data={{ labels, datasets: ds }} plugins={[barLabels]}
-      options={{ maintainAspectRatio: false, animation: false, layout: { padding: { top: 12 } },
-        scales: { y: { min: 0, max: 100, grid, ticks: { stepSize: 25, callback: v => `${v}${unit}` } }, x: { grid: { display: false } } },
-        plugins: { title: { display: true, text: title, color: '#333', font: { size: 18, weight: '700', family: "Georgia, 'Times New Roman', serif" } },
-          legend: { position: 'bottom', labels: { usePointStyle: true } },
-          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.formattedValue}${unit}` } } } }} /></div>
+    <div className="chart" style={{ height }}><Radar data={{ labels, datasets: ds }}
+      options={{ maintainAspectRatio: false, animation: false,
+        scales: { r: { min: 0, max: 100, beginAtZero: true, ticks: { stepSize: 20, backdropColor: 'transparent', color: OK.ink, showLabelBackdrop: false },
+          grid: { ...grid, circular: false, color: '#5f6368' }, angleLines: { ...grid, color: '#5f6368' },
+          pointLabels: { color: OK.ink, font: { size: 13 }, callback: l => wrap(l) } } },
+        plugins: { legend: { position: 'right', reverse: true, labels: { usePointStyle: true, boxWidth: 10, font: { size: 13 } } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.formattedValue}%` } } } }} /></div>
   </figure>
 }

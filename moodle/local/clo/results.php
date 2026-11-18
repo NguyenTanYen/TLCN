@@ -41,12 +41,12 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         : get_string('reference', 'local_clo'), 'local-clo-sub');
     $o .= html_writer::end_div();
     if ($clos) {
-        $o .= html_writer::tag('h4', get_string('scorechart', 'local_clo'), ['class' => 'h6 mt-3']);
-        $o .= html_writer::tag('p', get_string('scorechart_help', 'local_clo'), ['class' => 'small text-muted']);
+        $o .= html_writer::tag('h4', get_string('radar', 'local_clo'), ['class' => 'h6 mt-3']);
+        $o .= html_writer::tag('p', get_string('radar_help', 'local_clo'), ['class' => 'small text-muted']);
         $o .= html_writer::start_div('local-clo-grid');
-        $chart = \local_clo\scorechart::svg($clos);
-        if ($chart) {
-            $o .= html_writer::div($chart, 'local-clo-chart');
+        $radar = \local_clo\radar::svg($clos);
+        if ($radar) {
+            $o .= html_writer::div($radar, 'local-clo-chart');
         }
         $table = new html_table();
         $table->attributes['class'] = 'generaltable local-clo-table';
