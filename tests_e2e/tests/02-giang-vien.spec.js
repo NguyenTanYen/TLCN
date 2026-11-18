@@ -451,14 +451,14 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
     await page.getByRole('button', { name: /Thời gian làm bài/ }).click()
     await see(page, /thời gian/i)
   })
-  await test.step('Bước 5: thống kê lớp → lưới điểm (theo chương / theo CLO); bấm "Hồ sơ" một SV → điểm các bài, biểu đồ kết quả học tập, chẩn đoán & lộ trình ôn tập', async () => {
+  await test.step('Bước 5: thống kê lớp → lưới điểm (theo chương / theo CLO); bấm "Hồ sơ" một SV → điểm các bài, biểu đồ mạng nhện (radar), chẩn đoán & lộ trình ôn tập', async () => {
     await goto(page, `/sections/${cs}/stats`)
     await page.getByText('Xem thêm biểu đồ và bảng chi tiết').click()
     await see(page, 'Lưới điểm của từng sinh viên')
     await page.getByRole('button', { name: 'Theo CLO' }).first().click()
     await page.getByRole('link', { name: 'Hồ sơ' }).first().click()
     await see(page, 'Điểm các bài kiểm tra')
-    await see(page, 'Kết quả học tập')
+    await see(page, 'Biểu đồ mạng nhện')
     await see(page, 'Chẩn đoán & lộ trình ôn tập')
     await see(page, 'Câu làm sai và trang tài liệu cần đọc lại')
   })

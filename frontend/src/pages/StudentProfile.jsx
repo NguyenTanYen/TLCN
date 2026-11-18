@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Badge, Card, Loading, Stat } from '../components/ui'
-import { ScoreChart } from '../components/ChartKit'
+import { RadarChart } from '../components/ChartKit'
 import { useApi } from '../hooks'
 
 const RES = { correct: ['Đúng', 'ans-ok', '✓'], wrong: ['Sai', 'ans-bad', '✗'], blank: ['Bỏ trống', 'ans-blank', '–'] }
@@ -115,11 +115,12 @@ function Mesh({ e, byChap }) {
   const labels = useClo ? clos.map(c => c.code) : byChap.map(c => c.name)
   const mine = useClo ? clos.map(c => c.pct) : byChap.map(c => c.pct)
   const avg = useClo ? clos.map(c => c.class_avg ?? 0) : null
+  const thr = useClo ? clos.map(c => c.threshold) : null
   return (
-    <Card title="Kết quả học tập: sinh viên mạnh – yếu ở đâu" actions={[['clo', 'Theo CLO'], ['chap', 'Theo chương']].map(([k, l]) =>
+    <Card title="Biểu đồ mạng nhện (radar): sinh viên mạnh – yếu ở đâu" actions={[['clo', 'Theo CLO'], ['chap', 'Theo chương']].map(([k, l]) =>
       <button key={k} className={`chip ${(by === k || (k === 'chap' && !clos.length)) ? 'on' : ''}`} onClick={() => setBy(k)}>{l}</button>)}>
-      {labels.length < 1 ? <p className="muted">Chưa có dữ liệu {useClo ? 'CLO' : 'chương'} để vẽ biểu đồ.</p> : <div className="grid2">
-        <ScoreChart labels={labels} mine={mine} avg={avg} mineName="Sinh viên này" avgName="Trung bình lớp" />
+      {labels.length < 3 ? <p className="muted">Cần ít nhất 3 {useClo ? 'CLO' : 'chương'} để vẽ biểu đồ mạng nhện.</p> : <div className="grid2">
+        <RadarChart labels={labels} mine={mine} avg={avg} threshold={thr} mineName="Sinh viên này" />
         <div>
           <table className="tbl"><thead><tr><th>{useClo ? 'CLO' : 'Chương'}</th><th className="num-c">{useClo ? 'Mức đạt' : 'Tỷ lệ đúng'}</th>
             {useClo && <><th className="num-c">Ngưỡng</th><th className="num-c">TB lớp</th><th>Kết quả</th></>}</tr></thead>
@@ -127,7 +128,7 @@ function Mesh({ e, byChap }) {
               <td className="num-c">{c.pct}%</td><td className="num-c">{c.threshold}%</td><td className="num-c">{c.class_avg ?? '—'}%</td>
               <td>{c.achieved ? <Badge tone="green">Đạt</Badge> : <Badge tone="red">Chưa đạt</Badge>}</td></tr>)
               : byChap.map(c => <tr key={c.name}><td><b>{c.name}</b></td><td className="num-c">{c.pct}%</td></tr>)}</tbody></table>
-          <p className="muted small mt">Mỗi cột là mức đạt của sinh viên này theo {useClo ? 'chuẩn đầu ra (CLO)' : 'chương'} (0–100%); đường xanh lá là trung bình lớp{useClo ? '. Đối chiếu cột “Ngưỡng” trong bảng để biết CLO nào chưa đạt' : ''}.</p>
+          <p className="muted small mt">Mỗi trục là một {useClo ? 'chuẩn đầu ra (CLO)' : 'chương'}; càng xa tâm càng đạt cao (0–100%). Vùng xanh là sinh viên này; đường chấm xám là trung bình lớp{useClo ? '; đường nét đứt cam là ngưỡng đạt' : ''}. Trục nào lõm vào trong là phần sinh viên còn yếu.</p>
         </div>
       </div>}
     </Card>
