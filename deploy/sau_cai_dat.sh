@@ -35,6 +35,7 @@ echo "== Giao diện UTE + tiếng Việt"
 $C exec -T moodle php admin/cli/cfg.php --name=theme --set=ute
 $C exec -T -u www-data moodle bash -c 'mkdir -p /var/www/moodledata/lang && cd /var/www/moodledata/lang && [ -d vi ] || (curl -fsSL https://download.moodle.org/download.php/direct/langpack/4.5/vi.zip -o vi.zip && unzip -oq vi.zip && rm vi.zip)'
 $C exec -T moodle php admin/cli/cfg.php --name=lang --set=vi
+$C exec -T -u www-data moodle php local/clo/cli/vi_hoa.php
 $C exec -T moodle php admin/cli/purge_caches.php
 echo "== Áp token vào app"; $C up -d app
 $C ps
