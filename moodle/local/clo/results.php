@@ -80,17 +80,53 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     } else if (!empty($d->study_plan)) {
         $o .= html_writer::tag('p', s($d->study_plan));
     }
-    $wrong = array_values(array_unique(array_map('intval', $d->wrong ?? [])));
-    sort($wrong);
-    if ($wrong) {
-        $o .= html_writer::tag('h4', get_string('wronglist', 'local_clo'), ['class' => 'h6 mt-3']);
-        $o .= html_writer::tag('p', implode(', ', array_map(fn($n) => get_string('question_no', 'local_clo', $n), $wrong)));
-    }
     $attemptid = 0;
     if (!empty($exam->quizid)) {
         $attemptid = (int)$DB->get_field_sql("SELECT id FROM {quiz_attempts}
                                                WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
                                             ORDER BY attempt DESC", [$exam->quizid, $res->userid], IGNORE_MULTIPLE);
+    }
+    $rows = [];
+    if ($attemptid) {
+        $uniqueid = (int)$DB->get_field('quiz_attempts', 'uniqueid', ['id' => $attemptid]);
+        $frac = [];
+        $steps = $DB->get_records_sql("SELECT s.id, s.questionattemptid, s.fraction
+                                         FROM {question_attempt_steps} s
+                                         JOIN {question_attempts} qa ON qa.id = s.questionattemptid
+                                        WHERE qa.questionusageid = ? AND s.fraction IS NOT NULL
+                                     ORDER BY s.sequencenumber", [$uniqueid]);
+        foreach ($steps as $st) {
+            $frac[$st->questionattemptid] = (float)$st->fraction;
+        }
+        $qas = $DB->get_records('question_attempts', ['questionusageid' => $uniqueid], 'slot');
+        foreach ($qas as $qa) {
+            if (isset($frac[$qa->id]) && $frac[$qa->id] >= 0.999) {
+                continue;
+            }
+            $rows[] = [(int)$qa->slot, trim((string)$qa->questionsummary), trim((string)$qa->responsesummary),
+                trim((string)$qa->rightanswer)];
+        }
+    } else {
+        foreach (array_unique(array_map('intval', $d->wrong ?? [])) as $n) {
+            $rows[] = [$n, '', '', ''];
+        }
+        sort($rows);
+    }
+    if ($rows) {
+        $o .= html_writer::tag('h4', get_string('wronglist', 'local_clo') . ' (' . count($rows) . ')', ['class' => 'h6 mt-3']);
+        $t = new html_table();
+        $t->attributes['class'] = 'generaltable local-clo-wrong';
+        $t->head = [get_string('wrongquestion', 'local_clo'), get_string('questiontext', 'local_clo'),
+            get_string('youranswer', 'local_clo'), get_string('rightanswer', 'local_clo')];
+        foreach ($rows as $r) {
+            $link = $attemptid ? html_writer::link(new moodle_url('/mod/quiz/review.php',
+                ['attempt' => $attemptid, 'page' => $r[0] - 1], 'question-' . $attemptid . '-' . $r[0]),
+                get_string('question_no', 'local_clo', $r[0])) : get_string('question_no', 'local_clo', $r[0]);
+            $t->data[] = [html_writer::tag('strong', $link, ['class' => 'text-nowrap']), s(shorten_text($r[1], 160)),
+                $r[2] !== '' ? s($r[2]) : html_writer::span(get_string('notanswered', 'local_clo'), 'text-muted'),
+                html_writer::span(s($r[3]), 'text-success')];
+        }
+        $o .= html_writer::div(html_writer::table($t), 'local-clo-tablewrap');
     }
     if ($attemptid) {
         $o .= html_writer::div(html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid]),
@@ -120,7 +156,17 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
             html_writer::tag('th', get_string('readpages', 'local_clo')))) . html_writer::tag('tbody', $rows),
             ['class' => 'generaltable local-clo-readings']);
     } else if ($mats === [] && !empty($d->items)) {
-        $o .= html_writer::tag('p', get_string('noreadings', 'local_clo'), ['class' => 'small text-muted mt-3']);
+        $mods = '';
+        foreach (get_fast_modinfo($exam->courseid)->get_cms() as $cm) {
+            if (in_array($cm->modname, ['resource', 'url', 'page', 'folder', 'book']) && $cm->uservisible && $cm->url) {
+                $mods .= html_writer::tag('li', html_writer::link($cm->url, format_string($cm->name)));
+            }
+        }
+        if ($mods !== '') {
+            $o .= html_writer::tag('h4', get_string('coursematerials', 'local_clo'), ['class' => 'h6 mt-3']);
+            $o .= html_writer::tag('p', get_string('coursematerials_help', 'local_clo'), ['class' => 'small text-muted']);
+            $o .= html_writer::tag('ul', $mods);
+        }
     }
     return $o . html_writer::end_div();
 }
