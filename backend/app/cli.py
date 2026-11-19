@@ -464,6 +464,20 @@ def kiem_tra_ket_qua() -> None:
               f"co cau sai={has('wrong')}, co hoc lieu={has('materials')}, hoc lieu san sang cua lop={ready}")
 
 
+def kiem_tra_gan_clo_pi() -> None:
+    db = SessionLocal()
+    rows = db.execute(text("""
+        SELECT co.course_code, c.clo_code, l.program_id, l.plo_code, p.pi_code,
+               EXISTS(SELECT 1 FROM pi_courses x WHERE x.pi_id=p.id AND x.course_id=c.course_id) AS in_matrix
+        FROM clo_pi_mapping m JOIN clos c ON c.id=m.clo_id JOIN courses co ON co.id=c.course_id
+        JOIN performance_indicators p ON p.id=m.pi_id JOIN plos l ON l.id=p.plo_id
+        ORDER BY co.course_code, l.program_id, c.clo_code""")).all()
+    bad = [r for r in rows if not r.in_matrix]
+    for r in bad:
+        print(f"{r.course_code} {r.clo_code} -> {r.plo_code}/{r.pi_code} (chuong trinh {r.program_id}): PI khong nam trong ma tran PI-hoc phan")
+    print(f"Tong {len(rows)} lien ket CLO-PI, lech ma tran: {len(bad)}")
+
+
 def dong_bo_hoc_lieu() -> None:
     from .models import ClassSection
     from .services.rag import index, sync
@@ -493,7 +507,7 @@ def day_ket_qua() -> None:
 
 
 def main(argv: list[str]) -> None:
-    cmds = {"kiem-tra-ket-qua": kiem_tra_ket_qua, "dong-bo-hoc-lieu": dong_bo_hoc_lieu, "day-ket-qua": day_ket_qua, "bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
+    cmds = {"kiem-tra-ket-qua": kiem_tra_ket_qua, "dong-bo-hoc-lieu": dong_bo_hoc_lieu, "kiem-tra-gan-clo-pi": kiem_tra_gan_clo_pi, "day-ket-qua": day_ket_qua, "bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
             "simulate-moodle": simulate_moodle, "install-bridge": _install_bridge}
     if len(argv) < 2 or argv[1] not in cmds:
         print(__doc__); sys.exit(1)

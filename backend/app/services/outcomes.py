@@ -46,6 +46,8 @@ INSERT IGNORE INTO clo_pi_mapping (clo_id, pi_id, level)
 SELECT m.clo_id,
        COALESCE((SELECT MIN(pl.pi_id) FROM pi_plan_clos pc JOIN pi_assessment_plans pl ON pl.id = pc.plan_id
                  JOIN performance_indicators pi ON pi.id = pl.pi_id WHERE pc.clo_id = m.clo_id AND pi.plo_id = m.plo_id),
+                (SELECT MIN(pi.id) FROM performance_indicators pi JOIN pi_courses pc2 ON pc2.pi_id = pi.id
+                 WHERE pi.plo_id = m.plo_id AND pc2.course_id = c.course_id),
                 (SELECT MIN(pi.id) FROM performance_indicators pi WHERE pi.plo_id = m.plo_id)),
        m.level
 FROM clo_plo_mapping m JOIN clos c ON c.id = m.clo_id
