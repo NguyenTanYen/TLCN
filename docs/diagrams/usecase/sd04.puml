@@ -18,8 +18,8 @@ AN --> UI : dữ liệu các tab
 GV -> UI : mở "Kết quả CĐR" của lớp
 UI -> AN : GET /api/class-sections/{cs}/clo-results
 AN -> DB : clo_results ⋈ clo_assessment_plans ⋈ clos;\nv_course_clo_summary (dòng tổng)
-AN --> UI : BM6a + BM6b
-opt sửa kế hoạch CLO (BM6a)
+AN --> UI : kế hoạch đánh giá CLO + kết quả CLO môn học
+opt sửa kế hoạch CLO (kế hoạch đánh giá CLO)
   GV -> UI : ngưỡng, chỉ tiêu, loại minh chứng
   UI -> CA : PUT /api/clo-plans
   CA -> DB : upsert clo_assessment_plans
@@ -28,13 +28,13 @@ end
 GV -> UI : "Minh chứng" một CLO
 UI -> AN : GET .../clo-results/{clo}/evidence
 AN -> DB : điểm CLO từng SV theo từng bài KT;\ncâu đo CLO sắp theo DI
-AN --> UI : BM6c / BM6d
+AN --> UI : minh chứng CLO (một bài / nhiều bài)
 GV -> UI : nhập đánh giá, hành động cải tiến
 UI -> AN : PUT .../clo-results/{clo} {analysis, improvement}
 AN -> DB : UPDATE clo_results
-GV -> UI : "Xuất BM6"
+GV -> UI : "Xuất báo cáo CLO"
 UI -> RP : GET /api/reports/class-sections/{cs}/bm6.xlsx
 RP -> DB : kế hoạch, kết quả, minh chứng
-RP -> RP : build_bm6(): BM6a, BM6b, mỗi CLO 1 trang\nBM6c (1 bài) / BM6d (nhiều bài), COUNTIF
+RP -> RP : build_bm6(): kế hoạch, kết quả CLO môn học, mỗi CLO 1 trang\nminh chứng (1 bài / nhiều bài), COUNTIF
 RP --> UI : tệp .xlsx
 @enduml

@@ -5,7 +5,7 @@ start
 :Mở "Tổng hợp PLO", chọn năm học;
 |Hệ thống|
 :Đọc 19 PLO ⟕ plo_results của năm học;
-:Tính tỷ lệ toàn CTĐT = Σ đạt / Σ đánh giá\ncủa các PLO đã đo (BM2);
+:Tính tỷ lệ toàn CTĐT = Σ đạt / Σ đánh giá\ncủa các PLO đã đo;
 |Bộ môn|
 :Xem biểu đồ PLO đã đo so với chỉ tiêu và bảng tất cả PLO;
 if (Kết quả cũ (đã sửa kế hoạch/phân tích lại)?) then (có)
@@ -22,9 +22,9 @@ if (PLO có kết quả trong năm?) then (không)
 endif
 :Lưu nhận xét vào plo_results;
 |Bộ môn|
-:Nhấn "Xuất BM2/BM3";
+:Nhấn "Xuất báo cáo CĐR chương trình";
 |Hệ thống|
-:Sinh trang BM2 tổng hợp; BM3b và BM3c\ncho mỗi PLO đã đo;
+:Sinh trang tổng hợp CĐR chương trình; kế hoạch\nvà kết quả PI cho mỗi PLO đã đo;
 |Bộ môn|
 :Tải tệp .xlsx, nộp báo cáo;
 stop

@@ -2,39 +2,30 @@
 !include ../sdstyle.iuml
 actor "Giảng viên" as GV
 boundary "ExamDetail\n(PaperFlow)" as UI
-control "lms router\n+ lms service" as L
+control "paper_exam router" as R
+participant "paper service" as P
 database "assessment_db" as DB
-participant "Moodle WS\n(local_clo)" as WS
-participant "Offline Quiz\n(mod_offlinequiz)" as OQ
-database "moodle_db /\nmoodledata" as MDB
-GV -> UI : số mã đề, xáo câu/PA, định dạng, lời dẫn;\n"Tạo đề thi giấy trên Moodle"
-UI -> L : POST /api/exams/{id}/moodle/create-offlinequiz
-L -> DB : bài giấy? có câu? chưa có Offline Quiz?
-alt sai hình thức / chưa có câu
-  L --> UI : 422
-else đã có Offline Quiz
-  L --> UI : 409
-else
-  L -> WS : local_clo_create_offlinequiz\n(courseid, examref, xml, numgroups, shuffle…, fileformat)
-  WS -> MDB : start_delegated_transaction
-  WS -> MDB : question_importer (dùng lại QB-n)
-  WS -> OQ : create_module(offlinequiz, numgroups)
-  loop mỗi mã đề A, B, …
-    WS -> OQ : thêm câu với điểm của đề (xáo nếu chọn)
-    WS -> OQ : force_current_language(vi);\ncreate_pdf_question / answer / correction
+GV -> UI : số mã đề, xáo câu/phương án;\n"Sinh mã đề"
+UI -> R : POST /api/exams/{id}/paper/versions
+R -> P : generate_versions(exam, n_versions,\nshuffle_questions, shuffle_options, seed)
+P -> DB : bài giấy? chưa dùng Offline Quiz?\nchưa có kết quả chấm? mọi câu trắc nghiệm 2–6 phương án?
+alt vi phạm điều kiện
+  P --> R : PaperError
+  R --> UI : 409 + lý do
+else hợp lệ
+  loop mỗi mã đề 01, 02, …
+    P -> DB : exam_versions; exam_version_questions (vị trí câu, xáo nếu chọn)
+    P -> DB : exam_version_options (nhãn in A–F của từng phương án)
   end
-  OQ -> MDB : lưu tệp đề, phiếu, đáp án
-  WS -> MDB : local_clo_exam.offlinequizid; commit
-  WS --> L : {offlinequizid, cmid, groups, files[]}
-  L -> DB : moodle_offlinequiz_id; status = Published
-  L --> UI : 200 {nhóm đề, danh sách tệp}
+  R -> DB : status = Published; commit
+  R --> UI : 200 {versions}
 end
-== Tải đề / phiếu để in ==
-GV -> UI : "Tải tất cả (.zip)" hoặc từng tệp
-UI -> L : GET .../moodle/offlinequiz/files.zip
-L -> WS : local_clo_get_offlinequiz → danh sách tệp
-loop mỗi tệp trong danh sách
-  L -> MDB : webservice/pluginfile.php?token=… (tải tệp)
-end
-L --> UI : tệp .zip (đề, phiếu trả lời, đáp án theo mã đề)
+== Xem trước, tải đề và phiếu để in ==
+GV -> UI : xem trước từng mã đề; sửa câu; chỉnh phiếu trả lời
+UI -> R : GET .../paper/exam.pdf?version=…\nPUT .../paper/settings
+R -> P : dựng đề, phiếu, đáp án theo mã đề
+R --> UI : tệp xem trước / đã lưu thiết lập
+GV -> UI : "Tải gói .zip"
+UI -> R : GET .../paper/package.zip
+R --> UI : .zip (đề từng mã, phiếu trả lời, đáp án)
 @enduml

@@ -35,15 +35,11 @@ if (Hình thức?) then (trực tuyến)
   :SV làm bài, Moodle tự chấm;
 else (trên giấy)
   |Hệ thống|
-  :Sinh Moodle XML; gọi Web Service\nlocal_clo_create_offlinequiz (số mã đề, xáo trộn);
-  |Moodle LMS|
-  :Offline Quiz: nhập câu hỏi, tạo N mã đề,\nsinh đề in, phiếu trả lời, đáp án (PDF/DOCX);
-  |Hệ thống|
-  :Lưu moodle_offlinequiz_id;\nchuyển tệp đề/phiếu cho GV tải (.zip);
+  :Sinh N mã đề (xáo câu và phương án);\nxuất đề, phiếu trả lời, đáp án (PDF/Word);
   |Giảng viên|
-  :In đề & phiếu, tổ chức thi;\nquét phiếu, tải ảnh lên Moodle;
-  |Moodle LMS|
-  :Nhận diện MSSV, mã đề, ô đánh dấu;\nchấm điểm (offlinequiz_results);
+  :In đề & phiếu, tổ chức thi;\nquét hoặc chụp phiếu, tải ảnh lên hệ thống;
+  |Hệ thống|
+  :Chấm phiếu (OMR): nhận diện MSSV, mã đề,\nô đánh dấu; GV soát phiếu lỗi;
 endif
 |Hệ thống|
 :Trạng thái bài KT = Published;

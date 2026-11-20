@@ -23,22 +23,18 @@ if (Câu khác môn, đã Hủy\nhoặc chưa gán CLO?) then (có)
 endif
 :Lưu bài KT (Draft);
 |Giảng viên|
-:Chọn số mã đề, xáo câu/PA,\nđịnh dạng; "Tạo đề thi giấy";
+:Chọn số mã đề (1–8), xáo câu/phương án;\n"Sinh mã đề";
 |Hệ thống|
-if (Đã có Offline Quiz?) then (có)
-  :409;
+if (Bài đã có kết quả chấm, có câu không\nphải trắc nghiệm, hoặc câu ngoài 2–6 phương án?) then (có)
+  :409 – nêu lý do;
   stop
 endif
-:Sinh Moodle XML;\ngọi create_offlinequiz;
-|Moodle LMS|
-:Tạo Offline Quiz, mã đề;\nsinh đề, phiếu trả lời,\nđáp án (1 giao dịch);
-|Hệ thống|
-if (Lỗi Web Service /\nchưa cài Offline Quiz?) then (có)
-  :502 + hướng dẫn;
-  stop
-endif
-:Lưu moodle_offlinequiz_id;\nPublished; liệt kê tệp;
+:Sinh mã đề 01, 02, …: lưu exam_versions,\nexam_version_questions, exam_version_options;\nđáp án theo từng mã đề; bài KT → Published;
 |Giảng viên|
-:Tải đề, phiếu (.zip);\nin và tổ chức thi;
+:Xem trước từng mã đề (trang A4, 1 hoặc 2 cột);\nsửa câu, chỉnh phiếu trả lời (số chữ số MSSV, mã đề);
+|Hệ thống|
+:Xuất đề PDF/Word, phiếu trả lời,\nđáp án, gói .zip;
+|Giảng viên|
+:In đề và phiếu; tổ chức thi;
 stop
 @enduml

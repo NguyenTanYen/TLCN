@@ -19,24 +19,18 @@ if (Hình thức?) then (trực tuyến)
   :Reverse Shuffle: _order + answer\n→ phương án gốc;
 else (trên giấy)
   |Giảng viên|
-  :Nhấn "Đồng bộ & phân tích";
+  :Hoàn tất chấm phiếu (UC-03b);
   |Hệ thống|
-  :Web Service local_clo_process_scans:\nMoodle chấm ngay các phiếu còn chờ;
-  if (Moodle đã chấm được phiếu nào?) then (chưa)
-    :Báo "Moodle chưa chấm phiếu nào";
-    stop
-  endif
-  :sp_sync_exam: đọc offlinequiz_results đã chấm\n(kết quả mới nhất, mã đề A/B/C…);
-  :Reverse Shuffle theo _order của mã đề\n→ phương án gốc;
+  :Mỗi phiếu đã chấm theo đáp án của mã đề:\nkết quả từng câu gắn về câu gốc;
 endif
 :Ghi exam_attempts, item_level_results\n(answered / blank / absent);
-:Analysis Engine (Pandas): p, DI (Kelley 27%),\nđiểm CLO từng SV (BM6c);
-:Tổng hợp CLO lớp HP (BM6b/6d) → PI (BM3c) → PLO (BM2);
+:Analysis Engine (Pandas): p, DI (Kelley 27%),\nđiểm CLO từng SV (minh chứng CLO);
+:Tổng hợp CLO lớp HP (kết quả CLO môn học) → PI → PLO;
 :Sinh lộ trình ôn tập cho SV chưa đạt CLO;
 |Giảng viên|
 :Xem phổ điểm, chỉ số câu hỏi, kết quả CLO,\nminh chứng; ghi nhận xét & cải tiến;
 fork
-  :Xuất BM6 (.xlsx);
+  :Xuất báo cáo CLO môn học (.xlsx);
 fork again
   :Công bố kết quả lên Moodle;
   |Hệ thống|
@@ -47,7 +41,7 @@ fork again
   :Trên Moodle: xem radar CLO so với\nngưỡng & TB lớp, lộ trình ôn tập;
 fork again
   |Bộ môn|
-  :Xem tổng hợp PLO năm học,\nnhập nhận xét, xuất BM2/BM3;
+  :Xem tổng hợp PLO năm học,\nnhập nhận xét, xuất báo cáo CĐR chương trình,\nbáo cáo PI/PLO;
 end fork
 stop
 @enduml

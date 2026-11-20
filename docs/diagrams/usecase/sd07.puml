@@ -25,10 +25,10 @@ else
   RP -> DB : UPDATE plo_results (analysis, improvement_actions,\nimprovement_results, evidence_tools)
   RP --> UI : 200
 end
-BM -> UI : "Xuất BM2/BM3"
+BM -> UI : "Xuất báo cáo CĐR chương trình"
 UI -> RP : GET /api/reports/programs/{pid}/bm3.xlsx?academic_year
 RP -> XL : build_bm3()
 XL -> DB : PLO, PI, kế hoạch, kết quả, nhận xét
-XL -> XL : trang BM2 tổng hợp; BM3b + BM3c mỗi PLO đã đo
+XL -> XL : trang tổng hợp CĐR chương trình; kế hoạch + kết quả PI mỗi PLO đã đo
 XL --> UI : tệp .xlsx
 @enduml

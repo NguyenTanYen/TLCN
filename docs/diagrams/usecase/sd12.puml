@@ -42,7 +42,7 @@ else sửa CLO
   CR --> UI : 200 / 409 / 422
 end
 UI -> CR : GET /api/courses/{cid}/setup
-CR -> DB : đếm lớp HP, chương, CLO chưa ánh xạ,\nkế hoạch BM6a, câu hỏi đã gán
+CR -> DB : đếm lớp HP, chương, CLO chưa ánh xạ,\nkế hoạch đánh giá CLO, câu hỏi đã gán
 CR --> UI : steps[5], ready
 opt xóa chương / CLO / lớp HP
   UI -> CR : DELETE ...
