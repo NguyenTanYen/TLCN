@@ -1,9 +1,3 @@
-"""Bài kiểm tra nhập điểm (tự luận, thực hành, đồ án, bài làm ngoài hệ thống…).
-
-Mỗi câu/ý chấm tay là một dòng question_bank (question_type = 'manual') gắn CLO bằng question_clo_mapping như câu trắc nghiệm,
-nên toàn bộ Analysis Engine (độ khó/độ phân biệt nhiều mức điểm, điểm CLO từng SV, BM6, PI/PLO, lộ trình ôn tập) dùng lại nguyên vẹn.
-Điểm từng SV ghi vào exam_attempts (source = 'manual') và item_level_results (response_status = 'graded').
-"""
 from __future__ import annotations
 
 import io
@@ -30,7 +24,6 @@ def _nfc(s) -> str:
 
 
 def _num(v):
-    """'7,5' / 7.5 / '' -> float | None."""
     if v is None:
         return None
     if isinstance(v, (int, float)):
@@ -44,9 +37,7 @@ def _num(v):
         raise GradeError(f"'{v}' không phải là điểm")
 
 
-# ------------------------------------------------------------------ tạo bài nhập điểm
 def add_items(db: Session, exam: Exam, course_id: int, items: list[dict], user_id: int | None) -> None:
-    """items: [{title, points, clos: [{clo_id, weight}], outline_id?, bloom_level_id?}] – thêm vào cuối đề."""
     clo_ids = {r[0] for r in db.execute(text("SELECT id FROM clos WHERE course_id=:c"), {"c": course_id})}
     start = len(exam.questions)
     for i, it in enumerate(items, start + 1):
@@ -100,10 +91,6 @@ def gradebook(db: Session, exam: Exam) -> dict:
 
 
 def save_grades(db: Session, exam: Exam, rows: list[dict]) -> dict:
-    """rows: [{student_id, absent: bool, scores: {question_id: điểm|None}}]
-    - absent = true -> lượt 'absent' (không tính vào mẫu số);
-    - mọi ô trống và không vắng -> xóa điểm của SV (chưa nhập);
-    - còn lại: ô trống tính 0 điểm."""
     items = {i["question_id"]: i for i in items_of(db, exam.id)}
     if not items:
         raise GradeError("Bài kiểm tra chưa có câu/ý để nhập điểm")
@@ -147,14 +134,12 @@ def save_grades(db: Session, exam: Exam, rows: list[dict]) -> dict:
     return {"saved": n_saved, "absent": n_abs, "cleared": n_cleared, "n_finished": n_fin}
 
 
-# ------------------------------------------------------------------ Excel
 THIN = Side(style="thin", color="999999")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 HEAD = PatternFill("solid", fgColor="DCE6F1")
 
 
 def template_xlsx(db: Session, exam: Exam) -> bytes:
-    """Bảng điểm mẫu của bài: MSSV, Họ tên, Vắng, mỗi câu/ý một cột (dòng 2: điểm tối đa, dòng 3 ẩn: mã câu QB-n)."""
     gb = gradebook(db, exam)
     wb = Workbook()
     ws = wb.active
@@ -226,12 +211,9 @@ def _find_header(ws):
 
 
 def parse_sheet(data: bytes) -> dict:
-    """Đọc bảng điểm Excel bất kỳ: dòng tiêu đề có MSSV; các cột còn lại có số là câu/ý (trừ STT, Tổng, Ghi chú…).
-    Điểm tối đa: dòng 'Điểm tối đa'/'Max' ngay dưới tiêu đề, hoặc ghi trong tiêu đề '(2đ)', '/2'; CLO: '[CLO1, CLO2]' hoặc dòng 'CLO'.
-    Dòng ẩn '#key' (bảng điểm mẫu của hệ thống) chứa mã câu QB-n."""
     try:
         wb = load_workbook(io.BytesIO(data), data_only=True)
-    except Exception as ex:   # noqa: BLE001
+    except Exception as ex:
         raise GradeError(f"Không đọc được file Excel (.xlsx): {ex}")
     ws = wb.worksheets[0]
     hr, head = _find_header(ws)
@@ -291,6 +273,5 @@ def parse_sheet(data: bytes) -> dict:
                 raise GradeError(f"Dòng {r}, cột \"{meta[i]['header']}\": '{vals[i]}' không phải là điểm")
         students.append({"row": r, "student_code": code[:100], "full_name": _nfc(vals[ci_name])[:100] if ci_name is not None else "",
                          "absent": absent, "scores": sc})
-    # bỏ cột không có số nào (cột chữ khác)
     used = [i for i in item_cols if meta[i]["key"] or meta[i]["points"] or any(s["scores"].get(i) is not None for s in students)]
     return {"items": [meta[i] for i in used], "students": [{**s, "scores": {i: s["scores"][i] for i in used}} for s in students]}

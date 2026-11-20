@@ -1,11 +1,3 @@
-"""UC-01 (mở rộng): nhập hàng loạt câu hỏi và gán CLO / Bloom / chương từ file.
-
-Định dạng câu hỏi được hỗ trợ:
-- Excel (.xlsx) / CSV theo mẫu: Nội dung | A | B | C | D ... | Đáp án | (Chương | Bloom | CLO – tùy chọn)
-- Aiken (.txt hoặc Word .docx): câu hỏi, các dòng "A. ...", dòng "ANSWER: B" – định dạng Moodle cũng dùng
-- Moodle XML (.xml): câu hỏi multichoice một đáp án (xuất từ ngân hàng câu hỏi Moodle)
-Chương / Bloom / CLO có thể để trống lúc nhập rồi gán sau bằng file gán CLO (Excel).
-"""
 from __future__ import annotations
 
 import csv
@@ -20,18 +12,16 @@ MAX_OPTIONS = 10
 
 
 class ImportError_(ValueError):
-    """File không đọc được hoặc sai định dạng."""
+    pass
 
 
 def norm(s) -> str:
-    """Bỏ dấu, chữ thường, chỉ giữ chữ-số (so khớp tiêu đề cột, tên mức Bloom...)."""
     s = unicodedata.normalize("NFD", str(s or "")).replace("đ", "d").replace("Đ", "D")
     s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
 def norm_content(s: str) -> str:
-    """Chuẩn hóa nội dung để phát hiện câu trùng."""
     return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
 
@@ -44,7 +34,6 @@ def cell(v) -> str:
     return "" if s.lower() == "nan" else s
 
 
-# ------------------------------------------------------------------ đọc bảng (xlsx/csv)
 HEADERS = {
     "id": {"id", "idcauhoi", "macau", "macauhoi", "questionid"},
     "content": {"noidung", "cauhoi", "noidungcauhoi", "question", "content", "questiontext", "debai"},
@@ -67,17 +56,15 @@ def _map_header(h: str) -> str | None:
 
 
 def read_table(data: bytes, filename: str) -> list[dict]:
-    """Đọc sheet đầu tiên (hoặc sheet có cột Nội dung/ID) thành danh sách dict {khóa chuẩn: giá trị}."""
     name = filename.lower()
     rows: list[list] = []
     if name.endswith((".xlsx", ".xlsm")):
         from openpyxl import load_workbook
         try:
             wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             raise ImportError_(f"Không mở được file Excel: {ex}")
         sheets = wb.worksheets
-        # ưu tiên sheet có tiêu đề nhận diện được
         for ws in sheets:
             cand = [list(r) for r in ws.iter_rows(values_only=True)]
             head_idx = _find_header(cand)
@@ -125,9 +112,7 @@ def _decode(data: bytes) -> str:
     return data.decode("utf-8", "replace")
 
 
-# ------------------------------------------------------------------ đọc câu hỏi theo từng định dạng
 def parse_questions(data: bytes, filename: str) -> tuple[str, list[dict]]:
-    """Trả về (tên định dạng, danh sách câu thô {row, content, options[], answer, chapter, bloom, clo, errors[]})."""
     name = filename.lower()
     if name.endswith((".xlsx", ".xlsm", ".csv")):
         return "Excel/CSV", _from_table(read_table(data, filename))
@@ -137,7 +122,7 @@ def parse_questions(data: bytes, filename: str) -> tuple[str, list[dict]]:
         from docx import Document
         try:
             doc = Document(io.BytesIO(data))
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             raise ImportError_(f"Không mở được file Word: {ex}")
         return "Aiken (Word)", _from_aiken([p.text for p in doc.paragraphs])
     if name.endswith((".txt", ".gift", ".aiken")):
@@ -165,8 +150,6 @@ META_RE = re.compile(r"^\s*(CHƯƠNG|CHUONG|CHAPTER|BLOOM|CLO|CĐR)\s*[:：]\s*(
 
 
 def _from_aiken(lines: list[str]) -> list[dict]:
-    """Aiken: mỗi câu = nội dung (có thể nhiều dòng) + các dòng 'A. ...' + dòng 'ANSWER: X'.
-    Có thể thêm các dòng tùy chọn 'CHƯƠNG: 3', 'BLOOM: Vận dụng', 'CLO: CLO2' ngay sau dòng ANSWER."""
     out, cur, line_no = [], None, 0
 
     def new(n):
@@ -194,7 +177,6 @@ def _from_aiken(lines: list[str]) -> list[dict]:
             if m_opt.group(1).upper() == expected:
                 cur["options"].append(m_opt.group(2))
                 continue
-        # dòng nội dung: bắt đầu câu mới nếu câu hiện tại đã có đáp án (hoặc chưa có câu)
         if cur is None or cur["answer"]:
             if cur is not None:
                 out.append(cur)
@@ -202,7 +184,6 @@ def _from_aiken(lines: list[str]) -> list[dict]:
             line = re.sub(r"^\s*(Câu|Cau|Question|Q)\s*\d+\s*[\.:\)]\s*", "", line, flags=re.I)
             cur["content"] = line
         elif cur["options"]:
-            # dòng thường sau khi đã có phương án: nối vào phương án cuối
             cur["options"][-1] += " " + line
         else:
             cur["content"] += "\n" + line
@@ -246,7 +227,7 @@ def _from_moodle_xml(data: bytes) -> list[dict]:
                 frac = 0
             if frac >= 99.9 and j < MAX_OPTIONS:
                 item["answer"] = LABELS[j]
-        for t in q.findall("tags/tag/text"):   # thẻ Moodle kiểu "CLO2", "Bloom:3", "Chuong:2"
+        for t in q.findall("tags/tag/text"):
             tag = (t.text or "").strip()
             k, _, v = tag.partition(":")
             nk = norm(k)
@@ -262,9 +243,7 @@ def _from_moodle_xml(data: bytes) -> list[dict]:
     return out
 
 
-# ------------------------------------------------------------------ giải nghĩa Chương / Bloom / CLO
 def parse_chapter(v: str, chapters: dict[int, int]) -> tuple[int | None, str | None]:
-    """'3', 'Chương 3', '3. Trigger...' → outline_id. Trả (outline_id, lỗi)."""
     if not cell(v):
         return None, None
     m = re.search(r"\d+", str(v))
@@ -278,11 +257,10 @@ def parse_chapter(v: str, chapters: dict[int, int]) -> tuple[int | None, str | N
 
 
 def parse_bloom(v: str, levels: list[dict]) -> tuple[int | None, str | None]:
-    """'3', '3 - Vận dụng', 'Vận dụng', 'Apply' → bloom_level_id."""
     s = cell(v)
     if not s:
         return None, None
-    m = re.match(r"^\s*([1-6])(?!\d)", s)   # '3', '3 - Vận dụng', '3.'; không nhận '30'
+    m = re.match(r"^\s*([1-6])(?!\d)", s)
     if m:
         return int(m.group(1)), None
     n = norm(s)
@@ -293,11 +271,10 @@ def parse_bloom(v: str, levels: list[dict]) -> tuple[int | None, str | None]:
 
 
 def parse_clos(v: str, clos: dict[str, int]) -> tuple[list[tuple[int, float]] | None, str | None]:
-    """'CLO2' | 'CLO1; CLO3' (chia đều) | 'CLO1:0.6; CLO3:0.4' | 'CLO1(0.6), CLO3(0.4)' → [(clo_id, weight)]."""
     s = cell(v)
     if not s:
         return None, None
-    s = re.sub(r"([:=(]\s*\d+),(\d+)", r"\1.\2", s)   # trọng số viết dấu phẩy thập phân: CLO1:0,6
+    s = re.sub(r"([:=(]\s*\d+),(\d+)", r"\1.\2", s)
     parts = [p.strip() for p in re.split(r"[;,\n]+|\s+và\s+", s) if p.strip()]
     items, weights = [], []
     for p in parts:
@@ -306,7 +283,7 @@ def parse_clos(v: str, clos: dict[str, int]) -> tuple[list[tuple[int, float]] | 
             return None, f"Không hiểu '{p}' (ghi VD: CLO2 hoặc CLO1:0.6; CLO3:0.4)"
         code = m.group(1).replace(" ", "")
         key = norm(code)
-        if key not in clos:                       # "2", "CĐR2", "clo 2" → CLO2
+        if key not in clos:
             key = "clo" + re.search(r"\d+", code).group()
             code = key.upper()
         if key not in clos:
@@ -329,14 +306,13 @@ def parse_clos(v: str, clos: dict[str, int]) -> tuple[list[tuple[int, float]] | 
         if abs(sum(ws) - 1) > 0.011:
             return None, f"Tổng trọng số CLO = {sum(ws):g}, phải bằng 1"
     ws = [round(w, 2) for w in ws]
-    ws[-1] = round(1 - sum(ws[:-1]), 2)          # làm tròn 2 chữ số nhưng tổng vẫn đúng bằng 1
+    ws[-1] = round(1 - sum(ws[:-1]), 2)
     if ws[-1] <= 0:
         return None, "Trọng số CLO không hợp lệ sau khi làm tròn 2 chữ số"
     return [(c, w) for (c, _), w in zip(items, ws)], None
 
 
 def clo_text(links: list[tuple[str, float]]) -> str:
-    """[('CLO1', 1.0)] → 'CLO1'; nhiều CLO → 'CLO1:0.6; CLO3:0.4' (định dạng đọc lại được)."""
     if not links:
         return ""
     if len(links) == 1:

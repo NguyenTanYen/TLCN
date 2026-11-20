@@ -9,11 +9,6 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Bài phụ đạo (góp ý F5): chỉ các sinh viên được giao mới thấy và làm được Quiz. Tạo/cập nhật nhóm "Phụ đạo – …" gồm đúng
- * các SV đó và đặt điều kiện truy cập "thuộc nhóm" cho hoạt động (ẩn hẳn với SV khác). Gọi lại thì đồng bộ lại thành viên.
- * Xác định hoạt động bằng cmid, hoặc bằng quizid khi hệ thống chỉ lưu id Quiz.
- */
 class restrict_users extends external_api {
 
     public static function execute_parameters(): external_function_parameters {

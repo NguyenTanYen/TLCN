@@ -1,4 +1,3 @@
-"""Sinh ERD (Graphviz) và từ điển dữ liệu trực tiếp từ information_schema của assessment_db."""
 import json, subprocess
 import pymysql
 
@@ -73,8 +72,6 @@ def _pts(d):
 
 
 def add_crowfoot(svg):
-    """Vẽ ký hiệu quan hệ kiểu Crow's Foot ở hai đầu mỗi đường nối thẳng góc:
-    phía bảng cha "một và chỉ một" (‖), phía bảng con "một hoặc nhiều" (chân chim + vạch)."""
     import re, math
     boxes = {}
     for m in re.finditer(r'<g id="node\d+" class="node">\s*<title>([^<]+)</title>(.*?)</g>', svg, re.S):
@@ -130,7 +127,6 @@ def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""
             lines.append("}")
     else:
         lines += [node(t, full) for t in tables]
-    # sơ đồ từng nhóm: mỗi bảng ngoài nhóm được vẽ riêng cạnh từng bảng con (tránh các đường nối chồng chéo)
     stub_ids = {}
     for t, col, rt, rc, cn in fks:
         if t in tables and rt in stubs and (rt, t) not in stub_ids:
@@ -143,7 +139,6 @@ def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""
             if key in seen:
                 continue
             seen.add(key)
-            # nét thẳng góc nối bảng cha (‖ một) – bảng con (chân chim nhiều), kiểu MySQL Workbench
             src_id = stub_ids.get((rt, t), rt)
             lines.append(f'"{src_id}" -> "{t}" [id="fk__{src_id}__{t}__{col}"];')
     lines.append("}")

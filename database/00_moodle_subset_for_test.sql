@@ -1,5 +1,3 @@
--- Moodle 4.4 core tables (subset) generated from official install.xml (MOODLE_404_STABLE)
--- Chỉ dùng để chạy thử cục bộ; trên máy thật đây là CSDL Moodle có sẵn.
 CREATE DATABASE IF NOT EXISTS moodle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE moodle;
 CREATE TABLE IF NOT EXISTS `mdl_course` (
@@ -425,7 +423,6 @@ CREATE TABLE IF NOT EXISTS `mdl_qtype_multichoice_options` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Plugin Offline Quiz (mod_offlinequiz v4.5.4): bài thi giấy – Moodle sinh đề/phiếu, nhận diện phiếu quét và chấm
 CREATE TABLE IF NOT EXISTS `mdl_offlinequiz` (
   `id` bigint(10) NOT NULL AUTO_INCREMENT,
   `course` bigint(10) NOT NULL DEFAULT 0,
@@ -495,7 +492,6 @@ CREATE TABLE IF NOT EXISTS `mdl_offlinequiz_results` (
   PRIMARY KEY (`id`),
   KEY `mdl_offlresu_use_ix` (`userid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
--- Tài nguyên khóa học (học liệu): hoạt động File (resource), Thư mục (folder) và tệp đính kèm (files) – cột theo Moodle 4.x
 CREATE TABLE IF NOT EXISTS `mdl_modules` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(20) NOT NULL DEFAULT '',

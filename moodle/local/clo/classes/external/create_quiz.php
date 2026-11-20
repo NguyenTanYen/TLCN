@@ -8,11 +8,6 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * UC-02 qua API: nhập tệp Moodle XML (mỗi câu mang idnumber QB-n, phương án đúng thứ tự, shuffleanswers=1)
- * vào ngân hàng câu hỏi của khóa học rồi tạo Quiz bật xáo trộn phương án, thêm câu theo đúng thứ tự đề.
- * Gọi lại nhiều lần với cùng examref không tạo Quiz trùng.
- */
 class create_quiz extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
@@ -43,19 +38,15 @@ class create_quiz extends external_api {
         require_capability('moodle/course:manageactivities', $context);
         require_capability('moodle/question:add', $context);
 
-        // Đã tạo trước đó -> trả lại Quiz cũ (idempotent).
         $exam = $DB->get_record('local_clo_exam', ['examref' => $p['examref']]);
         if ($exam && $exam->quizid && ($cm = get_coursemodule_from_instance('quiz', $exam->quizid, 0, false, IGNORE_MISSING))) {
             return ['quizid' => (int)$exam->quizid, 'cmid' => (int)$cm->id, 'courseid' => (int)$cm->course,
                 'questions' => (int)$DB->count_records('quiz_slots', ['quizid' => $exam->quizid]), 'created' => false];
         }
 
-        // Toàn bộ các bước trong một giao dịch: lỗi giữa chừng không để lại Quiz/câu hỏi dở dang.
         $tx = $DB->start_delegated_transaction();
-        // 1. Nhập XML vào ngân hàng câu hỏi của khóa học (danh mục mang tên đề, lấy từ tệp XML).
         $questionids = \local_clo\question_importer::import($course, $p['questionsxml']);
 
-        // 2. Tạo Quiz: xáo trộn phương án, phản hồi trì hoãn, tính điểm lượt cao nhất (mặc định của Moodle).
         $quiz = (object)[
             'modulename' => 'quiz', 'course' => $course->id, 'section' => 0, 'visible' => 1,
             'name' => $p['name'], 'introeditor' => ['text' => '', 'format' => FORMAT_HTML, 'itemid' => 0],
@@ -63,12 +54,11 @@ class create_quiz extends external_api {
             'overduehandling' => 'autosubmit', 'graceperiod' => 0,
             'preferredbehaviour' => 'deferredfeedback', 'canredoquestions' => 0,
             'attempts' => 1, 'attemptonlast' => 0, 'grademethod' => QUIZ_GRADEHIGHEST,
-            'decimalpoints' => 2, 'questiondecimalpoints' => -1, 'questionsperpage' => 1,   // 1 câu/trang: Moodle lưu thời điểm chọn từng câu (phân tích thời gian làm bài)
+            'decimalpoints' => 2, 'questiondecimalpoints' => -1, 'questionsperpage' => 1,
             'navmethod' => QUIZ_NAVMETHOD_FREE, 'shuffleanswers' => 1,
             'sumgrades' => 0, 'grade' => $p['grade'], 'quizpassword' => '', 'subnet' => '', 'browsersecurity' => '-',
             'delay1' => 0, 'delay2' => 0, 'showuserpicture' => 0, 'showblocks' => 0,
         ];
-        // Tùy chọn xem lại: SV xem điểm sau khi nộp; đáp án đúng chỉ hiện sau khi Quiz đóng.
         foreach (['during', 'immediately', 'open', 'closed'] as $when) {
             foreach (['attempt', 'correctness', 'maxmarks', 'marks', 'specificfeedback', 'generalfeedback',
                     'rightanswer', 'overallfeedback'] as $what) {
@@ -84,7 +74,6 @@ class create_quiz extends external_api {
         }
         \mod_quiz\grade_calculator::create(\mod_quiz\quiz_settings::create($quizrec->id))->recompute_quiz_sumgrades();
 
-        // 3. Ghi nhận liên kết bài KT <-> Quiz (kết quả ở trạng thái "bảo lưu" cho tới khi GV công bố).
         $now = time();
         if ($exam) {
             $exam->courseid = $course->id; $exam->quizid = $quizrec->id; $exam->title = $p['name']; $exam->timemodified = $now;

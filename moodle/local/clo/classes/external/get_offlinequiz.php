@@ -8,9 +8,6 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Trạng thái Offline Quiz của một bài kiểm tra: các tệp đề/phiếu/đáp án từng nhóm và số bài Moodle đã chấm xong.
- */
 class get_offlinequiz extends external_api {
 
     public static function execute_parameters(): external_function_parameters {

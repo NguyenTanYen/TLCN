@@ -10,7 +10,6 @@ import { openMoodle, useMoodleBase } from '../moodle'
 
 const ASSESS_VI = { process: 'Quá trình', final: 'Cuối kỳ' }
 
-// Nút "bước tiếp theo" của một bài kiểm tra theo trạng thái (góp ý 21/10: nhìn vào là biết phải làm gì)
 const nextStep = e => e.status === 'Analyzed' ? ['Xem kết quả', 'btn sm']
   : e.status === 'Draft' ? [{ online: 'Tạo bài trắc nghiệm trên Moodle', paper: 'In đề & chấm phiếu', manual: 'Nhập điểm' }[e.exam_type] || 'Mở', 'btn sm primary']
   : e.status === 'Synced' ? ['Phân tích', 'btn sm primary']
@@ -22,7 +21,7 @@ export default function SectionDetail() {
   const cs = secs.data?.find(x => String(x.id) === id)
   const exams = useApi(`/api/class-sections/${id}/exams`)
   const students = useApi(`/api/class-sections/${id}/students`)
-  const [tab, setTab] = useState('exams')
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get('tab') === 'materials' ? 'materials' : 'exams'))
   const [creating, setCreating] = useState(false)
   const toast = useToast()
   const nav = useNavigate()
@@ -51,19 +50,19 @@ export default function SectionDetail() {
         <div className="row gap wrap"><Link className="btn" to={`/sections/${id}/stats`}>Thống kê lớp &amp; từng SV</Link>
           {!isAdmin && <button className="btn primary" onClick={() => setCreating(true)}>+ Tạo bài kiểm tra</button>}</div>
       </div>
-      <PageHelp id="section"><p>Đây là trang làm việc của một lớp học phần. Đi lần lượt các bước: <b>tạo bài kiểm tra</b> → <b>lấy bài làm và phân tích</b> → xem <b>kết quả chuẩn đầu ra của lớp</b> → <b>ôn tập</b> cho sinh viên còn yếu.</p>
-      <p>Cột "Bước tiếp theo" trong bảng cho biết việc nên làm tiếp với từng bài kiểm tra.</p></PageHelp>
-      {/* luồng công việc của lớp: tạo bài → thu bài & phân tích → kết quả CĐR → ôn tập */}
+      <PageHelp id="section"><p>Đây là trang làm việc của một lớp học phần. Đi lần lượt các bước: đưa <b>học liệu</b> lên → <b>tạo bài kiểm tra</b> → <b>lấy bài làm và phân tích</b> → xem <b>kết quả chuẩn đầu ra của lớp</b> → <b>ôn tập</b> cho sinh viên còn yếu.</p>
+      <p>Cột "Bước tiếp theo" trong bảng cho biết việc nên làm tiếp với từng bài kiểm tra. Thẻ <b>Học liệu</b> (đầu tiên) là nơi tải PDF lên cho lớp và các lớp cùng môn, đồng thời cho biết tệp PDF nào của khóa học Moodle được dùng để gợi ý trang cần đọc khi sinh viên làm sai.</p></PageHelp>
       <Flow steps={[
+        { label: 'Học liệu', sub: 'Tải slide / giáo trình lên cho lớp', on: tab === 'materials', onClick: () => setTab('materials') },
         !isAdmin && { label: 'Tạo bài kiểm tra', sub: 'Trực tuyến, trên giấy hoặc nhập điểm', done: ex.length > 0, onClick: () => setCreating(true) },
         { label: 'Lấy bài làm & phân tích', sub: ex.length ? `${analyzed}/${ex.length} bài đã phân tích` : 'Mở bài → Đồng bộ & phân tích', done: analyzed > 0, on: tab === 'exams', onClick: () => setTab('exams') },
         { label: 'Kết quả chuẩn đầu ra của lớp', sub: 'Tỷ lệ SV đạt từng CLO của lớp', done: analyzed > 0, to: `/sections/${id}/clo` },
         { label: 'Ôn tập', sub: 'Bài riêng cho SV làm sai', to: `/sections/${id}/remedial` },
       ]} />
       <div className="tabs">
+        <button className={tab === 'materials' ? 'on' : ''} onClick={() => setTab('materials')}>Học liệu</button>
         <button className={tab === 'exams' ? 'on' : ''} onClick={() => setTab('exams')}>Bài kiểm tra ({exams.data?.length ?? 0})</button>
         <button className={tab === 'students' ? 'on' : ''} onClick={() => setTab('students')}>Danh sách SV ({students.data?.length ?? 0})</button>
-        <button className={tab === 'materials' ? 'on' : ''} onClick={() => setTab('materials')}>Học liệu</button>
       </div>
       {tab === 'exams' && <Card>
         <Loading {...exams} />

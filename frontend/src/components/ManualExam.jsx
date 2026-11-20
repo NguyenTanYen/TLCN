@@ -1,4 +1,3 @@
-// Bài KT nhập điểm: khai báo câu/ý chấm tay + CLO; lưới nhập điểm; nhập/xuất Excel; tạo bài từ file Excel bất kỳ.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -7,7 +6,6 @@ import { useApi } from '../hooks'
 
 const blank = n => ({ title: `Câu ${n}`, points: 2, clos: [] })
 
-// Chọn CLO cho một câu/ý: nhiều CLO thì chia đều trọng số (tổng = 1)
 function CloPick({ clos, value, onChange }) {
   return <div className="row gap wrap">{clos.map(c => <label key={c.id} className="row gap check" title={c.description}>
     <input type="checkbox" checked={value.includes(c.id)} onChange={e => onChange(e.target.checked ? [...value, c.id] : value.filter(x => x !== c.id))} />{c.clo_code}</label>)}</div>
@@ -15,12 +13,11 @@ function CloPick({ clos, value, onChange }) {
 
 export const weights = ids => ids.map((id, i) => ({ clo_id: id, weight: i < ids.length - 1 ? Math.round(100 / ids.length) / 100 : Math.round((1 - Math.round(100 / ids.length) / 100 * (ids.length - 1)) * 100) / 100 }))
 
-// cs: bài của một lớp HP; courseId (+ sections): đề nhập điểm của môn – giao cho lớp HP sau
 export function ManualExamForm({ cs, courseId, sections, onClose }) {
   const nav = useNavigate()
   const cid = cs ? cs.course_id : courseId
   const course = useApi(`/api/courses/${cid}`).data
-  const [xcs, setXcs] = useState(cs || (sections?.length === 1 ? sections[0] : null))  // lớp nhận file Excel có điểm
+  const [xcs, setXcs] = useState(cs || (sections?.length === 1 ? sections[0] : null))
   const [f, setF] = useState({ exam_title: '', assessment_type: 'process', exam_date: '', max_score: 10, counts_for_clo: true })
   const [items, setItems] = useState([blank(1), blank(2), blank(3)])
   const [mode, setMode] = useState('form')
@@ -106,11 +103,10 @@ function ExcelCreate({ cs, f, clos }) {
   </>
 }
 
-// Lưới nhập điểm của một bài nhập điểm
 export function ManualGrades({ e, reload }) {
   const gb = useApi(`/api/exams/${e.id}/grades`)
   const toast = useToast()
-  const [rows, setRows] = useState({})          // student_id -> {absent, scores}
+  const [rows, setRows] = useState({})
   const [dirty, setDirty] = useState(new Set())
   const [file, setFile] = useState(null)
   const [pre, setPre] = useState(null)
@@ -124,7 +120,7 @@ export function ManualGrades({ e, reload }) {
   const set = (sid, patch) => { setRows(r => ({ ...r, [sid]: { ...r[sid], ...patch } })); setDirty(d => new Set(d).add(sid)) }
   const val = (sid, q) => rows[sid]?.scores[String(q)] ?? ''
   const badCell = (v, max) => v !== '' && v !== null && (isNaN(Number(String(v).replace(',', '.'))) || Number(String(v).replace(',', '.')) < 0 || Number(String(v).replace(',', '.')) > max)
-  const anyBad = useMemo(() => [...dirty].some(sid => items.some(it => badCell(val(sid, it.question_id), it.points))), [dirty, rows, items])  // eslint-disable-line
+  const anyBad = useMemo(() => [...dirty].some(sid => items.some(it => badCell(val(sid, it.question_id), it.points))), [dirty, rows, items])
   const save = async () => {
     const body = [...dirty].map(sid => ({ student_id: Number(sid), absent: rows[sid].absent,
       scores: Object.fromEntries(items.map(it => { const v = val(sid, it.question_id); return [it.question_id, v === '' || v === null ? null : Number(String(v).replace(',', '.'))] })) }))

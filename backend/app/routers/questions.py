@@ -1,4 +1,3 @@
-"""UC-01: Quản lý câu hỏi & gán CLO; cây CTĐT → PLO → PI → CLO → câu hỏi (góp ý F2a)."""
 import logging
 from collections import defaultdict
 
@@ -18,7 +17,6 @@ log = logging.getLogger(__name__)
 
 
 def outcome_paths(db: Session, clo_ids) -> dict[int, list[dict]]:
-    """Với mỗi CLO: các PI (kèm PLO, CTĐT) mà CLO đóng góp – để hiện chuỗi PLO › PI › CLO của câu hỏi."""
     out: dict[int, list[dict]] = defaultdict(list)
     ids = list(set(clo_ids))
     if not ids:
@@ -80,7 +78,7 @@ def list_questions(course_id: int, clo_id: int | None = None, bloom_level_id: in
                    pi_id: int | None = None, plo_id: int | None = None, db: Session = Depends(get_db),
                    u: User = Depends(require("admin", "lecturer"))):
     check_course_access(db, u, course_id)
-    query = db.query(Question).filter(Question.course_id == course_id, Question.question_type == "multichoice")   # câu/ý chấm tay chỉ thuộc bài nhập điểm
+    query = db.query(Question).filter(Question.course_id == course_id, Question.question_type == "multichoice")
     if not include_cancelled:
         query = query.filter(Question.is_cancelled.is_(False))
     if bloom_level_id:
@@ -89,13 +87,13 @@ def list_questions(course_id: int, clo_id: int | None = None, bloom_level_id: in
         query = query.filter(Question.outline_id == outline_id)
     if clo_id:
         query = query.filter(Question.clo_links.any(QuestionCLO.clo_id == clo_id))
-    if pi_id or plo_id:   # lọc theo nút PI / PLO của cây: câu đo ít nhất một CLO đóng góp cho PI / PLO đó
+    if pi_id or plo_id:
         sub = db.query(CLOPIMapping.clo_id).join(PerformanceIndicator, PerformanceIndicator.id == CLOPIMapping.pi_id)
         sub = sub.filter(CLOPIMapping.pi_id == pi_id) if pi_id else sub.filter(PerformanceIndicator.plo_id == plo_id)
         query = query.filter(Question.clo_links.any(QuestionCLO.clo_id.in_(sub)))
     if q:
         query = query.filter(Question.content.like(f"%{q}%"))
-    if untagged:   # câu nhập hàng loạt chưa gán đủ Bloom + CLO
+    if untagged:
         query = query.filter((Question.bloom_level_id.is_(None)) | ~Question.clo_links.any())
     items = query.order_by(Question.id).all()
     paths = outcome_paths(db, [c.clo_id for x in items for c in x.clo_links])
@@ -103,14 +101,11 @@ def list_questions(course_id: int, clo_id: int | None = None, bloom_level_id: in
 
 
 def _code_key(code: str) -> list:
-    """Sắp mã PLO/PI theo số: PLO2 < PLO10, PI1.2 < PI1.10."""
     return [int(t) if t.isdigit() else t for t in code.replace("PLO", " ").replace("PI", " ").replace(".", " ").split()]
 
 
 @router.get("/tree")
 def outcome_tree(course_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Cây CTĐT → PLO → PI → CLO của học phần với số câu hỏi đang dùng ở mỗi nút (góp ý F2a);
-    một câu đo nhiều CLO chỉ được đếm một lần ở nút cha."""
     check_course_access(db, u, course_id)
     by_clo: dict[int, set] = defaultdict(set)
     for qid, clo_id in db.execute(text("""SELECT m.question_id, m.clo_id FROM question_clo_mapping m JOIN question_bank q ON q.id = m.question_id
@@ -202,10 +197,6 @@ def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: 
     q = _get_q(db, u, qid)
     q.is_cancelled, q.cancel_reason = True, body.reason
     db.commit()
-    # Hủy câu sau khi đã chấm (VD phúc khảo chứng minh đề sai): phân tích lại các bài KT đã phân tích có câu này để
-    # minh chứng CLO (bỏ câu đã Hủy) không giữ số cũ khi GV quên bấm "Phân tích lại".
-    # analyze_exam tự commit từng bài → không gộp chung một giao dịch được; lỗi ở một bài được cô lập (rollback riêng,
-    # ghi log) để các bài khác vẫn tính lại, và trả về danh sách bài lỗi cho GV bấm "Phân tích lại" ở bài đó.
     exam_ids = [r[0] for r in db.execute(text("""SELECT e.id FROM exams e JOIN exam_questions eq ON eq.exam_id = e.id
                                                   WHERE eq.question_id = :q AND e.status = 'Analyzed' ORDER BY e.id"""),
                                          {"q": qid})]
@@ -214,7 +205,7 @@ def cancel_question(qid: int, body: CancelIn, db: Session = Depends(get_db), u: 
         try:
             results.analyze_exam(db, exam_id)
             done.append(exam_id)
-        except Exception:  # noqa: BLE001 – một bài lỗi không được chặn các bài còn lại
+        except Exception:
             db.rollback()
             log.exception("Phân tích lại bài KT %s sau khi hủy câu %s thất bại", exam_id, qid)
             failed.append(exam_id)

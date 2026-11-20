@@ -1,7 +1,3 @@
-"""Xuất BM2 (kế hoạch BM2a + báo cáo tổng kết BM2b) ra tệp Word theo bố cục biểu mẫu HCMUTE (A4 ngang, Times New Roman 13).
-
-Dùng chung dữ liệu với bản Excel: reports_excel.bm2_data / bm2_summary.
-"""
 from __future__ import annotations
 
 import io
@@ -50,7 +46,6 @@ def _cell(cell, text, *, bold=False, italic=False, align=CENTER, size=12):
 
 
 def _style_runs(cell, bold=(), italic=()) -> None:
-    """Đặt đậm/nghiêng theo NỘI DUNG từng dòng (không theo vị trí run – ô có thêm run rỗng và run xuống dòng)."""
     for run in cell.paragraphs[0].runs:
         run.bold = run.text in bold
         run.italic = run.text in italic
@@ -59,7 +54,7 @@ def _style_runs(cell, bold=(), italic=()) -> None:
 def _table(doc, n_rows: int, widths: list[float]):
     t = doc.add_table(rows=n_rows, cols=len(widths))
     t.style = "Table Grid"; t.alignment = WD_TABLE_ALIGNMENT.CENTER; t.autofit = False
-    for j, w in enumerate(widths):        # độ rộng cột ở tblGrid (Word/LibreOffice dùng khi bố cục cố định) + từng ô
+    for j, w in enumerate(widths):
         t.columns[j].width = Cm(w)
     for row in t.rows:
         for j, w in enumerate(widths):
@@ -77,7 +72,6 @@ def _merge(t, r1, c1, r2, c2, text=None, **kw):
 
 
 def _pct(v) -> str:
-    """Chỉ tiêu tròn hiển thị 75%; tỷ lệ tính ra giữ 2 chữ số thập phân như bản Excel (70,53%)."""
     if v is None:
         return ""
     v = float(v)
@@ -89,7 +83,6 @@ def _ok(flag) -> str:
 
 
 def _plo_block(t, first_row: int, plos: list[dict]) -> None:
-    """Cột 0 = nhóm CĐR (gộp ô theo nhóm), cột 1 = mã, cột 2 = nội dung."""
     start, prev = first_row, None
     for i, p in enumerate(plos):
         r = first_row + i
@@ -130,16 +123,14 @@ def render_bm2_docx(d: dict) -> bytes:
     st = doc.styles["Normal"]; st.font.name = FONT; st.font.size = Pt(13)
     st.element.rPr.rFonts.set(qn("w:eastAsia"), FONT)
 
-    # ---------------- Tiêu đề văn bản
     t = doc.add_table(rows=1, cols=2); t.autofit = False
     t.rows[0].cells[0].width, t.rows[0].cells[1].width = Cm(11), Cm(14.7)
     _cell(t.cell(0, 0), f"{SCHOOL}\n{unit.upper()}\nSố:…../KH-{abbr}", size=13)
-    _style_runs(t.cell(0, 0), bold={unit.upper()})                      # dòng tên đơn vị in đậm
+    _style_runs(t.cell(0, 0), bold={unit.upper()})
     _cell(t.cell(0, 1), "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\nTP. Hồ Chí Minh, ngày … tháng … năm 20…", size=13)
     _style_runs(t.cell(0, 1), bold={"CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", "Độc lập – Tự do – Hạnh phúc"},
                 italic={"TP. Hồ Chí Minh, ngày … tháng … năm 20…"})
 
-    # ================= BM2a – KẾ HOẠCH
     _p(doc, "BM2a", italic=True, size=11, align=RIGHT, space_after=0)
     _p(doc, "KẾ HOẠCH", bold=True, size=14, align=CENTER, space_after=0)
     _p(doc, vv, bold=True, size=14, align=CENTER, space_after=8)
@@ -181,7 +172,6 @@ def render_bm2_docx(d: dict) -> bytes:
         _p(doc, "")
     _signature(doc, "TRƯỞNG BỘ MÔN")
 
-    # ================= BM2b – BÁO CÁO TỔNG KẾT
     doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
     _p(doc, "BM2b", italic=True, size=11, align=RIGHT, space_after=0)
     _p(doc, "BÁO CÁO TỔNG KẾT", bold=True, size=14, align=CENTER, space_after=0)
@@ -224,7 +214,7 @@ def render_bm2_docx(d: dict) -> bytes:
         for i, p in enumerate(measured):
             x, r = p["results"][year], 2 + i
             _cell(t.cell(r, 3), x["n_achieved"]); _cell(t.cell(r, 4), x["n_evaluated"]); _cell(t.cell(r, 5), _pct(x["achieved_pct"]))
-            for j, q in enumerate(p["pis"][:n_pi]):          # cột PI k = PI thứ k của CĐR (PI chưa đo để trống)
+            for j, q in enumerate(p["pis"][:n_pi]):
                 _cell(t.cell(r, 7 + j), _ok(q["is_achieved"]) if q["n_evaluated"] else "")
             _cell(t.cell(r, 7 + n_pi), _ok(x["is_achieved"]))
         last = 2 + len(measured)

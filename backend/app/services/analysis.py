@@ -1,19 +1,3 @@
-"""Analysis Engine (Pandas) – tính chỉ số CTT và mức độ đạt CĐR theo biểu mẫu HCMUTE.
-
-Quy ước tính toán (xem Chương 1, mục cơ sở lý thuyết):
-
-* SV dự thi  : lượt thi có status = 'finished'. SV vắng ('absent') không nằm trong mẫu số.
-* Câu bỏ trống ('blank') được 0 điểm và VẪN nằm trong mẫu số (giống BM6c: SV 0 điểm vẫn được đếm).
-* Độ khó        p_j  = số SV làm đúng câu j / số SV dự thi.
-* Độ phân biệt  DI_j = (Đúng_nhóm_trên − Đúng_nhóm_dưới) / n_g, n_g = ⌈0,27·N⌉ (Kelley, 1939).
-* Điểm CLO của SV trong một bài KT:
-      điểm_đạt_c = Σ_j w_jc · điểm_đạt_j ,  điểm_tối_đa_c = Σ_j w_jc · điểm_j
-      SV đạt CLO c  ⇔  điểm_đạt_c ≥ ngưỡng% · điểm_tối_đa_c      (BM6c: "đạt ≥ 60% điểm tối đa")
-* CLO của lớp HP (BM6b/6d): cộng dồn số SV đạt và số SV đánh giá qua các bài KT lấy minh chứng;
-      tỷ lệ = Σ đạt / Σ đánh giá ; CLO đạt ⇔ tỷ lệ ≥ chỉ tiêu mong muốn.
-* PI (BM3c) : cộng dồn kết quả các CLO minh chứng của môn học trong học kỳ kế hoạch.
-* PLO (BM3c/BM2): cộng dồn kết quả các PI đo trong năm học; tỷ lệ so với chỉ tiêu CĐR.
-"""
 from __future__ import annotations
 
 import math
@@ -21,17 +5,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-# ------------------------------------------------------------------ hàm thuần (kiểm thử đơn vị)
-
 
 def item_statistics(items: pd.DataFrame) -> pd.DataFrame:
-    """items: cột attempt_id, question_id, is_correct (0/1), total_score – chỉ SV dự thi.
-    Có thêm cột score_earned, points (câu chấm tay/nhập điểm): p = điểm TB / điểm tối đa của câu, DI = chênh lệch
-    tỷ lệ điểm TB nhóm trên – nhóm dưới (chỉ số độ khó/độ phân biệt cho câu nhiều mức điểm); với câu trắc nghiệm
-    (0 hoặc đủ điểm) hai công thức trùng với định nghĩa đúng/sai.
-
-    Trả về DataFrame: question_id, n_students, p_value, di_value.
-    """
     if items.empty:
         return pd.DataFrame(columns=["question_id", "n_students", "p_value", "di_value"])
     scores = (items[["attempt_id", "total_score"]].drop_duplicates("attempt_id")
@@ -58,12 +33,6 @@ def item_statistics(items: pd.DataFrame) -> pd.DataFrame:
 
 def attempt_clo_scores(items: pd.DataFrame, mapping: pd.DataFrame, thresholds: dict[int, float],
                        default_threshold: float = 60.0) -> pd.DataFrame:
-    """Điểm từng CLO cho từng lượt thi (minh chứng BM6c).
-
-    items   : attempt_id, question_id, points, score_earned  (chỉ SV dự thi, bỏ câu đã Hủy)
-    mapping : question_id, clo_id, weight
-    thresholds : {clo_id: ngưỡng %}
-    """
     if items.empty or mapping.empty:
         return pd.DataFrame(columns=["attempt_id", "clo_id", "score_earned", "score_max", "score_pct", "is_achieved"])
     df = items.merge(mapping, on="question_id")
@@ -73,7 +42,6 @@ def attempt_clo_scores(items: pd.DataFrame, mapping: pd.DataFrame, thresholds: d
     g = g[g.max_w > 0]
     g["score_pct"] = (100 * g.earned_w / g.max_w).round(2)
     thr = g.clo_id.map(lambda c: thresholds.get(int(c), default_threshold))
-    # so sánh trên điểm (không làm tròn) để khớp COUNTIF(">= ngưỡng") của BM6c
     g["is_achieved"] = g.earned_w + 1e-9 >= g.max_w * thr / 100
     return g.rename(columns={"earned_w": "score_earned", "max_w": "score_max"})[
         ["attempt_id", "clo_id", "score_earned", "score_max", "score_pct", "is_achieved"]]
@@ -95,18 +63,11 @@ class Aggregate:
 
 
 def aggregate(counts: list[tuple[int, int]], target_pct: float) -> Aggregate:
-    """Cộng dồn (số đánh giá, số đạt) – quy tắc chung của BM6d, BM3c và BM2."""
     return Aggregate(sum(c[0] for c in counts), sum(c[1] for c in counts), float(target_pct))
 
 
 def learning_path(clo_scores: pd.DataFrame, lost: pd.DataFrame, thresholds: dict[int, float],
                   default_threshold: float = 60.0) -> list[dict]:
-    """Khuyến nghị ôn tập cho MỘT lượt thi.
-
-    clo_scores : clo_id, score_pct, is_achieved
-    lost       : clo_id, outline_id, lost_points (điểm bị mất theo chương, đã nhân trọng số)
-    Trả về danh sách {clo_id, outline_id, gap_pct, priority} – CLO chưa đạt, ưu tiên khoảng cách lớn.
-    """
     weak = clo_scores[~clo_scores.is_achieved.astype(bool)].copy()
     if weak.empty:
         return []
@@ -123,11 +84,6 @@ def learning_path(clo_scores: pd.DataFrame, lost: pd.DataFrame, thresholds: dict
 
 
 def kr20(correct: "pd.DataFrame") -> float | None:
-    """Độ tin cậy của đề (Kuder–Richardson 20) trên ma trận đúng/sai.
-
-    correct: cột attempt_id, question_id, is_correct (0/1) của các lượt đã nộp, không gồm câu đã Hủy.
-    KR-20 = k/(k−1) · (1 − Σ p_j·q_j / σ²), σ² là phương sai (tổng thể) của số câu đúng mỗi lượt.
-    """
     if correct is None or correct.empty:
         return None
     m = correct.pivot_table(index="attempt_id", columns="question_id", values="is_correct", aggfunc="max").fillna(0)
@@ -142,8 +98,6 @@ def kr20(correct: "pd.DataFrame") -> float | None:
 
 
 def cronbach_alpha(scores: "pd.DataFrame") -> float | None:
-    """Độ tin cậy Cronbach's alpha cho bài nhiều mức điểm (nhập điểm từng câu/ý).
-    scores: attempt_id, question_id, score_earned. α = k/(k−1) · (1 − Σ σ²_j / σ²_tổng)."""
     if scores is None or scores.empty:
         return None
     m = scores.pivot_table(index="attempt_id", columns="question_id", values="score_earned", aggfunc="max").fillna(0).astype(float)

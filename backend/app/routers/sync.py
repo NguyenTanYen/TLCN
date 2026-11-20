@@ -1,4 +1,3 @@
-"""UC-03: Đồng bộ kết quả từ Moodle (bài online: Quiz; bài giấy: Offline Quiz đã chấm) và phân tích dữ liệu."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -27,8 +26,7 @@ def sync_moodle(exam_id: int, analyze: bool = True, u: User = Depends(require("a
         if not e.moodle_offlinequiz_id:
             raise HTTPException(422, "Bài thi giấy chưa tạo Offline Quiz trên Moodle – hãy tạo đề thi giấy trên Moodle trước")
         if not moodle.offlinequiz_available():
-            raise HTTPException(502, "Moodle chưa cài plugin Offline Quiz (chạy lại 3_CAI_GIAO_DIEN_MOODLE.bat)")
-        # Phiếu đã tải lên Moodle nhưng chưa được chấm (Moodle chưa chạy cron) -> nhờ Moodle chấm ngay trước khi kéo về.
+            raise HTTPException(502, "Moodle chưa cài plugin Offline Quiz (chạy lại scripts/cai_dat.bat)")
         if lms.configured():
             try:
                 scans = lms.process_scans(e)
@@ -63,7 +61,6 @@ def sync_moodle(exam_id: int, analyze: bool = True, u: User = Depends(require("a
     else:
         if analyze:
             out["analysis_skipped"] = "Moodle chưa có bài nào được chấm – chưa phân tích"
-        # bài KT trở về trạng thái "Đã đồng bộ": loại khỏi tổng hợp CLO–PI–PLO cho tới khi phân tích lại
         results.recompute_class_section(db, e.class_section_id)
     return out
 

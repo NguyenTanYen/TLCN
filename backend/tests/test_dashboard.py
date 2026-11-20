@@ -1,4 +1,3 @@
-"""Trang Tổng quan: việc cần làm theo vai trò."""
 
 
 def test_giang_vien_thay_viec_can_lam(client, gv):
@@ -8,7 +7,6 @@ def test_giang_vien_thay_viec_can_lam(client, gv):
         assert t["to"].startswith("/") and t["title"] and t["where"]
     steps = [t["step"] for t in d["todos"]]
     assert steps == sorted(steps)
-    # lớp demo có CLO chưa đạt và chưa có hành động → phải được nhắc
     assert any(t["kind"] == "clo" for t in d["todos"])
 
 

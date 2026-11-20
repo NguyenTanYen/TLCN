@@ -1,4 +1,3 @@
-"""UC-04: Thống kê lớp học – tổng quan bài KT, chỉ số câu hỏi, kết quả CLO (BM6b) và minh chứng (BM6c)."""
 from dataclasses import asdict
 
 import pandas as pd
@@ -25,8 +24,6 @@ def rows(db, sql, **p):
 
 
 def classify(p, di):
-    """Phân loại câu hỏi theo DI (Ebel & Frisbie, 1991: ≥0,30 tốt; 0,20–0,29 chấp nhận được; <0,20 cần xem lại) và độ khó p
-    (khoảng lý tưởng 0,30–0,70; ở đây chỉ gắn nhãn quá dễ khi p > 0,85 và quá khó khi p < 0,25 để tránh báo quá tay)."""
     if p is None:
         return "Chưa đủ dữ liệu"
     p, di = float(p), (None if di is None else float(di))
@@ -71,8 +68,6 @@ def overview(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: 
 
 @router.get("/exams/{exam_id}/material-suggestions")
 def material_suggestions(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Xem trước gợi ý học liệu (RAG) cho TỪNG câu của bài KT – GV kiểm tra trước khi công bố kết quả cho SV.
-    SV làm sai câu nào thì nhận các trang của câu đó (kèm kết quả gửi về Moodle)."""
     e = get_exam_for(db, u, exam_id)
     eqs = db.query(ExamQuestion).filter_by(exam_id=exam_id).order_by(ExamQuestion.order_index).all()
     n_wrong: dict[int, int] = {}
@@ -96,7 +91,6 @@ def item_stats(exam_id: int, u: User = Depends(require("admin", "lecturer")), db
         FROM exam_questions eq JOIN question_bank q ON q.id=eq.question_id
         LEFT JOIN item_statistics st ON st.exam_id=eq.exam_id AND st.question_id=eq.question_id
         WHERE eq.exam_id=:e ORDER BY eq.order_index""", e=exam_id)
-    # phân bố lựa chọn: đủ mọi phương án (kể cả không ai chọn) + bỏ trống
     dist = rows(db, """
         SELECT o.question_id, o.opt_label AS label, o.is_correct,
                (SELECT COUNT(*) FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
@@ -129,7 +123,6 @@ def exam_students(exam_id: int, u: User = Depends(require("admin", "lecturer")),
 
 @router.get("/exams/{exam_id}/clo-summary")
 def exam_clo_summary(exam_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Tổng hợp CẢ LỚP theo từng CLO của bài KT: số SV đạt / số SV được đánh giá (không trả kết quả riêng của từng SV)."""
     get_exam_for(db, u, exam_id)
     return rows(db, """SELECT c.clo_code, COUNT(*) AS n_evaluated, SUM(r.is_achieved) AS n_achieved
                        FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id JOIN clos c ON c.id=r.clo_id
@@ -138,7 +131,6 @@ def exam_clo_summary(exam_id: int, u: User = Depends(require("admin", "lecturer"
 
 @router.get("/class-sections/{cs_id}/clo-results")
 def clo_results(cs_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """BM6b – kết quả tổng hợp của từng CĐR môn học (E1: rỗng nếu chưa phân tích)."""
     cs = check_section_access(db, u, cs_id)
     data = rows(db, """
         SELECT c.id AS clo_id, c.clo_code, c.description, r.n_evaluated, r.n_achieved, r.achieved_pct,
@@ -163,7 +155,6 @@ def clo_results(cs_id: int, u: User = Depends(require("admin", "lecturer")), db:
 
 @router.get("/class-sections/{cs_id}/clo-results/{clo_id}/evidence")
 def clo_evidence(cs_id: int, clo_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """BM6c/6d – bảng minh chứng: điểm từng SV trên các câu thuộc CLO, theo từng bài KT; câu hỏi có DI thấp."""
     check_section_access(db, u, cs_id)
     ev = rows(db, """SELECT e.id AS exam_id, e.exam_title, e.assessment_type, s.student_code, s.full_name,
                             r.score_earned, r.score_max, r.score_pct, r.is_achieved
@@ -192,7 +183,6 @@ def clo_narrative(cs_id: int, clo_id: int, body: NarrativeIn, u: User = Depends(
     return {"ok": True}
 
 
-# ------------------------------------------------------------------ thời gian làm bài, cảnh báo lượt làm bất thường (Moodle Quiz)
 def _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share):
     return {"min_sec_per_q": min_sec_per_q, "rapid_sec": rapid_sec, "rapid_share": rapid_share, "idle_min": idle_min, "idle_share": idle_share}
 
@@ -201,7 +191,6 @@ def _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share):
 def exam_timing(exam_id: int, min_sec_per_q: Optional[float] = None, rapid_sec: Optional[float] = None, rapid_share: Optional[float] = None,
                 idle_min: Optional[float] = None, idle_share: Optional[float] = None,
                 u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Thời gian làm bài của từng SV và các dấu hiệu bất thường (làm quá nhanh/chọn đại, bỏ dở, treo máy chờ hết giờ…)."""
     get_exam_for(db, u, exam_id)
     for v, lo, hi, name in ((min_sec_per_q, 0, 600, "giây/câu"), (rapid_sec, 0, 60, "ngưỡng chớp nhoáng"), (rapid_share, 0, 1, "tỷ lệ câu chớp nhoáng"),
                             (idle_min, 0, 600, "số phút không thao tác"), (idle_share, 0, 1, "tỷ lệ thời gian không thao tác")):
@@ -212,7 +201,6 @@ def exam_timing(exam_id: int, min_sec_per_q: Optional[float] = None, rapid_sec: 
 
 @router.get("/exams/{exam_id}/timing/students/{student_id}")
 def exam_timing_student(exam_id: int, student_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Diễn biến làm bài của một SV: thời điểm chọn, thời gian trả lời, số lần đổi đáp án từng câu."""
     get_exam_for(db, u, exam_id)
     d = timing.student_timeline(db, exam_id, student_id)
     if not d:
@@ -224,7 +212,6 @@ def exam_timing_student(exam_id: int, student_id: int, u: User = Depends(require
 def exam_timing_xlsx(exam_id: int, min_sec_per_q: Optional[float] = None, rapid_sec: Optional[float] = None, rapid_share: Optional[float] = None,
                      idle_min: Optional[float] = None, idle_share: Optional[float] = None,
                      u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Xuất Excel danh sách cảnh báo và thời gian trả lời từng câu."""
     e = get_exam_for(db, u, exam_id)
     rep = timing.report(db, exam_id, _th(min_sec_per_q, rapid_sec, rapid_share, idle_min, idle_share))
     if not rep.get("available"):

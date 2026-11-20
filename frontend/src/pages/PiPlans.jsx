@@ -71,7 +71,7 @@ function PlanForm({ plan, sems, defSem, pid, onClose, onSaved }) {
     cycle: plan.cycle || '2 năm/lần', target_pct: plan.target_pct ?? 75, lecturer_id: plan.lecturer_id || '', clo_ids: [] })
   const course = useApi(f.course_id ? `/api/courses/${f.course_id}` : null).data
   const [inited, setInited] = useState(false)
-  useEffect(() => {  // khi sửa: chuyển danh sách mã CLO đã lưu thành id
+  useEffect(() => {
     if (!inited && course && String(course.id) === String(plan.course_id) && plan.clo_codes) {
       const codes = plan.clo_codes.split(','); setF(x => ({ ...x, clo_ids: course.clos.filter(c => codes.includes(c.clo_code)).map(c => c.id) })); setInited(true)
     }

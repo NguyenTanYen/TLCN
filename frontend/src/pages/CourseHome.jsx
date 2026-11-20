@@ -1,4 +1,3 @@
-// Trang một học phần theo luồng công việc: Bộ môn thiết lập → đề cương → lớp HP → kết quả CĐR; giảng viên: đề cương → lớp của mình → kết quả.
 import { useEffect, useRef, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -12,17 +11,14 @@ import { RubricsTab } from '../components/Rubric'
 import { Clos, CloForm, CourseInfo, Outlines, SectionForm } from './Courses'
 import { AssessmentsForm, GeneralForm, OutlineForm, ReferencesForm, SYL_TEXT, TextForm } from '../components/SyllabusForms'
 
-
-
 export default function CourseHome() {
   const { id } = useParams()
   const [sp, setSp] = useSearchParams()
   const isAdmin = auth.user()?.role === 'admin'
-  const tab = sp.get('tab') || (isAdmin ? 'syllabus' : 'sections')    // giảng viên bắt đầu từ lớp của mình
-  const [ver, setVer] = useState(null)   // góp ý F1: xem một phiên bản đề cương cụ thể (mặc định theo vai trò)
+  const tab = sp.get('tab') || (isAdmin ? 'syllabus' : 'sections')
+  const [ver, setVer] = useState(null)
   const syl = useApi(`/api/courses/${id}/syllabus${ver ? `?version=${ver}` : ''}`)
   const s = syl.data
-  // góp ý 21/10: đề kiểm tra là việc của giảng viên (gắn với lớp) – Bộ môn không có thẻ "Đề kiểm tra" và nút tạo bài
   const cex = useApi(isAdmin ? null : `/api/courses/${id}/exams`)
   const [creating, setCreating] = useState(!isAdmin && sp.get('new') === '1')
   const closeNew = () => { setCreating(false); if (sp.get('new')) setSp({ tab }) }
@@ -39,7 +35,6 @@ export default function CourseHome() {
     </div>
     <PageHelp id="course"><p>Trang này gom mọi việc của một môn. Làm lần lượt theo các bước ở dưới: xem <b>đề cương</b>, chọn <b>lớp học phần</b> để tạo bài kiểm tra, rồi xem <b>kết quả chuẩn đầu ra</b> của môn.</p>
       <p>Chuẩn đầu ra môn học (CLO) là những điều sinh viên phải làm được sau khi học xong môn. Xem thêm ở <a href="/huong-dan">Hướng dẫn sử dụng</a>.</p></PageHelp>
-    {/* góp ý 21/10: thay hàng thẻ bằng luồng công việc chính theo vai trò; mục phụ để bên phải */}
     {s && <Flow steps={(isAdmin ? [
       ['setup', 'Thiết lập học phần', 'Chương, CLO, ánh xạ PI', s.clos.length > 0 && s.outlines.length > 0],
       ['syllabus', 'Đề cương chi tiết', s.doc ? `Phiên bản ${s.doc.version_no}: ${s.doc.status_label}` : 'Chưa soạn', s.doc?.status === 'approved'],
@@ -76,12 +71,11 @@ export function Syllabus({ s, isAdmin, onEdit, setVer, reload }) {
   const [dlg, setDlg] = useState(null)
   const [preview, setPreview] = useState(false)
   const pdfUrl = `/api/courses/${s.id}/syllabus.pdf${d ? `?version=${d.version_no}` : ''}`
-  // Ctrl+P / Cmd+P trên trang đề cương: tải PDF theo mẫu in để ký thay vì in nguyên trang web
   useEffect(() => {
     const onKey = e => { if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); setPreview(true) } }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
   }, [pdfUrl, s.course_code])
-  const canEdit = isAdmin && d?.status === 'draft'                 // bản nháp mới nhất mới sửa được
+  const canEdit = isAdmin && d?.status === 'draft'
   const edit = (kind, extra) => canEdit && <button className="btn sm ghost no-print" onClick={() => setDlg({ kind, ...extra })}>Sửa</button>
   const done = () => { setDlg(null); reload() }
   const run = async (path, v) => { await api.post(path); setVer(null); reload(); return v }
@@ -181,8 +175,8 @@ function SectionsTab({ s, isAdmin, reload }) {
   const nav = useNavigate()
   const moodle = useMoodleBase()
   const [form, setForm] = useState(null)
-  const sems = [...new Set(s.sections.map(x => x.semester))]           // đã sắp học kỳ mới nhất trước (API)
-  const [sem, setSem] = useState('')                                    // '' = mọi học kỳ
+  const sems = [...new Set(s.sections.map(x => x.semester))]
+  const [sem, setSem] = useState('')
   const shown = sem ? s.sections.filter(x => x.semester === sem) : s.sections
   return <Card title={isAdmin ? 'Các lớp học phần của môn' : 'Các lớp bạn phụ trách'} actions={<>
     <ActionButton className="btn sm" title="Lớp chưa gắn được tự gắn với khóa học Moodle trùng mã lớp; lớp đã gắn được cập nhật danh sách SV đang ghi danh" okMsg={r => r.sections.map(x => `${x.section_code}: ${x.status}${x.added_students ? `, +${x.added_students} SV` : ''}`).join(' · ') || 'Không có lớp'}
@@ -202,7 +196,6 @@ function SectionsTab({ s, isAdmin, reload }) {
   </Card>
 }
 
-// Đề của môn: soạn ở trang môn học, khi xuất mới giao cho lớp HP (mỗi lớp một bài riêng)
 function ExamsTab({ data, onNew }) {
   const [dep, setDep] = useState(null)
   const d = data.data
@@ -222,9 +215,8 @@ function ExamsTab({ data, onNew }) {
   </Card>
 }
 
-// Kết quả chuẩn đầu ra của môn theo HỌC KỲ (gộp mọi lớp HP của kỳ – BM6b cấp môn); kết quả từng lớp là phần của giảng viên
 function ResultsTab({ s, isAdmin }) {
-  const sems = [...new Set(s.clo_summary.map(r => r.semester))]        // học kỳ mới nhất trước
+  const sems = [...new Set(s.clo_summary.map(r => r.semester))]
   const [sem, setSem] = useState(sems[0] || '')
   const rows = s.clo_summary.filter(r => r.semester === sem)
   const secs = s.sections.filter(x => x.semester === sem)
@@ -285,7 +277,6 @@ function ProgRow({ p, m, courseId, onSaved }) {
         onRun={async () => { await api.del(`/api/programs/${p.id}/courses/${courseId}`); onSaved() }}>✕</ActionButton>}</td></tr>
 }
 
-// Hộp xem trước đề cương theo mẫu in: xem trang PDF thật trước khi in hoặc tải về
 function PdfPreview({ url, fileName, onClose }) {
   const [f, setF] = useState(null)
   const [err, setErr] = useState('')

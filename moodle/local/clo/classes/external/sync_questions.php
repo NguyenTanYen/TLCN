@@ -9,18 +9,6 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Đồng bộ ngân hàng câu hỏi HAI CHIỀU – chiều hệ thống → Moodle (góp ý 15/10).
- *
- * Mỗi câu mang idnumber QB-n (n = question_bank.id bên hệ thống):
- *  - chưa có trong ngân hàng câu hỏi của khóa học  -> tạo mới (danh mục mặc định của khóa học);
- *  - đã có và nội dung/phương án khác bản mới nhất   -> tạo PHIÊN BẢN MỚI (cơ chế phiên bản câu hỏi của Moodle 4.x,
- *    lượt làm bài cũ giữ nguyên phiên bản cũ);
- *  - giống hệt                                       -> giữ nguyên.
- * Câu GV soạn trực tiếp trên Moodle (chưa có idnumber) được hệ thống nhập về rồi gắn idnumber QB-n tại đây
- * (moodlequestionid > 0, không gửi phương án) để từ đó hai bên nhận ra nhau.
- * Chiều Moodle → hệ thống: hệ thống đọc bản mới nhất qua cầu nối CSDL chỉ đọc (xem routers/qsync.py).
- */
 class sync_questions extends external_api {
 
     public static function execute_parameters(): external_function_parameters {
@@ -90,7 +78,6 @@ class sync_questions extends external_api {
         return ['results' => $out];
     }
 
-    /** Bản mới nhất của câu mang idnumber trong các danh mục của khóa học. */
     private static function entry(array $catids, string $idnumber) {
         global $DB;
         if (!$catids) {
@@ -125,7 +112,6 @@ class sync_questions extends external_api {
         return trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($s), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
     }
 
-    /** Nội dung, điểm và phương án (thứ tự, đúng/sai) giống bản mới nhất trên Moodle? */
     private static function same($old, array $q): bool {
         global $DB;
         if (self::norm($old->questiontext) !== self::norm($q['questiontext']) || abs((float)$old->defaultmark - $q['defaultmark']) > 1e-6) {
@@ -144,7 +130,6 @@ class sync_questions extends external_api {
         return true;
     }
 
-    /** Dữ liệu như biểu mẫu soạn câu Nhiều lựa chọn (một đáp án) của Moodle. */
     private static function form(array $q, int $categoryid, int $contextid): \stdClass {
         $f = new \stdClass();
         $f->category = $categoryid . ',' . $contextid;

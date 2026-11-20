@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { PageHelp } from '../components/Help'
 import { Histogram, ItemScatter } from '../components/ChartKit'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -11,14 +11,12 @@ import PaperSystem from '../components/PaperSystem'
 import { useApi } from '../hooks'
 import { MatrixTable } from '../components/Blueprint'
 import Timing from '../components/Timing'
+import { openMoodle } from '../moodle'
 import ExamTemplate from '../components/ExamTemplate'
 import { DeployDialog, TYPE_VI } from '../components/NewExam'
 
 const CLS_TONE = { 'Tốt': 'green', 'Chấp nhận được': 'blue', 'Quá dễ': 'amber', 'Quá khó': 'amber', 'Cần xem lại (DI thấp)': 'amber', 'Cần loại bỏ/kiểm tra đáp án': 'red' }
 
-// góp ý 21/10: trang bài kiểm tra theo các bước Đề thi → Phát hành (Moodle / in giấy) → Lấy bài làm & phân tích → Kết quả;
-// khối Công bố luôn ở đầu trang. Bước mở sẵn = việc cần làm tiếp theo trạng thái bài.
-// Góp ý 23/10: Bộ môn chỉ giám sát – không sao chép/xóa đề, không phát hành Quiz, in đề, chấm phiếu hay nhập điểm.
 const isAdmin = () => auth.user()?.role === 'admin'
 
 export default function ExamDetail() {
@@ -27,13 +25,13 @@ export default function ExamDetail() {
   const [sp, setSp] = useSearchParams()
   const [copy, setCopy] = useState(false)
   const [step, setStep] = useState(null)
-  const first = useRef(null)              // bước mặc định, chốt lúc tải lần đầu (không nhảy bước khi dữ liệu tải lại)
+  const first = useRef(null)
   const e = exam.data
   if (!e) return <Loading {...exam} />
   if (e.is_template) return <ExamTemplate e={e} reload={exam.reload} />
   const analyzed = e.status === 'Analyzed'
   const manual = e.exam_type === 'manual', paper = e.exam_type === 'paper'
-  const legacy = sp.get('tab')            // liên kết cũ: ?tab=timing|students|…
+  const legacy = sp.get('tab')
   if (!first.current) first.current = analyzed || (legacy && legacy !== 'flow') ? 'results' : manual ? 'exam' : paper ? 'release' : e.moodle_quiz_id ? 'collect' : 'release'
   const cur = step || sp.get('step') || first.current
   const view = sp.get('view') || (legacy && legacy !== 'flow' ? legacy : 'clo')
@@ -86,7 +84,6 @@ export default function ExamDetail() {
   )
 }
 
-// Bộ môn xem trạng thái phát hành / nhập điểm của bài, không thao tác thay giảng viên
 function AdminNote({ e }) {
   const st = e.exam_type === 'manual' ? `${e.questions.length} câu/ý · ${e.n_attempts} SV đã có điểm`
     : e.exam_type === 'paper' ? (e.moodle_offlinequiz_id ? `Offline Quiz #${e.moodle_offlinequiz_id} trên Moodle` : `Trạng thái: ${e.status}`) + ` · ${e.n_attempts} bài đã chấm`
@@ -97,7 +94,6 @@ function AdminNote({ e }) {
   </Card>
 }
 
-// Phân tích lại / xóa bài – thao tác phụ, để cuối bước
 function MoreActions({ e, reload }) {
   const nav = useNavigate()
   const canDel = !isAdmin() && (e.exam_type === 'manual' ? !e.n_attempts : e.status === 'Draft')
@@ -110,7 +106,6 @@ function MoreActions({ e, reload }) {
 
 const escapeHtml = t => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
-// Bước 1 – đề thi: danh sách câu, đường đi câu hỏi → CLO, ma trận chương × Bloom
 function ExamStep({ e, reload }) {
   return <>
     <div className="grid2">
@@ -127,7 +122,6 @@ function ExamStep({ e, reload }) {
   </>
 }
 
-// Bước 2 (trực tuyến) – tạo Quiz trên Moodle
 function Release({ e, reload, onNext }) {
   const [quiz, setQuiz] = useState(e.moodle_quiz_id || '')
   const [mcourse, setMcourse] = useState(e.moodle_course_id || '')
@@ -150,7 +144,6 @@ function Release({ e, reload, onNext }) {
   </Card>
 }
 
-// Bước 3 (trực tuyến) – đồng bộ bài làm từ Moodle rồi phân tích; xong thì chuyển sang Kết quả
 function Collect({ e, reload, onDone }) {
   return <Card title="Lấy bài làm & phân tích">
     <p className="muted">Hệ thống lấy bài làm của sinh viên từ Moodle, ghi nhận sinh viên vắng, rồi tính điểm, độ khó và độ phân biệt của từng câu, tỷ lệ sinh viên đạt từng chuẩn đầu ra của lớp và các chương còn yếu.</p>
@@ -166,10 +159,9 @@ function Collect({ e, reload, onDone }) {
   </Card>
 }
 
-// Bước 4 – kết quả: đường đi CLO → BM6 trước, sau đó điểm, câu hỏi, từng SV, thời gian làm bài
 function Results({ e, view, setView, reload }) {
   const analyzed = e.status === 'Analyzed'
-  const views = [['clo', 'Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['students', 'Kết quả sinh viên'],
+  const views = [['clo', 'Câu hỏi → chuẩn đầu ra (CLO) → kết quả của lớp'], ['overview', 'Tổng quan điểm'], ['items', 'Phân tích câu hỏi'], ['review', 'Gợi ý ôn từ học liệu'], ['students', 'Kết quả sinh viên'],
     e.exam_type === 'online' && ['timing', 'Thời gian làm bài']].filter(Boolean)
   const can = k => analyzed || (k === 'timing' && e.status === 'Synced')
   return <>
@@ -184,13 +176,13 @@ function Results({ e, view, setView, reload }) {
       {view === 'clo' && <CloTrace e={e} reload={reload} />}
       {view === 'overview' && <Overview id={e.id} />}
       {view === 'items' && <Items id={e.id} manual={e.exam_type === 'manual'} />}
+      {view === 'review' && <MaterialReview e={e} />}
       {view === 'students' && <Students id={e.id} cs={e.class_section_id} />}
       {view === 'timing' && <Timing examId={e.id} sectionCode={e.section_code} />}
     </>}
   </>
 }
 
-// Đường đi minh chứng (góp ý 21/10): câu hỏi của bài → CLO → tỷ lệ SV đạt CLO trong bài → kết quả CLO của lớp (BM6b)
 function CloTrace({ e, reload }) {
   const analyzed = e.status === 'Analyzed'
   const st = useApi(analyzed ? `/api/exams/${e.id}/clo-summary` : null, [e.status])
@@ -223,7 +215,6 @@ function CloTrace({ e, reload }) {
   </Card>
 }
 
-// Ma trận đề của bài đã lưu: số câu theo chương × mức độ nhận thức và điểm theo CLO
 function ExamMatrix({ e }) {
   const qs = e.questions.filter(q => !q.is_cancelled)
   const chapters = [...new Map(qs.map(q => [q.outline_id ?? null, { outline_id: q.outline_id ?? null, chapter_number: q.chapter }])).values()]
@@ -310,6 +301,29 @@ function PaperMoodle({ e, reload }) {
       {e.last_synced_at && <p className="muted mt">Lần đồng bộ gần nhất: {e.last_synced_at.replace('T', ' ')}</p>}
     </Card>
   </>
+}
+
+function MaterialReview({ e }) {
+  const sg = useApi(`/api/exams/${e.id}/material-suggestions`, [e.status])
+  const openPage = (url) => { const at = (url || '').indexOf('/pluginfile.php/'); if (at >= 0) openMoodle(url.slice(at)) }
+  const rows = sg.data || []
+  const any = rows.some(r => r.pages.length)
+  const retried = useRef(false)
+  useEffect(() => {
+    if (sg.data && !any && !retried.current) { retried.current = true; const t = setTimeout(() => sg.reload(), 4000); return () => clearTimeout(t) }
+  }, [sg.data, any])
+  return <Card title="Gợi ý ôn từ học liệu cho từng câu">
+    <p className="muted small mt0">Sinh viên làm sai câu nào sẽ được gợi ý đọc lại các trang giáo trình / slide của lớp ở cột bên phải (hệ thống tìm trong học liệu đã nạp của lớp
+      theo nội dung câu hỏi và đáp án đúng). Kiểm tra trước khi công bố kết quả; chưa ưng thì sửa từ điển thuật ngữ của môn hoặc bổ sung học liệu.</p>
+    <Loading {...sg} />
+    {sg.data && !any && <div className="alert">Chưa có gợi ý nào. Lớp cần có học liệu ở trạng thái "Đã nạp" – mở lớp, tab <Link to={`/sections/${e.class_section_id}?tab=materials`}>Học liệu</Link> để tải giáo trình lên.</div>}
+    {any && <table className="tbl"><thead><tr><th className="num-c">Câu</th><th>Nội dung</th><th className="num-c">SV sai</th><th>Trang nên đọc lại</th></tr></thead>
+      <tbody>{rows.map(r => <tr key={r.question_id}><td className="num-c">{r.question_no}</td><td className="small">{r.content}</td>
+        <td className="num-c">{r.n_wrong}</td>
+        <td className="small">{r.pages.length ? r.pages.map((p, i) => <div key={i}>
+          <a href="#" onClick={ev => { ev.preventDefault(); openPage(p.url) }}>{p.material_title} – trang {p.page_no} ↗</a>
+          {p.title && <span className="muted"> · {p.title}</span>}</div>) : <span className="muted">Không có trang phù hợp</span>}</td></tr>)}</tbody></table>}
+  </Card>
 }
 
 function Overview({ id }) {

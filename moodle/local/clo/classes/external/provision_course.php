@@ -9,14 +9,6 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 
-/**
- * Tạo khóa học trên Moodle cho một lớp học phần của hệ thống và ghi danh giảng viên + sinh viên.
- * - Tìm khóa học theo idnumber (mã lớp) rồi theo shortname; chưa có thì tạo mới. Gọi lại thì chỉ bổ sung người còn thiếu.
- * - Người dùng chưa có tài khoản Moodle (theo tên đăng nhập) được tạo mới, phương thức đăng nhập "manual";
- *   mật khẩu ban đầu do hệ thống truyền sang (người dùng đã có thì không đổi mật khẩu).
- * - Ghi danh bằng phương thức "manual": giảng viên = editingteacher, sinh viên = student.
- * Trả về id khóa học và id người dùng Moodle của từng tên đăng nhập để hệ thống lưu lại (mdl_user.id).
- */
 class provision_course extends external_api {
 
     private static function person_structure(): external_single_structure {
@@ -55,7 +47,7 @@ class provision_course extends external_api {
         }
         $email = trim($p['email']);
         if ($email === '' || !validate_email($email) || $DB->record_exists('user', ['email' => $email, 'deleted' => 0])) {
-            $email = preg_replace('/[^a-z0-9._-]/', '', $username) . '@example.com';   // email là bắt buộc; GV/SV đổi sau
+            $email = preg_replace('/[^a-z0-9._-]/', '', $username) . '@example.com';
         }
         $user = (object)[
             'username' => $username, 'auth' => 'manual', 'confirmed' => 1, 'mnethostid' => $CFG->mnet_localhost_id,

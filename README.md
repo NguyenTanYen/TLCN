@@ -8,7 +8,7 @@ BM6a–6d (CĐR môn học, cả BM6c riêng từng bài kiểm tra) và BM2a–
 
 Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và xem kết quả phân tích trên **Moodle**. Hai hệ thống nối với nhau qua plugin Moodle `local_clo` (nút *Phân tích CĐR* đăng nhập một lần, Web Service tạo Quiz / Offline Quiz và nhận kết quả) và cầu nối CSDL chỉ đọc để kéo bài làm – xem `HUONG_DAN_CAI_DAT.md`.
 
-> **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp `.bat` 0–8). Sau khi cập nhật bản 15/10 cần chạy lại **1_CAI_DAT_PYTHON.bat**
+> **Cài trên Windows + XAMPP:** xem `HUONG_DAN_CAI_DAT.md` (các tệp trong `scripts\`). Sau khi cập nhật bản 15/10 cần chạy lại **scripts\cai_dat.bat**
 > (thư viện mới: reportlab, opencv-python-headless) và chép lại plugin `moodle/local/clo` (phiên bản 1.4.0 – Web Service đồng bộ câu hỏi; Quiz tạo mới đặt 1 câu/trang để lấy thời gian từng câu; giới hạn Quiz phụ đạo cho SV được giao), sau đó vào Moodle → Quản trị trang để nâng cấp.
 > Bài trực tuyến đã đồng bộ trước bản thời gian làm bài: bấm **Đồng bộ lại** để lấy thời điểm trả lời từng câu.
 
@@ -26,6 +26,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | Phụ đạo | Mỗi SV sai bao nhiêu câu, bấm SV xem danh sách câu sai (đã chọn – đáp án đúng – CLO – chương), **tạo bài phụ đạo** (câu đã sai + câu tương tự cùng CLO). |
 | Đề & phiếu giấy, chấm phiếu | **Hệ thống tự sinh mã đề**, xem trước đề (1 cột hoặc **chia 2 cột**) và **phiếu trả lời** ngay trên màn hình, sửa câu tại chỗ, xuất PDF/Word/đáp án; mỗi câu 2–6 phương án, phiếu in đúng số ô. **Chấm phiếu bằng ảnh quét hoặc ảnh chụp điện thoại** (OpenCV: 4 ô định vị, nắn phối cảnh), soát/sửa rồi lưu. Vẫn giữ lựa chọn Moodle Offline Quiz. |
 | Tạo bài KT ở môn học, chọn lớp khi xuất | Nút **+ Tạo bài KT** ngay trên thẻ môn; đề lưu ở môn (*đề của môn*), khi xuất bấm **Giao cho lớp HP / Xuất** chọn các lớp – mỗi lớp nhận bài riêng (kèm Quiz Moodle). Hộp chọn hình thức dạng thẻ, hộp thoại chuẩn hóa cỡ, không tràn ngang trên màn hình hẹp. |
+| Kết quả cho sinh viên trên Moodle | Khi giảng viên **công bố**, trang *Kết quả phân tích CĐR* trên Moodle hiện: điểm và điểm trung bình lớp, số câu đúng/sai/bỏ trống, **radar theo CLO và theo chương**, bảng CLO và bảng theo chương, chẩn đoán và lộ trình ôn tập, **các câu làm sai kèm đáp án đúng và trang học liệu nên đọc lại**, bảng chi tiết từng câu có bộ lọc và liên kết xem lại bài làm. Sinh viên còn **tra cứu trong tài liệu của môn** (trang `search.php`, hệ thống tìm theo nghĩa và từ khóa, vé xác thực có chữ ký hết hạn sau 60 giây). |
 | Thời gian trả lời từng câu, cảnh báo GV | Lấy thời điểm SV chọn đáp án từng câu từ Moodle (`question_attempt_steps`, chỉ đọc) → thời gian từng câu, thẻ **Thời gian làm bài**: cảnh báo SV **chọn đại rồi nộp** (vd. 50 câu/5 phút), **chọn xong không nộp chờ hết giờ**, bỏ dở; ngưỡng chỉnh được, diễn biến từng SV, xuất Excel; số cảnh báo hiện ở danh sách bài KT. Nên đặt Quiz 1 câu/trang. |
 
 ## Cấu trúc thư mục
@@ -35,18 +36,19 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `moodle/local/clo` | Plugin Moodle: nút SSO, Web Service tạo Quiz / Offline Quiz, nhận kết quả, trang kết quả cho SV |
 | `moodle/mod/offlinequiz_v4.5.4.zip` | Plugin Offline Quiz (GPL v3, mã gốc): in đề + phiếu, nhận diện phiếu quét, chấm bài thi giấy |
 | `moodle/theme/ute` | Giao diện UTE LMS cho Moodle |
-| `database/01_schema.sql` | CSDL `assessment_db` – 57 bảng, 4 view (MySQL 8) |
+| `database/01_schema.sql` | CSDL `assessment_db` – 57 bảng, 10 view (MySQL 8) |
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
 | `database/00_moodle_subset_for_test.sql` | 22 bảng Moodle 4.4 (từ install.xml) – chỉ dùng cho kiểm thử tự động |
 | `backend/` | FastAPI + SQLAlchemy 2 + Pandas (Analysis Engine), xuất Excel/Word |
 | `frontend/` | React 19 + Vite + Chart.js |
+| `scripts/` | Tệp `.bat` chạy trên Windows: `cai_dat`, `chay`, `tao_du_lieu_demo`, `kiem_thu` |
 | `tools/moodle_e2e/` | Kiểm thử đầu-cuối với **Moodle 4.5 thật** |
 | `docker-compose.yml`, `docker/` | MySQL 8.0 + Moodle 4.5 + hệ thống |
 | `moodle/theme/ute/` | Giao diện Moodle "UTE – Khảo thí & CĐR" (kế thừa Boost) |
 | `database/heidisql/` | Tệp SQL chạy trực tiếp trong HeidiSQL (MariaDB 10.4+) |
-| `.gitignore`, `.gitattributes`, `backend/cau_hinh.env.example`, `0_CAU_HINH_MAY.example.bat` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu; đường dẫn Moodle/PHP riêng từng máy khai báo trong `0_CAU_HINH_MAY.bat` (nếu cần); tệp `.bat` luôn được lấy về với xuống dòng CRLF; `8_CAP_NHAT_TU_GITHUB.bat` lấy bản mới từ GitHub về, `7_DON_DEP_GIT.bat` đẩy lên |
+| `.gitignore`, `.gitattributes`, `backend/cau_hinh.env.example`, `scripts/cau_hinh_may.example.bat` | Không đưa `.venv`, `__pycache__`, cấu hình có mật khẩu/token lên Git; máy mới tự tạo `cau_hinh.env` từ tệp mẫu; đường dẫn Moodle/PHP riêng từng máy khai báo trong `scripts/cau_hinh_may.bat` (nếu cần) |
 
 ## Chạy bằng Docker
 
@@ -95,8 +97,8 @@ Phát triển giao diện: `npm run dev` (cổng 5173, tự chuyển `/api` sang
 ## Kiểm thử
 
 ```bash
-python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 99 ca + độ phủ 133/133 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
-cd backend && python -m pytest tests -q        # 99 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), thời gian làm bài & cảnh báo, nâng cấp CSDL
+python tools/kiem_thu/chay_kiem_thu_toan_bo.py --omr   # kiểm thử TOÀN BỘ: 312 ca + độ phủ 148/148 API + bảng kết quả docs/kiem_thu/KET_QUA_KIEM_THU.xlsx
+cd backend && python -m pytest tests -q        # ~300 ca: Analysis Engine, BM6c/6d, xuất biểu mẫu BM2/BM3/BM6 (Excel + Word) và phân công, API, phân quyền môn học & khóa học Moodle, sinh đề theo ma trận, SSO, nhập câu hỏi/gán CLO từ file, bài giấy từ Offline Quiz, CTĐT 2026 & đề cương, phân quyền GV chỉ xem CLO, nhập điểm/Excel, gộp bài, phụ đạo, đề giấy + chấm phiếu ảnh (OMR, cả phiếu gạch chéo và nét bút đè ô định vị), thời gian làm bài & cảnh báo, nâng cấp CSDL
 python ../tools/omr/kiem_tra_omr.py          # độ bền bộ chấm phiếu: 6 điều kiện ảnh × 30 phiếu, 7 kiểu tô
 python tests/ui_screens.py                     # Playwright: chụp 47 màn hình, bắt lỗi console
 python ../tools/moodle_e2e/run_real_moodle_e2e.py /duong/dan/moodle   # E2E với Moodle 4.5 thật
@@ -107,6 +109,17 @@ Kiểm thử tự động dùng CSDL Moodle **mô phỏng** riêng (`moodle_sim`
 Kịch bản E2E dùng chính API của Moodle 4.5.14 để nhập tệp XML do hệ thống xuất, tạo Quiz xáo trộn phương án và cho 38 SV làm bài;
 kết quả đồng bộ khớp 100% với điểm Moodle tự chấm (760/760 câu trả lời, 38/38 tổng điểm) ở cả 3 cách tính điểm của quiz
 (điểm cao nhất, lượt đầu, lượt cuối).
+
+## Cách tính CLO, PI, PLO
+
+Cả ba mức dùng cùng một quy tắc đếm lượt sinh viên đạt (`analysis.aggregate`, `services/results.py`):
+
+1. **Điểm CLO của một bài làm** = tổng (điểm đạt × trọng số câu–CLO) / tổng (điểm tối đa × trọng số) × 100. Bài làm **đạt CLO** khi điểm này không thấp hơn ngưỡng của CLO (mặc định 60%, chỉnh trong kế hoạch CLO).
+2. **CLO của lớp học phần (BM6b, BM6d)** = số bài làm đạt / số bài làm được đánh giá, cộng dồn qua các bài kiểm tra được chọn làm minh chứng (có thể lọc theo loại bài). Đạt khi tỷ lệ không thấp hơn chỉ tiêu (mặc định 70%).
+3. **PI (BM3c)** = cộng dồn (số được đánh giá, số đạt) của các CLO minh chứng trong kế hoạch đo PI, ở môn và học kỳ đã khai báo. Nếu kế hoạch không chọn CLO thì lấy các CLO của môn gắn với PI đó, rồi đến các CLO gắn với PLO của PI.
+4. **PLO (BM2, BM3c dòng tổng)** = cộng dồn kết quả các PI thuộc PLO trong một năm học; đạt khi không thấp hơn chỉ tiêu của PLO (kế hoạch đo năm học, nếu không có thì chỉ tiêu mặc định của PLO).
+
+Các tầng cộng dồn theo lượt sinh viên, không lấy trung bình các tỷ lệ và không có trọng số riêng giữa các PI. Nếu trường quy định cách khác (trọng số, trung bình có trọng số), chỉ cần đổi `analysis.aggregate` và `recompute_pi_plans` / `recompute_plo`.
 
 ## Dữ liệu minh họa
 
@@ -121,3 +134,23 @@ Nội dung CLO, câu hỏi, danh sách sinh viên và bài làm của môn DBMS3
 - Trang **Hướng dẫn sử dụng** (menu) và khung "Hướng dẫn cho trang này" (thu gọn sẵn) dành cho người mới dùng.
 - Nút/màu thống nhất: một nút chính màu xanh cho mỗi khu vực; biểu đồ chi tiết nằm trong mục "Xem thêm".
 - Nút **In đề cương (xem trước)** (hoặc Ctrl+P) ở trang đề cương mở hộp xem trước PDF A4 theo mẫu đề cương chi tiết của Trường ĐH Công nghệ Kỹ thuật TP.HCM (mục đánh số, bảng CLO, nội dung theo chương, đánh giá, ô ký); từ đó chọn **In** hoặc **Tải PDF**.
+
+## Bản hoàn thiện nhánh Tanyen (sau khi gộp main)
+- **Tổng quan** là trang đầu: việc cần làm, số liệu nhanh, lối tắt tới từng chức năng; menu chia nhóm (Bắt đầu, Giảng dạy, Tra cứu, Trợ giúp), mỗi mục có mô tả ngắn.
+- Bấm cả dòng lớp để vào lớp; câu chữ giao diện dùng tên thông thường thay cho mã biểu mẫu.
+- **Rubric chấm điểm**: tạo bảng tiêu chí theo môn (mỗi tiêu chí đo một CLO), chấm theo mức, điểm và mức đạt CLO tính tự động.
+- **Biểu đồ theo chuẩn**: tỷ lệ đạt CLO có khoảng tin cậy 95% (Wilson) và vạch chỉ tiêu; phổ điểm dạng cột liền; biểu đồ độ khó – độ phân biệt có vùng lý tưởng.
+- **Vòng cải tiến**: hành động cải tiến cho CLO chưa đạt, xu hướng CLO qua các học kỳ, cảnh báo cỡ mẫu nhỏ.
+- **Học liệu theo lớp** (làm lại bởi nhánh QuocThi): lấy PDF từ khóa học Moodle của lớp, gợi ý trang cần đọc cho câu sinh viên làm sai.
+
+### Tải học liệu từ hệ thống (nhánh Tanyen)
+Tab **Học liệu** của lớp có nút **Tải học liệu lên** (chọn PDF + các lớp cùng môn, hệ thống tự đăng lên khóa Moodle của từng lớp
+bằng `local_clo_add_resource` rồi đồng bộ và nạp), **Dùng cho lớp khác** ở từng học liệu và **Sao chép từ lớp khác** (lấy toàn bộ
+học liệu của lớp cũ sang lớp mới). Moodle phải nhận được tệp lớn: `docker/moodle/Dockerfile` nâng `post_max_size`/`upload_max_filesize`
+lên 256 MB (cần dựng lại ảnh Moodle). Từ điển thuật ngữ Việt–Anh theo môn: `backend/app/services/rag/synonyms/<mã môn>.txt`.
+
+### Tìm theo nghĩa và gợi ý ôn từ học liệu
+- `semantic.dense_top`: tìm đoạn GẦN NGHĨA bằng vector MiniLM đa ngôn ngữ (đã nạp sẵn trong ảnh Docker, `SEMANTIC=1`), trộn với BM25 bằng RRF
+  ở ô "Thử tìm trong học liệu" và ở gợi ý cho sinh viên – câu tiếng Việt vẫn tìm được trong giáo trình tiếng Anh. Không có thư viện
+  hoặc đoạn chưa có vector thì chỉ dùng BM25 như cũ. Model có sẵn, KHÔNG phải huấn luyện.
+- Trang bài kiểm tra → Kết quả → **Gợi ý ôn từ học liệu**: giảng viên xem trước từng câu sinh viên sai sẽ được gợi ý đọc trang nào.

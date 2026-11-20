@@ -1,9 +1,3 @@
-"""Bài giảng tóm tắt MẪU của môn demo (Hệ quản trị CSDL – DBMS330284) dạng slide PDF – tải lên khóa học Moodle demo để
-có học liệu cho gợi ý "nên đọc lại ở đâu" (RAG). Tự viết theo 6 chương của bộ câu hỏi demo (demo_data.Q), không dùng
-slide thật của giảng viên. Có một slide dạng THẺ (hộp màu + mũi tên) – bộ đọc PDF coi là hình, VLM (nếu bật) mô tả.
-
-Dựng bằng PyMuPDF với phông có dấu tiếng Việt của máy (Arial trên Windows, DejaVu Sans / Liberation Sans trên Linux).
-"""
 from __future__ import annotations
 
 import os
@@ -86,7 +80,6 @@ SLIDES: list[tuple[str, str, list[str]]] = [
         "SIMPLE: nhật ký tự cắt sau checkpoint – chỉ phục hồi về bản sao lưu gần nhất."]),
 ]
 
-# slide dạng thẻ: ba loại bản sao lưu + thứ tự phục hồi
 CARDS = ("Chương 6. Bảo mật, sao lưu và phục hồi", "Các loại bản sao lưu và thứ tự phục hồi", [
     ("FULL", "Toàn bộ dữ liệu tại thời điểm sao lưu", (0.85, 0.92, 1.0)),
     ("DIFFERENTIAL", "Các thay đổi kể từ bản FULL gần nhất", (0.88, 0.97, 0.88)),
@@ -116,7 +109,6 @@ def _head(page, reg, bold, chapter, title):
 
 
 def _bullets(page, font: pymupdf.Font, lines: list[str], size: float = 17) -> None:
-    """Mỗi ý một gạch đầu dòng, tự xuống dòng theo bề rộng chữ đo bằng phông thật."""
     y, x0, x1 = 140, 60, W - 50
     for ln in lines:
         words, cur, rows = ln.split(), "", []
@@ -142,7 +134,6 @@ def build_pdf() -> bytes:
         page = doc.new_page(width=W, height=H)
         _head(page, reg, bold, chapter, title)
         _bullets(page, font, lines)
-    # slide dạng thẻ: ngay sau slide mô hình phục hồi (cùng chương 6, trang cuối)
     chapter, title, cards, note = CARDS
     page = doc.new_page(width=W, height=H)
     _head(page, reg, bold, chapter, title)
@@ -154,7 +145,7 @@ def build_pdf() -> bytes:
                             color=BLUE, align=1)
         page.insert_textbox(pymupdf.Rect(r.x0 + 14, r.y0 + 70, r.x1 - 14, r.y1 - 10), desc, fontname="R", fontsize=16,
                             align=1)
-        if k < len(cards) - 1:                               # mũi tên sang thẻ kế tiếp
+        if k < len(cards) - 1:
             page.draw_line((r.x1 + 6, 240), (r.x1 + 34, 240), color=BLUE, width=3)
             page.draw_polyline([(r.x1 + 26, 232), (r.x1 + 34, 240), (r.x1 + 26, 248)], color=BLUE, width=3)
     page.insert_textbox(pymupdf.Rect(60, 370, W - 60, 470), note, fontname="R", fontsize=16)

@@ -10,10 +10,6 @@ use core_privacy\local\request\contextlist;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
 
-/**
- * Quyền riêng tư (GDPR): khai báo dữ liệu cá nhân plugin lưu/gửi đi, cho phép xuất và xóa kết quả phân tích
- * của một sinh viên (bảng local_clo_result, nằm trong ngữ cảnh khóa học).
- */
 class provider implements
         \core_privacy\local\metadata\provider,
         \core_privacy\local\request\plugin\provider,

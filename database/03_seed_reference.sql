@@ -1,4 +1,3 @@
--- Dữ liệu tham chiếu sinh tự động từ BM2 (KTDL) và bảng phân công đánh giá PIs HKI 2023-2024
 
 USE assessment_db;
 

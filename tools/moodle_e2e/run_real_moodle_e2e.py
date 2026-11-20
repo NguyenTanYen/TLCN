@@ -1,32 +1,15 @@
-"""Kiểm thử đầu-cuối với Moodle THẬT (không dùng CSDL Moodle mô phỏng).
-
-Yêu cầu: Moodle 4.x đã cài (CSDL `moodle`, cùng MySQL server với assessment_db), php-cli.
-Chạy từ thư mục backend:  python ../tools/moodle_e2e/run_real_moodle_e2e.py /đường/dẫn/moodle
-
-Các bước: dựng lại CSDL hệ thống + dữ liệu minh họa -> xuất Moodle XML của bài KT online -> PHP dùng API Moodle
-nhập XML, tạo Quiz xáo trộn phương án, cho 38 SV làm bài (Moodle tự chấm) -> hệ thống đồng bộ qua sp_sync_exam
--> đối chiếu từng câu trả lời và tổng điểm với kết quả chấm của chính Moodle.
-
-Bài thi GIẤY (cần Web Service local_clo + plugin Offline Quiz): hệ thống tạo Offline Quiz 2 mã đề qua API -> tải phiếu trả lời
-Moodle sinh ra -> tô phiếu cho 38 SV (fill_answer_sheets.py) và đưa ảnh vào hàng đợi quét -> MOODLE nhận diện & chấm
-(local_clo_process_scans) -> hệ thống đồng bộ, đối chiếu với điểm Moodle chấm và với phương án SV đã tô.
-
-Học liệu (cần Web Service local_clo): tải bài giảng tóm tắt mẫu (hoc_lieu_mau.py) lên khóa học làm Tài nguyên -> hệ
-thống đồng bộ, nạp, tính vector (+ VLM mô tả slide dạng thẻ nếu Ollama chạy) TRƯỚC khi đẩy kết quả -> trang kết quả
-của SV trên Moodle có mục "Nên đọc lại ở đâu". Khóa học demo bị xóa và tạo lại mỗi lần chạy nên học liệu cũng tạo lại.
-"""
 import contextlib, io, json, os, random, shutil, subprocess, sys
 from pathlib import Path
 
 from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
-from app import cli, demo_data as D  # noqa: E402
-from app.config import settings  # noqa: E402
-from app.database import SessionLocal, engine  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from app.models import Exam  # noqa: E402
-from app.services import lms, moodle, results, xml_export  # noqa: E402
+from app import cli, demo_data as D
+from app.config import settings
+from app.database import SessionLocal, engine
+from sqlalchemy import create_engine
+from app.models import Exam
+from app.services import lms, moodle, results, xml_export
 
 MOODLE = Path(sys.argv[1] if len(sys.argv) > 1 else "/var/www/moodle").resolve()
 HERE = Path(__file__).resolve().parent
@@ -53,7 +36,7 @@ def main():
         last, first = name.rsplit(" ", 1)
         spec["students"].append({"username": code, "firstname": first, "lastname": last, "password": "Sv@123456"})
         if i in (3, 29):
-            continue  # 2 SV vắng thi
+            continue
         n_att = 2 if i % 13 == 0 else 1
         for k in range(1, n_att + 1):
             ans = {}
@@ -61,7 +44,6 @@ def main():
                 q = eq.question
                 b, corr = meta[q.content]
                 ans[f"QB-{q.id}"] = cli._answer(rng, theta[i] - (0.4 if k < n_att else 0), b, len(q.options), corr, q.content == trap)
-            # thời điểm chọn từng câu và nộp bài (2 SV chọn đại rồi nộp, 2 SV chọn xong để hết giờ – xem cli.timing_plan)
             done = [qk for qk, v in ans.items() if v is not None]
             offs, finish, _ = cli.timing_plan(trng, i, len(done), last_attempt=k == n_att)
             spec["attempts"].append({"username": code, "answers": ans, "timing": {"offsets": dict(zip(done, offs)), "finish": finish}})
@@ -81,8 +63,6 @@ def main():
     print("Phân tích:", results.analyze_exam(db, exam.id))
     reports = {}
     for gm, label in ((4, "Lượt cuối"), (3, "Lượt đầu"), (1, "Điểm cao nhất (mặc định)")):
-        # đổi cách tính điểm của quiz như GV chỉnh trong Moodle (chỉ trong kịch bản minh họa; cần tài khoản quản trị CSDL
-        # vì tài khoản của hệ thống chỉ được đọc CSDL Moodle)
         with (create_engine(settings.database_admin_url) if settings.database_admin_url else engine).begin() as c:
             c.execute(text(f"UPDATE {settings.moodle_db_name}.{settings.moodle_prefix}quiz SET grademethod=:g WHERE id=:q"),
                       {"g": gm, "q": info["quiz_id"]})
@@ -101,13 +81,12 @@ def main():
 
 
 def paper_on_moodle(db, info, php):
-    """Bài thi giấy: Moodle (Offline Quiz) sinh đề + phiếu, nhận diện phiếu quét và chấm; hệ thống chỉ ra đề và kéo kết quả."""
     from fill_answer_sheets import fill_sheet
     if not lms.configured():
         print("\n(Bỏ qua bài thi giấy: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
         return None
     if not moodle.offlinequiz_available():
-        print("\n(Bỏ qua bài thi giấy: Moodle chưa cài plugin Offline Quiz – chạy 3_CAI_GIAO_DIEN_MOODLE.bat)")
+        print("\n(Bỏ qua bài thi giấy: Moodle chưa cài plugin Offline Quiz – chạy scripts/cai_dat.bat)")
         return None
     exam = db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
     print(f"\n== Bài thi giấy #{exam.id}: tạo Offline Quiz 2 mã đề trên Moodle (Web Service)")
@@ -122,7 +101,6 @@ def paper_on_moodle(db, info, php):
             (scans.parent / f"{f['kind']}_{g['letter']}.{f['filename'].rsplit('.', 1)[-1]}").write_bytes(data)
             if f["kind"] == "answer":
                 forms[g["groupnumber"]] = str(scans.parent / f"answer_{g['letter']}.pdf")
-    # Bố cục từng mã đề do Moodle xáo: câu ở mỗi ô + thứ tự phương án in trên phiếu (đọc CSDL Moodle – chỉ đọc)
     MDL = f"{settings.moodle_db_name}.{settings.moodle_prefix}"
     with engine.connect() as c:
         rows = c.execute(text(f"""SELECT g.groupnumber, qa.slot, CAST(SUBSTRING(qbe.idnumber, 4) AS UNSIGNED), d.value
@@ -145,12 +123,10 @@ def paper_on_moodle(db, info, php):
     meta = {c: (b, corr) for ch, bl, clo, c, opts, corr, b in D.Q}
     content = {q.question_id: q.question.content for q in exam.questions}
     spec, files = {}, []
-    # Lựa chọn cố định của bộ dữ liệu minh họa (nhãn phương án gốc A, B, …; null = bỏ trống) – giữ cho số liệu
-    # giống nhau ở mọi lần chạy, vì Moodle xáo thứ tự câu trong mã đề ngẫu nhiên mỗi khi tạo đề.
     fixed_file = HERE / "lua_chon_bai_giay.json"
     fixed = json.loads(fixed_file.read_text(encoding="utf-8")) if fixed_file.exists() else {}
     for k, code in enumerate(studs):
-        if k in (5, 17):  # 2 SV vắng thi
+        if k in (5, 17):
             continue
         g = 1 if k % 2 == 0 else 2
         picks, sheet = {}, []
@@ -160,9 +136,9 @@ def paper_on_moodle(db, info, php):
                 lab = fixed[code][str(qid)]
                 p = None if lab is None else ord(lab) - ord("A")
             else:
-                p = cli._answer(rng, theta[k], b, len(ids), corr, False)  # phương án gốc SV chọn (None = bỏ trống)
+                p = cli._answer(rng, theta[k], b, len(ids), corr, False)
             picks[qid] = p
-            sheet.append(None if p is None else order.index(ids[p]))      # ô tương ứng trên phiếu đã xáo của mã đề
+            sheet.append(None if p is None else order.index(ids[p]))
         fill_sheet(forms[g], code, sheet, str(scans / f"{code}.png"))
         spec[code] = picks; files.append(str(scans / f"{code}.png"))
     out = subprocess.run([php, str(HERE / "moodle_enqueue_scans.php"), f"--moodle={MOODLE}", f"--oq={oq['offlinequizid']}", *files],
@@ -175,7 +151,7 @@ def paper_on_moodle(db, info, php):
     print("Đồng bộ:", moodle.sync_exam(db, exam.id))
     print("Phân tích:", results.analyze_exam(db, exam.id))
     with engine.connect() as c:
-        q = lambda sql, **p: c.execute(text(sql), p).fetchall()  # noqa: E731
+        q = lambda sql, **p: c.execute(text(sql), p).fetchall()
         rows = q(f"""SELECT s.student_code, a.total_score, r.sumgrades, v.version_code, CHAR(64 + g.groupnumber USING utf8mb4)
                      FROM exam_attempts a JOIN students s ON s.id = a.student_id
                      JOIN {MDL}offlinequiz_results r ON r.id = a.moodle_attempt_id AND r.offlinequizid = :oq
@@ -199,7 +175,6 @@ def paper_on_moodle(db, info, php):
 
 
 def materials_on_moodle(db, exam, info):
-    """Tải bài giảng mẫu lên khóa học (Tài nguyên) -> đồng bộ + nạp học liệu của lớp -> kiểm tra gợi ý trang cho câu sai."""
     import base64
     from hoc_lieu_mau import FILENAME, TITLE, build_pdf
     from app.models import ClassSection, SectionMaterial
@@ -225,7 +200,6 @@ def materials_on_moodle(db, exam, info):
 
 
 def push_to_moodle(db, exam):
-    """Công bố kết quả -> đẩy qua Web Service local_clo -> kiểm tra Moodle đã lưu đủ kết quả cho SV xem."""
     if not lms.configured():
         print("\n(Bỏ qua bước đẩy kết quả lên Moodle: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
         return None
@@ -247,8 +221,7 @@ def push_to_moodle(db, exam):
 def verify(exam_id, quiz_id, spec, grademethod):
     MDL = f"{settings.moodle_db_name}.{settings.moodle_prefix}"
     with engine.connect() as c:
-        q = lambda sql, **p: c.execute(text(sql), p).fetchall()  # noqa: E731
-        # (1) tổng điểm = sumgrades Moodle tự chấm, trên lượt nộp cuối, không tính lượt xem trước
+        q = lambda sql, **p: c.execute(text(sql), p).fetchall()
         rows = q(f"""SELECT s.student_code, a.total_score, ma.sumgrades, ma.attempt, ma.preview FROM exam_attempts a
                     JOIN students s ON s.id=a.student_id JOIN {MDL}quiz_attempts ma ON ma.id=a.moodle_attempt_id
                     WHERE a.exam_id=:e""", e=exam_id)
@@ -261,7 +234,6 @@ def verify(exam_id, quiz_id, spec, grademethod):
         synced = {r[0] for r in q("SELECT moodle_attempt_id FROM exam_attempts WHERE exam_id=:e AND status='finished'", e=exam_id)}
         last = len(graded)
         preview = q(f"SELECT COUNT(*) FROM {MDL}quiz_attempts WHERE quiz=:q AND preview=1", q=quiz_id)[0][0]
-        # (2) từng câu: đúng/sai của hệ thống = trạng thái chấm của Moodle (gradedright/gradedwrong/gaveup)
         items = q(f"""SELECT s.student_code, r.question_id, r.score_earned,
                             (SELECT st.fraction FROM {MDL}question_attempt_steps st WHERE st.questionattemptid=mqa.id
                               ORDER BY st.sequencenumber DESC LIMIT 1) AS moodle_fraction,
@@ -275,14 +247,13 @@ def verify(exam_id, quiz_id, spec, grademethod):
                      WHERE a.exam_id=:e""", e=exam_id)
         wrong_grade = [i for i in items if (float(i[2]) > 0) != (float(i[3] or 0) > 0)]
         wrong_choice = [i for i in items if (i[4] or None) != (i[5] or None) and not (i[4] is None and i[5] is None)]
-        # (3) lựa chọn của hệ thống = phương án SV đã chọn trong đặc tả kiểm thử
         att_no = {r[0]: (r[1], r[2]) for r in q(f"""SELECT a.moodle_attempt_id, s.student_code, ma.attempt FROM exam_attempts a
                     JOIN students s ON s.id=a.student_id JOIN {MDL}quiz_attempts ma ON ma.id=a.moodle_attempt_id WHERE a.exam_id=:e""", e=exam_id)}
         by_user = {}
         for a in spec["attempts"]:
             by_user.setdefault(a["username"], []).append(a["answers"])
-        spec_last = {u: by_user[u][n - 1] for u, n in att_no.values()}  # đáp án đặc tả của đúng lượt được chấm
-        pos = {(r[0], r[1]): r[2] for r in q(f"""SELECT s.student_code, r.question_id, o.position - 1 FROM item_level_results r
+        spec_last = {u: by_user[u][n - 1] for u, n in att_no.values()}
+        pos = {(r[0], r[1]): r[2] for r in q("""SELECT s.student_code, r.question_id, o.position - 1 FROM item_level_results r
                   JOIN exam_attempts a ON a.id=r.attempt_id JOIN students s ON s.id=a.student_id
                   LEFT JOIN question_options o ON o.id=r.selected_option_id WHERE a.exam_id=:e AND a.status='finished'""", e=exam_id)}
         spec_bad = [(u, k) for u, ans in spec_last.items() for k, v in ans.items() if pos.get((u, int(k[3:]))) != v]

@@ -1,4 +1,3 @@
-"""Vòng cải tiến: hành động có người phụ trách/hạn/trạng thái, kiểm chứng, quyền, so sánh CLO qua các học kỳ."""
 from datetime import date, timedelta
 
 
@@ -18,14 +17,12 @@ def test_hanh_dong_cai_tien_vong_doi(client, gv):
     rows = client.get(url, headers=gv).json()
     a = next(x for x in rows if x["id"] == aid)
     assert a["status"] == "open" and a["overdue"] is True and a["clo_code"]
-    # kiểm chứng phải có kết quả
     assert client.patch(f"/api/improvement-actions/{aid}", headers=gv, json={"status": "verified"}).status_code == 422
     assert client.patch(f"/api/improvement-actions/{aid}", headers=gv, json={"status": "bogus"}).status_code == 422
     assert client.patch(f"/api/improvement-actions/{aid}", headers=gv, json={"status": "done"}).status_code == 200
     assert client.patch(f"/api/improvement-actions/{aid}", headers=gv, json={"status": "verified", "result": "CLO2 tăng từ 55% lên 72%"}).status_code == 200
     a = next(x for x in client.get(url, headers=gv).json() if x["id"] == aid)
     assert a["status"] == "verified" and a["overdue"] is False and "72%" in a["result"]
-    # CLO của môn khác bị từ chối
     assert client.post(url, headers=gv, json={"description": "Sai CLO", "clo_id": 10**6}).status_code == 422
     assert client.delete(f"/api/improvement-actions/{aid}", headers=gv).status_code == 200
     assert all(x["id"] != aid for x in client.get(url, headers=gv).json())
@@ -43,7 +40,6 @@ def test_giang_vien_khac_khong_sua_duoc(client, gv, gv_other):
 
 
 def test_so_sanh_hai_hoc_ky(client, gv):
-    """Dựng thêm một học kỳ cũ có kết quả CLO rồi kiểm tra chênh lệch và chiều hướng."""
     from sqlalchemy import text
     from app.database import SessionLocal
     cs = _section(client, gv)
@@ -71,7 +67,7 @@ def test_so_sanh_hai_hoc_ky(client, gv):
 
     finally:
         db = SessionLocal()
-        try:  # dọn dữ liệu dựng thêm để không ảnh hưởng các bài kiểm thử khác
+        try:
             db.execute(text("DELETE FROM class_sections WHERE section_code='DBMS_OLD_01'"))
             db.execute(text("DELETE FROM semesters WHERE academic_year='2019-2020' AND term=1"))
             db.commit()

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Chạy MỘT LẦN sau trien_khai.sh (và chạy lại an toàn sau mỗi lần cập nhật mã nguồn):
-#   nâng cấp plugin local_clo, bật giao diện UTE + tiếng Việt, nối hệ thống với Moodle (token Web Service + khóa SSO).
-# Cách dùng:  cd /opt/tlcn/deploy && sudo bash sau_cai_dat.sh
 set -uo pipefail
 cd "$(dirname "$0")"
 set -a; . ./.env; set +a
@@ -38,7 +35,17 @@ echo "== Giao diện UTE + tiếng Việt"
 $C exec -T moodle php admin/cli/cfg.php --name=theme --set=ute
 $C exec -T -u www-data moodle bash -c 'mkdir -p /var/www/moodledata/lang && cd /var/www/moodledata/lang && [ -d vi ] || (curl -fsSL https://download.moodle.org/download.php/direct/langpack/4.5/vi.zip -o vi.zip && unzip -oq vi.zip && rm vi.zip)'
 $C exec -T moodle php admin/cli/cfg.php --name=lang --set=vi
+$C exec -T -u www-data moodle php local/clo/cli/vi_hoa.php
 $C exec -T moodle php admin/cli/purge_caches.php
 echo "== Áp token vào app"; $C up -d app
+echo "== Đồng bộ học liệu từ Moodle vào hệ thống (nạp PDF để gợi ý trang)"
+for i in $(seq 1 30); do $C exec -T app python -c 'print(1)' >/dev/null 2>&1 && break; sleep 3; done
+sleep 15
+$C exec -T app python -m app.cli dong-bo-hoc-lieu
+echo "== Đẩy lại kết quả đã công bố sang Moodle"
+$C exec -T app python -m app.cli kiem-tra-ket-qua
+$C exec -T app python -m app.cli day-ket-qua
+echo "== Dữ liệu kết quả phía Moodle"
+$C exec -T -u www-data moodle php local/clo/cli/kiem_tra_ket_qua.php
 $C ps
 echo "XONG. Moodle: https://lms.${IP_CONG_KHAI}.sslip.io   App: https://app.${IP_CONG_KHAI}.sslip.io"

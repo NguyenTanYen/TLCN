@@ -1,4 +1,3 @@
-"""Băm mật khẩu (PBKDF2-SHA256) và phát hành JWT."""
 import base64
 import hashlib
 import hmac

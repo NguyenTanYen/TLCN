@@ -1,18 +1,12 @@
-"""Liên kết CĐR: CLO → PI → PLO (góp ý F2a – quản lý thêm một mức trên CLO).
-
-clo_pi_mapping là ánh xạ gốc do Bộ môn khai báo; clo_plo_mapping (ma trận CLO – PLO của các báo cáo cũ) được suy ra:
-với mỗi PLO, mức cao nhất (I < R < M) trong các PI của PLO đó mà CLO đóng góp.
-"""
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..models import CLO, CLOPLOMapping
 
-LEVEL_ORDER = {"I": 1, "R": 2, "M": 3}   # Giới thiệu < Củng cố < Thành thạo
+LEVEL_ORDER = {"I": 1, "R": 2, "M": 3}
 
 
 def sync_clo_plo(db: Session, clo: CLO) -> None:
-    """Ghi lại clo_plo_mapping của một CLO theo các PI mà CLO đóng góp."""
     best: dict[int, str] = {}
     for link in clo.pi_links:
         plo_id = link.pi.plo_id
@@ -25,8 +19,6 @@ def sync_clo_plo(db: Session, clo: CLO) -> None:
 
 
 def set_clo_pis(db: Session, clo: CLO, maps: list[tuple[int, str]]) -> None:
-    """Thay toàn bộ CLO → PI của một CLO rồi suy ra lại CLO → PLO. PI phải thuộc CTĐT có học phần này
-    (học phần chưa gán CTĐT thì chọn được PI của mọi CTĐT). Lỗi dữ liệu → ValueError (router trả 422)."""
     from ..models import CLOPIMapping, PerformanceIndicator
     ids = [pi_id for pi_id, _ in maps]
     if len(ids) != len(set(ids)):
@@ -54,6 +46,8 @@ INSERT IGNORE INTO clo_pi_mapping (clo_id, pi_id, level)
 SELECT m.clo_id,
        COALESCE((SELECT MIN(pl.pi_id) FROM pi_plan_clos pc JOIN pi_assessment_plans pl ON pl.id = pc.plan_id
                  JOIN performance_indicators pi ON pi.id = pl.pi_id WHERE pc.clo_id = m.clo_id AND pi.plo_id = m.plo_id),
+                (SELECT MIN(pi.id) FROM performance_indicators pi JOIN pi_courses pc2 ON pc2.pi_id = pi.id
+                 WHERE pi.plo_id = m.plo_id AND pc2.course_id = c.course_id),
                 (SELECT MIN(pi.id) FROM performance_indicators pi WHERE pi.plo_id = m.plo_id)),
        m.level
 FROM clo_plo_mapping m JOIN clos c ON c.id = m.clo_id
@@ -64,6 +58,4 @@ WHERE NOT EXISTS (SELECT 1 FROM clo_pi_mapping x WHERE x.clo_id = m.clo_id)
 
 
 def backfill_clo_pi(conn, course_id: int | None = None) -> int:
-    """Dữ liệu cũ chỉ có CLO → PLO: sinh CLO → PI cho các CLO chưa có, mỗi cặp CLO–PLO gắn với PI mà kế hoạch đo PI
-    lấy CLO này làm minh chứng, nếu không có thì PI đầu tiên của PLO (mức giữ nguyên, nên ma trận CLO – PLO không đổi)."""
     return conn.execute(text(BACKFILL_SQL), {"c": course_id}).rowcount

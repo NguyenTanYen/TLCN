@@ -1,5 +1,3 @@
-"""Xuất đề cương chi tiết học phần ra PDF theo mẫu đề cương của Trường (15 mục: tên môn học, mô tả, mục tiêu, chuẩn đầu ra,
-nội dung chi tiết, đánh giá, tài liệu, phê duyệt, tiến trình cập nhật) để in và ký – không phải ảnh chụp trang web."""
 import io
 
 from reportlab.lib import colors
@@ -13,14 +11,14 @@ from .paper import fonts, para
 
 SCHOOL = "TRƯỜNG ĐẠI HỌC<br/>CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH"
 FACULTY = "KHOA CÔNG NGHỆ THÔNG TIN"
-HEAD_BG = colors.HexColor("#FFF2A8")      # nền tiêu đề bảng giống mẫu đề cương
+HEAD_BG = colors.HexColor("#FFF2A8")
 HEAD_FG = "#1F3FBF"
 ETHICS = ("Các bài tập ở nhà và dự án phải được thực hiện từ chính bản thân sinh viên. Nếu bị phát hiện có sao chép thì xử lý các sinh viên "
           "có liên quan bằng hình thức đánh giá 0 (không) điểm quá trình và cuối kỳ.")
 
 
 def build(s: dict) -> bytes:
-    F = fonts(); R, B, I = F["serif"], F["serifB"], F["serifI"]
+    F = fonts(); R, B = F["serif"], F["serifB"]
     BI = R + "BI"
     d = s.get("doc") or {}
     mk = lambda n, **k: ParagraphStyle(n, fontName=k.pop("fontName", R), fontSize=k.pop("fontSize", 11), leading=k.pop("leading", 14.5), **k)

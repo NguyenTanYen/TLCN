@@ -1,9 +1,3 @@
-"""Đề cương chi tiết học phần có phiên bản (góp ý F1): Bộ môn soạn bản nháp, kiểm tra rồi duyệt; GV chỉ xem.
-
-Mỗi môn có nhiều phiên bản (course_syllabi.version_no): đúng một bản `approved` đang áp dụng, bản cũ chuyển `archived`.
-Bản đã duyệt không sửa trực tiếp – tạo phiên bản mới (chép nội dung bản mới nhất) rồi sửa bản nháp đó.
-Thông tin chung (tên, mã, tín chỉ, cấu trúc, tiên quyết, mô tả vắn tắt), chương và CLO dùng chung cho mọi phiên bản.
-"""
 from datetime import datetime
 from typing import Literal, Optional
 
@@ -37,7 +31,6 @@ class AssessmentIn(BaseModel):
 
 
 class SyllabusIn(BaseModel):
-    """Chỉ các trường gửi lên mới được ghi; references / assessments gửi lên thì thay toàn bộ danh sách."""
     english_name: Optional[str] = Field(default=None, max_length=255)
     self_study_hours: Optional[int] = Field(default=None, ge=0, le=1000)
     objectives: Optional[str] = None
@@ -60,7 +53,6 @@ def latest(c: Course) -> Optional[CourseSyllabus]:
 
 
 def pick_version(c: Course, version: Optional[int], is_admin: bool) -> Optional[CourseSyllabus]:
-    """Phiên bản để xem: theo yêu cầu; mặc định Bộ môn xem bản mới nhất, GV xem bản đang áp dụng (chưa duyệt thì bản mới nhất)."""
     if version is not None:
         s = next((x for x in c.syllabi if x.version_no == version), None)
         if not s:
@@ -72,7 +64,6 @@ def pick_version(c: Course, version: Optional[int], is_admin: bool) -> Optional[
 
 
 def checks(db: Session, c: Course, s: Optional[CourseSyllabus]) -> list[dict]:
-    """Bảng kiểm tra trước khi duyệt đề cương: mục `required` chưa đạt thì không duyệt được."""
     clos = c.clos
     assessed = {cl.id for a in (s.assessments if s else []) for cl in a.clos}
     taught = {cl.id for o in c.outlines for cl in o.clos}
@@ -104,7 +95,6 @@ def checks(db: Session, c: Course, s: Optional[CourseSyllabus]) -> list[dict]:
 
 
 def doc(db: Session, c: Course, s: Optional[CourseSyllabus]) -> dict:
-    """Phần đề cương theo phiên bản, ghép vào GET /api/courses/{cid}/syllabus."""
     approved = next((x for x in reversed(c.syllabi) if x.status == "approved"), None)
     sem = db.execute(text("SELECT name FROM semesters WHERE id=:s"), {"s": s.effective_semester_id}).scalar() if s and s.effective_semester_id else None
     return {
@@ -129,7 +119,6 @@ def doc(db: Session, c: Course, s: Optional[CourseSyllabus]) -> dict:
 
 
 def outlines(db: Session, cid: int) -> list[dict]:
-    """Các chương của môn kèm nội dung, số tiết, hoạt động dạy học và CLO của chương."""
     out = [dict(r) for r in db.execute(text("SELECT * FROM course_outlines WHERE course_id=:c ORDER BY chapter_number"), {"c": cid}).mappings()]
     links = db.execute(text("""SELECT oc.outline_id, c.id, c.clo_code FROM outline_clos oc JOIN clos c ON c.id=oc.clo_id
                                JOIN course_outlines o ON o.id=oc.outline_id WHERE o.course_id=:c ORDER BY c.clo_code"""), {"c": cid}).all()
@@ -160,7 +149,7 @@ def _replace_children(db: Session, s: CourseSyllabus, cid: int, body: SyllabusIn
         if len(codes) != len(set(codes)):
             raise HTTPException(422, "Mã thành phần đánh giá bị trùng")
         total = sum(a.weight_pct for a in body.assessments)
-        if body.assessments and abs(total - 100) > 0.01:     # không lưu kế hoạch đánh giá có tỷ trọng sai
+        if body.assessments and abs(total - 100) > 0.01:
             raise HTTPException(422, f"Tổng tỷ trọng các thành phần đánh giá phải bằng 100% (hiện tại {total:g}%)")
         s.assessments.clear()
         db.flush()
@@ -172,7 +161,6 @@ def _replace_children(db: Session, s: CourseSyllabus, cid: int, body: SyllabusIn
 
 @router.put("/courses/{cid}/syllabus")
 def save_syllabus(cid: int, body: SyllabusIn, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
-    """Lưu bản nháp mới nhất (chưa có thì tạo phiên bản 1). Bản đã duyệt phải tạo phiên bản mới để sửa."""
     c = _course(db, cid)
     s = latest(c)
     if s and s.status != "draft":
@@ -192,7 +180,6 @@ def save_syllabus(cid: int, body: SyllabusIn, db: Session = Depends(get_db), u: 
 
 @router.post("/courses/{cid}/syllabus/versions", status_code=201)
 def new_version(cid: int, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
-    """Tạo bản nháp phiên bản mới, chép nội dung từ phiên bản mới nhất."""
     c = _course(db, cid)
     old = latest(c)
     if old and old.status == "draft":
@@ -211,7 +198,6 @@ def new_version(cid: int, db: Session = Depends(get_db), u: User = Depends(requi
 
 @router.post("/courses/{cid}/syllabus/approve")
 def approve(cid: int, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
-    """Duyệt bản nháp mới nhất khi đạt mọi mục bắt buộc; bản đang áp dụng trước đó chuyển sang 'Đã thay thế'."""
     c = _course(db, cid)
     s = latest(c)
     if not s or s.status != "draft":

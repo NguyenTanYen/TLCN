@@ -1,24 +1,14 @@
-"""Học liệu của lớp học phần (RAG): tệp trong khóa học Moodle của lớp.
-
-TỰ ĐỘNG: đồng bộ lấy mọi tệp PDF sinh viên đang xem được (không ẩn, không giới hạn truy cập) làm học liệu – tệp SV đã
-xem được thì gợi ý trỏ tới nó không làm lộ gì thêm; đề thi trên Moodle là Quiz / Offline Quiz, không phải tệp. GV chỉ
-cần BỎ CHỌN tệp không muốn dùng (đồng bộ sau không lấy lại) hoặc chọn lại. Tệp mới ở trạng thái 'pending' (chờ tải và
-nạp). Giao diện gọi đồng bộ khi GV mở trang học liệu; sau đó các tệp chờ được xếp vào HÀNG ĐỢI của luồng nạp riêng
-(services/rag/index) –
-GV xem trạng thái từng tệp (đang nạp / đã nạp / lỗi). Ngoài ra hệ thống tự đồng bộ + nạp định kỳ (RAG_SYNC_MINUTES).
-Phân quyền: GV phụ trách lớp đồng bộ / chọn / bỏ chọn / nạp lại; Bộ môn chỉ xem.
-"""
 from dataclasses import asdict
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import check_section_access, lecturer_only, require
 from ..models import SectionMaterial, User
-from ..services.rag import index, moodle_files, search, sync
+from ..services.rag import index, moodle_files, publish, search, sync
 
 router = APIRouter(prefix="/api/class-sections", tags=["Học liệu (RAG)"])
 
@@ -35,6 +25,37 @@ class MoodlePickIn(BaseModel):
     title: Optional[str] = Field(default=None, max_length=255)
 
 
+class CopyMaterialIn(BaseModel):
+    class_section_ids: list[int] = Field(min_length=1, max_length=30)
+
+
+def _targets(db: Session, u: User, cs_id: int, ids: list[int]):
+    src = check_section_access(db, u, cs_id)
+    out = []
+    for i in dict.fromkeys(ids):
+        if i == cs_id:
+            continue
+        cs = check_section_access(db, u, i)
+        if cs.course_id != src.course_id:
+            raise HTTPException(422, f"Lớp {cs.section_code} không cùng môn học")
+        out.append(cs)
+    return src, out
+
+
+def _run(db: Session, targets, fn) -> list[dict]:
+    res = []
+    for cs in targets:
+        r = {"class_section_id": cs.id, "section_code": cs.section_code, "ok": False, "message": "", "material_id": None}
+        try:
+            out = fn(cs)
+            r.update(ok=True, message=out["note"], material_id=out["material_id"])
+        except publish.PublishError as ex:
+            db.rollback()
+            r["message"] = str(ex)
+        res.append(r)
+    return res
+
+
 def _material(m: SectionMaterial) -> dict:
     return {"id": m.id, "source": m.source, "material_type": m.material_type, "title": m.title,
             "title_custom": bool(m.title_custom), "file_name": m.file_name,
@@ -45,7 +66,6 @@ def _material(m: SectionMaterial) -> dict:
 
 @router.get("/{cs_id}/materials")
 def list_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tệp trong khóa học Moodle của lớp (kèm học liệu tương ứng nếu có) + toàn bộ học liệu của lớp."""
     cs = check_section_access(db, u, cs_id)
     chosen = db.query(SectionMaterial).filter_by(class_section_id=cs_id).order_by(SectionMaterial.id).all()
     by_hash = {m.content_hash: m for m in chosen}
@@ -60,14 +80,21 @@ def list_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
 @router.get("/{cs_id}/materials/search")
 def search_materials(cs_id: int, q: str = Query(min_length=1, max_length=2000), k: int = Query(10, ge=1, le=50),
                      db: Session = Depends(get_db), u: User = Depends(require("admin", "lecturer"))):
-    """Tìm đoạn trong học liệu đã nạp của lớp (BM25) – để GV / Bộ môn thử truy vấn, dựng bộ câu hỏi chuẩn."""
     check_section_access(db, u, cs_id)
-    return [asdict(h) for h in search.search(db, cs_id, q, k)]
+    from ..config import settings
+    return [asdict(h) for h in search.search(db, cs_id, q, k, floor=settings.rag_search_similarity)]
+
+
+@router.get("/{cs_id}/materials/semantic-info")
+def semantic_info(cs_id: int, q: str = Query("", max_length=2000), db: Session = Depends(get_db),
+                  u: User = Depends(require("admin", "lecturer"))):
+    from ..services.rag import semantic
+    check_section_access(db, u, cs_id)
+    return semantic.dense_info(db, cs_id, q)
 
 
 @router.post("/{cs_id}/materials/sync")
 def sync_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Đồng bộ học liệu từ khóa học Moodle của lớp (giao diện gọi khi GV mở trang học liệu), rồi nạp ở nền các tệp chờ."""
     cs = check_section_access(db, u, cs_id)
     if not cs.moodle_course_id:
         raise HTTPException(409, "Lớp học phần chưa gắn với khóa học Moodle")
@@ -78,8 +105,6 @@ def sync_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
 
 @router.post("/{cs_id}/materials/moodle", status_code=201)
 def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Chọn (hoặc chọn LẠI tệp đã bỏ chọn) một tệp của khóa học Moodle làm học liệu. Chỉ nhận tệp đang có – và SV đang
-    xem được – trong khóa học của CHÍNH lớp này."""
     cs = check_section_access(db, u, cs_id)
     if not cs.moodle_course_id:
         raise HTTPException(409, "Lớp học phần chưa gắn với khóa học Moodle")
@@ -92,7 +117,7 @@ def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_d
     m = db.query(SectionMaterial).filter_by(class_section_id=cs_id, content_hash=f["content_hash"]).first()
     if m and m.status != "excluded":
         raise HTTPException(409, "Tệp này đã là học liệu của lớp")
-    if m:                                            # chọn lại tệp đã bỏ chọn
+    if m:
         m.status, m.material_type, m.error = "pending", body.material_type, None
         if body.title:
             m.title, m.title_custom = body.title.strip()[:255], True
@@ -107,8 +132,6 @@ def pick_moodle_file(cs_id: int, body: MoodlePickIn, db: Session = Depends(get_d
 
 @router.post("/{cs_id}/materials/{material_id}/reindex")
 def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Nạp lại học liệu đã nạp hoặc bị lỗi (GV sửa xong tệp, hoặc bộ đọc PDF được cải tiến). Trang / đoạn cũ giữ nguyên
-    cho tới khi nạp xong bản mới."""
     check_section_access(db, u, cs_id)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
@@ -123,8 +146,6 @@ def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db)
 
 @router.delete("/{cs_id}/materials/{material_id}")
 def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
-    """Bỏ chọn học liệu. Tệp từ Moodle: đánh dấu 'excluded' (đồng bộ sau không lấy lại) và xóa trang / đoạn đã nạp;
-    tệp GV tải trực tiếp lên hệ thống: xóa hẳn."""
     check_section_access(db, u, cs_id)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
@@ -136,15 +157,13 @@ def unpick_material(cs_id: int, material_id: int, db: Session = Depends(get_db),
     sync.delete_indexed(db, m.id)
     m.status, m.n_pages, m.indexed_at, m.error = "excluded", None, None, None
     db.commit()
-    index.enqueue(cs_id)                         # luồng nạp dựng lại chỉ mục tìm kiếm của lớp
+    index.enqueue(cs_id)
     return {"excluded": material_id}
 
 
 @router.patch("/{cs_id}/materials/{material_id}")
 def update_material(cs_id: int, material_id: int, body: MaterialPatchIn, db: Session = Depends(get_db),
                     u: User = Depends(lecturer_only)):
-    """GV sửa loại học liệu (slide / tài liệu tham khảo – mặc định chỉ đoán theo hoạt động Moodle) và tên hiển thị.
-    Tên GV tự đặt được giữ nguyên qua các lần đồng bộ."""
     check_section_access(db, u, cs_id)
     if body.material_type is None and body.title is None:
         raise HTTPException(422, "Không có thông tin nào để sửa (material_type hoặc title)")
@@ -158,3 +177,59 @@ def update_material(cs_id: int, material_id: int, body: MaterialPatchIn, db: Ses
     db.commit()
     db.refresh(m)
     return _material(m)
+
+
+@router.post("/{cs_id}/materials/upload")
+async def upload_material(cs_id: int, file: UploadFile = File(...), title: str = Form(""),
+                          material_type: Literal["slide", "reference"] = Form("slide"),
+                          class_section_ids: str = Form(""), week: int = Form(0),
+                          db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
+    ids = [int(x) for x in class_section_ids.replace(" ", "").split(",") if x.isdigit()]
+    src, others = _targets(db, u, cs_id, ids)
+    targets = [src] + others
+    data = await file.read(index.MAX_BYTES + 1)
+    name = (file.filename or "hoc_lieu.pdf").replace("\\", "/").rsplit("/", 1)[-1]
+    try:
+        publish.check_pdf(data)
+    except publish.PublishError as ex:
+        raise HTTPException(422, str(ex))
+    ttl = (title.strip() or name.rsplit(".", 1)[0])[:255]
+    return {"results": _run(db, targets, lambda cs: publish.push_to_class(db, cs, data, name, ttl, material_type, max(0, week), u.id))}
+
+
+@router.post("/{cs_id}/materials/{material_id}/copy")
+def copy_material(cs_id: int, material_id: int, body: CopyMaterialIn, db: Session = Depends(get_db),
+                  u: User = Depends(lecturer_only)):
+    _, targets = _targets(db, u, cs_id, body.class_section_ids)
+    m = db.get(SectionMaterial, material_id)
+    if not m or m.class_section_id != cs_id or m.status in ("excluded", "missing") or m.source != "moodle":
+        raise HTTPException(404, "Không tìm thấy học liệu đang dùng của lớp này")
+    try:
+        data = publish.fetch_bytes(m)
+    except publish.PublishError as ex:
+        raise HTTPException(422, str(ex))
+    name, title, mtype = m.file_name, m.title, m.material_type
+    return {"results": _run(db, targets, lambda cs: publish.push_to_class(db, cs, data, name, title, mtype, 0, u.id))}
+
+
+@router.post("/{cs_id}/materials/copy-from/{src_id}")
+def copy_from_section(cs_id: int, src_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
+    dst, srcs = _targets(db, u, cs_id, [src_id])
+    if not srcs:
+        raise HTTPException(422, "Chọn một lớp khác để sao chép học liệu")
+    items = db.query(SectionMaterial).filter(SectionMaterial.class_section_id == src_id, SectionMaterial.source == "moodle",
+                                             SectionMaterial.status.in_(("ready", "pending", "indexing"))).all()
+    if not items:
+        raise HTTPException(404, "Lớp nguồn chưa có học liệu nào đang dùng")
+    res = []
+    for m in items:
+        r = {"title": m.title, "ok": False, "message": ""}
+        try:
+            data = publish.fetch_bytes(m)
+            out = publish.push_to_class(db, dst, data, m.file_name, m.title, m.material_type, 0, u.id)
+            r.update(ok=True, message=out["note"])
+        except publish.PublishError as ex:
+            db.rollback()
+            r["message"] = str(ex)
+        res.append(r)
+    return {"results": res}

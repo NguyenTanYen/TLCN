@@ -1,14 +1,3 @@
-"""Chuẩn bị dữ liệu quay video demo – chạy SAU bước 4 (dữ liệu demo trên Moodle), MariaDB và Moodle đang chạy.
-
-Bổ sung cho lớp DBMS330284_01 (chạy lại không tạo trùng – bài đã có thì bỏ qua):
-  1. Bài "Kiểm tra giữa kỳ (giấy – chấm trên hệ thống)": 10 câu lấy từ bài thi cuối kỳ, 2 mã đề.
-     Sinh sẵn ảnh phiếu trả lời ĐÃ TÔ của 8 SV vào demo_video/phieu_da_to/ (mỗi SV một mức làm đúng khác nhau)
-     để khi quay chỉ cần mở bài → "In đề & chấm phiếu" → "4. Chấm phiếu" → tải các ảnh này lên.
-  2. Bài ôn tập cho 2 SV làm sai nhiều nhất ở bài thi cuối kỳ, đã tạo Quiz trên Moodle (chỉ 2 SV đó làm được).
-Bài "Thi cuối kỳ (Moodle)" đã đồng bộ, phân tích và công bố sẵn từ bước 4.
-
-Chạy:  .venv\\Scripts\\python tools\\demo\\chuan_bi_video.py      (từ thư mục gốc dự án)
-"""
 import os
 import random
 import sys
@@ -17,14 +6,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
-os.chdir(BACKEND)                      # cấu hình backend đọc cau_hinh.env theo thư mục hiện tại
+os.chdir(BACKEND)
 
-import fitz  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from app.database import SessionLocal  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Exam  # noqa: E402
-from app.services import paper  # noqa: E402
+import fitz
+from fastapi.testclient import TestClient
+from app.database import SessionLocal
+from app.main import app
+from app.models import Exam
+from app.services import paper
 
 SECTION = "DBMS330284_01"
 FINAL = "Thi cuối kỳ (Moodle)"
@@ -48,14 +37,13 @@ def main():
 
     cs = next((s for s in call("GET", "/api/class-sections") if s["section_code"] == SECTION), None)
     if not cs:
-        raise SystemExit(f"*** Chưa có lớp {SECTION} – chạy 4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat trước")
+        raise SystemExit(f"*** Chưa có lớp {SECTION} – chạy scripts/tao_du_lieu_demo.bat trước")
     exams = call("GET", f"/api/class-sections/{cs['id']}/exams")
     final = next((e for e in exams if e["exam_title"] == FINAL and e["status"] == "Analyzed"), None)
     if not final:
         raise SystemExit(f"*** Lớp {SECTION} chưa có bài \"{FINAL}\" đã phân tích – chạy bước 4 trước")
     print(f"Lớp {SECTION} (#{cs['id']}) · bài thi cuối kỳ #{final['id']} đã phân tích ({final['n_attempts']} bài làm)")
 
-    # ---- 1. Bài giấy chấm trên hệ thống + ảnh phiếu đã tô
     pe = next((e for e in exams if e["exam_title"] == PAPER), None)
     if pe:
         print(f"Bài giấy #{pe['id']} đã có – bỏ qua bước tạo")
@@ -77,7 +65,7 @@ def main():
         prefills = []
         for i, s in enumerate(students):
             v = versions[i % len(versions)]
-            acc = 0.35 + 0.6 * i / max(1, len(students) - 1)              # SV đầu làm kém, SV cuối làm tốt
+            acc = 0.35 + 0.6 * i / max(1, len(students) - 1)
             ans = {}
             for q in v["questions"]:
                 labels = [x["label"] for x in q["options"]]
@@ -93,7 +81,6 @@ def main():
         page.get_pixmap(dpi=150).save(OUT / f"phieu_{p['student']}_ma{p['version']}.png")
     print(f"Đã sinh {len(prefills)} ảnh phiếu đã tô vào {OUT}")
 
-    # ---- 2. Bài ôn tập cho 2 SV làm sai nhiều nhất, tạo Quiz trên Moodle
     re_ = next((e for e in exams if e["exam_title"] == REMEDIAL), None)
     if re_:
         print(f"Bài ôn tập #{re_['id']} đã có – bỏ qua")

@@ -1,10 +1,3 @@
-"""Nhập điểm thủ công / bằng Excel và gộp nhiều bài KT để đánh giá CĐR (góp ý 15/10).
-
-- Bài KT nhập điểm (exam_type = manual): GV khai báo các câu/ý chấm tay, điểm tối đa và CLO mỗi câu/ý đo;
-  nhập điểm trên lưới hoặc tải bảng điểm mẫu Excel về điền rồi tải lên; hoặc tạo luôn bài từ một file Excel bất kỳ
-  (bài làm ngoài hệ thống: tiểu luận, thực hành, đồ án…).
-- Chọn bài làm minh chứng CLO (counts_for_clo) và gộp 2, 3… bài (kể cả khác lớp HP cùng môn) để phân tích CLO, PI/PLO.
-"""
 import json
 from datetime import date
 from typing import Literal, Optional
@@ -98,7 +91,6 @@ def _analyze(db: Session, e: Exam) -> dict | None:
     return results.analyze_exam(db, e.id)
 
 
-# ------------------------------------------------------------------ bài nhập điểm
 @router.post("/class-sections/{cs_id}/manual-exams", status_code=201)
 def create_manual_exam(cs_id: int, body: ManualExamIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     cs = check_section_access(db, u, cs_id)
@@ -116,7 +108,6 @@ def create_manual_exam(cs_id: int, body: ManualExamIn, u: User = Depends(lecture
 
 @router.post("/courses/{course_id}/manual-exams", status_code=201)
 def create_course_manual_exam(course_id: int, body: ManualExamIn, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Đề nhập điểm của môn (tạo ở trang môn học): khai báo câu/ý gắn CLO một lần, giao cho các lớp HP để nhập điểm."""
     check_course_access(db, u, course_id)
     _check_items(db, course_id, body.items)
     e = Exam(class_section_id=None, course_id=course_id, exam_title=body.exam_title.strip(), assessment_type=body.assessment_type,
@@ -190,7 +181,6 @@ async def _read(file: UploadFile) -> bytes:
 
 
 def _resolve_students(db: Session, cs_id: int, parsed: dict, enroll_missing: bool, apply: bool):
-    """MSSV trong file -> student_id; SV chưa có trong lớp: báo lại, hoặc ghi danh khi enroll_missing."""
     known, missing = {}, []
     for s in parsed["students"]:
         row = db.execute(text("""SELECT s.id, EXISTS(SELECT 1 FROM enrollments WHERE class_section_id=:cs AND student_id=s.id)
@@ -220,7 +210,6 @@ def _rows_for(parsed: dict, col_to_q: dict, known: dict) -> list[dict]:
 @router.post("/exams/{exam_id}/grades/import")
 async def import_grades(exam_id: int, dry_run: bool = True, enroll_missing: bool = False, file: UploadFile = File(...),
                         u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Nhập điểm từ Excel vào bài đã có: khớp cột theo mã câu (bảng điểm mẫu), theo tên câu/ý, hoặc theo thứ tự cột."""
     e = _manual_exam(db, u, exam_id)
     _not_rubric(db, exam_id)
     try:
@@ -247,7 +236,6 @@ async def import_grades(exam_id: int, dry_run: bool = True, enroll_missing: bool
     preview = {"n_rows": len(parsed["students"]), "n_matched": len(rows), "missing_students": missing,
                "columns": [{"header": m["header"], "question_id": col_to_q.get(m["col"])} for m in parsed["items"]]}
     if dry_run:
-        # kiểm tra điểm hợp lệ ngay ở bước xem trước
         pts = {i["question_id"]: i["points"] for i in items}
         errs = [f"{s['student_code']}: {v:g} > {pts[col_to_q[c]]:g} ở cột \"{next(m['header'] for m in parsed['items'] if m['col'] == c)}\""
                 for s in parsed["students"] for c, v in s["scores"].items() if v is not None and c in col_to_q and (v < 0 or v > pts[col_to_q[c]] + 1e-9)]
@@ -265,9 +253,6 @@ async def create_from_excel(cs_id: int, dry_run: bool = True, enroll_missing: bo
                             exam_title: str = Form(""), assessment_type: str = Form("process"), max_score: float = Form(10),
                             clo_map: str = Form("{}"), points_map: str = Form("{}"),
                             u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Tạo bài nhập điểm từ một file Excel bất kỳ (bài làm ngoài hệ thống) và nhập luôn điểm.
-    Tiêu đề cột: 'Câu 1 (2đ) [CLO1]' hoặc dòng 'Điểm tối đa' / 'CLO' dưới tiêu đề; thiếu thông tin thì xem trước
-    trả về các cột cần chọn CLO/điểm tối đa (clo_map, points_map: {chỉ số cột: ...})."""
     cs = check_section_access(db, u, cs_id)
     try:
         parsed = manual.parse_sheet(await _read(file))
@@ -281,7 +266,7 @@ async def create_from_excel(cs_id: int, dry_run: bool = True, enroll_missing: bo
     items, problems = [], []
     for m in parsed["items"]:
         pts = pmap.get(m["col"]) or m["points"]
-        if not pts:   # không ghi điểm tối đa: lấy điểm cao nhất trong cột, làm tròn lên số nguyên
+        if not pts:
             vals = [s["scores"].get(m["col"]) or 0 for s in parsed["students"]]
             pts = float(int(max(vals)) + (0 if max(vals).is_integer() else 1)) if vals and max(vals) > 0 else None
             m["points_guessed"] = True
@@ -320,10 +305,8 @@ async def create_from_excel(cs_id: int, dry_run: bool = True, enroll_missing: bo
     return {**preview, **res, "exam_id": e.id, "dry_run": False}
 
 
-# ------------------------------------------------------------------ chọn bài minh chứng & gộp bài
 @router.patch("/exams/{exam_id}/evidence")
 def set_evidence(exam_id: int, body: EvidenceIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Bài có được gộp vào kết quả CLO của lớp (BM6, PI, PLO) hay không."""
     e = get_exam_for(db, u, exam_id)
     e.counts_for_clo = body.counts_for_clo
     db.commit()
@@ -333,7 +316,6 @@ def set_evidence(exam_id: int, body: EvidenceIn, u: User = Depends(require("admi
 
 @router.get("/courses/{course_id}/analyzed-exams")
 def analyzed_exams(course_id: int, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
-    """Các bài đã phân tích của môn trong các lớp HP người dùng phụ trách – để chọn bài gộp."""
     lid = u.lecturer.id if u.role == "lecturer" and u.lecturer else (0 if u.role == "lecturer" else None)
     return [dict(r) for r in db.execute(text("""
         SELECT e.id, e.exam_title, e.exam_type, e.assessment_type, e.exam_date, e.counts_for_clo, e.parent_exam_id,

@@ -1,4 +1,3 @@
-// Thời gian làm bài trên Moodle Quiz: cảnh báo SV chọn đại rồi nộp, chọn xong không nộp để hết giờ… (dấu hiệu để GV xem lại)
 import { useState } from 'react'
 import { Bar, Scatter } from 'react-chartjs-2'
 import { api } from '../api'
@@ -7,7 +6,6 @@ import { ActionButton, Badge, Card, Loading, Modal, Stat } from './ui'
 import { useApi } from '../hooks'
 
 const DEF = { min_sec_per_q: 6, rapid_sec: 3, rapid_share: 25, idle_min: 10, idle_share: 30 }
-// miền hợp lệ của từng ngưỡng (đơn vị trên giao diện; khớp kiểm tra ở API)
 const RANGE = { min_sec_per_q: [0, 600, 'Giây/câu'], rapid_sec: [0, 60, 'Ngưỡng chớp nhoáng (giây)'], rapid_share: [0, 100, 'Tỷ lệ câu chớp nhoáng (%)'],
   idle_min: [0, 600, 'Số phút không thao tác'], idle_share: [0, 100, 'Tỷ lệ thời gian không thao tác (%)'] }
 function checked(form) {
@@ -91,7 +89,6 @@ export default function Timing({ examId, sectionCode }) {
             <td>{a.flags.length ? a.flags.map(f => <div key={f.code} className="small"><Badge tone={LEVEL[f.level][0]}>{f.label}</Badge> <span className="muted">{f.detail}</span></div>) : <span className="ok-t small">Bình thường</span>}</td>
             <td><button className="btn sm" onClick={() => setOpen(a)}>Diễn biến</button></td></tr>)}</tbody></table></div>}
     </Card>
-    {/* câu "nóng": từ 10% số SV (tối thiểu 3 SV) trả lời chớp nhoáng – có thể quá dễ, đã lộ đáp án */}
     <Card title="Thời gian trả lời từng câu (trung vị của lớp)">
       <div style={{ height: 220 }}>
         <Bar data={{ labels: d.questions.map(x => `Câu ${x.order_index}`), datasets: [{ label: 'Trung vị (giây)', data: d.questions.map(x => x.median_sec),

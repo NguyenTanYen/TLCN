@@ -1,16 +1,11 @@
-"""Tích hợp hai chiều với Moodle qua Web Service (plugin local_clo).
-
-- UC-02 (A2): tạo Quiz trên Moodle trực tiếp từ đề đã soạn – không cần tải XML và import thủ công.
-- UC-02 bài thi giấy: tạo Offline Quiz – Moodle sinh đề in, phiếu trả lời và đáp án theo từng mã đề;
-  hệ thống chỉ chuyển tệp cho giảng viên tải/in. Nhận diện phiếu quét và chấm điểm do Moodle thực hiện.
-- UC-04 (A1) → UC-05: đẩy kết quả phân tích từng SV và trạng thái công bố về Moodle; SV xem kết quả tại Moodle.
-"""
 import io
 import re
 import zipfile
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+import jwt
+from dataclasses import asdict
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -75,7 +70,7 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
     if not course_id:
         raise HTTPException(422, "Hãy nhập mã khóa học Moodle (id) của lớp học phần")
     check_moodle_course(db, u, cs, course_id)
-    targets = remedial.target_moodle_users(db, e) if e.target_students else None   # bài phụ đạo: kiểm tra trước khi tạo Quiz
+    targets = remedial.target_moodle_users(db, e) if e.target_students else None
     try:
         res = lms.create_quiz(db, e, course_id)
     except lms.MoodleWSError as ex:
@@ -88,7 +83,7 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
     if e.status == "Draft":
         e.status = "Published"
     db.commit()
-    if targets is not None:      # góp ý F5: chỉ các SV được giao thấy và làm được Quiz phụ đạo
+    if targets is not None:
         try:
             res["restricted"] = lms.restrict_users(course_id, res["quizid"], e.exam_title, targets, cmid=res["cmid"])
         except lms.MoodleWSError as ex:
@@ -98,7 +93,6 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
 
 @router.post("/exams/{exam_id}/moodle/restrict")
 def restrict_quiz(exam_id: int, u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
-    """Bài phụ đạo đã có Quiz: (đồng bộ lại) nhóm Moodle gồm đúng các SV được giao và điều kiện truy cập của Quiz."""
     e = get_exam_for(db, u, exam_id)
     if not e.target_students:
         raise HTTPException(422, "Chỉ bài ôn tập (có danh sách SV được giao) mới giới hạn SV")
@@ -111,12 +105,10 @@ def restrict_quiz(exam_id: int, u: User = Depends(lecturer_only), db: Session = 
         raise HTTPException(502, str(ex))
 
 
-# ------------------------------------------------------------------ bài thi giấy (Offline Quiz)
 KIND_VI = {"question": "de_thi", "answer": "phieu_tra_loi", "correction": "dap_an"}
 
 
 def _oq_view(exam_id: int, oq: dict) -> dict:
-    """Ẩn URL/token Moodle: giao diện tải tệp qua hệ thống (proxy)."""
     for g in oq["groups"]:
         for f in g["files"]:
             f["download"] = f"/api/exams/{exam_id}/moodle/offlinequiz/files/{f['filename']}"
@@ -254,3 +246,33 @@ def lms_status(_=Depends(require("admin", "lecturer"))):
         except lms.MoodleWSError as ex:
             out["error"] = str(ex)
     return out
+
+
+@router.get("/lms/materials/search", tags=["Tra cứu học liệu cho sinh viên trên Moodle"])
+def moodle_materials_search(token: str, q: str = Query(min_length=1, max_length=300), k: int = Query(8, ge=1, le=20),
+                            db: Session = Depends(get_db)):
+    from ..services.rag import search
+    secret = settings.moodle_sso_secret
+    if len(secret) < 32:
+        raise HTTPException(503, "Hệ thống chưa cấu hình MOODLE_SSO_SECRET")
+    try:
+        claims = jwt.decode(token, secret, algorithms=["HS256"], audience="clo-search",
+                            options={"require": ["exp", "iat", "sub", "courseid"]}, leeway=30)
+    except jwt.PyJWTError:
+        raise HTTPException(401, "Vé tra cứu không hợp lệ hoặc đã hết hạn")
+    if settings.moodle_url and claims.get("iss", "").rstrip("/") != settings.moodle_url.rstrip("/"):
+        raise HTTPException(401, "Vé tra cứu không do Moodle đã cấu hình phát hành")
+    sections = [r[0] for r in db.execute(text("SELECT id FROM class_sections WHERE moodle_course_id=:c ORDER BY id"),
+                                         {"c": int(claims["courseid"])})]
+    hits = []
+    for cs_id in sections:
+        hits += search.search(db, cs_id, q, k, floor=settings.rag_search_similarity)
+    seen, out = set(), []
+    for h in sorted(hits, key=lambda h: -h.score):
+        key = (h.file_name, h.page_no)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"material": h.material_title, "page": h.page_no, "heading": h.title, "breadcrumb": h.breadcrumb,
+                    "snippet": h.snippet, "url": h.moodle_file_url})
+    return out[:k]

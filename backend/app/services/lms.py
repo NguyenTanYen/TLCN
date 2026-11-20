@@ -1,12 +1,3 @@
-"""Giao tiếp với Moodle qua Web Service (plugin local_clo) – chiều GHI của tích hợp.
-
-- Tạo Quiz từ đề đã soạn (UC-02, thay cho bước import XML thủ công): local_clo_create_quiz.
-- Bài thi giấy: tạo Offline Quiz (Moodle sinh đề in, phiếu trả lời, nhận diện phiếu quét và chấm):
-  local_clo_create_offlinequiz / local_clo_get_offlinequiz / local_clo_process_scans; tải tệp đề/phiếu qua webservice/pluginfile.
-- Đẩy kết quả phân tích từng SV + trạng thái công bố về Moodle để SV xem (UC-05): local_clo_push_results.
-- Bài phụ đạo (góp ý F5): chỉ các SV được giao thấy và làm được Quiz – nhóm + điều kiện truy cập: local_clo_restrict_users.
-Chiều ĐỌC (bài làm của SV) vẫn dùng cầu nối CSDL chỉ đọc + sp_sync_exam như thiết kế (mục V báo cáo).
-"""
 from __future__ import annotations
 
 import json
@@ -25,13 +16,12 @@ from ..models import Exam
 from . import xml_export
 
 
-# httpx ghi URL của mọi request ở mức INFO – URL tải tệp / gọi Web Service chứa token Moodle → không để lọt vào log
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 
 class MoodleWSError(RuntimeError):
-    """Lỗi khi gọi Web Service của Moodle (mất kết nối, token sai, Moodle báo lỗi...)."""
+    pass
 
 
 def configured() -> bool:
@@ -39,7 +29,6 @@ def configured() -> bool:
 
 
 def _flatten(prefix: str, value, out: list[tuple[str, str]]) -> None:
-    """Chuyển tham số lồng nhau sang dạng form của REST Moodle: results[0][username]=..."""
     if isinstance(value, dict):
         for k, v in value.items():
             _flatten(f"{prefix}[{k}]" if prefix else k, v, out)
@@ -60,7 +49,7 @@ def call(function: str, params: dict | None = None, timeout: float = 60) -> dict
     url = settings.moodle_url.rstrip("/") + "/webservice/rest/server.php"
     query = {"wstoken": settings.moodle_ws_token, "wsfunction": function, "moodlewsrestformat": "json"}
     try:
-        with httpx.Client(timeout=timeout, trust_env=False) as client:   # Moodle nội bộ: không đi qua proxy hệ thống
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
             r = client.post(url, params=query, content=urlencode(form).encode(),
                             headers={"Content-Type": "application/x-www-form-urlencoded"})
     except httpx.HTTPError as ex:
@@ -81,7 +70,6 @@ def site_info() -> dict:
     return call("core_webservice_get_site_info")
 
 
-# ------------------------------------------------------------------ tạo Quiz (UC-02)
 def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
     xml = xml_export.exam_to_moodle_xml(exam)
     res = call("local_clo_create_quiz", {
@@ -91,13 +79,18 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
     return res
 
 
+def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:
+    import base64
+    return call("local_clo_add_resource", {"courseid": moodle_course_id, "name": name[:250], "filename": filename,
+                                           "content": base64.b64encode(data).decode("ascii"), "section": section},
+                timeout=600)
+
+
 def restrict_users(moodle_course_id: int, quizid: int, groupname: str, userids: list[int], cmid: int = 0) -> dict:
-    """Giới hạn Quiz cho đúng các tài khoản Moodle này (gọi lại thì đồng bộ lại thành viên nhóm)."""
     return call("local_clo_restrict_users", {"courseid": moodle_course_id, "cmid": cmid, "quizid": quizid,
                                              "groupname": groupname[:250], "userids": userids})
 
 
-# ------------------------------------------------------------------ bài thi giấy: Offline Quiz
 def create_offlinequiz(exam: Exam, moodle_course_id: int, numgroups: int = 2, shuffle_questions: bool = True,
                        shuffle_answers: bool = True, docx: bool = False, intro: str = "") -> dict:
     xml = xml_export.exam_to_moodle_xml(exam)
@@ -114,12 +107,10 @@ def get_offlinequiz(exam: Exam) -> dict:
 
 
 def process_scans(exam: Exam) -> dict:
-    """Moodle nhận diện & chấm ngay các phiếu đã tải lên đang chờ (không phải đợi cron của Moodle)."""
     return call("local_clo_process_scans", {"examref": exam.id}, timeout=600)
 
 
 def download(url: str) -> tuple[bytes, str]:
-    """Tải tệp Moodle qua webservice/pluginfile.php bằng token (chỉ nhận URL thuộc Moodle đã cấu hình)."""
     _check_url(url)
     try:
         with httpx.Client(timeout=120, trust_env=False) as client:
@@ -139,8 +130,6 @@ def _check_url(url: str) -> None:
 
 @contextmanager
 def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
-    """Tải tệp Moodle qua webservice/pluginfile.php theo TỪNG KHÚC (tệp lớn không phải nằm trọn trong RAM).
-    Lỗi mạng giữa chừng → MoodleWSError."""
     _check_url(url)
     try:
         with httpx.Client(timeout=120, trust_env=False) as client:
@@ -154,9 +143,7 @@ def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
         raise MoodleWSError(f"Lỗi kết nối LMS: {ex}") from ex
 
 
-# ------------------------------------------------------------------ kết quả từng SV (UC-05)
 def student_results(db: Session, exam_id: int) -> list[dict]:
-    """Kết quả phân tích của từng SV trong bài KT – dữ liệu SV sẽ xem trên Moodle."""
     e = db.execute(text("""SELECT e.id, e.max_score, e.class_section_id, cs.course_id,
                                   (SELECT SUM(points) FROM exam_questions WHERE exam_id=e.id) AS raw_max
                            FROM exams e JOIN class_sections cs ON cs.id=e.class_section_id WHERE e.id=:e"""),
@@ -192,6 +179,38 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
                                                       "clo_description": r["description"], "chapter": chap,
                                                       "gap": float(r["gap_pct"])})
     materials = material_suggestions(db, exam_id, e["class_section_id"])
+    wrong_by: dict[int, list] = {}
+    for attempt_id, _qid, no in wrong_items(db, exam_id):
+        wrong_by.setdefault(attempt_id, []).append(int(no))
+    answers: dict[int, list] = {}
+    for r in db.execute(text("""
+        SELECT r.attempt_id, COALESCE(vq.position, eq.order_index) AS no, r.is_correct, r.response_status, r.selected_option_id,
+               r.score_earned, eq.points, st.p_value, b.name_vi AS bloom,
+               (SELECT CONCAT('Chương ', o.chapter_number) FROM course_outlines o WHERE o.id=q.outline_id) AS chapter,
+               (SELECT GROUP_CONCAT(c.clo_code ORDER BY c.clo_code) FROM question_clo_mapping m JOIN clos c ON c.id=m.clo_id
+                 WHERE m.question_id=q.id) AS clos
+        FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+        JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
+        JOIN question_bank q ON q.id=r.question_id JOIN bloom_levels b ON b.id=q.bloom_level_id
+        LEFT JOIN exam_version_questions vq ON vq.version_id=a.version_id AND vq.question_id=r.question_id
+        LEFT JOIN item_statistics st ON st.exam_id=a.exam_id AND st.question_id=q.id
+        WHERE a.exam_id=:e AND a.status='finished' ORDER BY r.attempt_id, no"""), {"e": exam_id}).mappings():
+        res = "blank" if r["response_status"] == "blank" or not r["selected_option_id"] else ("correct" if r["is_correct"] else "wrong")
+        answers.setdefault(r["attempt_id"], []).append({
+            "no": int(r["no"]), "result": res, "chapter": r["chapter"], "clos": r["clos"], "bloom": r["bloom"],
+            "score": float(r["score_earned"] or 0), "points": float(r["points"] or 0),
+            "p": None if r["p_value"] is None else round(float(r["p_value"]) * 100)})
+    chapters: dict[int, list] = {}
+    counts: dict[int, dict] = {}
+    for att, lst in answers.items():
+        by: dict[str, list] = {}
+        for x in lst:
+            by.setdefault(x["chapter"] or "Chưa gắn chương", []).append(x["result"] == "correct")
+        chapters[att] = [{"name": k, "n": len(v), "ok": sum(v), "pct": round(100 * sum(v) / len(v))} for k, v in by.items()]
+        counts[att] = {r: sum(1 for x in lst if x["result"] == r) for r in ("correct", "wrong", "blank")}
+    finished_scores = [float(x[0]) for x in db.execute(text(
+        "SELECT total_score FROM exam_attempts WHERE exam_id=:e AND status='finished'"), {"e": exam_id})]
+    class_mean = round(sum(finished_scores) / len(finished_scores) * float(e["max_score"]) / raw_max, 2) if finished_scores else None
     out = []
     for a in db.execute(text("""SELECT a.id, a.status, a.total_score, s.student_code, s.full_name, s.moodle_user_id
                                 FROM exam_attempts a JOIN students s ON s.id=a.student_id
@@ -200,7 +219,12 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         p = paths.get(a["id"])
         data = {} if absent else {"clos": radar.get(a["id"], []), "summary": p["diagnostic_summary"] if p else None,
                                   "study_plan": p["recommended_study_plan"] if p else None, "items": items.get(a["id"], []),
-                                  "materials": materials.get(a["id"], [])}
+                                  "materials": materials.get(a["id"], []),
+                                  "wrong": sorted(set(wrong_by.get(a["id"], []))),
+                                  "chapters": sorted(chapters.get(a["id"], []), key=lambda c: c["pct"]),
+                                  "counts": counts.get(a["id"], {"correct": 0, "wrong": 0, "blank": 0}),
+                                  "answers": answers.get(a["id"], []),
+                                  "class_mean": class_mean}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
                     "score": None if absent else round(float(a["total_score"]) * float(e["max_score"]) / raw_max, 2),
@@ -209,8 +233,6 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
 
 
 def wrong_items(db: Session, exam_id: int) -> list:
-    """(lượt làm, câu hỏi, số thứ tự câu SV thấy) của các câu làm sai / bỏ trống – số thứ tự theo mã đề nếu bài có
-    nhiều mã đề (thứ tự câu bị trộn)."""
     return db.execute(text("""
         SELECT r.attempt_id, r.question_id, COALESCE(vq.position, eq.order_index) AS no
         FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
@@ -222,8 +244,6 @@ def wrong_items(db: Session, exam_id: int) -> list:
 
 
 def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[int, list]:
-    """Lượt làm → [{câu SV làm sai, các trang học liệu của lớp nên đọc lại}] (RAG bước 8). Gợi ý tính MỘT lần mỗi câu.
-    Lỗi của bộ tìm kiếm không được chặn việc gửi kết quả: ghi log, gửi không kèm gợi ý."""
     from ..models import SectionMaterial
     from .rag import suggest
 
@@ -248,8 +268,7 @@ def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[i
 
 
 def public_data(data: dict) -> dict:
-    """Dữ liệu gửi cho SV: điểm, chẩn đoán và gợi ý ôn tập theo chương – KHÔNG kèm mức CLO riêng của từng SV."""
-    d = {k: v for k, v in data.items() if k != "clos"}
+    d = dict(data)
     if "items" in d:
         d["items"] = [{k: v for k, v in i.items() if k not in ("clo", "clo_description")} for i in d["items"]]
     return d
@@ -270,16 +289,12 @@ def push_results(db: Session, exam: Exam) -> dict:
     return res
 
 
-# ------------------------------------------------------------------ tạo khóa học + ghi danh (lớp HP → Moodle)
 def _split_name(full: str) -> tuple[str, str]:
-    """Tên người Việt: tên = từ cuối, họ và tên đệm = phần còn lại."""
     parts = (full or "").split()
     return (parts[-1], " ".join(parts[:-1])) if len(parts) > 1 else ((parts[0] if parts else "-"), "-")
 
 
 def provision_section(db: Session, cs) -> dict:
-    """Tạo (hoặc bổ sung) khóa học Moodle cho lớp học phần: khóa học mang mã lớp, ghi danh GV phụ trách và SV đang học.
-    Idempotent – gọi lại sau khi thêm SV thì chỉ ghi danh người còn thiếu. Lưu moodle_course_id và mdl_user.id của SV."""
     lec = cs.lecturer
     lec_user = db.execute(text("SELECT username, email FROM users WHERE id=:i"), {"i": lec.user_id}).first() if lec.user_id else None
     if not lec_user:

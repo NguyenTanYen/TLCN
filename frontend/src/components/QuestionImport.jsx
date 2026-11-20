@@ -8,7 +8,6 @@ const ST_T = { update: ['blue', 'Sẽ cập nhật'], unchanged: ['gray', 'Khôn
 
 const FilePick = ({ accept, onPick, label }) => <FileButton accept={accept} onPick={onPick} label={label} />
 
-// ------------------------------------------------------------------ Bước 1: nhập hàng loạt câu hỏi
 export function ImportQuestions({ course, onClose, onDone }) {
   const [file, setFile] = useState(null)
   const [skipDup, setSkipDup] = useState(true)
@@ -92,7 +91,6 @@ export function ImportQuestions({ course, onClose, onDone }) {
   )
 }
 
-// ------------------------------------------------------------------ Bước 2: gán CLO / Bloom / chương từ file
 export function TagFromFile({ course, untagged, onClose, onDone }) {
   const [file, setFile] = useState(null)
   const [prev, setPrev] = useState(null)

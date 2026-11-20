@@ -1,4 +1,3 @@
-// Gộp 2, 3… bài kiểm tra (cùng môn, có thể khác lớp) để đánh giá CĐR môn học (CLO) và CĐR CTĐT (PLO/PI); chọn bài làm minh chứng.
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, fmtPct } from '../api'
@@ -15,7 +14,7 @@ export default function Combine({ courseId, sectionId }) {
   const [mode, setMode] = useState('merge')
   const [res, setRes] = useState(null)
   const [showStud, setShowStud] = useState(false)
-  useEffect(() => { if (ex.data && !sel.length) setSel(list.filter(e => e.counts_for_clo && !e.parent_exam_id).map(e => e.id).slice(0, 3)) }, [ex.data])  // eslint-disable-line
+  useEffect(() => { if (ex.data && !sel.length) setSel(list.filter(e => e.counts_for_clo && !e.parent_exam_id).map(e => e.id).slice(0, 3)) }, [ex.data])
   const sections = [...new Map(list.map(e => [e.class_section_id, `${e.section_code} (${e.semester})`])).entries()]
   const toggle = id => setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   return <>

@@ -1,4 +1,3 @@
-// Biểu mẫu soạn đề cương chi tiết có phiên bản (góp ý F1) – chỉ Bộ môn; bản đã duyệt phải tạo phiên bản mới để sửa.
 import { useState } from 'react'
 import { api } from '../api'
 import { ActionButton, Field, Modal } from './ui'
@@ -76,7 +75,6 @@ export function ReferencesForm({ s, onClose, onSaved }) {
   </Modal>
 }
 
-// Nội dung chi tiết một chương (dùng chung mọi phiên bản đề cương)
 export function OutlineForm({ s, o, onClose, onSaved }) {
   const [f, setF] = useState({ content: o.content || '', theory_hours: o.theory_hours ?? '', practice_hours: o.practice_hours ?? '',
     teaching_activities: o.teaching_activities || '', clo_ids: (o.clos || []).map(x => x.id) })

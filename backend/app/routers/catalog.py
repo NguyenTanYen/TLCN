@@ -1,5 +1,3 @@
-"""Danh mục: học kỳ, CTĐT–PLO–PI, kế hoạch đo PI (BM3b), phân công, môn học–CLO, kế hoạch CLO (BM6a),
-lớp học phần và danh sách SV (UC-06)."""
 import csv
 import io
 import unicodedata
@@ -11,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import check_course_access, check_section_access, current_user, require
-from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMapping, ClassSection, Course, Enrollment, PIAssessmentPlan,
+from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMapping, Course, Enrollment, PIAssessmentPlan,
                       PIPlanCLO, PLO, Program, Student, User)
 from ..services import outcomes, results
 from . import syllabi
@@ -39,7 +37,6 @@ def lecturers(db: Session = Depends(get_db), _=Depends(current_user)):
     return rows(db, "SELECT id, lecturer_code, full_name, department FROM lecturers ORDER BY full_name")
 
 
-# ------------------------------------------------------------------ CTĐT, PLO, PI
 @router.put("/plos/{plo_id}")
 def update_plo(plo_id: int, body: PLOIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
     plo = db.get(PLO, plo_id)
@@ -51,7 +48,7 @@ def update_plo(plo_id: int, body: PLOIn, db: Session = Depends(get_db), _=Depend
     if body.target_pct is not None:
         plo.target_pct = body.target_pct
     db.commit()
-    if changed:  # chỉ tiêu PLO đổi → đánh giá lại Đạt/Không đạt của PLO (BM2)
+    if changed:
         results.recompute_plo_all_years(db, plo_id)
     return {"ok": True}
 
@@ -85,7 +82,7 @@ def create_pi_plan(body: PIPlanIn, db: Session = Depends(get_db), _=Depends(requ
             raise HTTPException(422, "CLO không thuộc môn học lấy minh chứng")
         db.add(PIPlanCLO(plan_id=plan.id, clo_id=cid))
     db.commit()
-    results.recompute_pi_plans(db)  # kế hoạch mới có thể dùng ngay kết quả CLO đã đo
+    results.recompute_pi_plans(db)
     return {"id": plan.id}
 
 
@@ -110,7 +107,7 @@ def update_pi_plan(plan_id: int, body: PIPlanIn, db: Session = Depends(get_db), 
         db.add(PIPlanCLO(plan_id=plan_id, clo_id=cid))
     db.commit()
     results.recompute_pi_plans(db)
-    results.recompute_plo(db, *old)  # PI có thể đã chuyển sang CĐR/năm học khác
+    results.recompute_plo(db, *old)
     return {"ok": True}
 
 
@@ -139,7 +136,6 @@ def assignments(semester_id: int | None = None, db: Session = Depends(get_db), _
 
 @router.post("/assignments", status_code=201)
 def create_assignment(body: AssignmentIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
-    """Phân công đánh giá PI: chọn một GV, hoặc all_supervisors = true cho môn không có GV phụ trách riêng (TLCN, KLTN)."""
     if body.all_supervisors == (body.lecturer_id is not None):
         raise HTTPException(422, "Chọn một giảng viên hoặc \"Tất cả thầy/cô có hướng dẫn\" (không chọn cả hai)")
     for t, i, msg in (("semesters", body.semester_id, "Học kỳ"), ("courses", body.course_id, "Môn học"), ("lecturers", body.lecturer_id, "Giảng viên")):
@@ -165,7 +161,6 @@ def delete_assignment(aid: int, db: Session = Depends(get_db), _=Depends(require
     return {"deleted": aid}
 
 
-# ------------------------------------------------------------------ Môn học & CLO
 @router.get("/courses")
 def courses(program_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
     return rows(db, """SELECT c.*, (SELECT GROUP_CONCAT(p.code ORDER BY p.code SEPARATOR ', ') FROM program_courses pc
@@ -176,7 +171,6 @@ def courses(program_id: int | None = None, db: Session = Depends(get_db), _=Depe
 
 @router.get("/courses/{cid}")
 def course_detail(cid: int, semester_id: int | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
-    """Đề cương môn (CLO, ma trận CLO–PLO, kế hoạch đo) là thông tin công khai trong trường – mọi tài khoản đều xem được."""
     c = db.get(Course, cid)
     if not c:
         raise HTTPException(404, "Không tìm thấy môn học")
@@ -202,7 +196,6 @@ def course_detail(cid: int, semester_id: int | None = None, db: Session = Depend
 
 @router.post("/clos")
 def create_clo(body: CLOIn, db: Session = Depends(get_db), u: User = Depends(require("admin"))):
-    """CLO do Bộ môn quản lý theo CTĐT – giảng viên chỉ xem (góp ý 15/10)."""
     if not db.get(Course, body.course_id):
         raise HTTPException(404, "Không tìm thấy môn học")
     if db.query(CLO).filter_by(course_id=body.course_id, clo_code=body.clo_code).first():
@@ -239,15 +232,14 @@ def upsert_clo_plan(body: CLOPlanIn, db: Session = Depends(get_db), u: User = De
     for k, v in body.model_dump().items():
         setattr(plan, k, v)
     db.commit()
-    n = results.reanalyze_course(db, clo.course_id, body.semester_id)  # ngưỡng/chỉ tiêu mới áp dụng cho kết quả đã đo
+    n = results.reanalyze_course(db, clo.course_id, body.semester_id)
     return {"id": plan.id, "reanalyzed_exams": n}
 
 
-# ------------------------------------------------------------------ Lớp học phần
 @router.get("/class-sections")
 def class_sections(u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
     if u.role == "lecturer" and not u.lecturer:
-        return []   # tài khoản GV chưa gắn hồ sơ giảng viên: không thấy lớp nào
+        return []
     lid = u.lecturer.id if u.role == "lecturer" else None
     return rows(db, """SELECT cs.id, cs.section_code, cs.course_id, c.course_code, c.course_name, cs.semester_id, s.name AS semester,
                               s.academic_year, l.full_name AS lecturer, cs.moodle_course_id,
@@ -269,7 +261,6 @@ def section_students(cs_id: int, u: User = Depends(require("admin", "lecturer"))
 @router.post("/class-sections/{cs_id}/students/import")
 async def import_students(cs_id: int, file: UploadFile = File(...), u: User = Depends(require("admin", "lecturer")),
                           db: Session = Depends(get_db)):
-    """Nhập danh sách lớp HP từ CSV: student_code, full_name, class_name (UTF-8/UTF-8 BOM/Windows-1258; dấu , hoặc ;)."""
     check_section_access(db, u, cs_id)
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024:
@@ -281,7 +272,7 @@ async def import_students(cs_id: int, file: UploadFile = File(...), u: User = De
             continue
     else:
         raise HTTPException(422, "Không đọc được bảng mã của file – hãy lưu file CSV dạng UTF-8")
-    content = unicodedata.normalize("NFC", content)   # Windows-1258 tách dấu thành ký tự tổ hợp → gộp lại
+    content = unicodedata.normalize("NFC", content)
     first = content.splitlines()[0] if content.strip() else ""
     delim = ";" if first.count(";") > first.count(",") else ","
     reader = csv.DictReader(io.StringIO(content), delimiter=delim)

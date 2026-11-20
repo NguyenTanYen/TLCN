@@ -1,17 +1,3 @@
-"""KIỂM THỬ TOÀN BỘ CHỨC NĂNG – chạy mọi ca kiểm thử tự động, đo độ phủ API và xuất bảng kết quả Excel.
-
-Chạy (từ thư mục HeThong, sau khi đã chạy 1_CAI_DAT_PYTHON.bat):
-    .venv\\Scripts\\python tools\\kiem_thu\\chay_kiem_thu_toan_bo.py            (Windows)
-    python tools/kiem_thu/chay_kiem_thu_toan_bo.py [--omr]                      (Linux)
-
-Kết quả: docs/kiem_thu/KET_QUA_KIEM_THU.xlsx gồm
-  1. Tổng hợp            – số ca đạt/không đạt theo nhóm chức năng, độ phủ API
-  2. Ca kiểm thử tự động – từng ca: nhóm, nội dung, kết quả mong đợi, kết quả, thời gian
-  3. Độ phủ API          – từng endpoint: nhóm, mô tả, đã gọi thành công chưa, bởi ca nào
-  4. Kiểm thử giao diện  – danh sách ca kiểm thử thủ công trên giao diện và Moodle (điền khi trình diễn)
-  5. Chấm phiếu (OMR)    – (khi có --omr) độ chính xác bộ chấm phiếu theo điều kiện ảnh và kiểu tô
-LƯU Ý: kiểm thử tự động DỰNG LẠI CSDL assessment_db (dữ liệu minh họa); chạy xong hãy chạy lại 4_TAO_DU_LIEU_DEMO_TREN_MOODLE.bat.
-"""
 from __future__ import annotations
 
 import datetime as dt
@@ -28,10 +14,9 @@ ROOT = HERE.parents[1]
 BACKEND = ROOT / "backend"
 OUT_DIR = ROOT / "docs" / "kiem_thu"
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(BACKEND))
-from mo_ta_ca_kiem_thu import M, NHOM  # noqa: E402
+from mo_ta_ca_kiem_thu import M, NHOM
 
 GIAO_DIEN = [
-    # (vai trò, chức năng, các bước, kết quả mong đợi)
     ("GV", "Đăng nhập", "Mở http://localhost:8000, đăng nhập gv.son / Gv@123456", "Vào trang 'Môn học của tôi'; tên GV ở góc trên bên phải"),
     ("GV", "Đăng nhập một lần từ Moodle", "Trên Moodle, vào khóa DBMS330284_01, bấm 'Phân tích CĐR'", "Mở thẳng lớp DBMS330284_01, không hỏi mật khẩu"),
     ("SV", "SV không vào hệ thống", "Đăng nhập hệ thống bằng tài khoản SV 22130001", "Bị từ chối, hướng dẫn xem kết quả trên Moodle"),
@@ -82,7 +67,7 @@ def run_pytest(out_json: Path, junit: Path) -> int:
 
 
 def all_routes() -> list[dict]:
-    from app.main import app  # noqa: F401
+    import app.main
     from app.routers import (analytics, auth, catalog, courses, exams, grading, insights, lms, paper_exam, programs, qsync,
                              question_io, questions, remedial, reports, sync)
     out = []
@@ -112,7 +97,6 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     hit_json, junit = OUT_DIR / "ghi_api.json", OUT_DIR / "junit.xml"
     code = run_pytest(hit_json, junit)
-    # ---------------- kết quả từng ca
     cases = []
     for tc in ET.parse(junit).getroot().iter("testcase"):
         name, f = tc.get("name"), tc.get("classname", "").split(".")[-1]
@@ -122,7 +106,6 @@ def main():
         cases.append({"file": f, "name": name, "group": NHOM[g], "title": title, "what": what, "expect": expect,
                       "result": "BỎ QUA" if skip else ("KHÔNG ĐẠT" if bad is not None else "ĐẠT"),
                       "msg": (bad.get("message") or "")[:300] if bad is not None else "", "time": float(tc.get("time", 0))})
-    # ---------------- độ phủ API
     hits = json.load(open(hit_json, encoding="utf-8")) if hit_json.exists() else []
     by = defaultdict(lambda: {"ok": set(), "any": set()})
     for m, p, st, t in hits:
@@ -136,7 +119,6 @@ def main():
         r["err_only"] = not b["ok"] and bool(b["any"])
     n_ok = sum(c["result"] == "ĐẠT" for c in cases)
     n_cov = sum(r["ok"] for r in routes)
-    # ---------------- Excel
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
