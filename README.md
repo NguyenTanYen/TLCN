@@ -150,6 +150,12 @@ bằng `local_clo_add_resource` rồi đồng bộ và nạp), **Dùng cho lớp
 học liệu của lớp cũ sang lớp mới). Moodle phải nhận được tệp lớn: `docker/moodle/Dockerfile` nâng `post_max_size`/`upload_max_filesize`
 lên 256 MB (cần dựng lại ảnh Moodle). Từ điển thuật ngữ Việt–Anh theo môn: `backend/app/services/rag/synonyms/<mã môn>.txt`.
 
+### Kiểm tra học liệu có đúng môn
+Mỗi tệp được so với CLO và ngân hàng câu hỏi của môn (`services/rag/relevance.py`): một trang tính là liên quan khi có từ 4 thuật ngữ
+đặc trưng của môn; từ 50% số trang liên quan là "ok", 30–50% chỉ cảnh báo, dưới 30% là **không thuộc môn**. Tệp tải lên bị chặn trước khi
+đăng lên Moodle; tệp đồng bộ từ Moodle chuyển sang trạng thái *Không đúng môn* (giảng viên bấm **Vẫn dùng** nếu đánh giá nhầm) và không
+dùng để gợi ý trang. Lệnh `python -m app.cli do-lien-quan-hoc-lieu` in số liệu từng tệp để chỉnh ngưỡng. Môn có dưới 15 câu hỏi/CLO thì không kiểm tra.
+
 ### Tìm theo nghĩa và gợi ý ôn từ học liệu
 - `semantic.dense_top`: tìm đoạn GẦN NGHĨA bằng vector MiniLM đa ngôn ngữ (đã nạp sẵn trong ảnh Docker, `SEMANTIC=1`), trộn với BM25 bằng RRF
   ở ô "Thử tìm trong học liệu" và ở gợi ý cho sinh viên – câu tiếng Việt vẫn tìm được trong giáo trình tiếng Anh. Không có thư viện
