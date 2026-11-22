@@ -57,25 +57,27 @@ function Shell({ user, children }) {
   const moodle = useMoodleUrl()
   const loc = useLocation()
   const active = ([to, , also = []]) => (to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(to)) || (also || []).some(p => loc.pathname.startsWith(p))
+  const initials = (user.full_name || user.username).split(' ').filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase()
   return (
-    <div className="app">
-
-      <header className="topbar">
-        <div className="topbar-in">
-          <NavLink to="/" className="brand"><span className="logo">UTE</span><span><b>Đánh giá chuẩn đầu ra</b><small>Hỗ trợ giảng viên và Bộ môn</small></span></NavLink>
-          <nav className="mainnav" aria-label="Chức năng">
-            {MENUS[user.role].map(([g, items]) => <div className="navgroup" key={g} role="group" aria-label={g}>
-              <span className="navcap">{g}</span>
-              <div className="navitems">{items.map(m => <NavLink key={m[0]} to={m[0]} title={m[3]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}</div>
-            </div>)}
-          </nav>
-          <div className="topbar-r">
-            <UserMenu user={user} moodle={moodle} />
-          </div>
-        </div>
-      </header>
-      <main className="main">{children}</main>
-      <footer className="sitefoot"><div className="sitefoot-in"><span>Hệ thống đánh giá chuẩn đầu ra học phần · Khoa Công nghệ Thông tin, Trường Đại học Công nghệ Kỹ thuật TP.HCM</span><NavLink to="/huong-dan">Hướng dẫn sử dụng</NavLink></div></footer>
+    <div className="portal">
+      <aside className="psb" aria-label="Chức năng">
+        <NavLink to="/" className="plogo" aria-label="Trang chủ"><span className="plogo-mark">HCM-UTE</span><small>Đánh giá chuẩn đầu ra</small></NavLink>
+        <div className="puser"><span className="avatar">{initials}</span><div><b>{user.full_name}</b><small>{user.username}</small><small>({ROLE_VI[user.role]})</small></div></div>
+        <nav className="pnav">
+          {MENUS[user.role].map(([g, items]) => <div className="pgroup" key={g} role="group" aria-label={g}>
+            <span className="pcap">{g}</span>
+            {items.map(m => <NavLink key={m[0]} to={m[0]} title={m[3]} className={() => (active(m) ? 'active' : '')} end={m[0] === '/'}>{m[1]}</NavLink>)}
+          </div>)}
+        </nav>
+      </aside>
+      <div className="pmain">
+        <header className="ptop">
+          <span className="ptitle">Trường Đại học Công nghệ Kỹ thuật TP.HCM</span>
+          <UserMenu user={user} moodle={moodle} />
+        </header>
+        <main className="main">{children}</main>
+        <footer className="sitefoot"><div className="sitefoot-in"><span>Hệ thống đánh giá chuẩn đầu ra học phần · Khoa Công nghệ Thông tin, Trường Đại học Công nghệ Kỹ thuật TP.HCM</span><NavLink to="/huong-dan">Hướng dẫn sử dụng</NavLink></div></footer>
+      </div>
     </div>
   )
 }

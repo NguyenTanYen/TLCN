@@ -161,7 +161,7 @@ function Sheet({ e, st, reload }) {
   </div>
 }
 
-function CameraPane({ onShot, last }) {
+function CameraPane({ onShot, last, examId }) {
   const vref = useRef(null), sref = useRef(null)
   const [err, setErr] = useState(''), [busy, setBusy] = useState(false), [ready, setReady] = useState(false)
   useEffect(() => {
@@ -173,20 +173,53 @@ function CameraPane({ onShot, last }) {
       .catch(x => setErr(x.name === 'NotAllowedError' ? 'Bạn chưa cho phép dùng camera – bấm biểu tượng ổ khóa cạnh địa chỉ để cho phép.' : `Không mở được camera: ${x.message}`))
     return () => { dead = true; sref.current?.getTracks().forEach(t => t.stop()) }
   }, [])
-  const shoot = () => {
-    const v = vref.current; if (!v || !v.videoWidth) return
-    const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight
-    c.getContext('2d').drawImage(v, 0, 0)
-    c.toBlob(async b => { setBusy(true); try { await onShot(new File([b], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })) } catch (x) { } finally { setBusy(false) } }, 'image/jpeg', 0.92)
+  const grab = (maxW, q) => new Promise(res => {
+    const v = vref.current
+    if (!v || !v.videoWidth) { res(null); return }
+    const k = maxW ? Math.min(1, maxW / v.videoWidth) : 1
+    const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k)
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height)
+    c.toBlob(res, 'image/jpeg', q)
+  })
+  const beep = () => {
+    try {
+      const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator()
+      o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.12)
+    } catch (x) { }
   }
+  const shoot = async () => {
+    const b = await grab(0, 0.92); if (!b) return
+    setBusy(true); try { await onShot(new File([b], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' })); beep() } catch (x) { } finally { setBusy(false) }
+  }
+  const [auto, setAuto] = useState(true)
+  const state = useRef({ hits: 0, misses: 0, armed: true, busy: false })
+  useEffect(() => {
+    if (!auto || !ready) return
+    const id = setInterval(async () => {
+      const st = state.current
+      if (st.busy) return
+      st.busy = true
+      try {
+        const b = await grab(800, 0.7); if (!b) return
+        const fd = new FormData(); fd.append('file', new File([b], 'probe.jpg', { type: 'image/jpeg' }))
+        const r = await authFetch(`/api/exams/${examId}/scan/probe`, { method: 'POST', body: fd })
+        const j = r.ok ? await r.json() : { found: false }
+        if (j.found && j.sharp > 40) { st.hits += 1; st.misses = 0 } else { st.misses += 1; st.hits = 0 }
+        if (!st.armed && st.misses >= 3) st.armed = true
+        if (st.armed && st.hits >= 2) { st.armed = false; st.hits = 0; await shoot() }
+      } catch (x) { } finally { st.busy = false }
+    }, 700)
+    return () => clearInterval(id)
+  }, [auto, ready, examId])
   return <div className="cam-pane mt">
     {err ? <div className="alert red small">{err}</div> : <>
       <div className="cam-box"><video ref={vref} playsInline muted /><div className="cam-guide" /></div>
       <div className="row gap wrap mt">
-        <button className="btn primary" disabled={!ready || busy} onClick={shoot}>{busy ? 'Đang chấm…' : '📸 Chụp & chấm'}</button>
-        <span className="muted small">Mỗi lần chụp: đọc, chấm và lưu ngay. Phiếu sai MSSV/mã đề nằm ở danh sách "Cần xử lý" bên dưới.</span>
+        <label className="row gap"><input type="checkbox" checked={auto} onChange={e => { setAuto(e.target.checked); state.current = { hits: 0, misses: 0, armed: true, busy: false } }} /> Tự động quét khi thấy phiếu</label>
+        <button className="btn" disabled={!ready || busy} onClick={shoot}>{busy ? 'Đang chấm…' : 'Chụp thủ công'}</button>
+        <span className="muted small">{auto ? (busy ? 'Đang đọc và chấm phiếu…' : 'Đưa phiếu vào khung: hệ thống tự đọc, chấm và lưu, không cần bấm chụp. Bỏ phiếu ra khỏi khung rồi đưa phiếu tiếp theo vào.') : 'Mỗi lần bấm chụp: đọc, chấm và lưu ngay.'} Phiếu sai MSSV/mã đề nằm ở danh sách "Cần xử lý" bên dưới.</span>
       </div>
-      <p className="muted small">Đặt phiếu phẳng, vừa khung, đủ 4 ô định vị ở góc và đủ sáng rồi bấm chụp. Kết quả hiện ngay; phiếu cần xem lại được giữ trong danh sách bên dưới. Quét lại cùng MSSV sẽ thay phiếu cũ.</p>
+      <p className="muted small">Đặt phiếu phẳng, vừa khung, đủ 4 ô định vị ở góc và đủ sáng. Kết quả hiện ngay; phiếu cần xem lại được giữ trong danh sách bên dưới. Quét lại cùng MSSV sẽ thay phiếu cũ.</p>
     </>}
     {last && <div className={`alert ${last.bad ? 'amber' : 'green'} small`}>{last.text}</div>}
   </div>
@@ -240,11 +273,11 @@ function Scan({ e, st, reload }) {
       <FileButton className="btn primary" accept="image/*,.pdf" label="⬆ Tải ảnh phiếu / PDF đã quét" onPick={f => bulk([f])} />
       <label className="btn">📷 Chụp bằng điện thoại / chọn nhiều ảnh
         <input type="file" accept="image/*,.pdf" capture="environment" multiple hidden onChange={ev => { const f = [...ev.target.files]; ev.target.value = ''; f.length && bulk(f) }} /></label>
-      <button className="btn primary" onClick={() => setCam(c => !c)}>{cam ? '✕ Đóng camera' : '🎥 Quét bằng camera & chấm ngay'}</button>
+      <button className="btn primary" onClick={() => setCam(c => !c)}>{cam ? '✕ Đóng camera' : 'Quét bằng camera (tự động chấm)'}</button>
       <span className="muted small">Quét là chấm và lưu ngay. Ảnh JPG/PNG hoặc PDF nhiều trang; chụp thẳng, đủ 4 góc phiếu, đủ sáng.</span>
       {busy && <span className="muted small">Đang đọc phiếu…</span>}
     </div>
-    {cam && <CameraPane onShot={shot} last={last} />}
+    {cam && <CameraPane examId={e.id} onShot={shot} last={last} />}
     {errs.map((x, i) => <div key={i} className="alert red small mt">{x.source_name}: {x.error}</div>)}
     {list.loading && !d ? <Loading /> : d && <>
       <div className="stats mt"><Stat label="Đã chấm vào kết quả lớp" value={d.n_saved} tone="green" />

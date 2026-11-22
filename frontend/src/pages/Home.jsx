@@ -5,15 +5,6 @@ import { auth } from '../api'
 import { MENUS } from '../menus'
 
 const STEP = { 1: 'Tạo bài', 2: 'Phân tích', 3: 'Công bố', 4: 'Cải tiến', 5: 'Quá hạn' }
-const STEP_TONE = { 1: 'blue', 2: 'blue', 3: 'amber', 4: 'red', 5: 'red' }
-
-function Todo({ t }) {
-  return <Link to={t.to} className="todo">
-    <span className={`todo-tag ${STEP_TONE[t.step]}`}>{STEP[t.step]}</span>
-    <span className="todo-main"><b>{t.title}</b><small>{t.where}</small></span>
-    <span className="todo-go">Làm ngay →</span>
-  </Link>
-}
 
 function Lecturer({ d }) {
   const s = d.stats
@@ -29,7 +20,10 @@ function Lecturer({ d }) {
       <div className="card-b">
         {d.todos.length === 0
           ? <div className="empty-state"><b>Không còn việc tồn đọng.</b><p className="muted">Muốn bắt đầu bài mới: vào <Link to="/courses">Môn học của tôi</Link> → "Mở lớp" → "+ Tạo bài kiểm tra".</p></div>
-          : <div className="todo-list">{d.todos.map((t, i) => <Todo key={i} t={t} />)}</div>}
+          : <table className="tbl">
+            <thead><tr><th>Việc cần làm</th><th>Lớp / bài</th><th>Loại</th><th></th></tr></thead>
+            <tbody>{d.todos.map((t, i) => <tr key={i}><td><b>{t.title}</b></td><td>{t.where}</td><td>{STEP[t.step]}</td><td><Link to={t.to}>Mở</Link></td></tr>)}</tbody>
+          </table>}
       </div>
     </section>
     <section className="card home-card">
@@ -47,7 +41,6 @@ function Lecturer({ d }) {
 
 function Admin({ d }) {
   const done = d.checks.filter(c => c.done).length
-  const next = d.checks.find(c => !c.done)
   return <>
     <div className="stats">
       <Stat label="Chương trình đào tạo" value={d.stats.programs} />
@@ -58,12 +51,14 @@ function Admin({ d }) {
     <section className="card home-card">
       <div className="card-h"><h3>Tình trạng thiết lập · {done}/{d.checks.length} mục hoàn tất</h3></div>
       <div className="card-b">
-        <div className="progress" role="progressbar" aria-valuenow={done} aria-valuemax={d.checks.length}><i style={{ width: `${100 * done / d.checks.length}%` }} /></div>
-        <div className="todo-list">{d.checks.map((c, i) => <Link key={c.key} to={c.to} className={`todo check ${c.done ? 'done' : ''} ${next === c ? 'next' : ''}`}>
-          <span className={`check-ico ${c.done ? 'ok' : ''}`}>{c.done ? '✓' : i + 1}</span>
-          <span className="todo-main"><b>{c.title}</b><small>{c.done ? 'Đã đủ · ' : `${c.pending}${c.total != null ? `/${c.total}` : ''} mục chưa xong · `}{c.hint}</small></span>
-          <span className="todo-go">{c.done ? 'Xem' : next === c ? 'Làm tiếp →' : 'Mở →'}</span>
-        </Link>)}</div>
+        <table className="tbl">
+          <thead><tr><th>STT</th><th>Hạng mục</th><th>Tình trạng</th><th>Ghi chú</th><th></th></tr></thead>
+          <tbody>{d.checks.map((c, i) => <tr key={c.key} className={c.done ? 'dim' : ''}>
+            <td>{i + 1}</td><td><b>{c.title}</b></td>
+            <td>{c.done ? 'Đã xong' : `Còn ${c.pending}${c.total != null ? `/${c.total}` : ''} mục`}</td>
+            <td>{c.hint}</td><td><Link to={c.to}>{c.done ? 'Xem' : 'Mở'}</Link></td>
+          </tr>)}</tbody>
+        </table>
       </div>
     </section>
   </>
