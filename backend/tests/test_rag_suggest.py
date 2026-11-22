@@ -154,3 +154,6 @@ def test_lexical_gate_without_embeddings():
     assert [pid for _, pid in suggest.lexical_gate(scored, pages, key)] == [1, 2]
     assert suggest.lexical_gate([(1, 10.0, ["giao"])], pages, key) == []
     assert suggest.lexical_gate([], [], key) == []
+    scored = [(1, 10.0, ["giao", "tac", "commit"]), (2, 9.0, ["giao", "tac", "log"])]
+    assert [pid for _, pid in suggest.lexical_gate(scored, pages[:2], key, frozenset({"commit"}))] == [1]
+    assert suggest.lexical_gate(scored, pages[:2], key, frozenset({"atomicity"})) == []

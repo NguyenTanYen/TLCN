@@ -21,7 +21,7 @@ _cache: dict[tuple, float | None] = {}
 _lock = threading.Lock()
 
 
-def _specific(t: str) -> bool:
+def specific(t: str) -> bool:
     return all(w.isascii() and w.isalpha() and w.islower() and len(w) >= 3 for w in t.split("_")) and len(t) >= 5
 
 
@@ -35,7 +35,7 @@ def fingerprint(db: Session, course_id: int) -> frozenset[str]:
     for d in docs:
         for t in set(tokens(d)):
             df[t] += 1
-    return frozenset(t for t, c in df.items() if _specific(t) and c / len(docs) <= MAX_DF)
+    return frozenset(t for t, c in df.items() if specific(t) and c / len(docs) <= MAX_DF)
 
 
 def share_of(pages: list[set[str]], terms: frozenset[str]) -> float | None:

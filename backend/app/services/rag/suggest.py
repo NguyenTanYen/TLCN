@@ -51,18 +51,20 @@ def pages_of(ranked: list[int], page_of) -> list:
     return out
 
 
-def lexical_gate(scored: list[tuple], pages: list[tuple], page_key) -> list[tuple]:
-    by_pid = {pid: (s, m) for pid, s, m in scored}
+def lexical_gate(scored: list[tuple], pages: list[tuple], page_key, wanted: frozenset = frozenset()) -> list[tuple]:
+    by_pid = {pid: (s, set(m)) for pid, s, m in scored}
     best: dict = {}
     for _, pid in pages:
-        s, m = by_pid.get(pid, (0.0, []))
+        s, m = by_pid.get(pid, (0.0, set()))
+        if wanted and not m & wanted:
+            continue
         best[page_key(pid)] = (s, len({t for t in m if "_" not in t}))
     if not best:
         return []
     top, terms = max(best.values())
     if terms < MIN_TERMS:
         return []
-    return [(pg, pid) for pg, pid in pages if best[pg][0] >= top * LEX_RATIO]
+    return [(pg, pid) for pg, pid in pages if pg in best and best[pg][0] >= top * LEX_RATIO]
 
 
 @dataclass
@@ -80,6 +82,7 @@ class PageSuggestion:
 def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) -> list[PageSuggestion]:
     from ...config import settings
     from . import relevance, search, semantic, synonyms
+    from .search import tokens
 
     correct = [o.content for o in question.options if o.is_correct]
     if not correct:
@@ -118,7 +121,9 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
         keep = set(close_pages([(pg, best[pg]) for pg, _ in pages], settings.rag_page_margin))
         pages = [(pg, pid) for pg, pid in pages if pg in keep]
     else:
-        pages = lexical_gate(ix.score(query_text(question.content, correct), DEPTH, syn), pages, page_key)
+        query = query_text(question.content, correct)
+        wanted = frozenset(t for t in tokens(query) if relevance.specific(t))
+        pages = lexical_gate(ix.score(query, DEPTH, syn), pages, page_key, wanted)
     out = []
     for (_, _), pid in pages:
         p, pg, m = rows[pid]
