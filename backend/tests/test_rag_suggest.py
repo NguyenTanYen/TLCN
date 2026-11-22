@@ -135,6 +135,7 @@ def test_weak_pages_are_trimmed_after_the_gate(material, monkeypatch):
     db = SessionLocal()
     try:
         q = db.get(Question, PITR)
+        monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.8] * len(embs))
         full = suggest.for_question(db, cs, q)
         assert len(full) >= 2
         monkeypatch.setattr(semantic, "scores", lambda query, embs: [0.8] + [0.5] * (len(embs) - 1))
@@ -144,3 +145,12 @@ def test_weak_pages_are_trimmed_after_the_gate(material, monkeypatch):
         assert suggest.for_question(db, cs, q) == []
     finally:
         db.close()
+
+
+def test_lexical_gate_without_embeddings():
+    key = lambda i: ("m", i)
+    pages = [(key(1), 1), (key(2), 2), (key(3), 3)]
+    scored = [(1, 10.0, ["giao", "tac"]), (2, 7.0, ["giao", "tac"]), (3, 3.0, ["giao"])]
+    assert [pid for _, pid in suggest.lexical_gate(scored, pages, key)] == [1, 2]
+    assert suggest.lexical_gate([(1, 10.0, ["giao"])], pages, key) == []
+    assert suggest.lexical_gate([], [], key) == []

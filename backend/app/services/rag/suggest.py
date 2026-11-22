@@ -10,6 +10,8 @@ RRF_K = 60
 DEPTH = 30
 PAGES = 3
 SNIPPET = 240
+MIN_TERMS = 2
+LEX_RATIO = 0.6
 
 
 def fuse(lists: list[tuple[list, float]], k: int = RRF_K) -> list:
@@ -49,6 +51,20 @@ def pages_of(ranked: list[int], page_of) -> list:
     return out
 
 
+def lexical_gate(scored: list[tuple], pages: list[tuple], page_key) -> list[tuple]:
+    by_pid = {pid: (s, m) for pid, s, m in scored}
+    best: dict = {}
+    for _, pid in pages:
+        s, m = by_pid.get(pid, (0.0, []))
+        best[page_key(pid)] = (s, len({t for t in m if "_" not in t}))
+    if not best:
+        return []
+    top, terms = max(best.values())
+    if terms < MIN_TERMS:
+        return []
+    return [(pg, pid) for pg, pid in pages if best[pg][0] >= top * LEX_RATIO]
+
+
 @dataclass
 class PageSuggestion:
     material_id: int
@@ -70,7 +86,8 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
         return []
     code = (db.query(Course.course_code).join(ClassSection, ClassSection.course_id == Course.id)
             .filter(ClassSection.id == cs_id).scalar())
-    ranked = rank_passages(search.section_index(db, cs_id), question.content, correct, synonyms=synonyms.for_course(code))
+    ix, syn = search.section_index(db, cs_id), synonyms.for_course(code)
+    ranked = rank_passages(ix, question.content, correct, synonyms=syn)
     try:
         dense = [pid for pid, _ in semantic.dense_top(db, cs_id, query_text(question.content, correct), DEPTH)]
     except Exception:
@@ -99,6 +116,8 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
             best[page_key(pid)] = max(best.get(page_key(pid), -1.0), c)
         keep = set(close_pages([(pg, best[pg]) for pg, _ in pages], settings.rag_page_margin))
         pages = [(pg, pid) for pg, pid in pages if pg in keep]
+    else:
+        pages = lexical_gate(ix.score(query_text(question.content, correct), DEPTH, syn), pages, page_key)
     out = []
     for (_, _), pid in pages:
         p, pg, m = rows[pid]

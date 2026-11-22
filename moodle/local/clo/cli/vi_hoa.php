@@ -40,5 +40,20 @@ foreach ($targets as $table => $fields) {
         }
     }
 }
+$custom = [
+    'quiz' => ['summaryofattemptscaption' => 'Tóm tắt lần làm {$a}'],
+    'qtype_multichoice' => ['selectone' => 'Chọn một đáp án:', 'correctansweris' => 'Đáp án đúng là: {$a}'],
+];
+$dir = $CFG->dataroot . '/lang/vi_local';
+if (!is_dir($dir)) {
+    mkdir($dir, 0775, true);
+}
+foreach ($custom as $component => $strings) {
+    $body = "<?php\n";
+    foreach ($strings as $key => $text) {
+        $body .= '$string[' . var_export($key, true) . '] = ' . var_export($text, true) . ";\n";
+    }
+    file_put_contents("$dir/$component.php", $body);
+}
 purge_all_caches();
 echo "Da dat tieng Viet cho nguoi dung va xoa {$cleared} doan noi dung mau (lorem ipsum).\n";
