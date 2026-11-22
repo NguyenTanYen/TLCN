@@ -4,7 +4,6 @@ import zipfile
 from typing import Literal, Optional
 
 import jwt
-from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field

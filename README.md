@@ -16,7 +16,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 
 | Góp ý | Đã làm |
 |---|---|
-| Quản lý theo CTĐT, đề cương chi tiết | Nạp tự động 2 CTĐT **CNTT 2026** và **KTDL 2026** từ file PDF (`tools/ctdt_2026/doc_ctdt.py` → `database/04_ctdt_2026.sql`): 7 PLO, 17 PI (trình độ năng lực), 79/57 học phần (tín chỉ LT/TH, cấu trúc, tiên quyết, khối kiến thức, học kỳ, mô tả), ma trận học phần – PI. Trang *Chương trình đào tạo* và **Đề cương chi tiết** từng học phần (in được). |
+| Quản lý theo CTĐT, đề cương chi tiết | Nạp sẵn 3 CTĐT **CNTT 2026**, **KTDL 2026** và **ATTT 2026** từ file PDF của khoa (`tools/ctdt_2026/doc_ctdt.py` → `database/04_ctdt_2026.sql`): 7 PLO, 17 PI (trình độ năng lực), 79/57 học phần (tín chỉ LT/TH, cấu trúc, tiên quyết, khối kiến thức, học kỳ, mô tả), ma trận học phần – PI. Trang *Chương trình đào tạo* và **Đề cương chi tiết** từng học phần (in được). |
 | GV không sửa học phần, CLO | Học phần, chương, CLO, ma trận PI do **Bộ môn** quản lý; GV chỉ xem (API trả 403). |
 | Giao diện | Thanh điều hướng trên cùng, tên GV góc phải; luồng **Môn học → các lớp GV dạy → bài KT**; bấm môn xem đề cương, lớp, kết quả CĐR của môn. |
 | Lớp ⇄ Moodle | Tự gắn lớp với khóa học Moodle **trùng mã lớp** (một nút cho cả môn, kèm cập nhật SV); liên kết mở khóa học Moodle từ lớp; nút *Phân tích CĐR* trên Moodle mở đúng lớp. **Dùng một đề cho nhiều lớp** cùng môn và tạo Quiz cho từng lớp. |
@@ -40,6 +40,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
+| `database/05_ctdt_attt_2026.sql` | CTĐT An toàn thông tin 2026 (7 PLO, 17 PI, 57 học phần, 274 ô ma trận) lấy từ PDF của khoa |
 | `database/00_moodle_subset_for_test.sql` | 22 bảng Moodle 4.4 (từ install.xml) – chỉ dùng cho kiểm thử tự động |
 | `backend/` | FastAPI + SQLAlchemy 2 + Pandas (Analysis Engine), xuất Excel/Word |
 | `frontend/` | React 19 + Vite + Chart.js |

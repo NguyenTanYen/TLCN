@@ -47,7 +47,8 @@ def init_db() -> None:
     run_sql_file(DB_DIR / "01_schema.sql", name)
     run_sql_file(DB_DIR / "03_seed_reference.sql", name)
     run_sql_file(DB_DIR / "04_ctdt_2026.sql", name)
-    print(f"Đã tạo CSDL {name} (57 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT 2026, KTDL 2026.")
+    run_sql_file(DB_DIR / "05_ctdt_attt_2026.sql", name)
+    print(f"Đã tạo CSDL {name} (57 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT, KTDL, ATTT 2026.")
 
 
 def seed_demo() -> None:

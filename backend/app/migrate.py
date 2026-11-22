@@ -181,10 +181,10 @@ def _schema_sql() -> str:
     return (Path(__file__).resolve().parents[2] / "database" / "01_schema.sql").read_text(encoding="utf-8")
 
 
-def load_ctdt_2026() -> int:
+def load_ctdt_2026(name: str = "04_ctdt_2026.sql") -> int:
     from pathlib import Path
     from .services.moodle import split_statements
-    f = Path(__file__).resolve().parents[2] / "database" / "04_ctdt_2026.sql"
+    f = Path(__file__).resolve().parents[2] / "database" / name
     if not f.exists():
         return 0
     raw = engine.raw_connection()
@@ -253,6 +253,10 @@ def upgrade_schema() -> list[str]:
         need_ctdt = not c.execute(text("SELECT 1 FROM programs WHERE code IN ('CNTT-2026','KTDL-2026') LIMIT 1")).scalar()
     if need_ctdt and load_ctdt_2026():
         done.append("nạp CTĐT CNTT 2026 và KTDL 2026")
+    with engine.begin() as c:
+        need_attt = not c.execute(text("SELECT 1 FROM programs WHERE code = 'ATTT-2026'")).scalar()
+    if need_attt and load_ctdt_2026("05_ctdt_attt_2026.sql"):
+        done.append("nạp CTĐT An toàn thông tin 2026")
     return done
 
 

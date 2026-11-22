@@ -101,7 +101,7 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
 
 ## Chức năng mới theo góp ý 15/10
 
-1. **Chương trình đào tạo** (menu trên): CNTT 2026, KTDL 2026 – PLO/PI, học phần theo học kỳ, ma trận học phần – PI.
+1. **Chương trình đào tạo** (menu trên): CNTT 2026, KTDL 2026, ATTT 2026 – PLO/PI, học phần theo học kỳ, ma trận học phần – PI.
    Bấm một học phần → **Đề cương chi tiết** (thông tin chung, mô tả, tiên quyết, CLO – PLO, PI đáp ứng, chương, kế hoạch BM6a); nút *In đề cương*.
 2. **Môn học của tôi** (trang chính của GV): mỗi môn hiện các lớp GV dạy; *⟳ Đồng bộ các lớp với Moodle* tự gắn lớp với khóa học Moodle
    **trùng mã lớp** và cập nhật SV. Trong lớp: *Khóa học Moodle #… ↗* mở thẳng Moodle; trên Moodle nút *Phân tích CĐR* mở đúng lớp.
