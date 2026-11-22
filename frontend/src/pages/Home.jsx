@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import { Loading, Stat } from '../components/ui'
 import { useApi } from '../hooks'
 import { auth } from '../api'
-import { MENUS } from '../menus'
 
 const STEP = { 1: 'Tạo bài', 2: 'Phân tích', 3: 'Công bố', 4: 'Cải tiến', 5: 'Quá hạn' }
 
@@ -51,28 +50,17 @@ function Admin({ d }) {
     <section className="card home-card">
       <div className="card-h"><h3>Tình trạng thiết lập · {done}/{d.checks.length} mục hoàn tất</h3></div>
       <div className="card-b">
-        <table className="tbl">
-          <thead><tr><th>STT</th><th>Hạng mục</th><th>Tình trạng</th><th>Ghi chú</th><th></th></tr></thead>
+        <table className="tbl setup">
+          <thead><tr><th>STT</th><th>Hạng mục</th><th>Tình trạng</th><th>Ghi chú</th><th>Thao tác</th></tr></thead>
           <tbody>{d.checks.map((c, i) => <tr key={c.key} className={c.done ? 'dim' : ''}>
             <td>{i + 1}</td><td><b>{c.title}</b></td>
-            <td>{c.done ? 'Đã xong' : `Còn ${c.pending}${c.total != null ? `/${c.total}` : ''} mục`}</td>
-            <td>{c.hint}</td><td><Link to={c.to}>{c.done ? 'Xem' : 'Mở'}</Link></td>
+            <td>{c.done ? <span className="pill green">Đã xong</span> : <span className="pill amber">{`Còn ${c.pending}${c.total != null ? `/${c.total}` : ''} mục`}</span>}</td>
+            <td>{c.hint}</td><td><Link className={`btn sm${c.done ? '' : ' primary'}`} to={c.to}>{c.done ? 'Xem' : 'Mở'}</Link></td>
           </tr>)}</tbody>
         </table>
       </div>
     </section>
   </>
-}
-
-function Catalog({ role }) {
-  const groups = (MENUS[role] || []).filter(([g]) => g !== 'Bắt đầu')
-  return <section className="card home-card">
-    <div className="card-h"><h3>Tất cả chức năng</h3></div>
-    <div className="card-b catalog">{groups.map(([g, items]) => <div key={g} className="cat-group">
-      <h4>{g}</h4>
-      <ul>{items.map(m => <li key={m[0]}><Link to={m[0]}><b>{m[1]}</b><small>{m[3]}</small></Link></li>)}</ul>
-    </div>)}</div>
-  </section>
 }
 
 export default function Home() {
@@ -82,6 +70,5 @@ export default function Home() {
     <div className="page-h"><div><h1>Xin chào, {u?.full_name}</h1>
       <p className="muted">{u?.role === 'admin' ? 'Theo dõi mức hoàn thiện của chương trình và những việc còn thiếu.' : 'Những việc cần làm tiếp theo cho các lớp bạn phụ trách.'}</p></div></div>
     {!data ? <Loading {...st} /> : data.role === 'lecturer' ? <Lecturer d={data} /> : <Admin d={data} />}
-    {data && <Catalog role={data.role} />}
   </>
 }
