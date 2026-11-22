@@ -104,6 +104,12 @@ def _upgrade_new_tables(c, done: list) -> None:
         c.execute(text("ALTER TABLE section_materials ADD CONSTRAINT ck_sm_status "
                        "CHECK (status IN ('pending','indexing','ready','failed','excluded','missing','rejected'))"))
         done.append("section_materials.ck_sm_status (indexing, excluded, missing, rejected)")
+    cur = _check_clause(c, "section_materials", "ck_sm_type")
+    if cur is not None and "textbook" not in cur:
+        c.execute(text("ALTER TABLE section_materials DROP CONSTRAINT ck_sm_type"))
+        c.execute(text("ALTER TABLE section_materials ADD CONSTRAINT ck_sm_type "
+                       "CHECK (material_type IN ('slide','textbook','reference'))"))
+        done.append("section_materials.ck_sm_type (textbook)")
     if _col(c, "section_materials", "title_custom") is None:
         c.execute(text("ALTER TABLE section_materials ADD COLUMN title_custom TINYINT(1) NOT NULL DEFAULT 0 "
                        "COMMENT '1 = GV tự đặt tên – đồng bộ không ghi đè bằng tên hoạt động Moodle' AFTER title"))

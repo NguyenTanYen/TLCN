@@ -670,7 +670,7 @@ CREATE TABLE section_materials (
   id                   INT AUTO_INCREMENT PRIMARY KEY,
   class_section_id     INT           NOT NULL,
   source               VARCHAR(10)   NOT NULL DEFAULT 'upload' COMMENT 'moodle = tệp trong course Moodle của lớp, upload = GV tải lên hệ thống',
-  material_type        VARCHAR(10)   NOT NULL DEFAULT 'slide' COMMENT 'slide = bài giảng, reference = tài liệu tham khảo',
+  material_type        VARCHAR(10)   NOT NULL DEFAULT 'slide' COMMENT 'slide = bài giảng, textbook = giáo trình, reference = tài liệu tham khảo',
   title                VARCHAR(255)  NOT NULL COMMENT 'Tên hiển thị cho SV',
   title_custom         TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '1 = GV tự đặt tên – đồng bộ không ghi đè bằng tên hoạt động Moodle',
   file_name            VARCHAR(255)  NOT NULL,
@@ -693,7 +693,7 @@ CREATE TABLE section_materials (
   CONSTRAINT fk_sm_user FOREIGN KEY (added_by)         REFERENCES users(id)          ON DELETE SET NULL,
   CONSTRAINT uq_sm_hash UNIQUE (class_section_id, content_hash),
   CONSTRAINT ck_sm_source CHECK (source IN ('moodle','upload')),
-  CONSTRAINT ck_sm_type   CHECK (material_type IN ('slide','reference')),
+  CONSTRAINT ck_sm_type   CHECK (material_type IN ('slide','textbook','reference')),
   CONSTRAINT ck_sm_status CHECK (status IN ('pending','indexing','ready','failed','excluded','missing')),
   CONSTRAINT ck_sm_moodle CHECK (source = 'upload' OR moodle_cmid IS NOT NULL)
 ) ENGINE=InnoDB COMMENT='Học liệu của lớp học phần (slide, tài liệu tham khảo)';

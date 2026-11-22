@@ -14,14 +14,14 @@ router = APIRouter(prefix="/api/class-sections", tags=["Học liệu (RAG)"])
 
 
 class MaterialPatchIn(BaseModel):
-    material_type: Optional[Literal["slide", "reference"]] = None
+    material_type: Optional[Literal["slide", "textbook", "reference"]] = None
     title: Optional[str] = Field(default=None, min_length=1, max_length=255)
 
 
 class MoodlePickIn(BaseModel):
     cmid: int
     content_hash: str = Field(pattern=r"^[0-9a-f]{40}$")
-    material_type: Literal["slide", "reference"] = "slide"
+    material_type: Literal["slide", "textbook", "reference"] = "slide"
     title: Optional[str] = Field(default=None, max_length=255)
 
 
@@ -195,7 +195,7 @@ def update_material(cs_id: int, material_id: int, body: MaterialPatchIn, db: Ses
 
 @router.post("/{cs_id}/materials/upload")
 async def upload_material(cs_id: int, file: UploadFile = File(...), title: str = Form(""),
-                          material_type: Literal["slide", "reference"] = Form("slide"),
+                          material_type: Literal["slide", "textbook", "reference"] = Form("slide"),
                           class_section_ids: str = Form(""), week: int = Form(0),
                           db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
     ids = [int(x) for x in class_section_ids.replace(" ", "").split(",") if x.isdigit()]

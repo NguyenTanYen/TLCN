@@ -8,7 +8,7 @@ const STATUS = {
   pending: ['Chờ nạp', 'gray'], indexing: ['Đang nạp…', 'blue'], ready: ['Đã nạp', 'green'], failed: ['Lỗi', 'red'], rejected: ['Không đúng môn', 'red'],
   excluded: ['Đã bỏ chọn', 'gray'], missing: ['Không còn trên Moodle', 'amber'],
 }
-const TYPE_VI = { slide: 'Slide bài giảng', reference: 'Tài liệu tham khảo' }
+const TYPE_VI = { slide: 'Slide bài giảng', textbook: 'Giáo trình', reference: 'Tài liệu tham khảo' }
 const BUSY = ['pending', 'indexing']
 const POLL_MS = 4000
 

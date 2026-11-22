@@ -144,6 +144,8 @@ def test_rename_updates_file_name_link_and_title_unless_custom(client, gv, cs_id
         r = client.patch(f"{_url(cs_id)}/{m['id']}", headers=gv, json={"title": "Slide bài 1", "material_type": "reference"})
         assert r.status_code == 200 and (r.json()["title"], r.json()["title_custom"], r.json()["material_type"]) == (
             "Slide bài 1", True, "reference")
+        r = client.patch(f"{_url(cs_id)}/{m['id']}", headers=gv, json={"material_type": "textbook"})
+        assert r.status_code == 200 and r.json()["material_type"] == "textbook"
         _moodle("UPDATE {resource} SET name='Chương 1 (bản 2)' WHERE id=300")
         client.post(_url(cs_id) + "/sync", headers=gv)
         assert _materials(client, gv, cs_id)["slide_chuong_1.pdf"]["title"] == "Slide bài 1"
