@@ -32,7 +32,7 @@ test('SV1 – SV đăng nhập hệ thống bằng MSSV → bị từ chối, h�
   })
   await test.step('Bước 2: thông báo từ chối có nhắc Moodle; không vào được trang trong', async () => {
     await toast(sv, /Moodle/)
-    await expect(sv.locator('nav.mainnav')).toHaveCount(0)
+    await expect(sv.locator('nav.pnav')).toHaveCount(0)
   })
   await sv.context().close()
 })

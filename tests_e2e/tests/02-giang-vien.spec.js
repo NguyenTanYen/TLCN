@@ -44,11 +44,11 @@ test('GV1 – Giảng viên đăng nhập: menu chỉ có mục của GV', async
   await test.step('Bước 1: có Môn học của tôi, Ngân hàng câu hỏi, Chương trình đào tạo', async () => {
     for (const item of ['Tổng quan', 'Môn học của tôi', 'Ngân hàng câu hỏi', 'Chương trình đào tạo']) await expect(nav(page, item)).toBeVisible()
   })
-  await test.step('Bước 1b: trang chủ là Tổng quan, có "Việc cần làm" và "Làm ngay" dẫn đến đúng trang', async () => {
+  await test.step('Bước 1b: trang chủ là Tổng quan, có bảng "Việc cần làm" với liên kết "Mở" dẫn đến đúng trang', async () => {
     await goto(page, '/')
     await see(page, 'Việc cần làm')
     await see(page, 'Quy trình một bài kiểm tra')
-    const first = page.locator('a.todo').first()
+    const first = page.locator('.home-card tbody a').first()
     await expect(first).toBeVisible()
     await first.click()
     await page.waitForURL(/\/(exams|sections)\//)

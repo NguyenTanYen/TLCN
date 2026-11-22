@@ -27,7 +27,7 @@ async function login(page, [user, pass]) {
   await page.getByLabel('Tên đăng nhập').fill(user)
   await page.getByLabel('Mật khẩu').fill(pass)
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
-  await page.locator('nav.mainnav').waitFor()
+  await page.locator('nav.pnav').waitFor()
 }
 
 async function moodleLogin(page, [user, pass]) {
@@ -41,7 +41,7 @@ async function moodleLogin(page, [user, pass]) {
   await page.waitForLoadState('domcontentloaded')
 }
 
-const nav = (page, name) => page.locator('nav.mainnav').getByRole('link', { name, exact: true })
+const nav = (page, name) => page.locator('nav.pnav').getByRole('link', { name, exact: true })
 const modal = page => page.locator('.modal').last()
 const card = (page, title) => page.locator('section.card').filter({ has: page.locator('.card-h h3', { hasText: title }) }).first()
 const tab = (page, name) => page.getByRole('tab', { name: new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })

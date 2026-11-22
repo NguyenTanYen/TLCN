@@ -23,7 +23,7 @@ test('AD1 – Bộ môn đăng nhập; sai mật khẩu bị từ chối', async
   await test.step('Bước 1b: Tổng quan hiện danh sách kiểm tra thiết lập (6 mục) với nút dẫn tới trang cần làm', async () => {
     await goto(page, '/')
     await see(page, /Tình trạng thiết lập · \d\/6 mục hoàn tất/)
-    await expect(page.locator('a.todo.check')).toHaveCount(6)
+    await expect(page.locator('.home-card tbody tr')).toHaveCount(6)
   })
   await test.step('Bước 2: phiên mới đăng nhập sai mật khẩu → báo lỗi, vẫn ở màn hình đăng nhập', async () => {
     const p = await H.newPage(browser)
@@ -32,7 +32,7 @@ test('AD1 – Bộ môn đăng nhập; sai mật khẩu bị từ chối', async
     await p.getByLabel('Mật khẩu').fill('sai-mat-khau')
     await p.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
     await toast(p, /Sai tên đăng nhập hoặc mật khẩu/)
-    await expect(p.locator('nav.mainnav')).toHaveCount(0)
+    await expect(p.locator('nav.pnav')).toHaveCount(0)
     await p.context().close()
   })
 })
