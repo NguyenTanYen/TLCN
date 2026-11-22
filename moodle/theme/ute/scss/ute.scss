@@ -1,13 +1,10 @@
-// ===== Theme UTE – Khảo thí & Chuẩn đầu ra (kế thừa Boost) =====
 
 $ute-dark: darken($primary, 12%);
-$ute-grad: linear-gradient(135deg, $ute-dark 0%, $primary 55%, lighten($primary, 14%) 100%);
+$ute-grad: $primary;
 
-// ---------- thanh điều hướng trên cùng
 .navbar.fixed-top {
     background: $ute-grad !important;
     border-bottom: 0;
-    box-shadow: 0 2px 12px rgba(11, 61, 145, .25);
     .navbar-brand, .nav-link, .usermenu .login a, .popover-region-toggle, .btn-open, .dropdown-toggle { color: #fff !important; }
     .primary-navigation .navigation .nav-link {
         color: rgba(255, 255, 255, .85) !important; border-bottom: 3px solid transparent; font-weight: 500;
@@ -20,30 +17,22 @@ $ute-grad: linear-gradient(135deg, $ute-dark 0%, $primary 55%, lighten($primary,
 }
 .navbar-brand .site-name, .navbar .logo { font-weight: 700; letter-spacing: .2px; }
 
-// ---------- nền, thẻ, nút
 body { background-color: $body-bg; }
 #page.drawers { background: transparent; }
 .card, .block.card {
     border: 1px solid #e4e7ec; border-radius: $card-border-radius;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, .05);
 }
 .block .card-title { font-weight: 600; color: $ute-dark; }
-.btn { border-radius: .5rem; font-weight: 500; }
-.btn-primary { box-shadow: 0 2px 6px rgba($primary, .25); }
+.btn { border-radius: .25rem; font-weight: 500; }
 .btn-accent { background: $ute-accent; border-color: $ute-accent; color: #1b1b1b; font-weight: 600;
     &:hover, &:focus { background: darken($ute-accent, 8%); border-color: darken($ute-accent, 8%); color: #111; } }
 .page-header-headings h1, #page-header h1 { font-weight: 700; color: $ute-dark; }
 .secondary-navigation .navigation .nav-tabs .nav-link.active { border-bottom-color: $primary; color: $primary; }
-.dashboard-card-deck .dashboard-card { transition: transform .15s, box-shadow .15s;
-    &:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(16, 24, 40, .12); } }
 .course-card .card-img-top, .dashboard-card-img { border-radius: $card-border-radius $card-border-radius 0 0; }
-#page-footer { background: #0f1f3d !important; color: #c9d4ea; a { color: #fff; } }
+#page-footer { background: #00599c !important; color: #c9d4ea; a { color: #fff; } }
 
-// ---------- banner trang chủ
 .ute-hero {
-    background: $ute-grad; color: #fff; border-radius: 1.25rem; margin: .5rem 0 1.5rem; overflow: hidden; position: relative;
-    &::after { content: ''; position: absolute; right: -80px; top: -80px; width: 320px; height: 320px; border-radius: 50%;
-        background: rgba(255, 255, 255, .07); }
+    background: $ute-grad; color: #fff; border-radius: .25rem; margin: .5rem 0 1.5rem; overflow: hidden; position: relative;
 }
 .ute-hero-inner { display: flex; gap: 2rem; align-items: center; justify-content: space-between; padding: 2.75rem 2.5rem; position: relative; z-index: 1; flex-wrap: wrap; }
 .ute-hero-copy { flex: 1 1 420px; max-width: 720px; }
@@ -52,32 +41,28 @@ body { background-color: $body-bg; }
 .ute-hero-text { color: rgba(255, 255, 255, .88); font-size: 1.05rem; p:last-child { margin-bottom: 0; } }
 .ute-hero-actions { display: flex; gap: .75rem; flex-wrap: wrap; margin-top: 1.5rem; }
 .ute-hero-stats { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: .9rem; flex: 0 1 340px; }
-.ute-stat { background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .18); border-radius: 1rem; padding: 1rem 1.1rem; backdrop-filter: blur(4px); }
+.ute-stat { background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .18); border-radius: .25rem; padding: 1rem 1.1rem; }
 .ute-stat-value { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
 .ute-stat-label { font-size: .85rem; color: rgba(255, 255, 255, .8); }
 .ute-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
-.ute-feature { background: #fff; border: 1px solid #e4e7ec; border-radius: 1rem; padding: 1.25rem 1.35rem;
+.ute-feature { background: #fff; border: 1px solid #e4e7ec; border-radius: .25rem; padding: 1.25rem 1.35rem;
     h3 { font-size: 1.05rem; font-weight: 600; margin: .75rem 0 .35rem; color: $ute-dark; }
     p { margin: 0; color: #5b6475; font-size: .93rem; } }
-.ute-feature-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba($primary, .1); color: $primary; font-size: 1.2rem; }
+.ute-feature-icon { width: 44px; height: 44px; border-radius: 4px; display: grid; place-items: center; background: rgba($primary, .1); color: $primary; font-size: 1.2rem; }
 .pagelayout-frontpage #page-header { display: none; }
 
-// ---------- dải lối tắt ở bảng điều khiển
-.ute-strip { display: flex; align-items: center; gap: 1rem; background: $ute-grad; color: #fff; border-radius: 1rem; padding: 1rem 1.25rem; margin: .5rem 0 1.25rem; flex-wrap: wrap; }
-.ute-strip-icon { width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, .15); display: grid; place-items: center; font-size: 1.25rem; }
+.ute-strip { display: flex; align-items: center; gap: 1rem; background: $ute-grad; color: #fff; border-radius: .25rem; padding: 1rem 1.25rem; margin: .5rem 0 1.25rem; flex-wrap: wrap; }
+.ute-strip-icon { width: 44px; height: 44px; border-radius: 4px; background: rgba(255, 255, 255, .15); display: grid; place-items: center; font-size: 1.25rem; }
 .ute-strip-text { flex: 1 1 280px; display: flex; flex-direction: column; span { color: rgba(255, 255, 255, .85); font-size: .92rem; } }
 .ute-strip-btn { font-weight: 600; color: $ute-dark !important; }
 
-// ---------- trang đăng nhập hai cột
 body.pagelayout-login { background: #fff; }
 body.pagelayout-login #page-wrapper { height: auto; }
 body.pagelayout-login #page.ute-login-page { display: grid !important; grid-template-columns: minmax(360px, 46%) 1fr; min-height: 100vh;
     padding: 0 !important; margin: 0 !important; width: 100%; max-width: none; }
-.ute-login-aside { background: $ute-grad; color: #fff; padding: 2.5rem 3rem; display: flex; flex-direction: column; position: relative; overflow: hidden;
-    &::before { content: ''; position: absolute; width: 420px; height: 420px; border-radius: 50%; right: -140px; bottom: -140px; background: rgba(255, 255, 255, .07); }
-    &::after { content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%; left: -70px; top: 38%; background: rgba(255, 255, 255, .05); } }
+.ute-login-aside { background: $ute-grad; color: #fff; padding: 2.5rem 3rem; display: flex; flex-direction: column; position: relative; overflow: hidden; }
 .ute-brand { display: flex; align-items: center; gap: .85rem; position: relative; z-index: 1; }
-.ute-logo { width: 52px; height: 52px; border-radius: 14px; background: #fff; color: $primary; display: grid; place-items: center; font-weight: 800; letter-spacing: .5px; }
+.ute-logo { width: 52px; height: 52px; border-radius: 8px; background: #fff; color: $primary; display: grid; place-items: center; font-weight: 800; letter-spacing: .5px; }
 .ute-brand-name { font-weight: 700; font-size: 1.15rem; }
 .ute-brand-sub { color: rgba(255, 255, 255, .8); font-size: .88rem; }
 .ute-login-hero { margin: auto 0; position: relative; z-index: 1;

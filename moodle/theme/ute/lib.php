@@ -9,12 +9,12 @@ function theme_ute_get_main_scss_content($theme) {
 }
 
 function theme_ute_get_pre_scss($theme) {
-    $brand = !empty($theme->settings->brandcolor) ? $theme->settings->brandcolor : '#0b3d91';
-    $accent = !empty($theme->settings->accentcolor) ? $theme->settings->accentcolor : '#f5a623';
+    $brand = !empty($theme->settings->brandcolor) ? $theme->settings->brandcolor : '#00599c';
+    $accent = !empty($theme->settings->accentcolor) ? $theme->settings->accentcolor : '#f5b400';
     $scss  = "\$primary: {$brand};\n\$ute-accent: {$accent};\n";
     $scss .= "\$font-family-sans-serif: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n";
-    $scss .= "\$border-radius: .5rem;\n\$border-radius-lg: .75rem;\n\$card-border-radius: .75rem;\n";
-    $scss .= "\$body-bg: #f4f6fb;\n\$navbar-height: 64px;\n";
+    $scss .= "\$border-radius: .25rem;\n\$border-radius-lg: .35rem;\n\$card-border-radius: .25rem;\n";
+    $scss .= "\$body-bg: #ececee;\n\$navbar-height: 64px;\n";
     return $scss;
 }
 
