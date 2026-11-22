@@ -359,6 +359,15 @@ def _sheet_row(r, roster: dict) -> dict:
     return d
 
 
+@router.post("/exams/{exam_id}/scan/probe")
+async def scan_probe(exam_id: int, file: UploadFile = File(...), u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
+    _paper(db, u, exam_id)
+    data = await file.read()
+    if len(data) > 2 * 1024 * 1024:
+        raise HTTPException(413, "Ảnh dò phiếu tối đa 2 MB")
+    return omr.probe(data)
+
+
 @router.post("/exams/{exam_id}/scan/save")
 async def scan_save(exam_id: int, files: list[UploadFile] = File(...), u: User = Depends(lecturer_only), db: Session = Depends(get_db)):
     e = _paper(db, u, exam_id)

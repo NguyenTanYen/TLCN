@@ -31,6 +31,23 @@ def load_pages(data: bytes, filename: str = "") -> list[np.ndarray]:
     return [img]
 
 
+def probe(data: bytes) -> dict:
+    import cv2
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        return {"found": False}
+    h, w = img.shape
+    s = 800 / max(h, w)
+    if s < 1:
+        img = cv2.resize(img, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+    sharp = float(cv2.Laplacian(img, cv2.CV_64F).var())
+    try:
+        find_fiducials(img)
+    except OMRError:
+        return {"found": False, "sharp": round(sharp, 1)}
+    return {"found": True, "sharp": round(sharp, 1)}
+
+
 def _exif_free_resize(g: np.ndarray, target: int = 2200) -> np.ndarray:
     import cv2
     h, w = g.shape
