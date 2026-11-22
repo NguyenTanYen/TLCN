@@ -684,6 +684,7 @@ CREATE TABLE scan_sheets (
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_scansheet_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+  CONSTRAINT fk_scansheet_att FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE SET NULL,
   CONSTRAINT ck_scansheet_status CHECK (status IN ('saved','review','superseded')),
   INDEX ix_scansheet_exam (exam_id, status)
 ) ENGINE=InnoDB COMMENT='Phiếu trả lời đã quét: chấm & lưu ngay, phiếu sai MSSV/mã đề chờ giảng viên xử lý';
@@ -752,7 +753,8 @@ CREATE TABLE exam_rubric_items (
   question_id  INT NOT NULL,
   PRIMARY KEY (exam_id, criterion_id),
   CONSTRAINT fk_eri_exam FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
-  CONSTRAINT fk_eri_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE
+  CONSTRAINT fk_eri_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eri_eq   FOREIGN KEY (exam_id, question_id) REFERENCES exam_questions(exam_id, question_id) ON DELETE CASCADE
 ) ENGINE=InnoDB COMMENT='Tiêu chí ↔ câu/ý của bài nhập điểm';
 
 CREATE TABLE rubric_grades (

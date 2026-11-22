@@ -8,10 +8,14 @@ GROUPS = {
  "D. Kế hoạch đo lường": ["clo_assessment_plans", "pi_assessment_plans", "pi_plan_clos", "assessment_assignments"],
  "E. Lớp HP và ngân hàng câu hỏi": ["class_sections", "enrollments", "question_bank", "question_options", "question_clo_mapping"],
  "F. Đề thi và nhóm đề": ["exams", "exam_questions", "exam_versions", "exam_version_questions", "exam_version_options"],
+ "H. Đề cương học phần và ánh xạ CLO-PI": ["course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos", "clo_pi_mapping"],
+ "I. Học liệu": ["section_materials", "material_pages", "material_passages"],
+ "J. Rubric và chấm tự luận": ["rubrics", "rubric_criteria", "rubric_levels", "exam_rubrics", "exam_rubric_items", "rubric_grades"],
+ "K. Liên kết Moodle, quét phiếu và cải tiến": ["question_moodle_links", "scan_sheets", "improvement_actions"],
  "G. Kết quả và báo cáo": ["exam_attempts", "item_level_results", "item_statistics", "attempt_clo_results", "clo_results",
                           "pi_results", "plo_results", "personalized_learning_paths", "learning_path_items", "sync_runs"],
 }
-COLORS = {"A": "#FDF3E1", "B": "#E8F1FB", "C": "#EAF6EA", "D": "#F3ECFA", "E": "#FFF7D6", "F": "#FDE9E7", "G": "#E6F4F4"}
+COLORS = {"A": "#FDF3E1", "B": "#E8F1FB", "C": "#EAF6EA", "D": "#F3ECFA", "E": "#FFF7D6", "F": "#FDE9E7", "G": "#E6F4F4", "H": "#EFEAE0", "I": "#E3EEF7", "J": "#F6E8EE", "K": "#E9F0DD"}
 import os
 c = pymysql.connect(host="127.0.0.1", port=int(os.environ.get("DBPORT", 3307)), user=os.environ.get("DBUSER","root"), password=os.environ.get("DBPASS","1234"), database="information_schema", charset="utf8mb4")
 cur = c.cursor()
@@ -151,8 +155,9 @@ def render(name, tables, full=True, rankdir="LR", clusters=False, extra_attrs=""
     cairosvg.svg2png(bytestring=svg.encode(), write_to=f"fig/{name}.png", scale=160 / 72, background_color="white")
 
 
+PACK = {"G": ', pack=true, packmode="array_c2"', "D": ', pack=true, packmode="array_c2"'}
 for i, (g, ts) in enumerate(GROUPS.items()):
-    render(f"erd_{g[0]}", ts, full=True, rankdir="LR")
+    render(f"erd_{g[0]}", ts, full=True, rankdir="LR", extra_attrs=PACK.get(g[0], ""))
 import sys
 if "--overview" in sys.argv:
     render("erd_overview", all_tables, full=False, clusters=False, rankdir="TB", extra_attrs=", ranksep=0.8, nodesep=0.3")

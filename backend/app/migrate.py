@@ -119,6 +119,23 @@ def _upgrade_new_tables(c, done: list) -> None:
             done.append(f"{table}.{col}")
 
 
+def _upgrade_fk_gaps(c, done: list) -> None:
+    has = lambda t, n: c.execute(text("""SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE()
+                                     AND TABLE_NAME=:t AND CONSTRAINT_NAME=:n"""), {"t": t, "n": n}).scalar()
+    if not has("scan_sheets", "fk_scansheet_att"):
+        c.execute(text("UPDATE scan_sheets SET attempt_id = NULL WHERE attempt_id IS NOT NULL "
+                       "AND attempt_id NOT IN (SELECT id FROM exam_attempts)"))
+        c.execute(text("ALTER TABLE scan_sheets ADD CONSTRAINT fk_scansheet_att "
+                       "FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE SET NULL"))
+        done.append("scan_sheets.fk_scansheet_att")
+    if not has("exam_rubric_items", "fk_eri_eq"):
+        c.execute(text("DELETE FROM exam_rubric_items WHERE (exam_id, question_id) NOT IN "
+                       "(SELECT exam_id, question_id FROM exam_questions)"))
+        c.execute(text("ALTER TABLE exam_rubric_items ADD CONSTRAINT fk_eri_eq "
+                       "FOREIGN KEY (exam_id, question_id) REFERENCES exam_questions(exam_id, question_id) ON DELETE CASCADE"))
+        done.append("exam_rubric_items.fk_eri_eq")
+
+
 def _upgrade_v3(c, done: list) -> None:
     for table, col, ddl in NEW_COLUMNS:
         if _col(c, table, col) is None:
@@ -227,6 +244,7 @@ def upgrade_schema() -> list[str]:
         _upgrade_v3(c, done)
         _upgrade_clo_pi(c, done)
         _upgrade_new_tables(c, done)
+        _upgrade_fk_gaps(c, done)
         need_ctdt = not c.execute(text("SELECT 1 FROM programs WHERE code IN ('CNTT-2026','KTDL-2026') LIMIT 1")).scalar()
     if need_ctdt and load_ctdt_2026():
         done.append("nạp CTĐT CNTT 2026 và KTDL 2026")
