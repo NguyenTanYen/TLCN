@@ -254,6 +254,7 @@ def upgrade_schema() -> list[str]:
     if need_ctdt and load_ctdt_2026():
         done.append("nạp CTĐT CNTT 2026 và KTDL 2026")
     with engine.begin() as c:
+        c.execute(text("UPDATE courses SET course_structure = REPLACE(course_structure, '/', ':') WHERE course_structure REGEXP '^[0-9]+[(][0-9]+/[0-9]+/[0-9]+[)]$'"))
         need_attt = not c.execute(text("SELECT 1 FROM programs WHERE code = 'ATTT-2026'")).scalar()
     if need_attt and load_ctdt_2026("05_ctdt_attt_2026.sql"):
         done.append("nạp CTĐT An toàn thông tin 2026")
