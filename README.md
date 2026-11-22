@@ -161,3 +161,7 @@ dùng để gợi ý trang. Lệnh `python -m app.cli do-lien-quan-hoc-lieu` in 
   ở ô "Thử tìm trong học liệu" và ở gợi ý cho sinh viên – câu tiếng Việt vẫn tìm được trong giáo trình tiếng Anh. Không có thư viện
   hoặc đoạn chưa có vector thì chỉ dùng BM25 như cũ. Model có sẵn, KHÔNG phải huấn luyện.
 - Trang bài kiểm tra → Kết quả → **Gợi ý ôn từ học liệu**: giảng viên xem trước từng câu sinh viên sai sẽ được gợi ý đọc trang nào.
+
+## Công cụ AI đã sử dụng
+
+Nhóm có dùng trợ lý AI (Claude, của Anthropic) hỗ trợ trong quá trình làm đồ án: viết và sửa mã nguồn, viết kiểm thử, rà soát lỗi, chạy kiểm thử trên máy chủ thử nghiệm, soạn và chỉnh sửa tài liệu. Các quyết định về yêu cầu, thiết kế chức năng, số liệu, cách kiểm thử và nội dung nộp do nhóm đưa ra và chịu trách nhiệm. Lịch sử Git trước ngày 22/11/2026 có ghi nhận phần hỗ trợ này ở một số commit; từ ngày đó, thông tin được ghi trong mục này và trong báo cáo thay cho dòng đồng tác giả trên từng commit.
