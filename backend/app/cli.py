@@ -508,13 +508,24 @@ def day_ket_qua() -> None:
 
 
 def do_lien_quan_hoc_lieu() -> None:
+    from collections import Counter, defaultdict
     from .database import SessionLocal
-    from .models import ClassSection
+    from .models import ClassSection, MaterialPassage, SectionMaterial
     from .services.rag import relevance
+    from .services.rag.search import tokens
     with SessionLocal() as db:
         for cs in db.query(ClassSection).all():
-            for mid, r in relevance.assess(db, cs.id).items():
-                print(f"Lop {cs.section_code} hoc lieu {mid}: {r['share']:.0%} trang lien quan -> {r['level']}")
+            terms = relevance.fingerprint(db, cs.course_id)
+            for m in db.query(SectionMaterial).filter_by(class_section_id=cs.id, status="ready"):
+                pages = defaultdict(set)
+                for pid, title, body in db.query(MaterialPassage.page_id, MaterialPassage.title, MaterialPassage.body).filter_by(material_id=m.id):
+                    pages[pid].update(tokens(f"{title} {body}"))
+                hits = [p & terms for p in pages.values()]
+                n = max(len(hits), 1)
+                share = " ".join(f">={k}:{sum(len(h) >= k for h in hits) / n:.0%}" for k in (1, 2, 3, 4, 6))
+                top = Counter(t for h in hits for t in h).most_common(8)
+                print(f"Lop {cs.section_code} #{m.id} {m.title} ({len(hits)} trang, {len(terms)} thuat ngu): {share}")
+                print("   hay gap:", ", ".join(f"{t}({c})" for t, c in top))
 
 
 def main(argv: list[str]) -> None:
