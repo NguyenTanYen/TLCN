@@ -1,0 +1,32 @@
+@startuml
+!include ../actstyle.iuml
+|Giảng viên|
+start
+:Chọn lớp học phần,\nmở tab "Học liệu";
+:Tải tệp PDF lên\n(chọn loại: slide, giáo trình,\ntài liệu tham khảo);
+|Hệ thống|
+:Kiểm tra quyền trên lớp;\nchỉ nhận tệp PDF;
+:Đọc thử tệp trong\ntiến trình con;
+:Lấy dấu vết của môn:\nthuật ngữ đặc trưng từ CLO\nvà ngân hàng câu hỏi;
+if (Môn đủ dữ liệu\n(≥ 15 văn bản, ≥ 20 thuật ngữ)?) then (không)
+  :Bỏ qua kiểm tra;
+else (có)
+  :Tính tỷ lệ trang liên quan\n(trang có ≥ 4 thuật ngữ đặc trưng);
+  if (Tỷ lệ < 30%?) then (có)
+    :422 "Tài liệu có vẻ không\nthuộc môn này" + lý do;
+    |Giảng viên|
+    :Xem cảnh báo;
+    stop
+  endif
+endif
+|Hệ thống|
+:Đăng tệp lên khóa học Moodle\n(local_clo_add_resource);
+:Nạp nền: chia đoạn, BM25,\ntính vectơ nghĩa;
+if (Tỷ lệ 30–50%?) then (có)
+  :Gắn cảnh báo "chưa chắc\nđúng môn";
+endif
+:Trạng thái "Đã nạp";
+|Giảng viên|
+:Thấy học liệu, trạng thái\nvà cảnh báo; có thể\n"Vẫn dùng" / bỏ chọn;
+stop
+@enduml

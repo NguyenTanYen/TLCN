@@ -22,6 +22,7 @@ rectangle "Hệ thống hỗ trợ kiểm tra, đánh giá và phân tích mức
   usecase "UC-12\nKhai báo học phần\n(môn, lớp HP, chương, CLO–PLO)" as U12
   usecase "UC-06\nQuản lý CTĐT, PLO/PI\n& kế hoạch đo" as U6
   usecase "UC-07\nBáo cáo đo lường CĐR CTĐT\n(kết quả PI, báo cáo\nCĐR chương trình)" as U7
+  usecase "UC-13\nQuản lý học liệu của lớp\n(kiểm tra tài liệu đúng môn)" as U13
 }
 GV --> U0
 GV --> U8
@@ -34,6 +35,7 @@ GV --> U4
 GV --> U10
 GV --> U11
 GV --> U12
+GV --> U13
 BM --> U6
 BM --> U7
 SV --> U5
@@ -44,4 +46,5 @@ U3 --> MD
 U11 --> MD
 U8 --> MD
 U5 --> MD
+U13 --> MD
 @enduml
