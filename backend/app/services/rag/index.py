@@ -18,7 +18,7 @@ from ...config import settings
 from ...database import SessionLocal, engine
 from ...models import ClassSection, SectionMaterial
 from .. import lms
-from . import search, semantic, store, sync, vlm
+from . import relevance, search, semantic, store, sync, vlm
 from .chunk import build_passages
 from .ingest import read_pdf
 
@@ -225,6 +225,8 @@ def index_material(db: Session, material_id: int, fetcher: Fetcher | None = None
                      len({p.no for p in result[0]}), sum(1 for p in result[0] if p.sheet))
         sync.delete_indexed(db, m.id)
         store.save_document(db, m, *result)
+        if reason := relevance.verdict(db, m):
+            m.status, m.error = "rejected", reason
     else:
         m.status, m.error = status, error
     m.claimed_at = None

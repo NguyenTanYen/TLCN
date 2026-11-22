@@ -507,8 +507,18 @@ def day_ket_qua() -> None:
             print(f"Bai {e.id}: LOI {ex}")
 
 
+def do_lien_quan_hoc_lieu() -> None:
+    from .database import SessionLocal
+    from .models import ClassSection
+    from .services.rag import relevance
+    with SessionLocal() as db:
+        for cs in db.query(ClassSection).all():
+            for mid, r in relevance.assess(db, cs.id).items():
+                print(f"Lop {cs.section_code} hoc lieu {mid}: {r['share']:.0%} trang lien quan -> {r['level']}")
+
+
 def main(argv: list[str]) -> None:
-    cmds = {"kiem-tra-ket-qua": kiem_tra_ket_qua, "dong-bo-hoc-lieu": dong_bo_hoc_lieu, "kiem-tra-gan-clo-pi": kiem_tra_gan_clo_pi, "day-ket-qua": day_ket_qua, "bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
+    cmds = {"kiem-tra-ket-qua": kiem_tra_ket_qua, "dong-bo-hoc-lieu": dong_bo_hoc_lieu, "kiem-tra-gan-clo-pi": kiem_tra_gan_clo_pi, "day-ket-qua": day_ket_qua, "do-lien-quan-hoc-lieu": do_lien_quan_hoc_lieu, "bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
             "simulate-moodle": simulate_moodle, "install-bridge": _install_bridge}
     if len(argv) < 2 or argv[1] not in cmds:
         print(__doc__); sys.exit(1)

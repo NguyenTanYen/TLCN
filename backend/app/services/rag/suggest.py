@@ -79,7 +79,7 @@ class PageSuggestion:
 
 def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) -> list[PageSuggestion]:
     from ...config import settings
-    from . import search, semantic, synonyms
+    from . import relevance, search, semantic, synonyms
 
     correct = [o.content for o in question.options if o.is_correct]
     if not correct:
@@ -104,7 +104,8 @@ def for_question(db: Session, cs_id: int, question: Question, k: int = PAGES) ->
             .options(undefer(MaterialPassage.embedding))
             .filter(MaterialPassage.id.in_(ranked), SectionMaterial.class_section_id == cs_id,
                     SectionMaterial.status == "ready")}
-    live = [pid for pid in ranked if pid in rows]
+    off = relevance.off_topic_ids(db, cs_id)
+    live = [pid for pid in ranked if pid in rows and rows[pid][2].id not in off]
     page_key = lambda i: (rows[i][2].id, rows[i][1].page_no)
     pages = pages_of(live, page_key)[:k]
     cos = semantic.scores(query_text(question.content, correct), [rows[pid][0].embedding for pid in live])

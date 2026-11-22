@@ -788,7 +788,7 @@ CREATE TABLE section_materials (
   moodle_cmid          BIGINT        NULL COMMENT 'mdl_course_modules.id của tài nguyên',
   moodle_file_url      VARCHAR(1000) NULL COMMENT 'Liên kết pluginfile để SV mở đúng trang (#page=N)',
   moodle_timemodified  BIGINT        NULL COMMENT 'timemodified của tệp trên Moodle – đồng bộ lại khi GV sửa',
-  status               VARCHAR(10)   NOT NULL DEFAULT 'pending' COMMENT 'pending = chờ nạp, indexing = đang nạp, ready = đã nạp, failed = lỗi, excluded = GV bỏ chọn (đồng bộ tự động không lấy lại), missing = tệp không còn trên Moodle hoặc SV không còn xem được',
+  status               VARCHAR(10)   NOT NULL DEFAULT 'pending' COMMENT 'pending = chờ nạp, indexing = đang nạp, ready = đã nạp, failed = lỗi, excluded = GV bỏ chọn (đồng bộ tự động không lấy lại), missing = tệp không còn trên Moodle hoặc SV không còn xem được, rejected = tệp không đúng môn (GV bấm Vẫn dùng để chấp nhận)',
   error                TEXT          NULL COMMENT 'Lỗi khi nạp',
   n_pages              INT           NULL,
   added_by             INT           NULL COMMENT 'Người đánh dấu / tải lên học liệu',
@@ -802,7 +802,7 @@ CREATE TABLE section_materials (
   CONSTRAINT uq_sm_hash UNIQUE (class_section_id, content_hash),
   CONSTRAINT ck_sm_source CHECK (source IN ('moodle','upload')),
   CONSTRAINT ck_sm_type   CHECK (material_type IN ('slide','reference')),
-  CONSTRAINT ck_sm_status CHECK (status IN ('pending','indexing','ready','failed','excluded','missing')),
+  CONSTRAINT ck_sm_status CHECK (status IN ('pending','indexing','ready','failed','excluded','missing','rejected')),
   CONSTRAINT ck_sm_moodle CHECK (source = 'upload' OR moodle_cmid IS NOT NULL)
 ) ENGINE=InnoDB COMMENT='Học liệu của lớp học phần (slide, tài liệu tham khảo)';
 

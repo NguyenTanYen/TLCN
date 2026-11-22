@@ -38,6 +38,7 @@ REAL_ENQUEUE = index.enqueue
 @pytest.fixture(autouse=True)
 def index_now(monkeypatch):
     monkeypatch.setattr(index, "enqueue", index.run_section)
+    monkeypatch.setattr(index.relevance, "verdict", lambda db, m: None)
 
 
 @pytest.fixture(scope="module")

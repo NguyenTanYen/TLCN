@@ -5,7 +5,7 @@ import { useApi } from '../hooks'
 import { openMoodle } from '../moodle'
 
 const STATUS = {
-  pending: ['Chờ nạp', 'gray'], indexing: ['Đang nạp…', 'blue'], ready: ['Đã nạp', 'green'], failed: ['Lỗi', 'red'],
+  pending: ['Chờ nạp', 'gray'], indexing: ['Đang nạp…', 'blue'], ready: ['Đã nạp', 'green'], failed: ['Lỗi', 'red'], rejected: ['Không đúng môn', 'red'],
   excluded: ['Đã bỏ chọn', 'gray'], missing: ['Không còn trên Moodle', 'amber'],
 }
 const TYPE_VI = { slide: 'Slide bài giảng', reference: 'Tài liệu tham khảo' }
@@ -89,9 +89,13 @@ export default function SectionMaterials({ cs, canEdit }) {
               {Object.entries(TYPE_VI).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select> : TYPE_VI[m.material_type]}</td>
             <td><Badge tone={tone}>{label}</Badge>
               {m.status === 'ready' && m.indexed_at && <div className="muted small">{fmtTime(m.indexed_at)}</div>}
+              {m.status === 'ready' && m.relevance?.level === 'low' && <div className="small neg">Ít liên quan đến môn ({Math.round(m.relevance.share * 100)}% số trang) – kiểm tra lại tệp có đúng môn không.</div>}
               {m.error && <div className="small neg" title={m.error}>{m.error.length > 140 ? `${m.error.slice(0, 140)}…` : m.error}</div>}</td>
             <td className="num-c">{m.n_pages ?? '—'}</td>
             {canEdit && <td className="row gap">
+              {m.status === 'rejected' && <ActionButton className="btn sm" okMsg="Đã dùng học liệu này"
+                confirm="Tài liệu này bị đánh giá là không đúng môn. Vẫn dùng để gợi ý trang ôn tập?"
+                onRun={async () => { await api.post(`/api/class-sections/${id}/materials/${m.id}/accept`); list.reload() }}>Vẫn dùng</ActionButton>}
               {['ready', 'failed'].includes(m.status) && m.source === 'moodle' && <ActionButton className="btn sm" title="Nạp lại (sau khi sửa tệp trên Moodle hoặc khi nạp bị lỗi)"
                 okMsg="Đã xếp vào hàng đợi nạp" onRun={async () => { await api.post(`/api/class-sections/${id}/materials/${m.id}/reindex`); list.reload() }}>Nạp lại</ActionButton>}
               {m.status !== 'missing' && m.source === 'moodle' && <button className="btn sm" title="Dùng học liệu này cho các lớp khác cùng môn" onClick={() => setDlg({ kind: 'share', m })}>Dùng cho lớp khác</button>}

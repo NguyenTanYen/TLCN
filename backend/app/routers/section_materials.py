@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import check_section_access, lecturer_only, require
 from ..models import SectionMaterial, User
-from ..services.rag import index, moodle_files, publish, search, sync
+from ..services.rag import index, moodle_files, publish, relevance, search, sync
 
 router = APIRouter(prefix="/api/class-sections", tags=["Học liệu (RAG)"])
 
@@ -70,11 +70,12 @@ def list_materials(cs_id: int, db: Session = Depends(get_db), u: User = Depends(
     chosen = db.query(SectionMaterial).filter_by(class_section_id=cs_id).order_by(SectionMaterial.id).all()
     by_hash = {m.content_hash: m for m in chosen}
     files = moodle_files.list_course_files(db, int(cs.moodle_course_id)) if cs.moodle_course_id else []
+    rel = relevance.assess(db, cs_id)
     return {"moodle_course_id": cs.moodle_course_id,
             "moodle_files": [{**f, "material_id": by_hash[f["content_hash"]].id if f["content_hash"] in by_hash else None,
                               "material_status": by_hash[f["content_hash"]].status if f["content_hash"] in by_hash else None}
                              for f in files],
-            "materials": [_material(m) for m in chosen]}
+            "materials": [{**_material(m), "relevance": rel.get(m.id)} for m in chosen]}
 
 
 @router.get("/{cs_id}/materials/search")
@@ -136,11 +137,24 @@ def reindex_material(cs_id: int, material_id: int, db: Session = Depends(get_db)
     m = db.get(SectionMaterial, material_id)
     if not m or m.class_section_id != cs_id:
         raise HTTPException(404, "Không tìm thấy học liệu của lớp học phần này")
-    if m.source != "moodle" or m.status not in ("ready", "failed"):
+    if m.source != "moodle" or m.status not in ("ready", "failed", "rejected"):
         raise HTTPException(409, "Chỉ nạp lại được học liệu từ Moodle đã nạp xong hoặc bị lỗi")
     m.status, m.error = "pending", None
     db.commit()
     index.enqueue(cs_id)
+    return _material(m)
+
+
+@router.post("/{cs_id}/materials/{material_id}/accept")
+def accept_material(cs_id: int, material_id: int, db: Session = Depends(get_db), u: User = Depends(lecturer_only)):
+    check_section_access(db, u, cs_id)
+    m = db.get(SectionMaterial, material_id)
+    if not m or m.class_section_id != cs_id:
+        raise HTTPException(404, "Không tìm thấy học liệu của lớp học phần này")
+    if m.status != "rejected":
+        raise HTTPException(409, "Học liệu này không ở trạng thái bị từ chối")
+    m.status, m.error = "ready", None
+    db.commit()
     return _material(m)
 
 
@@ -193,6 +207,12 @@ async def upload_material(cs_id: int, file: UploadFile = File(...), title: str =
         publish.check_pdf(data)
     except publish.PublishError as ex:
         raise HTTPException(422, str(ex))
+    try:
+        pages, _ = index.parse_isolated(data)
+    except index.MaterialError:
+        pages = []
+    if pages and (reason := relevance.check_upload(db, cs_id, [p.text for p in pages])):
+        raise HTTPException(422, reason)
     ttl = (title.strip() or name.rsplit(".", 1)[0])[:255]
     return {"results": _run(db, targets, lambda cs: publish.push_to_class(db, cs, data, name, ttl, material_type, max(0, week), u.id))}
 

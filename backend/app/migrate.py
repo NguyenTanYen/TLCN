@@ -99,11 +99,11 @@ def _upgrade_new_tables(c, done: list) -> None:
             c.execute(text(_ddl(t)))
             done.append(f"bảng {t}")
     cur = _check_clause(c, "section_materials", "ck_sm_status")
-    if cur is not None and "indexing" not in cur:
+    if cur is not None and "rejected" not in cur:
         c.execute(text("ALTER TABLE section_materials DROP CONSTRAINT ck_sm_status"))
         c.execute(text("ALTER TABLE section_materials ADD CONSTRAINT ck_sm_status "
-                       "CHECK (status IN ('pending','indexing','ready','failed','excluded','missing'))"))
-        done.append("section_materials.ck_sm_status (indexing, excluded, missing)")
+                       "CHECK (status IN ('pending','indexing','ready','failed','excluded','missing','rejected'))"))
+        done.append("section_materials.ck_sm_status (indexing, excluded, missing, rejected)")
     if _col(c, "section_materials", "title_custom") is None:
         c.execute(text("ALTER TABLE section_materials ADD COLUMN title_custom TINYINT(1) NOT NULL DEFAULT 0 "
                        "COMMENT '1 = GV tự đặt tên – đồng bộ không ghi đè bằng tên hoạt động Moodle' AFTER title"))
