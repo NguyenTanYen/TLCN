@@ -68,6 +68,11 @@ NEW_CHECKS = [
      "OR (response_status = 'graded' AND selected_option_id IS NULL AND score_earned >= 0) "
      "OR (response_status IN ('blank','absent') AND selected_option_id IS NULL AND is_correct = FALSE AND score_earned = 0)", "graded"),
     ("sync_runs", "ck_sync_kind", "kind IN ('moodle','paper','scan','manual','analyze')", "scan"),
+    ("clo_results", "ck_cr_pct", "achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100", "achieved_pct"),
+    ("pi_results", "ck_pr_pct", "achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100", "achieved_pct"),
+    ("plo_results", "ck_plr_pct", "achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100", "achieved_pct"),
+    ("exams", "ck_exam_maxscore", "max_score > 0", "max_score"),
+    ("scan_sheets", "ck_scansheet_score", "score IS NULL OR score >= 0", "score"),
 ]
 
 

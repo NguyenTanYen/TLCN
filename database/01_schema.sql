@@ -456,7 +456,8 @@ CREATE TABLE exams (
   CONSTRAINT ck_exam_status   CHECK (status IN ('Draft','Published','Synced','Analyzed')),
   CONSTRAINT ck_exam_duration CHECK (duration_minutes IS NULL OR duration_minutes > 0),
   CONSTRAINT ck_exam_online   CHECK (exam_type = 'online' OR moodle_quiz_id IS NULL),
-  CONSTRAINT ck_exam_paper    CHECK (exam_type = 'paper' OR moodle_offlinequiz_id IS NULL)
+  CONSTRAINT ck_exam_paper    CHECK (exam_type = 'paper' OR moodle_offlinequiz_id IS NULL),
+  CONSTRAINT ck_exam_maxscore CHECK (max_score > 0)
 ) ENGINE=InnoDB COMMENT='Bài kiểm tra / đề thi';
 
 CREATE TABLE exam_questions (
@@ -593,7 +594,8 @@ CREATE TABLE clo_results (
   PRIMARY KEY (class_section_id, clo_id),
   CONSTRAINT fk_cr_cs  FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
   CONSTRAINT fk_cr_clo FOREIGN KEY (clo_id)           REFERENCES clos(id)           ON DELETE RESTRICT,
-  CONSTRAINT ck_cr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated)
+  CONSTRAINT ck_cr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated),
+  CONSTRAINT ck_cr_pct CHECK (achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Kết quả tổng hợp CĐR môn học theo lớp HP (BM6b)';
 
 CREATE TABLE pi_results (
@@ -606,7 +608,8 @@ CREATE TABLE pi_results (
   computed_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (plan_id),
   CONSTRAINT fk_pr_plan FOREIGN KEY (plan_id) REFERENCES pi_assessment_plans(id) ON DELETE CASCADE,
-  CONSTRAINT ck_pr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated)
+  CONSTRAINT ck_pr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated),
+  CONSTRAINT ck_pr_pct CHECK (achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Kết quả tổng hợp từng PI (BM3c)';
 
 CREATE TABLE plo_results (
@@ -625,7 +628,8 @@ CREATE TABLE plo_results (
   computed_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (plo_id, academic_year),
   CONSTRAINT fk_plr_plo FOREIGN KEY (plo_id) REFERENCES plos(id) ON DELETE CASCADE,
-  CONSTRAINT ck_plr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated)
+  CONSTRAINT ck_plr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated),
+  CONSTRAINT ck_plr_pct CHECK (achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Kết quả đo CĐR CTĐT theo năm học (BM2 báo cáo tổng kết, BM3b)';
 
 CREATE TABLE personalized_learning_paths (
@@ -686,6 +690,7 @@ CREATE TABLE scan_sheets (
   CONSTRAINT fk_scansheet_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
   CONSTRAINT fk_scansheet_att FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE SET NULL,
   CONSTRAINT ck_scansheet_status CHECK (status IN ('saved','review','superseded')),
+  CONSTRAINT ck_scansheet_score CHECK (score IS NULL OR score >= 0),
   INDEX ix_scansheet_exam (exam_id, status)
 ) ENGINE=InnoDB COMMENT='Phiếu trả lời đã quét: chấm & lưu ngay, phiếu sai MSSV/mã đề chờ giảng viên xử lý';
 
