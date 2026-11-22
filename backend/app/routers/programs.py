@@ -51,7 +51,7 @@ def programs(db: Session = Depends(get_db), _=Depends(current_user)):
     return rows(db, """SELECT p.*, (SELECT COUNT(*) FROM plos WHERE program_id=p.id) AS n_plos,
                               (SELECT COUNT(*) FROM performance_indicators pi JOIN plos pl ON pl.id=pi.plo_id WHERE pl.program_id=p.id) AS n_pis,
                               (SELECT COUNT(*) FROM program_courses WHERE program_id=p.id) AS n_courses
-                       FROM programs p ORDER BY p.cohort_year IS NULL, p.cohort_year DESC, p.code""")
+                       FROM programs p ORDER BY NOT EXISTS (SELECT 1 FROM class_sections cs JOIN program_courses pc ON pc.course_id=cs.course_id WHERE pc.program_id=p.id), p.cohort_year IS NULL, p.cohort_year DESC, p.code""")
 
 
 @router.post("/programs", status_code=201)
