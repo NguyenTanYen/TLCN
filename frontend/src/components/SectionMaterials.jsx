@@ -90,6 +90,7 @@ export default function SectionMaterials({ cs, canEdit }) {
             <td><Badge tone={tone}>{label}</Badge>
               {m.status === 'ready' && m.indexed_at && <div className="muted small">{fmtTime(m.indexed_at)}</div>}
               {m.status === 'ready' && m.relevance?.level === 'low' && <div className="small neg">Ít liên quan đến môn ({Math.round(m.relevance.share * 100)}% số trang) – kiểm tra lại tệp có đúng môn không.</div>}
+              {m.status === 'ready' && m.relevance?.level === 'off' && <div className="small neg">Có vẻ không thuộc môn này (chỉ {Math.round(m.relevance.share * 100)}% số trang liên quan) – hệ thống không dùng tệp này để gợi ý trang ôn tập. Nên bỏ chọn nếu là tệp của môn khác.</div>}
               {m.error && <div className="small neg" title={m.error}>{m.error.length > 140 ? `${m.error.slice(0, 140)}…` : m.error}</div>}</td>
             <td className="num-c">{m.n_pages ?? '—'}</td>
             {canEdit && <td className="row gap">

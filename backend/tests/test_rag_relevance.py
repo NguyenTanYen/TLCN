@@ -22,14 +22,14 @@ def cs(db):
 
 def test_level_thresholds():
     assert relevance.level(None) is None
-    assert relevance.level(0.5) == "ok"
-    assert relevance.level(0.1) == "low"
-    assert relevance.level(0.0) == "off"
+    assert relevance.level(0.78) == "ok"
+    assert relevance.level(0.4) == "low"
+    assert relevance.level(0.25) == "off"
 
 
 def test_share_counts_pages_with_enough_distinct_terms():
-    terms = frozenset({"commit", "rollback", "deadlock"})
-    pages = [{"commit", "rollback"}, {"commit"}, {"dimension", "fact"}, set()]
+    terms = frozenset({"commit", "rollback", "deadlock", "trigger", "index"})
+    pages = [{"commit", "rollback", "deadlock", "trigger"}, {"commit", "rollback"}, {"dimension", "fact"}, set()]
     assert relevance.share_of(pages, terms) == 0.25
     assert relevance.share_of([], terms) is None
 

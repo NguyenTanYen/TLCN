@@ -12,9 +12,9 @@ from .search import tokens
 MIN_FINGERPRINT = 20
 MIN_DOCS = 15
 MAX_DF = 0.15
-PAGE_HITS = 2
-OK_SHARE = 0.25
-OFF_SHARE = 0.08
+PAGE_HITS = 4
+OK_SHARE = 0.5
+OFF_SHARE = 0.3
 MAX_PAGES = 400
 
 _cache: dict[tuple, float | None] = {}
