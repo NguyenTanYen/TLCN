@@ -410,7 +410,10 @@ body { background: var(--bg); font-family: 'Roboto', 'Segoe UI', Arial, sans-ser
 .sitefoot { background: var(--brand); } 
 @media (max-width: 900px) {
   .portal { grid-template-columns: 1fr; }
-  .psb { position: static; height: auto; }
+  .psb { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; padding: 6px 10px; gap: 4px 12px; }
+  .plogo { padding: 4px 0; border: 0; } .plogo small, .puser { display: none; }
+  .pnav { display: flex; flex-direction: row; flex: 1 0 100%; overflow-x: auto; white-space: nowrap; padding: 0; }
+  .pgroup { display: flex; flex-direction: row; } .pcap { display: none; } .pnav a { padding: 8px 12px; border-left: 0; border-bottom: 3px solid transparent; } .pnav a.active { border-bottom-color: var(--accent); }
   .ptop { padding-left: 16px; } .ptitle { font-size: 15px; }
   .pmain .main { padding: 16px; }
 }
