@@ -36,7 +36,7 @@ export function Explanation({ examId, q, onChange, openPage }) {
     </div>
     <div className="muted"><s>{x.text}</s></div>
   </div>
-  if (x.status === 'missing') return <ActionButton className="btn sm mt" title="Mô hình ngôn ngữ trên máy chủ đọc các trang gợi ý rồi viết lời giải thích có trích trang (6–20 giây)"
+  if (x.status === 'missing') return <ActionButton className="btn sm mt" title="Mô hình ngôn ngữ trên máy chủ đọc các trang gợi ý rồi viết lời giải thích có trích trang (vài giây với GPU, vài phút nếu máy chủ chạy bằng CPU)"
     okMsg={r => r.status === 'ready' ? 'Đã sinh lời giải thích' : 'Mô hình không giải thích được bằng tài liệu này'} onRun={gen}>Sinh lời giải thích</ActionButton>
   return NOTE[x.status] ? <div className="muted mt">{NOTE[x.status]}</div> : null
 }
@@ -59,6 +59,6 @@ export function GenerateAll({ examId, rows, onChange }) {
       toast(`Đã sinh ${ok}/${missing.length} lời giải thích`)
     } catch (e) { toast(e.message, 'red') } finally { setBatch(null) }
   }
-  return <button className="btn sm primary" disabled={batch !== null} onClick={run} title="Sinh lần lượt cho mọi câu có SV làm sai – mỗi câu 6–20 giây">
+  return <button className="btn sm primary" disabled={batch !== null} onClick={run} title="Sinh lần lượt cho mọi câu có SV làm sai – mỗi câu vài giây với GPU, vài phút nếu máy chủ chạy bằng CPU">
     {batch !== null ? `Đang sinh ${batch}/${missing.length}…` : `Sinh lời giải thích cho ${missing.length} câu`}</button>
 }

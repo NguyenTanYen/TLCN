@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     rag_vlm_model: str = "qwen2.5vl:3b"
     rag_vlm_url: str = "http://127.0.0.1:11434"
     rag_llm_model: str = "qwen2.5:7b-instruct"
+    rag_llm_max_context: int = 6000
+    rag_llm_max_tokens: int = 350
+    rag_llm_num_ctx: int = 4096
+    rag_llm_timeout: int = 300
     demo_mode: bool = False
 
     @property
