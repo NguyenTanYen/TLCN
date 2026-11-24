@@ -73,16 +73,62 @@ function local_clo_extend_navigation_course(navigation_node $navigation, stdClas
     }
 }
 
-function local_clo_reading_pages(array $materials): array {
+function local_clo_file_url(?string $url): ?moodle_url {
     global $CFG;
+    $at = strpos((string)$url, '/pluginfile.php/');
+    return $at === false ? null : new moodle_url($CFG->wwwroot . substr($url, $at));
+}
+
+function local_clo_answers_visible(stdClass $exam, int $userid, int $attemptid = 0): bool {
+    global $DB;
+    if (empty($exam->quizid)) {
+        return true;
+    }
+    if (!$attemptid) {
+        $attemptid = (int)$DB->get_field_sql("SELECT id FROM {quiz_attempts}
+                                               WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
+                                            ORDER BY attempt DESC", [$exam->quizid, $userid], IGNORE_MULTIPLE);
+    }
+    if (!$attemptid) {
+        return false;
+    }
+    try {
+        return (bool)\mod_quiz\quiz_attempt::create($attemptid)->get_display_options(true)->rightanswer;
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+function local_clo_explanation_html(stdClass $m): string {
+    if (empty($m->explanation->text)) {
+        return '';
+    }
+    $sources = $m->explanation->sources ?? [];
+    $parts = preg_split('/\[Nguồn (\d+)\]/u', (string)$m->explanation->text, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $html = '';
+    foreach ($parts as $i => $part) {
+        if ($i % 2 === 0) {
+            $html .= s($part);
+            continue;
+        }
+        $src = $sources[(int)$part - 1] ?? null;
+        if (!$src) {
+            continue;
+        }
+        $name = get_string('readings_page', 'local_clo', (object)['material' => s($src->material ?? ''), 'page' => (int)($src->page ?? 0)]);
+        $url = local_clo_file_url($src->url ?? null);
+        $html .= ' (' . ($url ? html_writer::link($url, $name, ['target' => '_blank', 'rel' => 'noopener']) : $name) . ')';
+    }
+    return html_writer::div(html_writer::div(get_string('explanation', 'local_clo'), 'local-clo-review-title') .
+        html_writer::tag('p', trim($html), ['class' => 'mb-1']) .
+        html_writer::div(get_string('explanation_note', 'local_clo'), 'small text-muted'), 'local-clo-explanation');
+}
+
+function local_clo_reading_pages(array $materials): array {
     $out = [];
     foreach ($materials as $m) {
         foreach ($m->pages ?? [] as $p) {
-            $url = null;
-            $at = strpos((string)($p->url ?? ''), '/pluginfile.php/');
-            if ($at !== false) {
-                $url = new moodle_url($CFG->wwwroot . substr($p->url, $at));
-            }
+            $url = local_clo_file_url($p->url ?? null);
             $key = $url ? $url->out(false) : ($p->material ?? '') . '#' . (int)($p->page ?? 0);
             if (!isset($out[$key])) {
                 $out[$key] = (object)['material' => (string)($p->material ?? ''), 'page' => (int)($p->page ?? 0),
@@ -115,7 +161,7 @@ function local_clo_review_readings(int $attemptid): string {
     if ($attempt->userid != $USER->id && !has_capability('mod/quiz:viewreports', $PAGE->context)) {
         return '';
     }
-    $exam = $DB->get_record('local_clo_exam', ['quizid' => $attempt->quiz, 'published' => 1], 'id', IGNORE_MULTIPLE);
+    $exam = $DB->get_record('local_clo_exam', ['quizid' => $attempt->quiz, 'published' => 1], 'id, quizid', IGNORE_MULTIPLE);
     $res = $exam ? $DB->get_record('local_clo_result', ['cloexamid' => $exam->id, 'userid' => $attempt->userid]) : null;
     $materials = $res ? (json_decode($res->data ?? '{}')->materials ?? []) : [];
     if (!$materials) {
@@ -127,6 +173,7 @@ function local_clo_review_readings(int $attemptid): string {
     foreach ($quba->get_slots() as $slot) {
         $byidnumber[(string)$quba->get_question($slot, false)->idnumber] = $slot;
     }
+    $showwhy = local_clo_answers_visible($exam, (int)$attempt->userid, (int)$attempt->id);
     $o = '';
     foreach ($materials as $m) {
         $slot = isset($m->question_id) ? ($byidnumber['QB-' . (int)$m->question_id] ?? 0) : (int)$m->question;
@@ -144,7 +191,7 @@ function local_clo_review_readings(int $attemptid): string {
             $li .= html_writer::tag('li', local_clo_reading_line($p));
         }
         $o .= html_writer::div(html_writer::div(get_string('review_readings', 'local_clo'), 'local-clo-review-title') .
-            html_writer::tag('ul', $li), 'local-clo-review-readings',
+            html_writer::tag('ul', $li) . ($showwhy ? local_clo_explanation_html($m) : ''), 'local-clo-review-readings',
             ['hidden' => 'hidden', 'data-local-clo-que' => $qa->get_outer_question_div_unique_id()]);
     }
     if ($o === '') {

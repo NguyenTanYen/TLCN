@@ -43,6 +43,10 @@ code { background: #f2f4f7; padding: 1px 5px; border-radius: 4px; font-size: 12.
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tbl th { text-align: left; background: #f8fafc; color: #344054; font-weight: 600; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; position: sticky; top: 0; }
 .tbl td { padding: 7px 8px; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+.explain { border-left: 3px solid var(--brand); padding: 6px 10px; margin-top: 6px; background: var(--brand-soft); max-width: 760px; }
+.explain > .row { justify-content: space-between; }
+.explain .cite { white-space: nowrap; }
+.explain.rejected { border-left-color: var(--line); background: transparent; }
 .tbl.compact td, .tbl.compact th { padding: 4px 6px; }
 .tbl tr.sel td { background: var(--brand-soft); } .tbl tr.cancel td { color: #98a2b3; text-decoration: line-through; } .tbl tr.cancel td .badge { text-decoration: none; }
 .tbl tr.dim td { color: #98a2b3; } .tbl tr.total td { font-weight: 700; background: #f8fafc; } .tbl tr.sub td { background: #fafbff; }

@@ -5,7 +5,7 @@ USE assessment_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
-DROP TABLE IF EXISTS material_passages, material_pages, section_materials,
+DROP TABLE IF EXISTS material_explanations, material_passages, material_pages, section_materials,
   rubric_grades, exam_rubric_items, exam_rubrics, rubric_levels, rubric_criteria, rubrics, improvement_actions, scan_sheets,
   sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
@@ -841,6 +841,25 @@ CREATE TABLE material_passages (
   CONSTRAINT ck_mps_kind CHECK (kind IN ('text','table','figure')),
   CONSTRAINT ck_mps_bboxes CHECK (JSON_VALID(bboxes) AND JSON_LENGTH(bboxes) >= 1)
 ) ENGINE=InnoDB COMMENT='Đoạn học liệu – đơn vị tìm kiếm và trích dẫn';
+
+CREATE TABLE material_explanations (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  class_section_id  INT           NOT NULL,
+  question_id       INT           NOT NULL,
+  input_hash        CHAR(40)      NOT NULL COMMENT 'SHA-1 của mọi thứ gửi LLM – khác thì sinh lại',
+  model             VARCHAR(120)  NOT NULL COMMENT 'LLM đã sinh (Ollama)',
+  text              TEXT          NULL COMMENT 'Lời giải thích có [Nguồn k]; NULL = LLM từ chối',
+  sources           JSON          NOT NULL COMMENT '[{title, page_no, url}] theo số [Nguồn k]',
+  cited             JSON          NOT NULL COMMENT 'Số các nguồn được trích',
+  created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  rejected_at       DATETIME      NULL COMMENT 'GV loại bỏ – không gửi SV',
+  rejected_by       INT           NULL COMMENT 'GV đã loại bỏ',
+  CONSTRAINT fk_mex_cs  FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mex_q   FOREIGN KEY (question_id)      REFERENCES question_bank(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_mex_rej FOREIGN KEY (rejected_by)      REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT uq_mex UNIQUE (class_section_id, question_id),
+  CONSTRAINT ck_mex_json CHECK (JSON_VALID(sources) AND JSON_VALID(cited))
+) ENGINE=InnoDB COMMENT='Lời giải thích do LLM sinh từ các trang học liệu được gợi ý';
 
 CREATE OR REPLACE VIEW v_question_integrity AS
 SELECT q.id AS question_id, q.question_type,

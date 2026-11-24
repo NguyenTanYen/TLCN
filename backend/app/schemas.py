@@ -135,6 +135,10 @@ class NarrativeIn(BaseModel):
     improvement: Optional[str] = None
 
 
+class ExplanationReviewIn(BaseModel):
+    rejected: bool
+
+
 class PLONarrativeIn(BaseModel):
     analysis: Optional[str] = None
     improvement_actions: Optional[str] = None

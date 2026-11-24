@@ -56,7 +56,8 @@ NEW_COLUMNS = [
 
 NEW_TABLES = ("question_moodle_links", "course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos",
               "scan_sheets", "improvement_actions", "rubrics", "rubric_criteria", "rubric_levels", "exam_rubrics",
-              "exam_rubric_items", "rubric_grades", "section_materials", "material_pages", "material_passages")
+              "exam_rubric_items", "rubric_grades", "section_materials", "material_pages", "material_passages",
+              "material_explanations")
 
 NEW_CHECKS = [
     ("question_bank", "ck_qb_type", "question_type IN ('multichoice','manual')", "manual"),

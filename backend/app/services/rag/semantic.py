@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 
 import numpy as np
 from sqlalchemy import bindparam, update
@@ -15,6 +16,8 @@ log = logging.getLogger(__name__)
 
 _model = None
 _loaded = False
+_retry_at = 0.0
+_RETRY_SECONDS = 300
 _lock = threading.Lock()
 
 
@@ -23,17 +26,23 @@ def model_name() -> str:
 
 
 def _load():
-    global _model, _loaded
+    global _model, _loaded, _retry_at
     with _lock:
-        if not _loaded:
+        if not _loaded and time.monotonic() >= _retry_at:
             _loaded = True
             if model_name():
                 os.environ.setdefault("USE_TF", "0")
                 try:
                     from sentence_transformers import SentenceTransformer
+                except ImportError as ex:
+                    log.warning("Cổng ngữ nghĩa tắt (%s) – gợi ý học liệu chỉ dùng BM25", ex)
+                    return None
+                try:
                     _model = SentenceTransformer(model_name(), device="cpu")
                 except Exception as ex:
-                    log.warning("Cổng ngữ nghĩa tắt (%s: %s) – gợi ý học liệu chỉ dùng BM25", type(ex).__name__, ex)
+                    _loaded, _retry_at = False, time.monotonic() + _RETRY_SECONDS
+                    log.warning("Chưa nạp được MiniLM (%s: %s) – tạm chỉ dùng BM25, thử lại sau %d phút",
+                                type(ex).__name__, ex, _RETRY_SECONDS // 60)
         return _model
 
 

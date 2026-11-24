@@ -37,6 +37,7 @@ def test_tao_lop_tu_tao_khoa_hoc_moodle(client, admin, fake):
         fn, params = fake.calls[-1]
         assert fn == "local_clo_provision_course" and params["shortname"] == "TKH_AUTO_01" and params["idnumber"] == "TKH_AUTO_01"
         assert len(params["teachers"]) == 1 and params["teachers"][0]["username"]
+        assert params["forcepasswordchange"] == 1
         with engine.connect() as c:
             assert c.execute(text("SELECT moodle_course_id FROM class_sections WHERE id=:i"), {"i": r["id"]}).scalar() == r["moodle"]["moodle_course_id"]
     finally:
