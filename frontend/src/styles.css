@@ -466,3 +466,6 @@ body { background: var(--bg); }
 /* thanh bên xanh chạy suốt chiều cao trang, không bị cụt giữa chừng */
 .portal { background: linear-gradient(to right, var(--brand) 262px, var(--bg) 262px); }
 @media (max-width: 900px) { .portal { background: var(--bg); } }
+
+.tbl td.row { display: table-cell; }
+.tbl td.row > * { margin-right: 8px; margin-bottom: 4px; vertical-align: middle; }
