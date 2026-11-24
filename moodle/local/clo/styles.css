@@ -33,3 +33,4 @@
 .local-clo-searchform{display:flex;gap:.5rem;margin-bottom:1rem}
 .local-clo-hit{padding:.6rem 0;border-bottom:1px solid #eaecf0}
 .local-clo-hit-snippet{color:#475467;font-size:.9rem;margin-top:.2rem}
+.local-clo-explanation{margin-top:.5rem;padding-top:.5rem;border-top:1px dashed #b8c8e6}

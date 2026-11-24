@@ -31,10 +31,11 @@ class provision_course extends external_api {
             'newuserpassword' => new external_value(PARAM_RAW, 'Mật khẩu ban đầu cho tài khoản mới tạo', VALUE_DEFAULT, ''),
             'teachers' => new external_multiple_structure(self::person_structure(), 'Giảng viên', VALUE_DEFAULT, []),
             'students' => new external_multiple_structure(self::person_structure(), 'Sinh viên', VALUE_DEFAULT, []),
+            'forcepasswordchange' => new external_value(PARAM_BOOL, 'Bắt tài khoản mới tạo đổi mật khẩu ở lần đăng nhập đầu', VALUE_DEFAULT, false),
         ]);
     }
 
-    private static function ensure_user(array $p, string $password, int &$created): int {
+    private static function ensure_user(array $p, string $password, int &$created, bool $force = false): int {
         global $DB, $CFG;
         require_once($CFG->dirroot . '/user/lib.php');
         $username = \core_text::strtolower(trim($p['username']));
@@ -56,17 +57,20 @@ class provision_course extends external_api {
             'password' => $password !== '' ? $password : random_string(20) . 'Aa1!',
         ];
         $id = user_create_user($user, true, false);
+        if ($force) {
+            set_user_preference('auth_forcepasswordchange', 1, $id);
+        }
         $created++;
         return (int)$id;
     }
 
     public static function execute($shortname, $fullname, $idnumber = '', $categoryid = 0, $startdate = 0,
-                                   $newuserpassword = '', $teachers = [], $students = []): array {
+                                   $newuserpassword = '', $teachers = [], $students = [], $forcepasswordchange = false): array {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/course/lib.php');
         require_once($CFG->libdir . '/enrollib.php');
         $p = self::validate_parameters(self::execute_parameters(), compact('shortname', 'fullname', 'idnumber', 'categoryid',
-            'startdate', 'newuserpassword', 'teachers', 'students'));
+            'startdate', 'newuserpassword', 'teachers', 'students', 'forcepasswordchange'));
         $sys = \context_system::instance();
         self::validate_context($sys);
         require_capability('local/clo:manage', $sys);
@@ -105,7 +109,7 @@ class provision_course extends external_api {
         $map = [];
         foreach (['editingteacher' => $p['teachers'], 'student' => $p['students']] as $role => $people) {
             foreach ($people as $person) {
-                $uid = self::ensure_user($person, $p['newuserpassword'], $usersmade);
+                $uid = self::ensure_user($person, $p['newuserpassword'], $usersmade, !empty($p['forcepasswordchange']));
                 if (!$uid) {
                     continue;
                 }

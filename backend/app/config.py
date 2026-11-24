@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     rag_min_similarity: float = 0.55
     rag_vlm_model: str = "qwen2.5vl:3b"
     rag_vlm_url: str = "http://127.0.0.1:11434"
+    rag_llm_model: str = "qwen2.5:7b-instruct"
     demo_mode: bool = False
 
     @property

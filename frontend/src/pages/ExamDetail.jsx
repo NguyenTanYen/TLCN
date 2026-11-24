@@ -11,6 +11,7 @@ import PaperSystem from '../components/PaperSystem'
 import { useApi } from '../hooks'
 import { MatrixTable } from '../components/Blueprint'
 import Timing from '../components/Timing'
+import { Explanation, GenerateAll } from '../components/Explanation'
 import { openMoodle } from '../moodle'
 import ExamTemplate from '../components/ExamTemplate'
 import { DeployDialog, TYPE_VI } from '../components/NewExam'
@@ -312,9 +313,12 @@ function MaterialReview({ e }) {
   useEffect(() => {
     if (sg.data && !any && !retried.current) { retried.current = true; const t = setTimeout(() => sg.reload(), 4000); return () => clearTimeout(t) }
   }, [sg.data, any])
-  return <Card title="Gợi ý ôn từ học liệu cho từng câu">
+  const update = (qid, explanation) => sg.setData(d => d.map(q => q.question_id === qid ? { ...q, explanation } : q))
+  return <Card title="Gợi ý ôn từ học liệu cho từng câu" actions={<GenerateAll examId={e.id} rows={rows} onChange={update} />}>
     <p className="muted small mt0">Sinh viên làm sai câu nào sẽ được gợi ý đọc lại các trang giáo trình / slide của lớp ở cột bên phải (hệ thống tìm trong học liệu đã nạp của lớp
       theo nội dung câu hỏi và đáp án đúng). Kiểm tra trước khi công bố kết quả; chưa ưng thì sửa từ điển thuật ngữ của môn hoặc bổ sung học liệu.</p>
+    <p className="muted small">Lời giải thích do mô hình ngôn ngữ trên máy chủ viết, chỉ từ các trang được gợi ý, có trích trang sau mỗi ý. Mô hình vẫn có thể viết sai –
+      đọc kiểm tra và <b>Loại bỏ</b> lời giải thích sai (SV vẫn nhận danh sách trang). Đã công bố rồi thì gửi lại kết quả lên Moodle để cập nhật.</p>
     <Loading {...sg} />
     {sg.data && !any && <div className="alert">Chưa có gợi ý nào. Lớp cần có học liệu ở trạng thái "Đã nạp" – mở lớp, tab <Link to={`/sections/${e.class_section_id}?tab=materials`}>Học liệu</Link> để tải giáo trình lên.</div>}
     {any && <table className="tbl"><thead><tr><th className="num-c">Câu</th><th>Nội dung</th><th className="num-c">SV sai</th><th>Trang nên đọc lại</th></tr></thead>
@@ -322,7 +326,8 @@ function MaterialReview({ e }) {
         <td className="num-c">{r.n_wrong}</td>
         <td className="small">{r.pages.length ? r.pages.map((p, i) => <div key={i}>
           <a href="#" onClick={ev => { ev.preventDefault(); openPage(p.url) }}>{p.material_title} – trang {p.page_no} ↗</a>
-          {p.title && <span className="muted"> · {p.title}</span>}</div>) : <span className="muted">Không có trang phù hợp</span>}</td></tr>)}</tbody></table>}
+          {p.title && <span className="muted"> · {p.title}</span>}</div>) : <span className="muted">Không có trang phù hợp</span>}
+          {r.pages.length > 0 && <Explanation examId={e.id} q={r} onChange={update} openPage={openPage} />}</td></tr>)}</tbody></table>}
   </Card>
 }
 

@@ -2,6 +2,7 @@ import contextlib, io, os
 
 os.environ["MOODLE_DB_NAME"] = "moodle_sim"
 os.environ["RAG_VLM_MODEL"] = ""
+os.environ["RAG_LLM_MODEL"] = ""
 _env = os.path.join(os.path.dirname(__file__), "..", "cau_hinh.env")
 if "DATABASE_URL" not in os.environ and os.path.exists(_env):
     for _line in open(_env, encoding="utf-8"):

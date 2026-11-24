@@ -43,6 +43,29 @@ def test_english_question_goes_through_the_gate_unaccented_vietnamese_does_not(f
     assert semantic.related("Define a primary key", [far], 0.55)
 
 
+def test_model_load_failure_is_retried_not_permanent(monkeypatch):
+    import sys
+    import types
+    tries = []
+
+    class Fake:
+        def __init__(self, name, device):
+            tries.append(name)
+            if len(tries) == 1:
+                raise MemoryError("thieu RAM")
+    monkeypatch.setitem(sys.modules, "sentence_transformers", types.SimpleNamespace(SentenceTransformer=Fake))
+    monkeypatch.setattr(semantic, "_model", None)
+    monkeypatch.setattr(semantic, "_loaded", False)
+    monkeypatch.setattr(semantic, "_retry_at", 0.0)
+    now = [1000.0]
+    monkeypatch.setattr(semantic.time, "monotonic", lambda: now[0])
+    assert semantic._load() is None and len(tries) == 1
+    assert semantic._load() is None and len(tries) == 1
+    now[0] += semantic._RETRY_SECONDS
+    assert isinstance(semantic._load(), Fake) and len(tries) == 2
+    assert isinstance(semantic._load(), Fake) and len(tries) == 2
+
+
 def test_related_never_blocks_when_it_cannot_judge(fake_encoder, monkeypatch):
     far = _vec(0, 1, 0)
     assert semantic.related("Câu hỏi có dấu", [], 0.55)

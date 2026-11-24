@@ -257,14 +257,34 @@ def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[i
     except Exception:
         log.exception("Gợi ý học liệu cho bài KT %s lỗi – gửi kết quả không kèm gợi ý", exam_id)
         return {}
+    explanations = _stored_explanations(db, exam_id, cs_id, pages)
     out: dict[int, list] = {}
     for attempt_id, qid, no in wrong:
         if pages.get(qid):
-            out.setdefault(attempt_id, []).append({
-                "question": int(no), "question_id": int(qid),
-                "pages": [{"material": p.material_title, "page": p.page_no, "heading": p.title, "url": p.url}
-                          for p in pages[qid]]})
+            item = {"question": int(no), "question_id": int(qid),
+                    "pages": [{"material": p.material_title, "page": p.page_no, "heading": p.title, "url": p.url}
+                              for p in pages[qid]]}
+            if qid in explanations:
+                item["explanation"] = explanations[qid]
+            out.setdefault(attempt_id, []).append(item)
     return out
+
+
+def _stored_explanations(db: Session, exam_id: int, cs_id: int, pages: dict[int, list]) -> dict[int, dict]:
+    from ..models import Question
+    from .rag import explain
+
+    try:
+        out = {}
+        for q in db.query(Question).filter(Question.id.in_([q for q, p in pages.items() if p])).all():
+            e = explain.for_question(db, cs_id, q, pages[q.id], generate_missing=False)
+            if e["status"] == "ready":
+                out[q.id] = {"text": e["text"], "sources": [{"material": s["title"], "page": s["page_no"], "url": s["url"]}
+                                                            for s in e["sources"]]}
+        return out
+    except Exception:
+        log.exception("Đọc lời giải thích cho bài KT %s lỗi – gửi kết quả không kèm lời giải thích", exam_id)
+        return {}
 
 
 def public_data(data: dict) -> dict:
@@ -315,7 +335,8 @@ def provision_section(db: Session, cs) -> dict:
     res = call("local_clo_provision_course", {
         "shortname": cs.section_code, "idnumber": cs.section_code,
         "fullname": f"{c.course_name} – {cs.section_code}", "newuserpassword": settings.moodle_new_user_password,
-        "teachers": teachers, "students": students}, timeout=300)
+        "teachers": teachers, "students": students,
+        "forcepasswordchange": 0 if settings.demo_mode else 1}, timeout=300)
     mid = int(res["courseid"])
     clash = db.execute(text("SELECT id FROM class_sections WHERE moodle_course_id=:m AND id<>:c"), {"m": mid, "c": cs.id}).scalar()
     if clash:

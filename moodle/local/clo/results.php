@@ -153,6 +153,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                                                WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
                                             ORDER BY attempt DESC", [$exam->quizid, $res->userid], IGNORE_MULTIPLE);
     }
+    $showwhy = local_clo_answers_visible($exam, (int)$res->userid, $attemptid);
     $wrongrows = [];
     if ($attemptid) {
         $uniqueid = (int)$DB->get_field('quiz_attempts', 'uniqueid', ['id' => $attemptid]);
@@ -193,15 +194,17 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                     'question-' . $attemptid . '-' . $n), $label);
             }
             $pages = '';
+            $why = '';
             if (isset($bynum[$n])) {
                 foreach (local_clo_reading_pages([$bynum[$n]]) as $p) {
                     $pages .= html_writer::tag('li', local_clo_reading_line($p));
                 }
+                $why = $showwhy ? local_clo_explanation_html($bynum[$n]) : '';
             }
             $t->data[] = [html_writer::tag('strong', $label, ['class' => 'text-nowrap']), s(shorten_text($w[0], 200)),
                 $w[1] !== '' ? s($w[1]) : html_writer::span(get_string('notanswered', 'local_clo'), 'text-muted'),
-                html_writer::span(s($w[2]), 'text-success'),
-                $pages !== '' ? html_writer::tag('ul', $pages, ['class' => 'mb-0 ps-3']) : '–'];
+                $showwhy ? html_writer::span(s($w[2]), 'text-success') : '–',
+                ($pages !== '' ? html_writer::tag('ul', $pages, ['class' => 'mb-0 ps-3']) : '–') . $why];
         }
         $body = html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']) .
             html_writer::div(html_writer::table($t), 'local-clo-tablewrap');

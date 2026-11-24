@@ -601,3 +601,18 @@ class MaterialPassage(Base):
     bboxes: Mapped[list] = mapped_column(JSON)
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, deferred=True)
     page: Mapped[MaterialPage] = relationship()
+
+
+class MaterialExplanation(Base):
+    __tablename__ = "material_explanations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    class_section_id: Mapped[int] = mapped_column(ForeignKey("class_sections.id"))
+    question_id: Mapped[int] = mapped_column(ForeignKey("question_bank.id"))
+    input_hash: Mapped[str] = mapped_column(String(40))
+    model: Mapped[str] = mapped_column(String(120))
+    text: Mapped[Optional[str]] = mapped_column(Text)
+    sources: Mapped[list] = mapped_column(JSON)
+    cited: Mapped[list] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    rejected_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))

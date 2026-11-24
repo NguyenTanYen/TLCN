@@ -3,15 +3,16 @@ from dataclasses import asdict
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
 from ..deps import check_section_access, get_exam_for, require
 from ..models import CLOResult, ExamQuestion, User
-from ..schemas import NarrativeIn
+from ..schemas import ExplanationReviewIn, NarrativeIn
 from ..services import analysis, lms, timing
-from ..services.rag import suggest
+from ..services.rag import explain, suggest
 from ..http_utils import attachment
 from fastapi.responses import Response
 from typing import Optional
@@ -75,8 +76,47 @@ def material_suggestions(exam_id: int, u: User = Depends(require("admin", "lectu
         n_wrong[qid] = n_wrong.get(qid, 0) + 1
     pages = suggest.for_questions(db, e.class_section_id, [q.question_id for q in eqs])
     return [{"question_no": q.order_index, "question_id": q.question_id, "content": q.question.content[:300],
-             "n_wrong": n_wrong.get(q.question_id, 0), "pages": [asdict(p) for p in pages.get(q.question_id, [])]}
+             "n_wrong": n_wrong.get(q.question_id, 0), "pages": [asdict(p) for p in pages.get(q.question_id, [])],
+             "explanation": explain.for_question(db, e.class_section_id, q.question, pages.get(q.question_id, []),
+                                                 generate_missing=False)}
             for q in eqs]
+
+
+def _exam_question(db: Session, exam_id: int, question_id: int) -> ExamQuestion:
+    eq = db.query(ExamQuestion).filter_by(exam_id=exam_id, question_id=question_id).one_or_none()
+    if eq is None:
+        raise HTTPException(404, "Câu hỏi không thuộc bài kiểm tra này")
+    return eq
+
+
+@router.post("/exams/{exam_id}/questions/{question_id}/explanation")
+def generate_explanation(exam_id: int, question_id: int, u: User = Depends(require("admin", "lecturer")),
+                         db: Session = Depends(get_db)):
+    e = get_exam_for(db, u, exam_id)
+    eq = _exam_question(db, exam_id, question_id)
+    if e.class_section_id is None:
+        return {"status": "none"}
+    out = explain.for_question(db, e.class_section_id, eq.question)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        out = explain.for_question(db, e.class_section_id, eq.question, generate_missing=False)
+    if out["status"] == "error":
+        raise HTTPException(503, "Không gọi được mô hình ngôn ngữ (Ollama chưa chạy hoặc chưa tải model) – thử lại sau")
+    return out
+
+
+@router.patch("/exams/{exam_id}/questions/{question_id}/explanation")
+def review_explanation(exam_id: int, question_id: int, body: ExplanationReviewIn,
+                       u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    e = get_exam_for(db, u, exam_id)
+    eq = _exam_question(db, exam_id, question_id)
+    out = explain.set_rejected(db, e.class_section_id, eq.question, body.rejected, u.id) if e.class_section_id else None
+    if out is None:
+        raise HTTPException(409, "Câu này chưa có lời giải thích (hoặc học liệu đã đổi) – tải lại trang")
+    db.commit()
+    return out
 
 
 @router.get("/exams/{exam_id}/item-stats")
