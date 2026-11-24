@@ -51,7 +51,7 @@ def model_name() -> str:
     return settings.rag_llm_model or settings.rag_vlm_model
 
 
-def options() -> dict:
+def llm_options() -> dict:
     return {"temperature": 0, "num_predict": settings.rag_llm_max_tokens, "num_ctx": settings.rag_llm_num_ctx,
             "repeat_penalty": 1.1}
 
@@ -79,7 +79,7 @@ def build_prompt(stem: str, options: dict[str, str], correct: list[str], context
 
 def generate(prompt: str) -> str:
     r = httpx.post(settings.rag_vlm_url.rstrip("/") + "/api/chat", timeout=float(settings.rag_llm_timeout), json={
-        "model": model_name(), "stream": False, "keep_alive": "10m", "options": options(),
+        "model": model_name(), "stream": False, "keep_alive": "10m", "options": llm_options(),
         "messages": [{"role": "user", "content": prompt}]})
     r.raise_for_status()
     return (r.json().get("message", {}).get("content") or "").strip()
@@ -127,7 +127,7 @@ def page_sources(db: Session, pages: list) -> list[Source]:
 
 
 def input_hash(stem: str, options: dict[str, str], correct: list[str], sources: list[Source], model: str) -> str:
-    raw = json.dumps([RULES, options(), settings.rag_llm_max_context, model, stem, sorted(options.items()), sorted(correct),
+    raw = json.dumps([RULES, llm_options(), settings.rag_llm_max_context, model, stem, sorted(options.items()), sorted(correct),
                       [(s.material_title, s.page_no, s.text) for s in sources]], ensure_ascii=False)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
