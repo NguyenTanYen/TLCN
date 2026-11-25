@@ -29,7 +29,7 @@ export default function CourseList() {
       <Loading {...list} />
       <div className="scroll tall fix"><table className="tbl"><thead><tr><th className="w-s">Mã HP</th><th>Tên học phần</th><th className="num-c w-stt">TC</th><th className="w-s c">Cấu trúc</th><th className="w-l">CTĐT</th><th className="w-m">Tiên quyết</th><th className="w-s c">Đề cương</th></tr></thead>
         <tbody>{rows.map(c => <tr key={c.id} className="click" onClick={() => nav(`/courses/${c.id}`)}><td><b>{c.course_code}</b></td>
-          <td><Link to={`/courses/${c.id}`} onClick={e => e.stopPropagation()}>{c.course_name}</Link></td><td className="num-c">{c.credits}</td>
+          <td><Link to={`/courses/${c.id}`} onClick={e => e.stopPropagation()}>{c.course_name}</Link>{c.managing_unit !== 'Khoa Công nghệ Thông tin' && <span className="pill amber" title={c.managing_unit}>Khoa khác</span>}</td><td className="num-c">{c.credits}</td>
           <td className="c nowrap">{c.course_structure || '—'}</td><td className="small">{c.programs || <span className="muted">chưa gán</span>}</td><td className="small">{c.prerequisites || '—'}</td>
           <td className="c">{c.description ? <span className="pill green">Đã có</span> : <span className="pill amber">Thiếu</span>}</td></tr>)}</tbody></table></div>
       <p className="muted small mt">{rows.length} học phần</p>

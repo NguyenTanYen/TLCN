@@ -135,6 +135,7 @@ class Course(Base):
     course_structure: Mapped[Optional[str]] = mapped_column(String(30))
     prerequisites: Mapped[Optional[str]] = mapped_column(String(255))
     description: Mapped[Optional[str]] = mapped_column(Text)
+    managing_unit: Mapped[str] = mapped_column(String(150), default="Khoa Công nghệ Thông tin", server_default="Khoa Công nghệ Thông tin")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     clos: Mapped[list["CLO"]] = relationship(back_populates="course", order_by="CLO.clo_code")
     outlines: Mapped[list["CourseOutline"]] = relationship(order_by="CourseOutline.chapter_number")

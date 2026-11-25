@@ -115,13 +115,14 @@ def test_programs_plo_and_pi_plans(client, gv, admin):
     assert client.delete(f"/api/programs/{pid}/courses/5", headers=gv).status_code == 403
     assert client.delete(f"/api/programs/{pid}/courses/5", headers=admin).json() == {"deleted": 5}
     assert client.delete(f"/api/programs/{pid}/courses/5", headers=admin).status_code == 404
-    plo = q("SELECT id, target_pct, description FROM plos WHERE program_id=1 ORDER BY id LIMIT 1")[0]
+    kid = q("SELECT id FROM programs WHERE code='KTDL-2026'")[0][0]
+    plo = q("SELECT id, target_pct, description FROM plos WHERE program_id=:k ORDER BY id LIMIT 1", k=kid)[0]
     assert client.put(f"/api/plos/{plo[0]}", headers=gv, json={"target_pct": 50}).status_code == 403
     assert client.put(f"/api/plos/{plo[0]}", headers=admin, json={"target_pct": 50}).json()["ok"]
     assert float(q("SELECT target_pct FROM plos WHERE id=:i", i=plo[0])[0][0]) == 50
     client.put(f"/api/plos/{plo[0]}", headers=admin, json={"target_pct": float(plo[1])})
     assert client.put("/api/plos/999999", headers=admin, json={"target_pct": 50}).status_code == 404
-    pi = q("SELECT pi.id FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id WHERE p.program_id=1 ORDER BY pi.id LIMIT 1")[0][0]
+    pi = q("SELECT pi.id FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id WHERE p.program_id=:k ORDER BY pi.id LIMIT 1", k=kid)[0][0]
     sem = q("SELECT id FROM semesters ORDER BY id LIMIT 1")[0][0]
     plan = {"pi_id": pi, "course_id": 5, "semester_id": sem, "method": "Bài kiểm tra trắc nghiệm", "target_pct": 70, "clo_ids": [1, 2]}
     assert client.post("/api/pi-plans", headers=admin, json={**plan, "clo_ids": [999]}).status_code == 422
@@ -130,11 +131,11 @@ def test_programs_plo_and_pi_plans(client, gv, admin):
     plan_id = r.json()["id"]
     assert client.put(f"/api/pi-plans/{plan_id}", headers=admin, json={**plan, "method": "Tự luận", "clo_ids": [1]}).json()["ok"]
     assert q("SELECT method FROM pi_assessment_plans WHERE id=:i", i=plan_id)[0][0] == "Tự luận"
-    assert any(p["id"] == plan_id for p in client.get("/api/pi-plans?program_id=1", headers=gv).json())
+    assert any(p["id"] == plan_id for p in client.get(f"/api/pi-plans?program_id={kid}", headers=gv).json())
     assert client.delete(f"/api/pi-plans/{plan_id}", headers=admin).json()["ok"]
     assert client.delete(f"/api/pi-plans/{plan_id}", headers=admin).status_code == 404
-    assert client.post("/api/reports/programs/1/recompute", headers=gv).status_code == 403
-    assert client.post("/api/reports/programs/1/recompute", headers=admin).status_code == 200
+    assert client.post(f"/api/reports/programs/{kid}/recompute", headers=gv).status_code == 403
+    assert client.post(f"/api/reports/programs/{kid}/recompute", headers=admin).status_code == 200
 
 
 def test_clo_lifecycle_cancel_question_and_template(client, gv, admin):

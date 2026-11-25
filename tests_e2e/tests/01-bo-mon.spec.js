@@ -359,9 +359,9 @@ test('AD7 – Kế hoạch đo PI7.1 tại môn (không chọn CLO → lấy CLO
 })
 
 test('AD8 – Tổng hợp PLO: Tính lại, mở nhận xét PLO, xuất BM2/BM3 (.xlsx) và BM2 (.docx)', async ({ page }) => {
-  await test.step('Bước 1: menu Tổng hợp PLO → CTĐT KTDL (có kết quả demo) → năm 2024-2025 → Tính lại', async () => {
+  await test.step('Bước 1: menu Tổng hợp PLO → CTĐT KTDL-2026 (có kết quả demo) → năm 2024-2025 → Tính lại', async () => {
     await nav(page, 'Kết quả chương trình (PLO)').click()
-    await pick(page.getByLabel('Chương trình đào tạo').first(), 'KTDL –')
+    await pick(page.getByLabel('Chương trình đào tạo').first(), 'KTDL-2026 –')
     await pick(page.getByLabel('Năm học'), '2024-2025')
     await page.getByRole('button', { name: 'Tính lại' }).click()
     await toast(page, 'Đã tính lại')

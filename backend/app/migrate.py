@@ -31,6 +31,7 @@ NEW_COLUMNS = [
     ("courses", "course_structure", "VARCHAR(30) NULL COMMENT 'Cấu trúc học phần, VD 3(2:1:6)'"),
     ("courses", "prerequisites", "VARCHAR(255) NULL COMMENT 'Mã học phần trước, tiên quyết'"),
     ("courses", "description", "TEXT NULL COMMENT 'Mô tả vắn tắt học phần (đề cương)'"),
+    ("courses", "managing_unit", "VARCHAR(150) NOT NULL DEFAULT 'Khoa Công nghệ Thông tin' COMMENT 'Đơn vị quản lý học phần (khác Khoa CNTT = học phần do đơn vị khác phụ trách)'"),
     ("program_courses", "semester_no", "TINYINT NULL COMMENT 'Học kỳ trong kế hoạch giảng dạy (1–8)'"),
     ("program_courses", "knowledge_block", "VARCHAR(150) NULL COMMENT 'Khối kiến thức, VD Kiến thức cơ sở ngành'"),
     ("program_courses", "is_elective", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = học phần tự chọn'"),
@@ -129,6 +130,16 @@ def _upgrade_new_tables(c, done: list) -> None:
         if _col(c, table, col) is None:
             c.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
             done.append(f"{table}.{col}")
+
+
+def _retire_legacy_program(c, done: list) -> None:
+    pid = c.execute(text("SELECT id FROM programs WHERE code='KTDL'")).scalar()
+    if not pid or not c.execute(text("SELECT 1 FROM programs WHERE code='KTDL-2026'")).scalar():
+        return
+    c.execute(text("""DELETE m FROM clo_pi_mapping m JOIN performance_indicators pi ON pi.id=m.pi_id
+                       JOIN plos p ON p.id=pi.plo_id WHERE p.program_id=:p"""), {"p": pid})
+    c.execute(text("DELETE FROM programs WHERE id=:p"), {"p": pid})
+    done.append("bỏ CTĐT KTDL cũ (giữ KTDL-2026)")
 
 
 def _upgrade_fk_gaps(c, done: list) -> None:
@@ -265,6 +276,20 @@ def upgrade_schema() -> list[str]:
         need_attt = not c.execute(text("SELECT 1 FROM programs WHERE code = 'ATTT-2026'")).scalar()
     if need_attt and load_ctdt_2026("05_ctdt_attt_2026.sql"):
         done.append("nạp CTĐT An toàn thông tin 2026")
+    with engine.begin() as c:
+        need_fix = c.execute(text("""SELECT 1 FROM courses co WHERE co.course_code='IOTS431780'
+                                  AND EXISTS (SELECT 1 FROM programs WHERE code='ATTT-2026')
+                                  AND NOT EXISTS (SELECT 1 FROM pi_courses pc JOIN performance_indicators pi ON pi.id=pc.pi_id
+                                                  JOIN plos pl ON pl.id=pi.plo_id JOIN programs p ON p.id=pl.program_id
+                                                  WHERE p.code='ATTT-2026' AND pc.course_id=co.id)""")).scalar()
+    if need_fix and load_ctdt_2026("06_attt_dieu_chinh_theo_bm3.sql"):
+        done.append("điều chỉnh ánh xạ học phần – PI của ATTT 2026 theo BM3")
+    with engine.begin() as c:
+        from .services.units import classify_courses
+        n = classify_courses(c)
+        if n:
+            done.append(f"phân loại đơn vị quản lý cho {n} học phần")
+        _retire_legacy_program(c, done)
     return done
 
 

@@ -48,6 +48,11 @@ def init_db() -> None:
     run_sql_file(DB_DIR / "03_seed_reference.sql", name)
     run_sql_file(DB_DIR / "04_ctdt_2026.sql", name)
     run_sql_file(DB_DIR / "05_ctdt_attt_2026.sql", name)
+    run_sql_file(DB_DIR / "06_attt_dieu_chinh_theo_bm3.sql", name)
+    from .database import engine
+    from .services.units import classify_courses
+    with engine.begin() as conn:
+        classify_courses(conn)
     print(f"Đã tạo CSDL {name} (58 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT, KTDL, ATTT 2026.")
 
 
@@ -65,25 +70,13 @@ def seed_demo() -> None:
     outlines = {}
     for n, name in D.CHAPTERS:
         o = CourseOutline(course_id=course.id, chapter_number=n, chapter_name=name); db.add(o); db.flush(); outlines[n] = o.id
-    plo_id = dict(db.execute(text("SELECT plo_code, id FROM plos WHERE program_id=1")).fetchall())
     clo_ids = {}
-    for code, desc, bloom, maps in D.CLOS:
+    for code, desc, bloom, _maps in D.CLOS:
         c = CLO(course_id=course.id, clo_code=code, description=desc, bloom_level_id=bloom); db.add(c); db.flush(); clo_ids[code] = c.id
-        for pc, lv in maps:
-            db.add(CLOPLOMapping(clo_id=c.id, plo_id=plo_id[pc], level=lv))
     for code, txt, ev, method, thr, tgt in D.CLO_PLANS:
         db.add(CLOAssessmentPlan(clo_id=clo_ids[code], semester_id=sem, assessments_text=txt, evidence_type=ev, method=method,
                                  cycle="1 lần/HK", pass_threshold_pct=thr, target_pct=tgt))
     course.clo_target_pct = 75
-    for plo_code, pi_code, clos in [("1.3", "PI 1", ["CLO1", "CLO2"]), ("4.3", "PI 1", ["CLO3", "CLO4"])]:
-        pi = db.execute(text("""SELECT pi.id FROM performance_indicators pi JOIN plos p ON p.id=pi.plo_id
-                                WHERE p.plo_code=:p AND pi.pi_code=:c"""), {"p": plo_code, "c": pi_code}).scalar()
-        db.execute(text("INSERT IGNORE INTO pi_courses (pi_id, course_id) VALUES (:p, :c)"), {"p": pi, "c": course.id})
-        plan = PIAssessmentPlan(pi_id=pi, course_id=course.id, semester_id=sem, method="Bài thi trắc nghiệm (Moodle/giấy)",
-                                cycle="2 năm/lần", target_pct=75, lecturer_id=son.id)
-        db.add(plan); db.flush()
-        for c in clos:
-            db.add(PIPlanCLO(plan_id=plan.id, clo_id=clo_ids[c]))
     db.execute(text("""INSERT IGNORE INTO assessment_assignments (semester_id, course_id, lecturer_id, note)
                        VALUES (:s, :c, :l, 'Đánh giá theo 4 CĐR môn học')"""), {"s": sem, "c": course.id, "l": son.id})
     for prog in ("CNTT-2026", "KTDL-2026"):

@@ -6,6 +6,7 @@ USE assessment_db;
 SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS v_question_integrity, v_clo_plo_matrix, v_course_clo_summary, v_student_clo_radar;
 DROP TABLE IF EXISTS material_explanations, material_passages, material_pages, section_materials,
+  rubric_grades, exam_rubric_items, exam_rubrics, rubric_levels, rubric_criteria, rubrics, improvement_actions, scan_sheets,
   sync_runs, learning_reading_items, material_chunks, course_materials, learning_path_items, personalized_learning_paths,
   plo_results, pi_results, clo_results, attempt_clo_results, item_statistics,
   item_level_results, exam_attempts,
@@ -133,6 +134,7 @@ CREATE TABLE courses (
   course_structure VARCHAR(30) NULL COMMENT 'Cấu trúc học phần, VD 3(2:1:6)',
   prerequisites  VARCHAR(255) NULL COMMENT 'Mã học phần trước, tiên quyết',
   description    TEXT         NULL COMMENT 'Mô tả vắn tắt học phần (đề cương)',
+  managing_unit  VARCHAR(150) NOT NULL DEFAULT 'Khoa Công nghệ Thông tin' COMMENT 'Đơn vị quản lý học phần (khác Khoa CNTT = học phần do đơn vị khác phụ trách)',
   created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_course_code UNIQUE (course_code),
   CONSTRAINT ck_course_credits CHECK (credits > 0),
@@ -455,7 +457,8 @@ CREATE TABLE exams (
   CONSTRAINT ck_exam_status   CHECK (status IN ('Draft','Published','Synced','Analyzed')),
   CONSTRAINT ck_exam_duration CHECK (duration_minutes IS NULL OR duration_minutes > 0),
   CONSTRAINT ck_exam_online   CHECK (exam_type = 'online' OR moodle_quiz_id IS NULL),
-  CONSTRAINT ck_exam_paper    CHECK (exam_type = 'paper' OR moodle_offlinequiz_id IS NULL)
+  CONSTRAINT ck_exam_paper    CHECK (exam_type = 'paper' OR moodle_offlinequiz_id IS NULL),
+  CONSTRAINT ck_exam_maxscore CHECK (max_score > 0)
 ) ENGINE=InnoDB COMMENT='Bài kiểm tra / đề thi';
 
 CREATE TABLE exam_questions (
@@ -592,7 +595,8 @@ CREATE TABLE clo_results (
   PRIMARY KEY (class_section_id, clo_id),
   CONSTRAINT fk_cr_cs  FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
   CONSTRAINT fk_cr_clo FOREIGN KEY (clo_id)           REFERENCES clos(id)           ON DELETE RESTRICT,
-  CONSTRAINT ck_cr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated)
+  CONSTRAINT ck_cr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated),
+  CONSTRAINT ck_cr_pct CHECK (achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Kết quả tổng hợp CĐR môn học theo lớp HP (BM6b)';
 
 CREATE TABLE pi_results (
@@ -605,7 +609,8 @@ CREATE TABLE pi_results (
   computed_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (plan_id),
   CONSTRAINT fk_pr_plan FOREIGN KEY (plan_id) REFERENCES pi_assessment_plans(id) ON DELETE CASCADE,
-  CONSTRAINT ck_pr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated)
+  CONSTRAINT ck_pr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated),
+  CONSTRAINT ck_pr_pct CHECK (achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Kết quả tổng hợp từng PI (BM3c)';
 
 CREATE TABLE plo_results (
@@ -624,7 +629,8 @@ CREATE TABLE plo_results (
   computed_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (plo_id, academic_year),
   CONSTRAINT fk_plr_plo FOREIGN KEY (plo_id) REFERENCES plos(id) ON DELETE CASCADE,
-  CONSTRAINT ck_plr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated)
+  CONSTRAINT ck_plr_counts CHECK (n_evaluated > 0 AND n_achieved BETWEEN 0 AND n_evaluated),
+  CONSTRAINT ck_plr_pct CHECK (achieved_pct BETWEEN 0 AND 100 AND target_pct BETWEEN 0 AND 100)
 ) ENGINE=InnoDB COMMENT='Kết quả đo CĐR CTĐT theo năm học (BM2 báo cáo tổng kết, BM3b)';
 
 CREATE TABLE personalized_learning_paths (
@@ -666,6 +672,109 @@ CREATE TABLE sync_runs (
   CONSTRAINT ck_sync_status CHECK (status IN ('running','success','failed'))
 ) ENGINE=InnoDB COMMENT='Nhật ký đồng bộ / nhập kết quả / phân tích';
 
+CREATE TABLE scan_sheets (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  exam_id       INT          NOT NULL,
+  source_name   VARCHAR(255) NULL COMMENT 'Tên tệp / trang ảnh đã quét',
+  student_code  VARCHAR(100) NOT NULL DEFAULT '' COMMENT 'MSSV đọc được (có thể chứa ? nếu tô thiếu), GV sửa được',
+  version_code  VARCHAR(10)  NOT NULL DEFAULT '' COMMENT 'Mã đề đọc được',
+  answers       TEXT         NOT NULL COMMENT 'JSON {số câu: nhãn đã tô}',
+  score         DECIMAL(7,2) NULL COMMENT 'Điểm thô theo đáp án mã đề',
+  raw_max       DECIMAL(7,2) NULL,
+  confidence    DECIMAL(4,2) NULL,
+  issues        TEXT         NULL COMMENT 'JSON danh sách cảnh báo cần GV xem',
+  image         MEDIUMTEXT   NULL COMMENT 'Ảnh phiếu đã nắn + dấu các ô đọc được (data URL JPEG) để GV soát lại',
+  status        VARCHAR(12)  NOT NULL DEFAULT 'review' COMMENT 'saved = đã chấm vào kết quả lớp; review = cần GV xử lý (MSSV/mã đề); superseded = bị phiếu quét lại thay',
+  attempt_id    INT          NULL COMMENT 'Bài làm đã ghi (khi status = saved)',
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_scansheet_exam FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+  CONSTRAINT fk_scansheet_att FOREIGN KEY (attempt_id) REFERENCES exam_attempts(id) ON DELETE SET NULL,
+  CONSTRAINT ck_scansheet_status CHECK (status IN ('saved','review','superseded')),
+  CONSTRAINT ck_scansheet_score CHECK (score IS NULL OR score >= 0),
+  INDEX ix_scansheet_exam (exam_id, status)
+) ENGINE=InnoDB COMMENT='Phiếu trả lời đã quét: chấm & lưu ngay, phiếu sai MSSV/mã đề chờ giảng viên xử lý';
+
+CREATE TABLE improvement_actions (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  class_section_id INT          NOT NULL,
+  clo_id           INT          NULL COMMENT 'NULL = hành động chung của cả lớp HP',
+  description      TEXT         NOT NULL COMMENT 'Hành động cải tiến',
+  owner            VARCHAR(150) NULL COMMENT 'Người phụ trách',
+  due_date         DATE         NULL,
+  status           VARCHAR(10)  NOT NULL DEFAULT 'open' COMMENT 'open | doing | done | verified',
+  result           TEXT         NULL COMMENT 'Kết quả kiểm chứng sau khi thực hiện (kỳ sau)',
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ia_cs  FOREIGN KEY (class_section_id) REFERENCES class_sections(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ia_clo FOREIGN KEY (clo_id) REFERENCES clos(id) ON DELETE SET NULL,
+  CONSTRAINT ck_ia_status CHECK (status IN ('open','doing','done','verified')),
+  INDEX ix_ia_cs (class_section_id, status)
+) ENGINE=InnoDB COMMENT='Hành động cải tiến theo lớp HP/CLO: người phụ trách, hạn, trạng thái, kết quả kiểm chứng';
+
+CREATE TABLE rubrics (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  course_id   INT          NOT NULL,
+  name        VARCHAR(150) NOT NULL,
+  description TEXT         NULL,
+  created_by  INT          NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rub_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  INDEX ix_rub_course (course_id)
+) ENGINE=InnoDB COMMENT='Rubric chấm điểm theo tiêu chí của môn học';
+
+CREATE TABLE rubric_criteria (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  rubric_id   INT          NOT NULL,
+  order_no    SMALLINT     NOT NULL,
+  name        VARCHAR(200) NOT NULL,
+  points      DECIMAL(6,2) NOT NULL COMMENT 'Điểm tối đa của tiêu chí',
+  clo_id      INT          NOT NULL COMMENT 'CLO mà tiêu chí này đo',
+  CONSTRAINT fk_rc_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rc_clo    FOREIGN KEY (clo_id)    REFERENCES clos(id)    ON DELETE RESTRICT,
+  CONSTRAINT ck_rc_points CHECK (points > 0)
+) ENGINE=InnoDB COMMENT='Tiêu chí của rubric';
+
+CREATE TABLE rubric_levels (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  criterion_id INT          NOT NULL,
+  order_no     SMALLINT     NOT NULL,
+  label        VARCHAR(80)  NOT NULL COMMENT 'VD Xuất sắc, Khá, Đạt, Chưa đạt',
+  descriptor   TEXT         NULL COMMENT 'Mô tả biểu hiện của mức',
+  score_pct    DECIMAL(5,2) NOT NULL COMMENT '% điểm tối đa của tiêu chí',
+  CONSTRAINT fk_rl_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT ck_rl_pct CHECK (score_pct BETWEEN 0 AND 100)
+) ENGINE=InnoDB COMMENT='Mức đạt của từng tiêu chí';
+
+CREATE TABLE exam_rubrics (
+  exam_id   INT NOT NULL PRIMARY KEY,
+  rubric_id INT NOT NULL,
+  CONSTRAINT fk_er_exam   FOREIGN KEY (exam_id)   REFERENCES exams(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_er_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='Bài nhập điểm chấm theo rubric';
+
+CREATE TABLE exam_rubric_items (
+  exam_id      INT NOT NULL,
+  criterion_id INT NOT NULL,
+  question_id  INT NOT NULL,
+  PRIMARY KEY (exam_id, criterion_id),
+  CONSTRAINT fk_eri_exam FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_eri_crit FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eri_eq   FOREIGN KEY (exam_id, question_id) REFERENCES exam_questions(exam_id, question_id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Tiêu chí ↔ câu/ý của bài nhập điểm';
+
+CREATE TABLE rubric_grades (
+  exam_id      INT NOT NULL,
+  student_id   INT NOT NULL,
+  criterion_id INT NOT NULL,
+  level_id     INT NOT NULL,
+  PRIMARY KEY (exam_id, student_id, criterion_id),
+  CONSTRAINT fk_rg_exam  FOREIGN KEY (exam_id)      REFERENCES exams(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_rg_stu   FOREIGN KEY (student_id)   REFERENCES students(id)        ON DELETE CASCADE,
+  CONSTRAINT fk_rg_crit  FOREIGN KEY (criterion_id) REFERENCES rubric_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rg_level FOREIGN KEY (level_id)     REFERENCES rubric_levels(id)   ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='Mức đạt đã chọn cho từng sinh viên và tiêu chí';
+
 CREATE TABLE section_materials (
   id                   INT AUTO_INCREMENT PRIMARY KEY,
   class_section_id     INT           NOT NULL,
@@ -680,7 +789,7 @@ CREATE TABLE section_materials (
   moodle_cmid          BIGINT        NULL COMMENT 'mdl_course_modules.id của tài nguyên',
   moodle_file_url      VARCHAR(1000) NULL COMMENT 'Liên kết pluginfile để SV mở đúng trang (#page=N)',
   moodle_timemodified  BIGINT        NULL COMMENT 'timemodified của tệp trên Moodle – đồng bộ lại khi GV sửa',
-  status               VARCHAR(10)   NOT NULL DEFAULT 'pending' COMMENT 'pending = chờ nạp, indexing = đang nạp, ready = đã nạp, failed = lỗi, excluded = GV bỏ chọn (đồng bộ tự động không lấy lại), missing = tệp không còn trên Moodle hoặc SV không còn xem được',
+  status               VARCHAR(10)   NOT NULL DEFAULT 'pending' COMMENT 'pending = chờ nạp, indexing = đang nạp, ready = đã nạp, failed = lỗi, excluded = GV bỏ chọn (đồng bộ tự động không lấy lại), missing = tệp không còn trên Moodle hoặc SV không còn xem được, rejected = tệp không đúng môn (GV bấm Vẫn dùng để chấp nhận)',
   error                TEXT          NULL COMMENT 'Lỗi khi nạp',
   n_pages              INT           NULL,
   added_by             INT           NULL COMMENT 'Người đánh dấu / tải lên học liệu',
@@ -694,7 +803,7 @@ CREATE TABLE section_materials (
   CONSTRAINT uq_sm_hash UNIQUE (class_section_id, content_hash),
   CONSTRAINT ck_sm_source CHECK (source IN ('moodle','upload')),
   CONSTRAINT ck_sm_type   CHECK (material_type IN ('slide','textbook','reference')),
-  CONSTRAINT ck_sm_status CHECK (status IN ('pending','indexing','ready','failed','excluded','missing')),
+  CONSTRAINT ck_sm_status CHECK (status IN ('pending','indexing','ready','failed','excluded','missing','rejected')),
   CONSTRAINT ck_sm_moodle CHECK (source = 'upload' OR moodle_cmid IS NOT NULL)
 ) ENGINE=InnoDB COMMENT='Học liệu của lớp học phần (slide, tài liệu tham khảo)';
 
@@ -784,7 +893,6 @@ JOIN exams e ON e.id = a.exam_id
 JOIN class_sections cs ON cs.id = e.class_section_id
 JOIN clos c ON c.id = r.clo_id
 LEFT JOIN clo_assessment_plans p ON p.clo_id = r.clo_id AND p.semester_id = cs.semester_id;
-
 USE assessment_db;
 
 SET NAMES utf8mb4;
@@ -801,143 +909,6 @@ INSERT INTO semesters (academic_year, term, name, start_date, end_date) VALUES
  ('2024-2025',1,'HKI 24-25','2024-09-05','2025-01-20'),
  ('2024-2025',2,'HKII 24-25','2025-02-10','2025-06-30');
 
-INSERT INTO programs (id, code, name, level, department, target_pct) VALUES (1,'KTDL','Kỹ thuật dữ liệu','Đại học','Bộ môn Kỹ thuật dữ liệu',75.00);
-
-INSERT INTO plos (id, program_id, group_no, plo_code, description, target_pct) VALUES
- (1,1,1,'1.1','Các môn thuộc Khoa khác quản',75.00),
- (2,1,1,'1.2','Áp dụng các kiến thức cơ sở ngành vào lĩnh vực KTDL',75.00),
- (3,1,1,'1.3','Áp dụng kiến thức chuyên ngành vào lĩnh vực KTDL vào các lĩnh vực liên quan',75.00),
- (4,1,2,'2.1','Phân tích, lập luận kỹ thuật và giải quyết vấn đề',75.00),
- (5,1,2,'2.2','Có thể tiến hành kiểm tra và thực nghiệm các vấn đề liên quan việc ứng dụng KTDL',75.00),
- (6,1,2,'2.3','Có tư duy hệ thống và toàn diện về KTDL',75.00),
- (7,1,2,'2.4','Thể hiện kỹ năng và thái độ cá nhân như sự tự tin, nhiệt tình, tư duy sáng tạo và phản biện, khả năng học tập suốt đời và quản lý thời gian tốt',75.00),
- (8,1,2,'2.5','Thể hiện kỹ năng và thái độ nghề nghiệp như đạo đức nghề nghiệp, tác phong chuyên nghiệp, hoạch định nghề nghiệp',75.00),
- (9,1,3,'3.1','Làm việc hiệu quả theo nhóm',75.00),
- (10,1,3,'3.2','Giao tiếp hiệu quả bằng nhiều hình thức khác nhau như văn bản, đồ họa và thuyết trình',75.00),
- (11,1,3,'3.3','Sử dụng được tiếng Anh chuyên ngành KTDL',75.00),
- (12,1,4,'4.1','Nhận thức được tầm quan trọng của môi trường xã hội đối với hoạt động của hệ thống CSDL và các hệ thống xử lý quy mô lớn',75.00),
- (13,1,4,'4.2','Thích nghi với sự khác biệt của môi trường làm việc khác nhau',75.00),
- (14,1,4,'4.3','Có khả năng hình thành ý tưởng, thiết lập yêu cầu, xác định chức năng, lập mô hình cho các hệ thống CSDL và hệ thống xử lý quy mô lớn',75.00),
- (15,1,4,'4.4','Thiết kế các hệ thống mạng, phần mềm và hệ thống thông tin',75.00),
- (16,1,4,'4.5','Có khả năng triển khai phần cứng và/hoặc phần mềm cho các hệ thống CSDL và các hệ thống xử lý quy mô lớn',75.00),
- (17,1,4,'4.6','Có khả năng vận hành và quản lý công tác vận hành các hệ thống CSDL và các hệ thống xử lý quy mô lớn',75.00),
- (18,1,4,'4.7','Vận dụng kiến thức về lãnh đạo vào các vấn đề kỹ thuật trong KTDL',75.00),
- (19,1,4,'4.8','Trình bày được các kiến thức về khởi nghiệp và kinh doanh trong lĩnh vực KTDL',75.00);
-
-INSERT INTO plo_measurement_plans (plo_id, round_no, academic_year, target_pct) VALUES
- (1,1,'2020-2021',75.00),
- (1,2,'2022-2023',75.00),
- (1,3,'2024-2025',75.00),
- (2,1,'2020-2021',75.00),
- (2,2,'2022-2023',75.00),
- (2,3,'2024-2025',75.00),
- (3,1,'2020-2021',75.00),
- (3,2,'2022-2023',75.00),
- (3,3,'2024-2025',75.00),
- (4,1,'2020-2021',75.00),
- (4,2,'2022-2023',75.00),
- (4,3,'2024-2025',75.00),
- (5,1,'2020-2021',75.00),
- (5,2,'2022-2023',75.00),
- (5,3,'2024-2025',75.00),
- (6,1,'2020-2021',75.00),
- (6,2,'2022-2023',75.00),
- (6,3,'2024-2025',75.00),
- (7,1,'2020-2021',75.00),
- (7,2,'2022-2023',75.00),
- (7,3,'2024-2025',75.00),
- (8,1,'2020-2021',75.00),
- (8,2,'2022-2023',75.00),
- (8,3,'2024-2025',75.00),
- (9,1,'2020-2021',75.00),
- (9,2,'2022-2023',75.00),
- (9,3,'2024-2025',75.00),
- (10,1,'2020-2021',75.00),
- (10,2,'2022-2023',75.00),
- (10,3,'2024-2025',75.00),
- (11,1,'2020-2021',75.00),
- (11,2,'2022-2023',75.00),
- (11,3,'2024-2025',75.00),
- (12,1,'2020-2021',75.00),
- (12,2,'2022-2023',75.00),
- (12,3,'2024-2025',75.00),
- (13,1,'2020-2021',75.00),
- (13,2,'2022-2023',75.00),
- (13,3,'2024-2025',75.00),
- (14,1,'2020-2021',75.00),
- (14,2,'2022-2023',75.00),
- (14,3,'2024-2025',75.00),
- (15,1,'2020-2021',75.00),
- (15,2,'2022-2023',75.00),
- (15,3,'2024-2025',75.00),
- (16,1,'2020-2021',75.00),
- (16,2,'2022-2023',75.00),
- (16,3,'2024-2025',75.00),
- (17,1,'2020-2021',75.00),
- (17,2,'2022-2023',75.00),
- (17,3,'2024-2025',75.00),
- (18,1,'2020-2021',75.00),
- (18,2,'2022-2023',75.00),
- (18,3,'2024-2025',75.00),
- (19,1,'2020-2021',75.00),
- (19,2,'2022-2023',75.00),
- (19,3,'2024-2025',75.00);
-
-INSERT INTO performance_indicators (id, plo_id, pi_code, description) VALUES
- (1,2,'PI 1','Sử dụng được các cấu trúc dữ liệu và các giải thuật thích hợp với những dữ liệu có trong ngôn ngữ lập trình'),
- (2,2,'PI 2','Xây dựng được các thuật toán xử lý trên các cấu trúc dữ liệu'),
- (3,2,'PI 3','Xây dựng được các cấu trúc dữ liệu bao gồm danh sách, hàng đợi, ngăn xếp, cây nhị phân tìm kiếm, bảng băm'),
- (4,3,'PI 1','Trình bày được đặc điểm của hạ tầng mạng, CSDL, Công nghệ phần mềm'),
- (5,3,'PI 2','Vận dụng được mô hình mạng Workgroup và Domain'),
- (6,3,'PI 3','Trình bày được các thư viện phân tích dữ liệu phổ biến'),
- (7,4,'PI 1','Tìm ra giải thuật thích hợp hoặc hình thành giải thuật mới cho bài toán từ những phân tích, đánh giá các giải pháp/giải thuật đã có'),
- (8,4,'PI 2','Sử dụng được một số hàm có sẵn để phân tích dữ liệu hỗ trợ cho các bài toán xác suất, thống kê'),
- (9,4,'PI 3','Sử dụng được ngôn ngữ R trong phân tích dữ liệu lớn'),
- (10,5,'PI 1','Xây dựng các luật lọc và cấu hình'),
- (11,5,'PI 2','Chứng tỏ được kỹ năng vận dụng các kỹ thuật mã trong các giao thức truyền dữ liệu'),
- (12,5,'PI 3','Phân tích được các ứng dụng thông tin quản lý trên máy tính.'),
- (13,6,'PI 1','Cài đặt được các giải thuật (BFS, DFS, Prim, Kruskal, Dijkstra, Ford-Bellman, Floyd...) trong LTĐT.'),
- (14,6,'PI 2','Khả năng tư duy có hệ thống và toàn diện'),
- (15,6,'PI 3','Mô tả và áp dụng các phương pháp thiết kế kho dữ liệu'),
- (16,7,'PI 1','Sử dụng nhuần nhuyễn phần mềm hỗ trợ trong việc thực hiện các bài tập và các đồ án, tiểu luận chuyên ngành.'),
- (17,7,'PI 2','Xây dựng được các chương trình thể hiện tính chất căn bản của môn học'),
- (18,7,'PI 3','Đánh giá và lựa chọn các mô hình trong môn học để phù hợp cho bài toán thực tế.'),
- (19,8,'PI 1','Trình bày được các nguyên tắc đạo đức trong học tập, đạo đức cá nhân và nghề nghiệp. Có trách nhiệm với nghề nghiệp và đạo đức trong thực hành kỹ thuật'),
- (20,8,'PI 2','Có kiến thức và kỹ năng liên quan đến học tập bậc đại học'),
- (21,8,'PI 3','Áp dụng, thực nghiệm và đánh giá được các thuật toán phân tích ngoại biên'),
- (22,9,'PI 1','Vận dụng được các phương pháp làm việc nhóm hiệu quả'),
- (23,9,'PI 2','Tự hoạch định kế hoạch nghiên cứu.'),
- (24,10,'PI 1','Lập kế hoạch về thời gian, kế hoạch làm việc nhóm'),
- (25,10,'PI 2','Hoạch định phương pháp trao đổi, thảo luận'),
- (26,10,'PI 3','Tổng hợp tài liệu và viết báo cáo'),
- (27,11,'PI 1','Viết một báo cáo khoa học có sử dụng tiếng Anh chuyên ngành'),
- (28,11,'PI 2','Tìm kiếm tài liệu và đọc tài liệu chuyên ngành bằng tiếng Anh.'),
- (29,11,'PI 3','Thuyết trình có sử dụng tiếng Anh'),
- (30,12,'PI 1','Mô tả được các yêu cầu để xây dựng được ứng dụng real-time streaming'),
- (31,12,'PI 2','Thực hiện vai trò của một người phân tích, thiết kế trong quá trình phát triển phần mềm'),
- (32,12,'PI 3','Khảo sát, xác định, phân tích và lập mô hình yêu cầu cho một hệ thống phần mềm theo mô hình hướng đối tượng.'),
- (33,13,'PI 1','Quan sát và Xác định các yêu cầu cụ thể của từng môi trường làm việc'),
- (34,13,'PI 2','Thực hiện theo các yêu cầu Có thể dễ dàng thích ngh i và làm việc trong các môi trường khác nhau'),
- (35,13,'PI 3','Trao đổi, rút kinh nghiệm, Triển khai phần cứng, phần mềm cho các hệ thống CNTT'),
- (36,14,'PI 1','Thu thập các yêu cầu và phân tích phục vụ cho các hệ thống về CNTT,'),
- (37,14,'PI 2','Trình bày tổng quát một hệ điều hành cụ thể'),
- (38,14,'PI 3','Cài đặt được các giải thuật'),
- (39,15,'PI 1','Phân tích và hiện thực các bước thiết kế cho các hệ thống về CNTT,Thiết kế, đánh giá và lựa chọn các mô hình trong lập trình web phù hợp cho bài toán thực tế.'),
- (40,15,'PI 2','Vận dụng mô hình thiết kế vào trong thực tế thông qua các chương trình, công cụ'),
- (41,15,'PI 3','Đánh giá và lựa chọn các mô hình trong lập trình trực quan và tương tác trực quan với dữ liệu để phù hợp cho bài toán thực tế'),
- (42,16,'PI 1','Khả năng dung hợp ngữ để giải quyết một số bài toán'),
- (43,16,'PI 2','Triển khai phần cứng, phần mềm cho các hệ thống CNTT'),
- (44,16,'PI 3','KIểm thử, sửa sai, khắc phục các lỗi xảy ra, Hình thành ý tưởng, thiết kế, và hiện thực hóa một phần hệ thống xử lý dữ liệu lớn'),
- (45,17,'PI 1','Lựa chọn giải pháp triển khai một hệ thống mạng đơn giản phù hợp cho yêu cầu thực tế'),
- (46,17,'PI 2','Vận hành, xử lý các lỗi trong quá trình cài đặt và cấu hình các kỹ thuật hạ tầng mạng, dịch vụ mạng căn bản'),
- (47,17,'PI 3','Phân tích, thiết kế, phân hoạch chức năng phần cứng, phần mềm, dữ liệu'),
- (48,18,'PI 1','Hình thành kỹ năng lãnh đạo, kỹ năng kinh doanh trong lãnh vực công nghệ thông tin'),
- (49,18,'PI 2','Khả năng phân tích thiết kế, triển khai (phần cứng, phần mềm), vận hành về mặt vật lý cho vấn đề cần giải quyết.'),
- (50,18,'PI 3','Khả năng triển khai phần mềm, dữ liệu cho hệ thống.'),
- (51,19,'PI 1','Kỹ năng khởi nghiệp'),
- (52,19,'PI 2','Phân tích, thiết kế, phân hoạch chức năng phần cứng, phần mềm.'),
- (53,19,'PI 3','Cài đặt, cấu hình phần cứng. Triển khai phần mềm cho hệ thống.');
-
 INSERT INTO courses (id, course_code, course_name, credits) VALUES
  (1,'INDE131777','Nhập môn ngành Kỹ thuật dữ liệu',3),
  (2,'RPAN233577','Lập trình R cho phân tích',3),
@@ -949,8 +920,6 @@ INSERT INTO courses (id, course_code, course_name, credits) VALUES
  (8,'POIS431184','Tiểu luận chuyên ngành Hệ thống thông tin',3),
  (9,'ECOM430984','Thương mại điện tử',3);
 
-INSERT INTO program_courses (program_id, course_id) VALUES (1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9);
-
 INSERT INTO lecturers (id, lecturer_code, full_name, department) VALUES
  (1,'GV001','Trần Trọng Bình','Bộ môn Kỹ thuật dữ liệu'),
  (2,'GV002','Lê Thị Minh Châu','Bộ môn Kỹ thuật dữ liệu'),
@@ -960,24 +929,9 @@ INSERT INTO lecturers (id, lecturer_code, full_name, department) VALUES
  (6,'GV006','Nguyễn Văn Thành','Bộ môn Kỹ thuật dữ liệu'),
  (7,'GV007','Quách Đình Hoàng','Bộ môn Kỹ thuật dữ liệu');
 
-INSERT INTO pi_courses (pi_id, course_id) VALUES (4,5),(7,4),(8,2),(9,2),(19,1),(20,1),(21,1),(26,4),(27,3),(28,3),(29,3),(42,3),(43,3),(44,3),(45,7),(46,7),(47,7),(51,7),(52,7),(53,7);
-
-INSERT INTO pi_assessment_plans (pi_id, course_id, semester_id, method, cycle, target_pct, lecturer_id) VALUES
- (8,2,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo (report)','2 năm/lần',75.00,7),
- (9,2,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo (report)','2 năm/lần',75.00,7),
- (19,1,(SELECT id FROM semesters WHERE academic_year='2021-2022' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,3),
- (20,1,(SELECT id FROM semesters WHERE academic_year='2021-2022' AND term=1),'Đánh giá qua thực hiện Dự án học tập nhóm + vấn đáp','2 năm/lần',75.00,3),
- (26,4,(SELECT id FROM semesters WHERE academic_year='2021-2022' AND term=1),'Đánh giá qua thực hiện dự án học tập.','2 năm/lần',75.00,2),
- (27,3,(SELECT id FROM semesters WHERE academic_year='2021-2022' AND term=2),'Báo cáo trước lớp','2 năm/lần',75.00,2),
- (29,3,(SELECT id FROM semesters WHERE academic_year='2021-2022' AND term=2),'Báo cáo trước lớp','2 năm/lần',75.00,2),
- (44,3,(SELECT id FROM semesters WHERE academic_year='2021-2022' AND term=2),'Báo cáo trước lớp','2 năm/lần',75.00,2),
- (47,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Đánh giá qua thực hiện dự án học tập','2 năm/lần',75.00,NULL),
- (52,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,NULL),
- (53,7,(SELECT id FROM semesters WHERE academic_year='2022-2023' AND term=1),'Báo cáo trước lớp','2 năm/lần',75.00,NULL);
-
 INSERT INTO assessment_assignments (semester_id, course_id, lecturer_id, all_supervisors, note) VALUES
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),1,1,0,'Đánh giá theo 7 CĐR'),
- ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),2,1,0,'Đánh giá theo 19 CĐR'),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),1,1,0,NULL),
+ ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),2,1,0,NULL),
  ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),3,2,0,NULL),
  ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),4,2,0,NULL),
  ((SELECT id FROM semesters WHERE academic_year='2023-2024' AND term=1),5,3,0,NULL),
@@ -1723,3 +1677,456 @@ INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' 
 INSERT INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites, description) VALUES ('DICO132585', 'Chuyên đề nâng cao năng lực số', 3, NULL, NULL, '3(3:0:6)', NULL, 'Học phần Nâng cao năng lực số trang bị cho người học hệ thống kiến thức, kỹ năng và thái độ cần thiết để học tập, làm việc và tham gia hiệu quả trong môi trường số. Nội dung học phần được xây dựng theo định hướng Khung năng lực số của Bộ Giáo dục và Đào tạo, bao gồm các lĩnh vực: khai thác dữ liệu và thông tin; giao tiếp và hợp tác trong môi trường số; sáng tạo nội dung số; bảo đảm an toàn, an ninh số; giải quyết vấn đề trong môi trường số; và ứng dụng trí tuệ nhân tạo (Al) một cách hiệu quả, có trách nhiệm và tuân thủ các quy định của pháp luật. Sau khi hoàn thành học phần, người học có khả năng vận dụng năng lực số để học tập suốt đời, thích ứng với quá trình chuyển đổi số, đáp ứng yêu cầu của thị trường lao động và trở thành công dân số có trách nhiệm, sáng tạo, an toàn và có đạo đức trong môi trường số.') ON DUPLICATE KEY UPDATE credits_theory = COALESCE(credits_theory, VALUES(credits_theory)), credits_practice = COALESCE(credits_practice, VALUES(credits_practice)), course_structure = COALESCE(course_structure, VALUES(course_structure)), prerequisites = COALESCE(prerequisites, VALUES(prerequisites)), description = COALESCE(description, VALUES(description));
 INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, NULL, 'Chuyên đề bổ trợ', 0 FROM courses WHERE course_code = 'DICO132585';
 
+SET NAMES utf8mb4;
+INSERT IGNORE INTO programs (code, name, name_en, level, department, faculty, major_code, cohort_year, total_credits, decision_no, objective, target_pct) VALUES ('ATTT-2026', 'An toàn thông tin', 'Information Security', 'Đại học', NULL, 'Khoa Công nghệ Thông tin', '7480202', 2026, 150, NULL, NULL, 75.00);
+SET @p := (SELECT id FROM programs WHERE code = 'ATTT-2026');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 1, 'PLO1', 'Khả năng áp dụng các nguyên tắc toán học, thuật toán, cũng như khoa học để xác định giải pháp cho vấn đề trong công nghệ thông tin.', 75.00, 3, 'CĐR chung');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 3, 'PLO2', 'Khả năng nhận biết trách nhiệm nghề nghiệp và đưa ra những đánh giá sáng suốt trong xây dựng giải pháp an toàn thông tin dựa trên các nền tảng pháp lý và đạo đức.', 75.00, 4, 'CĐR chuyên biệt');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 3, 'PLO3', 'Khả năng tiếp thu và áp dụng kiến thức mới, sử dụng các chiến lược học tập phù hợp.', 75.00, 3, 'CĐR chuyên biệt');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 2, 'PLO4', 'Khả năng hoạt động hiệu quả trong một nhóm mà các thành viên cùng nhau lãnh đạo, tạo ra một môi trường hợp tác và hòa nhập, thiết lập các mục tiêu, lập kế hoạch nhiệm vụ và đáp ứng các mục tiêu.', 75.00, 3, 'CĐR chuyên biệt');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 2, 'PLO5', 'Khả năng giao tiếp hiệu quả với nhiều đối tượng, và giao tiếp bằng tiếng Anh.', 75.00, 4, 'CĐR chuyên biệt');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 1, 'PLO6', 'Khả năng thiết kế, cài đặt, và đánh giá giải pháp để đáp ứng các yêu cầu cụ thể trong lĩnh vực an toàn thông tin.', 75.00, 6, 'CĐR chuyên biệt');
+INSERT IGNORE INTO plos (program_id, group_no, plo_code, description, target_pct, competency_level, plo_type) VALUES (@p, 1, 'PLO7', 'Khả năng áp dụng các công nghệ phù hợp để tạo ra các giải pháp an toàn thông tin.', 75.00, 6, 'CĐR chuyên biệt');
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI1.1', 'Xác định vấn đề tính toán trong lĩnh vực công nghệ thông tin', 2 FROM plos WHERE program_id = @p AND plo_code = 'PLO1';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI1.2', 'Áp dụng các nguyên tắc toán học, thuật toán, và khoa học để xác định giải pháp trong lĩnh vực công nghệ thông tin', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO1';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI2.1', 'Nhận thức trách nhiệm nghề nghiệp và đạo đức liên quan đến vấn đề về an toàn thông tin', 4 FROM plos WHERE program_id = @p AND plo_code = 'PLO2';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI2.2', 'Đánh giá tác động của các giải pháp kỹ thuật cho bài toán đến cộng đồng và xã hội.', 2 FROM plos WHERE program_id = @p AND plo_code = 'PLO2';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI3.1', 'Kỹ năng áp dụng kiến thức mới để giải quyết vấn đề về an toàn thông tin', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO3';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI3.2', 'Kỹ năng áp dụng những chiến lược học tập hiệu quả', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO3';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI4.1', 'Áp dụng những kiến thức cho việc thiết lập một môi trường làm việc nhóm hiệu quả', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO4';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI4.2', 'Vận dụng được các phương pháp làm việc nhóm hiệu quả', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO4';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI4.3', 'Thể hiện trách nhiệm công việc được giao và đóng góp vào sự thành công của nhóm', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO4';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI5.1', 'Khả năng giải thích, truyền đạt nội dung công việc dưới dạng văn bản', 3 FROM plos WHERE program_id = @p AND plo_code = 'PLO5';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI5.2', 'Khả năng giải thích, truyền đạt những hiểu biết đến mọi người bằng lời nói', 4 FROM plos WHERE program_id = @p AND plo_code = 'PLO5';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI5.3', 'Khả năng đọc, hiểu, viết sử dụng tiếng Anh trong công nghệ thông tin', 4 FROM plos WHERE program_id = @p AND plo_code = 'PLO5';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI6.1', 'Thiết lập yêu cầu, xác định chức năng cho các vấn đề liên quan đến an toàn thông tin', 4 FROM plos WHERE program_id = @p AND plo_code = 'PLO6';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI6.2', 'Phân tích, thiết kế và cài đặt các bài toán trong lĩnh vực an toàn thông tin', 6 FROM plos WHERE program_id = @p AND plo_code = 'PLO6';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI6.3', 'Đánh giá các giải pháp về mức độ đáp ứng các yêu cầu của bài toán thực tế an toàn thông tin', 5 FROM plos WHERE program_id = @p AND plo_code = 'PLO6';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI7.1', 'Áp dụng các công nghệ về phần mềm, hệ thống thông tin, và trí tuệ nhân tạo để tạo ra giải pháp an toàn thông tin', 6 FROM plos WHERE program_id = @p AND plo_code = 'PLO7';
+INSERT IGNORE INTO performance_indicators (plo_id, pi_code, description, competency_level) SELECT id, 'PI7.2', 'Áp dụng công nghệ mạng máy tính để tạo ra giải pháp an toàn thông tin', 6 FROM plos WHERE program_id = @p AND plo_code = 'PLO7';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('LLCT130105', 'Triết học Mác - Lênin', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Lý luận chính trị + Pháp luật đại cương', 0 FROM courses WHERE course_code = 'LLCT130105';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('LLCT120205', 'Kinh tế chính trị Mác - Lênin', 2, '2', NULL, '2(2:0:4)', 'LLCT130105');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Lý luận chính trị + Pháp luật đại cương', 0 FROM courses WHERE course_code = 'LLCT120205';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('LLCT120405', 'Chủ nghĩa xã hội khoa học', 2, '2', NULL, '2(2:0:4)', 'LLCT130105');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Lý luận chính trị + Pháp luật đại cương', 0 FROM courses WHERE course_code = 'LLCT120405';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('LLCT120314', 'Tư tưởng Hồ Chí Minh', 2, '2', NULL, '2(2:0:4)', 'LLCT130105');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Lý luận chính trị + Pháp luật đại cương', 0 FROM courses WHERE course_code = 'LLCT120314';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('LLCT220514', 'Lịch sử Đảng Cộng sản Việt Nam', 2, '2', NULL, '2(2:0:4)', 'LLCT130105');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Lý luận chính trị + Pháp luật đại cương', 0 FROM courses WHERE course_code = 'LLCT220514';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('GELA236939', 'Pháp luật đại cương', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Lý luận chính trị + Pháp luật đại cương', 0 FROM courses WHERE course_code = 'GELA236939';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('INPR130285', 'Nhập môn lập trình', 3, '2', '1', '3(2:1:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Tin học', 0 FROM courses WHERE course_code = 'INPR130285';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ENCO140126', 'Kỹ năng giao tiếp tiếng Anh sơ cấp', 4, NULL, NULL, NULL, NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Kiến thức ngoại ngữ', 0 FROM courses WHERE course_code = 'ENCO140126';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ENCO240226', 'Kỹ năng giao tiếp tiếng Anh trung cấp', 4, NULL, NULL, NULL, NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Kiến thức ngoại ngữ', 0 FROM courses WHERE course_code = 'ENCO240226';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('EEEN234162', 'Điện tử căn bản', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'EEEN234162';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('MATH132101', 'Giải tích một biến số', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'MATH132101';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('MATH133601', 'Giải tích nhiều biến số', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'MATH133601';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('MATH143001', 'Đại số tuyến tính và cấu trúc đại số', 4, '4', NULL, '4(4:0:8)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'MATH143001';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('MATH132901', 'Xác suất thống kê ứng dụng', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'MATH132901';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('PHYS130902', 'Vật lý 1', 3, '3', NULL, '3(3:0:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'PHYS130902';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('PHYS111202', 'Thí nghiệm vật lý 1', 1, NULL, '1', '1(0:1:2)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'PHYS111202';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('PRBE214262', 'Thực tập điện tử căn bản', 1, NULL, '1', '1(0:1:2)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Toán học và Khoa học cơ bản', 0 FROM courses WHERE course_code = 'PRBE214262';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('INIS130180', 'Nhập môn ngành ATTT', 3, '2', '1', '3(2:1:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 1, 'Nhập môn ngành', 0 FROM courses WHERE course_code = 'INIS130180';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('DIGR230485', 'Toán rời rạc và lý thuyết đồ thị', 3, '3', '1', '3(3:1:8)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'DIGR230485';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('DASA230179', 'Cấu trúc dữ liệu và giải thuật', 3, '2', '1', '3(2:1:6)', 'INPR130285');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'DASA230179';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('OOPR230279', 'Lập trình hướng đối tượng', 3, '2', '1', '3(2:1:6)', 'PRTE230385');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'OOPR230279';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('PRTE230385', 'Kỹ thuật lập trình', 3, '2', '1', '3(2:1:6)', 'INPR130285');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 2, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'PRTE230385';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('CAAL230180', 'Kiến trúc máy tính và hợp ngữ', 3, '2', '1', '3(2:1:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'CAAL230180';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('OPSY330280', 'Hệ điều hành', 3, '2', '1', '3(2:1:6)', 'CAAL230180');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 4, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'OPSY330280';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('NEES330380', 'Mạng máy tính căn bản', 3, '2', '1', '3(2:1:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'NEES330380';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('DBSY230184', 'Cơ sở dữ liệu', 3, '3', '1', '3(3:1:8)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 4, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'DBSY230184';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('MALE431984', 'Học máy', 3, '2', '1', '3(2:1:6)', 'DBSY230184');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'MALE431984';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('WEPR330479', 'Lập trình Web', 3, '2', '1', '3(2:1:6)', 'PRTE230385');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'WEPR330479';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('IPPA233277', 'Lập trình Python', 3, '2', '1', '3(2:1:6)', 'PRTE230385');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'IPPA233277';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('INSE330380', 'An toàn thông tin', 3, '2', '1', '3(2:1:6)', 'OPSY330280');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 4, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'INSE330380';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('MOPR331279', 'Lập trình di động', 3, '2', '1', '3(2:1:6)', 'PRTE230385');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'MOPR331279';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('NPRO430980', 'Lập trình mạng', 3, '2', '1', '3(2:1:6)', 'PRTE230385');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 6, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'NPRO430980';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('CRYP331980', 'Mật mã ứng dụng', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 4, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'CRYP331980';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('INOT231780', 'Vạn Vật Kết Nối', 3, '2', '1', '3(2:1:6)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 4, 'Cơ sở ngành', 0 FROM courses WHERE course_code = 'INOT231780';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ETHA332080', 'Tấn công mạng và phòng thủ', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'ETHA332080';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('NSEC430880', 'An ninh Mạng', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 6, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'NSEC430880';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ESYS431080', 'Hệ thống nhúng', 3, '2', '1', '3(2:1:6)', 'EEEN234162');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'ESYS431080';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ADNT330580', 'Mạng máy tính nâng cao', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'ADNT330580';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('CNDE430780', 'Thiết kế mạng', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 6, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'CNDE430780';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('WASE432680', 'An toàn ứng dụng web', 3, '2', '1', '3(2:1:6)', 'WEPR330479');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 6, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'WASE432680';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('BCAP433280', 'Blockchain và ứng dụng', 3, '2', '1', '3(2:1:6)', 'CRYP331980');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 6, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'BCAP433280';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('WISE432380', 'An toàn mạng không dây và di động', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 5, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'WISE432380';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('DIFO432180', 'Pháp lý kỹ thuật số', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 8, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'DIFO432180';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('POIS453780', 'Tiểu luận chuyên ngành ATTT', 5, '4', '1', '5(4:1:10)', NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành', 0 FROM courses WHERE course_code = 'POIS453780';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('FTPS433180', 'Công nghệ tường lửa và bảo vệ mạng ngoại vi', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'FTPS433180';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ANMA432880', 'Phân tích mã độc', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'ANMA432880';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('NSMS432280', 'Hệ thống giám sát an toàn mạng', 3, '2', '1', '3(2:1:6)', 'NEES330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'NSMS432280';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('CLAD432480', 'Quản trị trên môi trường cloud', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'CLAD432480';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('RSMI432980', 'Quản lý rủi ro và an toàn thông tin trong doanh nghiệp', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'RSMI432980';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('IDPS433080', 'Hệ thống tìm kiếm, phát hiện và ngăn ngừa xâm nhập', 3, '2', '1', '3(2:1:6)', 'ETHA332080');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'IDPS433080';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('IOTS431780', 'Bảo mật IoT', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'IOTS431780';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('SYPR432780', 'Lập trình hệ thống', 3, '2', '1', '3(2:1:6)', 'CAAL230180');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'SYPR432780';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('TRCO433380', 'Tin cậy trong an toàn thông tin', 3, '2', '1', '3(2:1:6)', 'INSE330380');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên ngành tự chọn', 1 FROM courses WHERE course_code = 'TRCO433380';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('ITIN421085', 'Thực tập tốt nghiệp', 2, NULL, NULL, NULL, NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Thực tập tốt nghiệp', 0 FROM courses WHERE course_code = 'ITIN421085';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('GRPR473880', 'Khóa luận tốt nghiệp', 7, NULL, NULL, NULL, 'POIS453780');
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 8, 'Khóa luận tốt nghiệp', 0 FROM courses WHERE course_code = 'GRPR473880';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('SEMI310026', 'Chuyên đề doanh nghiệp', 1, NULL, NULL, NULL, NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 7, 'Chuyên đề bổ trợ', 0 FROM courses WHERE course_code = 'SEMI310026';
+INSERT IGNORE INTO courses (course_code, course_name, credits, credits_theory, credits_practice, course_structure, prerequisites) VALUES ('DICO132585', 'Chuyên đề nâng cao năng lực số', 3, NULL, NULL, NULL, NULL);
+INSERT IGNORE INTO program_courses (program_id, course_id, semester_no, knowledge_block, is_elective) SELECT @p, id, 3, 'Chuyên đề bổ trợ', 0 FROM courses WHERE course_code = 'DICO132585';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132101' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH143001' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INIS130180' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INIS130180' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INIS130180' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INPR130285' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INPR130285' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INPR130285' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS130902' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT130105' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120205' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH133601' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MATH132901' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRTE230385' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRTE230385' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRTE230385' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRTE230385' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRTE230385' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRTE230385' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PHYS111202' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'EEEN234162' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIGR230485' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GELA236939' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GELA236939' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GELA236939' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GELA236939' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'LLCT120314' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'PRBE214262' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DASA230179' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DASA230179' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DASA230179' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DASA230179' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'OOPR230279' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'OOPR230279' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'OOPR230279' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CAAL230180' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CAAL230180' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CAAL230180' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NEES330380' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NEES330380' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NEES330380' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IPPA233277' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IPPA233277' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IPPA233277' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INOT231780' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INOT231780' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INOT231780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INOT231780' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'OPSY330280' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'OPSY330280' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'OPSY330280' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DBSY230184' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DBSY230184' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DBSY230184' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INSE330380' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INSE330380' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'INSE330380' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WEPR330479' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WEPR330479' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WEPR330479' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ESYS431080' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ESYS431080' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ESYS431080' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ESYS431080' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MALE431984' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MALE431984' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ETHA332080' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ETHA332080' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ETHA332080' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WISE432380' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WISE432380' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WISE432380' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MOPR331279' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MOPR331279' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'MOPR331279' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ADNT330580' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ADNT330580' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ADNT330580' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NSEC430880' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NSEC430880' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NSEC430880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NPRO430980' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NPRO430980' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'NPRO430980' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WASE432680' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WASE432680' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'WASE432680' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'BCAP433280' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'BCAP433280' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'BCAP433280' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ANMA432880' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CLAD432480' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CLAD432480' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CLAD432480' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SYPR432780' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SYPR432780' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SYPR432780' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'TRCO433380' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'TRCO433380' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'TRCO433380' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IDPS433080' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'RSMI432980' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'RSMI432980' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'RSMI432980' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'RSMI432980' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ITIN421085' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ITIN421085' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ITIN421085' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'ITIN421085' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SEMI310026' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SEMI310026' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SEMI310026' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SEMI310026' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'SEMI310026' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'POIS453780' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIFO432180' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIFO432180' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DIFO432180' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+USE assessment_db;
+SET NAMES utf8mb4;
+SET @p := (SELECT id FROM programs WHERE code = 'ATTT-2026');
+DELETE pc FROM pi_courses pc JOIN performance_indicators pi ON pi.id = pc.pi_id JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.id = pc.course_id WHERE pl.program_id = @p AND c.course_code = 'DBSY230184';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DBSY230184' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DBSY230184' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '2' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'DBSY230184' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+DELETE pc FROM pi_courses pc JOIN performance_indicators pi ON pi.id = pc.pi_id JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.id = pc.course_id WHERE pl.program_id = @p AND c.course_code = 'CRYP331980';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CRYP331980' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+DELETE pc FROM pi_courses pc JOIN performance_indicators pi ON pi.id = pc.pi_id JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.id = pc.course_id WHERE pl.program_id = @p AND c.course_code = 'CNDE430780';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'CNDE430780' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+DELETE pc FROM pi_courses pc JOIN performance_indicators pi ON pi.id = pc.pi_id JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.id = pc.course_id WHERE pl.program_id = @p AND c.course_code = 'IOTS431780';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IOTS431780' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IOTS431780' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IOTS431780' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IOTS431780' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'IOTS431780' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+DELETE pc FROM pi_courses pc JOIN performance_indicators pi ON pi.id = pc.pi_id JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.id = pc.course_id WHERE pl.program_id = @p AND c.course_code = 'FTPS433180';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '5' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'FTPS433180' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';
+DELETE pc FROM pi_courses pc JOIN performance_indicators pi ON pi.id = pc.pi_id JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.id = pc.course_id WHERE pl.program_id = @p AND c.course_code = 'GRPR473880';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI1.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI2.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI3.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '3' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI4.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '4' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI5.3';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI6.2';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.1';
+INSERT IGNORE INTO pi_courses (pi_id, course_id, level) SELECT pi.id, c.id, '6' FROM performance_indicators pi JOIN plos pl ON pl.id = pi.plo_id JOIN courses c ON c.course_code = 'GRPR473880' WHERE pl.program_id = @p AND pi.pi_code = 'PI7.2';

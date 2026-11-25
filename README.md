@@ -38,9 +38,10 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `moodle/theme/ute` | Giao diện UTE LMS cho Moodle |
 | `database/01_schema.sql` | CSDL `assessment_db` – 58 bảng, 10 view (MySQL 8) |
 | `database/02_moodle_bridge.sql` | Cầu nối **chỉ đọc** tới CSDL Moodle 4.x: view + thủ tục `sp_sync_exam` (Reverse Shuffle) |
-| `database/03_seed_reference.sql` | Dữ liệu tham chiếu trích từ biểu mẫu BM2 và bảng phân công đánh giá PIs (sinh bởi `gen_seed_reference.py`) |
+| `database/03_seed_reference.sql` | Dữ liệu tham chiếu dùng chung: mức Bloom, học kỳ, giảng viên và phân công đánh giá HKI 2023-2024 (sinh bởi `gen_seed_reference.py`); không còn CTĐT KTDL cũ, chỉ dùng 3 CTĐT 2026 |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
 | `database/05_ctdt_attt_2026.sql` | CTĐT An toàn thông tin 2026 (7 PLO, 17 PI, 57 học phần, 274 ô ma trận) lấy từ PDF của khoa |
+| `database/06_attt_dieu_chinh_theo_bm3.sql` | Điều chỉnh ánh xạ học phần – PI của ATTT 2026 theo bảng BM3 thầy gửi (6 học phần) |
 | `database/00_moodle_subset_for_test.sql` | 22 bảng Moodle 4.4 (từ install.xml) – chỉ dùng cho kiểm thử tự động |
 | `backend/` | FastAPI + SQLAlchemy 2 + Pandas (Analysis Engine), xuất Excel/Word |
 | `frontend/` | React 19 + Vite + Chart.js |
@@ -124,7 +125,7 @@ Các tầng cộng dồn theo lượt sinh viên, không lấy trung bình các 
 
 ## Dữ liệu minh họa
 
-Danh sách PLO/PI, kế hoạch đo và phân công lấy từ biểu mẫu BM2 và bảng phân công đánh giá PIs của Bộ môn.
+PLO/PI lấy từ văn bản CTĐT 2026 của khoa (CNTT, KTDL, ATTT). Mỗi học phần có cột `managing_unit` (đơn vị quản lý): học phần do khoa khác phụ trách (Lý luận chính trị, Toán, Vật lý, Ngoại ngữ, Điện – Điện tử…) được tách riêng trong màn hình CTĐT, không lập CLO và không lấy minh chứng đo PI tại khoa. Khi khởi động, ứng dụng tự phân loại theo mã học phần và tự bỏ CTĐT KTDL cũ nếu còn trong CSDL.
 Hai CTĐT 2026 (CNTT, KTDL) được đọc từ văn bản chương trình đào tạo chính thức (PDF). Lớp `DBMS330284_02` (cùng GV) có bài tự luận nhập điểm để minh họa gộp bài và nhập điểm.
 Nội dung CLO, câu hỏi, danh sách sinh viên và bài làm của môn DBMS330284 là **dữ liệu giả lập** để minh họa
 (năng lực SV sinh theo mô hình IRT 1 tham số; câu 24 được cố ý làm "câu bẫy" để thấy DI âm).

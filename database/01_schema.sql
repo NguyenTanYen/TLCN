@@ -134,6 +134,7 @@ CREATE TABLE courses (
   course_structure VARCHAR(30) NULL COMMENT 'Cấu trúc học phần, VD 3(2:1:6)',
   prerequisites  VARCHAR(255) NULL COMMENT 'Mã học phần trước, tiên quyết',
   description    TEXT         NULL COMMENT 'Mô tả vắn tắt học phần (đề cương)',
+  managing_unit  VARCHAR(150) NOT NULL DEFAULT 'Khoa Công nghệ Thông tin' COMMENT 'Đơn vị quản lý học phần (khác Khoa CNTT = học phần do đơn vị khác phụ trách)',
   created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_course_code UNIQUE (course_code),
   CONSTRAINT ck_course_credits CHECK (credits > 0),

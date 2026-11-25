@@ -9,6 +9,7 @@ from ..database import get_db
 from ..deps import check_course_access, check_section_access, require
 from ..models import CLO, CLOPLOMapping, ClassSection, Course, CourseOutline, PLO, User
 from ..services import outcomes
+from ..services.units import FACULTY_UNIT
 
 router = APIRouter(prefix="/api", tags=["UC-12 Học phần, chương, CLO, lớp học phần"])
 
@@ -23,6 +24,7 @@ class CourseIn(BaseModel):
     course_structure: Optional[str] = Field(default=None, max_length=30)
     prerequisites: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
+    managing_unit: str = Field(default=FACULTY_UNIT, min_length=2, max_length=150)
     program_ids: Optional[list[int]] = None
 
 
@@ -35,6 +37,7 @@ class CourseUpd(BaseModel):
     course_structure: Optional[str] = Field(default=None, max_length=30)
     prerequisites: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
+    managing_unit: Optional[str] = Field(default=None, min_length=2, max_length=150)
 
 
 class OutlineIn(BaseModel):

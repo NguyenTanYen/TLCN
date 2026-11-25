@@ -47,7 +47,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | BM14 | Thử xóa chương/CLO đã có câu hỏi (dùng môn DBMS330284) | Bị chặn (409), báo đang được sử dụng | ☐ |
 | BM15 | **Kế hoạch đo PI** → KTDL-2026 → **+ Thêm kế hoạch**: PI, môn, HKII 24-25, phương pháp, chỉ tiêu 70, GV, **không tích CLO** → Lưu | Kế hoạch có trong bảng năm học 2024-2025 | ☐ |
 | BM16 | **+ Phân công**: học kỳ, môn, GV (hoặc "Tất cả thầy/cô có hướng dẫn"), ghi chú → Lưu. Thử tạo trùng. Bấm **Xuất bảng phân công** | Có dòng phân công. Trùng → báo lỗi. Tải được Excel | ☐ |
-| BM17 | **Tổng hợp PLO** → CTĐT KTDL → năm 2024-2025 → **Tính lại**. Bấm **Nhận xét** một PLO → nhập → Lưu | Bảng PLO có tỷ lệ đạt / Đạt–Không đạt. Nhận xét được lưu | ☐ |
+| BM17 | **Tổng hợp PLO** → CTĐT KTDL-2026 → năm 2024-2025 → **Tính lại**. Bấm **Nhận xét** một PLO → nhập → Lưu | Bảng PLO có tỷ lệ đạt / Đạt–Không đạt. Nhận xét được lưu | ☐ |
 | BM18 | **⬇ Xuất BM2/BM3 (.xlsx)** và **⬇ Xuất BM2 (.docx)** | Tải được 2 tệp, mở ra đúng bố cục biểu mẫu | ☐ |
 | BM19 | **Kết nối Moodle** | Cầu nối CSDL OK. Web Service kết nối được, thấy 7 hàm `local_clo_*` (có `local_clo_restrict_users`). SSO đã cấu hình | ☐ |
 | BM20 | Học phần DBMS330284 → **Kết quả CĐR của môn** → chọn học kỳ | Kết quả CLO của môn, gộp mọi lớp | ☐ |

@@ -72,7 +72,7 @@ export default function Courses() {
 
 export function CourseInfo({ c, onSaved }) {
   const pick = x => ({ course_name: x.course_name, credits: x.credits, clo_target_pct: x.clo_target_pct, credits_theory: x.credits_theory ?? '',
-    credits_practice: x.credits_practice ?? '', course_structure: x.course_structure || '', prerequisites: x.prerequisites || '', description: x.description || '' })
+    credits_practice: x.credits_practice ?? '', course_structure: x.course_structure || '', prerequisites: x.prerequisites || '', description: x.description || '', managing_unit: x.managing_unit || '' })
   const [f, setF] = useState(pick(c))
   useEffect(() => setF(pick(c)), [c])
   const num = v => (v === '' || v === null ? null : Number(v))
@@ -85,12 +85,14 @@ export function CourseInfo({ c, onSaved }) {
       <Field label="Cấu trúc" hint="VD 3(2:1:6)"><input className="num" value={f.course_structure} onChange={e => setF({ ...f, course_structure: e.target.value })} /></Field>
       <Field label="Chỉ tiêu đạt CĐR môn học (%)" hint="Tỷ lệ sinh viên đạt cả môn để môn được xem là đạt"><input className="num" type="number" min="0" max="100" value={f.clo_target_pct} onChange={e => setF({ ...f, clo_target_pct: e.target.value })} /></Field>
     </div>
+    <Field label="Đơn vị quản lý học phần" hint="Khác “Khoa Công nghệ Thông tin” thì học phần được tách riêng, không lập CLO và không lấy minh chứng đo PI tại khoa"><input value={f.managing_unit} onChange={e => setF({ ...f, managing_unit: e.target.value })} /></Field>
     <Field label="Học phần trước / tiên quyết (mã, cách nhau dấu phẩy)"><input value={f.prerequisites} onChange={e => setF({ ...f, prerequisites: e.target.value })} placeholder="VD DBSY230184, DASA230179" /></Field>
     <Field label="Mô tả vắn tắt học phần"><textarea rows={5} value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></Field>
     <ActionButton className="btn primary" okMsg="Đã lưu thông tin học phần" onRun={async () => {
       await api.put(`/api/courses/${c.id}`, { course_name: f.course_name, credits: Number(f.credits), clo_target_pct: Number(f.clo_target_pct),
         credits_theory: num(f.credits_theory), credits_practice: num(f.credits_practice), course_structure: f.course_structure.trim() || null,
-        prerequisites: f.prerequisites.trim() || null, description: f.description.trim() || null }); onSaved() }}>Lưu</ActionButton>
+        prerequisites: f.prerequisites.trim() || null, description: f.description.trim() || null,
+        managing_unit: f.managing_unit.trim() || 'Khoa Công nghệ Thông tin' }); onSaved() }}>Lưu</ActionButton>
   </Card>
 }
 

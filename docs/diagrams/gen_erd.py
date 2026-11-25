@@ -9,7 +9,7 @@ GROUPS = {
  "E. Lớp HP và ngân hàng câu hỏi": ["class_sections", "enrollments", "question_bank", "question_options", "question_clo_mapping"],
  "F. Đề thi và nhóm đề": ["exams", "exam_questions", "exam_versions", "exam_version_questions", "exam_version_options"],
  "H. Đề cương học phần và ánh xạ CLO-PI": ["course_syllabi", "syllabus_references", "syllabus_assessments", "syllabus_assessment_clos", "outline_clos", "clo_pi_mapping"],
- "I. Học liệu": ["section_materials", "material_pages", "material_passages"],
+ "I. Học liệu": ["section_materials", "material_pages", "material_passages", "material_explanations"],
  "J. Rubric và chấm tự luận": ["rubrics", "rubric_criteria", "rubric_levels", "exam_rubrics", "exam_rubric_items", "rubric_grades"],
  "K. Liên kết Moodle, quét phiếu và cải tiến": ["question_moodle_links", "scan_sheets", "improvement_actions"],
  "G. Kết quả và báo cáo": ["exam_attempts", "item_level_results", "item_statistics", "attempt_clo_results", "clo_results",

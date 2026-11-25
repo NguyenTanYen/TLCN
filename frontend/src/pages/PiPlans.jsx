@@ -44,7 +44,7 @@ export default function PiPlans() {
 }
 
 function AssignForm({ sems, defSem, onClose, onSaved }) {
-  const courses = useApi('/api/courses').data
+  const courses = useApi('/api/courses').data?.filter(c => c.managing_unit === 'Khoa Công nghệ Thông tin')
   const lecturers = useApi('/api/lecturers').data
   const [f, setF] = useState({ semester_id: defSem || '', course_id: '', lecturer_id: '', all_supervisors: false, note: '' })
   return <Modal title="Phân công đánh giá PI" onClose={onClose}>
@@ -65,7 +65,7 @@ function AssignForm({ sems, defSem, onClose, onSaved }) {
 
 function PlanForm({ plan, sems, defSem, pid, onClose, onSaved }) {
   const prog = useApi(`/api/programs/${pid}`).data
-  const courses = useApi('/api/courses').data
+  const courses = useApi('/api/courses').data?.filter(c => c.managing_unit === 'Khoa Công nghệ Thông tin')
   const lecturers = useApi('/api/lecturers').data
   const [f, setF] = useState({ pi_id: plan.pi_id || '', course_id: plan.course_id || '', semester_id: plan.semester_id || defSem || '', method: plan.method || 'Bài thi trắc nghiệm (Moodle/giấy)',
     cycle: plan.cycle || '2 năm/lần', target_pct: plan.target_pct ?? 75, lecturer_id: plan.lecturer_id || '', clo_ids: [] })

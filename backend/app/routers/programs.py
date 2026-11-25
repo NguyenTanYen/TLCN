@@ -10,6 +10,7 @@ from ..database import get_db
 from ..deps import current_user, require
 from ..http_utils import attachment
 from ..models import Course, Program, User
+from ..services.units import FACULTY_UNIT
 from ..services.syllabus_word import render_syllabus_docx
 from . import syllabi
 
@@ -50,8 +51,9 @@ class PICourseIn(BaseModel):
 def programs(db: Session = Depends(get_db), _=Depends(current_user)):
     return rows(db, """SELECT p.*, (SELECT COUNT(*) FROM plos WHERE program_id=p.id) AS n_plos,
                               (SELECT COUNT(*) FROM performance_indicators pi JOIN plos pl ON pl.id=pi.plo_id WHERE pl.program_id=p.id) AS n_pis,
-                              (SELECT COUNT(*) FROM program_courses WHERE program_id=p.id) AS n_courses
-                       FROM programs p ORDER BY (SELECT COUNT(*) FROM pi_assessment_plans ap JOIN performance_indicators pi ON pi.id=ap.pi_id JOIN plos pl ON pl.id=pi.plo_id WHERE pl.program_id=p.id) DESC, p.cohort_year IS NULL, p.cohort_year DESC, p.code""")
+                              (SELECT COUNT(*) FROM program_courses x JOIN courses cc ON cc.id=x.course_id WHERE x.program_id=p.id AND cc.managing_unit=:f) AS n_courses,
+                              (SELECT COUNT(*) FROM program_courses x JOIN courses cc ON cc.id=x.course_id WHERE x.program_id=p.id AND cc.managing_unit<>:f) AS n_external_courses
+                       FROM programs p ORDER BY (SELECT COUNT(*) FROM pi_assessment_plans ap JOIN performance_indicators pi ON pi.id=ap.pi_id JOIN plos pl ON pl.id=pi.plo_id WHERE pl.program_id=p.id) DESC, p.cohort_year IS NULL, p.cohort_year DESC, p.code""", f=FACULTY_UNIT)
 
 
 @router.post("/programs", status_code=201)
@@ -91,12 +93,14 @@ def program_detail(pid: int, db: Session = Depends(get_db), _=Depends(current_us
         p["pis"] = [x for x in pis if x["plo_id"] == p["id"]]
         p["measurement_plans"] = sorted([m for m in mplans if m["plo_id"] == p["id"]], key=lambda m: m["round_no"])
     courses = rows(db, """SELECT c.id, c.course_code, c.course_name, c.credits, c.credits_theory, c.credits_practice, c.course_structure,
-                                 c.prerequisites, pc.semester_no, pc.knowledge_block, pc.is_elective,
+                                 c.prerequisites, c.managing_unit, c.managing_unit <> :f AS is_external, pc.semester_no, pc.knowledge_block, pc.is_elective,
                                  (SELECT COUNT(*) FROM clos WHERE course_id=c.id) AS n_clos,
                                  (SELECT COUNT(*) FROM class_sections WHERE course_id=c.id) AS n_sections,
                                  c.description IS NOT NULL AS has_description
                           FROM program_courses pc JOIN courses c ON c.id=pc.course_id WHERE pc.program_id=:p
-                          ORDER BY pc.semester_no IS NULL, pc.semester_no, pc.is_elective, c.course_code""", p=pid)
+                          ORDER BY pc.semester_no IS NULL, pc.semester_no, pc.is_elective, c.course_code""", p=pid, f=FACULTY_UNIT)
+    for c in courses:
+        c["is_external"] = bool(c["is_external"])
     matrix = rows(db, """SELECT pc.course_id, pc.pi_id, pc.level FROM pi_courses pc JOIN performance_indicators pi ON pi.id=pc.pi_id
                          JOIN plos p ON p.id=pi.plo_id WHERE p.program_id=:p""", p=pid)
     d = {k: getattr(prog, k) for k in ("id", "code", "name", "name_en", "level", "department", "faculty", "major_code", "cohort_year",

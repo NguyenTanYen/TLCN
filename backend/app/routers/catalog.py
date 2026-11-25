@@ -13,6 +13,7 @@ from ..models import (AssessmentAssignment, CLO, CLOAssessmentPlan, CLOPLOMappin
                       PIPlanCLO, PLO, Program, Student, User)
 from ..services import outcomes, results
 from . import syllabi
+from ..services.units import FACULTY_UNIT
 from ..schemas import AssignmentIn, CLOIn, CLOPlanIn, PIPlanIn, PLOIn
 
 router = APIRouter(prefix="/api", tags=["Danh mục & kế hoạch đo lường"])
@@ -54,7 +55,7 @@ def update_plo(plo_id: int, body: PLOIn, db: Session = Depends(get_db), _=Depend
 
 
 @router.get("/pi-plans")
-def pi_plans(program_id: int = 1, academic_year: str | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
+def pi_plans(program_id: int, academic_year: str | None = None, db: Session = Depends(get_db), _=Depends(current_user)):
     if not db.get(Program, program_id):
         raise HTTPException(404, "Không tìm thấy CTĐT")
     data = rows(db, """
@@ -72,8 +73,15 @@ def pi_plans(program_id: int = 1, academic_year: str | None = None, db: Session 
     return data
 
 
+def _require_faculty_course(db: Session, course_id: int) -> None:
+    unit = db.execute(text("SELECT managing_unit FROM courses WHERE id=:c"), {"c": course_id}).scalar()
+    if unit is not None and unit != FACULTY_UNIT:
+        raise HTTPException(422, f"Học phần do {unit} quản lý, không lấy minh chứng đo PI tại khoa")
+
+
 @router.post("/pi-plans")
 def create_pi_plan(body: PIPlanIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    _require_faculty_course(db, body.course_id)
     plan = PIAssessmentPlan(**body.model_dump(exclude={"clo_ids"}))
     db.add(plan); db.flush()
     for cid in body.clo_ids:
@@ -93,6 +101,7 @@ def _plan_plo_year(db: Session, plan_id: int):
 
 @router.put("/pi-plans/{plan_id}")
 def update_pi_plan(plan_id: int, body: PIPlanIn, db: Session = Depends(get_db), _=Depends(require("admin"))):
+    _require_faculty_course(db, body.course_id)
     plan = db.get(PIAssessmentPlan, plan_id)
     if not plan:
         raise HTTPException(404, "Không tìm thấy kế hoạch")

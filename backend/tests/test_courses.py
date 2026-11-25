@@ -148,7 +148,7 @@ def test_programs_ctdt_2026(client, admin, gv):
     progs = {p["code"]: p for p in client.get("/api/programs", headers=gv).json()}
     assert {"CNTT-2026", "KTDL-2026"} <= set(progs)
     k = progs["KTDL-2026"]
-    assert k["n_plos"] == 7 and k["n_pis"] == 17 and k["n_courses"] >= 50 and k["total_credits"] == 150
+    assert k["n_plos"] == 7 and k["n_pis"] == 17 and k["n_courses"] + k["n_external_courses"] >= 50 and k["total_credits"] == 150
     d = client.get(f"/api/programs/{k['id']}", headers=gv).json()
     assert [p["plo_code"] for p in d["plos"]] == [f"PLO{i}" for i in range(1, 8)]
     assert sum(len(p["pis"]) for p in d["plos"]) == 17

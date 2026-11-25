@@ -247,22 +247,30 @@ def test_publish_requires_analyzed(client, gv):
     client.delete(f"/api/exams/{eid}", headers=gv)
 
 
+def _ktdl_id(client, admin):
+    return next(p["id"] for p in client.get("/api/programs", headers=admin).json() if p["code"] == "KTDL-2026")
+
+
 def test_program_structure(client, admin):
-    p = client.get("/api/programs/1", headers=admin).json()
-    assert len(p["plos"]) == 19
-    plans = client.get("/api/pi-plans?academic_year=2024-2025", headers=admin).json()
-    assert any(x["plo_code"] == "1.3" for x in plans)
+    kid = _ktdl_id(client, admin)
+    codes = [p["code"] for p in client.get("/api/programs", headers=admin).json()]
+    assert sorted(codes) == ["ATTT-2026", "CNTT-2026", "KTDL-2026"]
+    p = client.get(f"/api/programs/{kid}", headers=admin).json()
+    assert len(p["plos"]) == 7
+    plans = client.get(f"/api/pi-plans?program_id={kid}&academic_year=2024-2025", headers=admin).json()
+    assert {x["plo_code"] for x in plans} >= {"PLO6", "PLO7"}
 
 
 def test_plo_summary_is_sum_of_pi(client, admin):
-    s = client.get("/api/reports/programs/1/plo-summary?academic_year=2024-2025", headers=admin).json()
+    kid = _ktdl_id(client, admin)
+    s = client.get(f"/api/reports/programs/{kid}/plo-summary?academic_year=2024-2025", headers=admin).json()
     measured = [p for p in s["plos"] if p["n_evaluated"]]
     assert measured
     pr = s["program_result"]
     assert pr["n_evaluated"] == sum(p["n_evaluated"] for p in measured)
     pis = q("""SELECT pi.plo_id, SUM(r.n_evaluated), SUM(r.n_achieved) FROM pi_results r JOIN pi_assessment_plans pl ON pl.id=r.plan_id
                JOIN performance_indicators pi ON pi.id=pl.pi_id JOIN semesters se ON se.id=pl.semester_id
-               JOIN plos pp ON pp.id=pi.plo_id WHERE se.academic_year='2024-2025' AND pp.program_id=1 GROUP BY pi.plo_id""")
+               JOIN plos pp ON pp.id=pi.plo_id WHERE se.academic_year='2024-2025' AND pp.program_id=:k GROUP BY pi.plo_id""", k=kid)
     by_plo = {p["plo_id"]: p for p in measured}
     for plo_id, n, ok in pis:
         assert by_plo[plo_id]["n_evaluated"] == n and by_plo[plo_id]["n_achieved"] == ok
@@ -327,8 +335,9 @@ def test_bm6c_per_exam(client, gv, gv_other):
 
 
 def test_bm3_workbook(client, admin, gv):
-    assert client.get("/api/reports/programs/1/bm3.xlsx?academic_year=2024-2025", headers=gv).status_code == 403
-    r = client.get("/api/reports/programs/1/bm3.xlsx?academic_year=2024-2025", headers=admin)
+    kid = _ktdl_id(client, admin)
+    assert client.get(f"/api/reports/programs/{kid}/bm3.xlsx?academic_year=2024-2025", headers=gv).status_code == 403
+    r = client.get(f"/api/reports/programs/{kid}/bm3.xlsx?academic_year=2024-2025", headers=admin)
     wb = load_workbook(io.BytesIO(r.content))
     assert r.status_code == 200 and wb.sheetnames[:2] == ["BM2a_KeHoach", "BM2b_TongKet"]
     assert any(n.startswith("BM3b_") for n in wb.sheetnames) and any(n.startswith("BM3c_") for n in wb.sheetnames)
@@ -336,8 +345,9 @@ def test_bm3_workbook(client, admin, gv):
 
 def test_bm2_docx(client, admin, gv):
     from docx import Document
-    assert client.get("/api/reports/programs/1/bm2.docx?academic_year=2024-2025", headers=gv).status_code == 403
-    r = client.get("/api/reports/programs/1/bm2.docx?academic_year=2024-2025", headers=admin)
+    kid = _ktdl_id(client, admin)
+    assert client.get(f"/api/reports/programs/{kid}/bm2.docx?academic_year=2024-2025", headers=gv).status_code == 403
+    r = client.get(f"/api/reports/programs/{kid}/bm2.docx?academic_year=2024-2025", headers=admin)
     assert r.status_code == 200
     doc = Document(io.BytesIO(r.content))
     text_all = "\n".join(p.text for p in doc.paragraphs)

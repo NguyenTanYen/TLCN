@@ -27,6 +27,7 @@ def test_upgrade_old_database_adds_offlinequiz_column():
         c.execute(text("ALTER TABLE exams DROP FOREIGN KEY fk_exam_parent"))
         c.execute(text("ALTER TABLE exams DROP COLUMN target_students, DROP COLUMN parent_exam_id, DROP COLUMN counts_for_clo"))
         c.execute(text("ALTER TABLE courses DROP COLUMN description"))
+        c.execute(text("ALTER TABLE courses DROP COLUMN managing_unit"))
         n_old = c.execute(text("SELECT COUNT(*) FROM assessment_assignments WHERE all_supervisors=0")).scalar()
         c.execute(text("CREATE TABLE aa_bak AS SELECT semester_id, course_id, lecturer_id, note FROM assessment_assignments WHERE all_supervisors=0"))
         c.execute(text("DROP TABLE assessment_assignments"))
@@ -42,7 +43,11 @@ def test_upgrade_old_database_adds_offlinequiz_column():
     assert "exams.moodle_offlinequiz_id" in done and "question_bank.bloom_level_id NULL" in done
     assert "tạo lại bảng exam_version_questions" in done and "tạo lại bảng exam_version_options" in done
     assert "assessment_assignments: phân công tất cả GV hướng dẫn" in done
-    assert {"exams.counts_for_clo", "exams.parent_exam_id", "exams.target_students", "exams.ck_exam_type", "courses.description"} <= set(done)
+    assert {"exams.counts_for_clo", "exams.parent_exam_id", "exams.target_students", "exams.ck_exam_type", "courses.description", "courses.managing_unit"} <= set(done)
+    assert any(x.startswith("phân loại đơn vị quản lý cho") for x in done)
+    with engine.connect() as c:
+        assert c.execute(text("SELECT managing_unit FROM courses WHERE course_code='LLCT130105'")).scalar() == "Khoa Lý luận chính trị"
+        assert c.execute(text("SELECT managing_unit FROM courses WHERE course_code='DBMS330284'")).scalar() == "Khoa Công nghệ Thông tin"
     with engine.connect() as c:
         assert c.execute(text("SELECT COUNT(*) FROM assessment_assignments WHERE all_supervisors=0")).scalar() == n_old
         tl = c.execute(text("""SELECT co.course_code FROM assessment_assignments a JOIN courses co ON co.id=a.course_id

@@ -43,7 +43,7 @@ M = {
     "test_results_for_moodle": (9, "Dữ liệu kết quả gửi sang Moodle", "Xem trước kết quả từng SV", "Radar CLO, nhận định, lộ trình; SV vắng 'chưa đủ bằng chứng'"),
     "test_push_requires_moodle_config": (9, "Gửi kết quả khi chưa cấu hình Web Service", "Gửi kết quả khi thiếu token Moodle", "502 kèm thông báo"),
     "test_publish_requires_analyzed": (9, "Chỉ công bố bài đã phân tích", "Công bố bài chưa phân tích", "409"),
-    "test_program_structure": (1, "Cấu trúc CTĐT (PLO, PI, năm đo)", "Đọc CTĐT KTDL", "19 PLO, PI, kế hoạch năm đo đúng BM2"),
+    "test_program_structure": (1, "Cấu trúc CTĐT (PLO, PI, năm đo)", "Đọc CTĐT KTDL-2026", "7 PLO, PI, kế hoạch năm đo"),
     "test_plo_summary_is_sum_of_pi": (6, "Tổng hợp PLO = cộng dồn PI (BM3c)", "Tổng hợp PLO năm học 2024–2025", "Số đạt/đánh giá PLO = Σ PI"),
     "test_bm6_workbook": (6, "Xuất bộ Biểu mẫu 6 (.xlsx)", "Tải BM6 của lớp HP", "Mục lục, BM6a, BM6b, minh chứng; công thức COUNTIF"),
     "test_bm6_evidence_follows_plan_and_matches_bm6b": (6, "Minh chứng theo kế hoạch BM6a", "Trang minh chứng từng CLO", "Chỉ lấy bài đúng loại minh chứng; tổng khớp BM6b"),

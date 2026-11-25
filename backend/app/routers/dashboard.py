@@ -62,9 +62,9 @@ def dashboard(u: User = Depends(require("admin", "lecturer")), db: Session = Dep
         _count(db, "SELECT COUNT(*) FROM programs p WHERE NOT EXISTS (SELECT 1 FROM plos x WHERE x.program_id=p.id)"), "/programs",
         _count(db, "SELECT COUNT(*) FROM programs"))
     add("clo", "Mỗi học phần có CLO gắn với PI", "Học phần chưa có CLO thì không đo được chuẩn đầu ra.",
-        _count(db, """SELECT COUNT(*) FROM courses c WHERE EXISTS (SELECT 1 FROM program_courses pc WHERE pc.course_id=c.id)
+        _count(db, """SELECT COUNT(*) FROM courses c WHERE c.managing_unit='Khoa Công nghệ Thông tin' AND EXISTS (SELECT 1 FROM program_courses pc WHERE pc.course_id=c.id)
                       AND NOT EXISTS (SELECT 1 FROM clo_pi_mapping m JOIN clos k ON k.id=m.clo_id WHERE k.course_id=c.id)"""), "/courses",
-        _count(db, "SELECT COUNT(DISTINCT course_id) FROM program_courses"))
+        _count(db, "SELECT COUNT(DISTINCT pc.course_id) FROM program_courses pc JOIN courses c ON c.id=pc.course_id WHERE c.managing_unit='Khoa Công nghệ Thông tin'"))
     add("plan", "Mỗi PI có kế hoạch đo", "Chọn môn và học kỳ lấy minh chứng cho từng PI.",
         _count(db, "SELECT COUNT(*) FROM performance_indicators pi WHERE NOT EXISTS (SELECT 1 FROM pi_assessment_plans p WHERE p.pi_id=pi.id)"), "/pi-plans",
         _count(db, "SELECT COUNT(*) FROM performance_indicators"))

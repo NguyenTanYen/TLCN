@@ -20,7 +20,7 @@ export function ProgramList() {
     <div className="grid3">{list.data?.map(p => <Card key={p.id} title={<Link to={`/programs/${p.id}`}>{p.code}</Link>}>
       <div className="big">{p.name}</div>
       <div className="muted small">{p.name_en || ''}{p.major_code ? ` · mã ngành ${p.major_code}` : ''}{p.cohort_year ? ` · áp dụng khóa ${p.cohort_year}` : ''}</div>
-      <div className="row gap wrap mt"><span className="pill">{p.n_plos} PLO</span><span className="pill">{p.n_pis} PI</span><span className="pill">{p.n_courses} học phần</span>
+      <div className="row gap wrap mt"><span className="pill">{p.n_plos} PLO</span><span className="pill">{p.n_pis} PI</span><span className="pill">{p.n_courses} học phần của khoa</span>{p.n_external_courses > 0 && <span className="pill amber">{p.n_external_courses} học phần khoa khác</span>}
         {p.total_credits && <span className="pill blue">{p.total_credits} TC</span>}</div>
       <div className="row gap mt"><Link className="btn primary sm" to={`/programs/${p.id}`}>Xem CTĐT</Link><Link className="btn sm" to={`/programs/${p.id}?tab=courses`}>Học phần</Link></div>
     </Card>)}</div>
@@ -43,7 +43,7 @@ export function ProgramDetail() {
       <p className="muted">{[p.name_en, p.major_code && `Mã ngành ${p.major_code}`, p.level, p.faculty, p.cohort_year && `Áp dụng từ khóa ${p.cohort_year}`,
         p.total_credits && `${p.total_credits} tín chỉ`, p.decision_no && `QĐ ${p.decision_no}`].filter(Boolean).join(' · ')}</p></div>
       {isAdmin && <button className="btn" onClick={() => setEdit('program')}>Sửa thông tin CTĐT</button>}</div>
-    <Tabs value={tab} onChange={t => setSp({ tab: t })} tabs={[['plo', `Chuẩn đầu ra (${p.plos.length} PLO)`], ['courses', `Học phần (${p.courses.length})`], ['matrix', 'Ma trận học phần – PI'], ['info', 'Mục tiêu']]} />
+    <Tabs value={tab} onChange={t => setSp({ tab: t })} tabs={[['plo', `Chuẩn đầu ra (${p.plos.length} PLO)`], ['courses', `Học phần (${p.courses.filter(c => !c.is_external).length} của khoa · ${p.courses.filter(c => c.is_external).length} khoa khác)`], ['matrix', 'Ma trận học phần – PI'], ['info', 'Mục tiêu']]} />
     {tab === 'plo' && <PloTab p={p} isAdmin={isAdmin} onEdit={setEdit} />}
     {tab === 'courses' && <CoursesTab p={p} />}
     {tab === 'matrix' && <MatrixTab p={p} isAdmin={isAdmin} reload={prog.reload} />}
@@ -67,15 +67,28 @@ function PloTab({ p, isAdmin, onEdit }) {
   </Card>)
 }
 
+function CourseRows({ list, withUnit }) {
+  return <table className="tbl compact"><thead><tr><th>Mã HP</th><th>Tên học phần</th><th className="num-c">TC</th><th>LT/TH</th><th>Khối kiến thức</th>{withUnit && <th>Đơn vị quản lý</th>}<th>Tiên quyết</th><th>CLO</th><th>Lớp HP</th></tr></thead>
+    <tbody>{list.map(c => <tr key={c.id}><td><Link to={`/courses/${c.id}`}><b>{c.course_code}</b></Link></td>
+      <td><Link to={`/courses/${c.id}`}>{c.course_name}</Link>{c.is_elective ? <Badge tone="amber">Tự chọn</Badge> : null}</td><td className="num-c">{c.credits}</td>
+      <td>{c.credits_theory != null ? `${c.credits_theory}/${c.credits_practice ?? 0}` : '—'}</td><td className="small">{c.knowledge_block || '—'}</td>
+      {withUnit && <td className="small">{c.managing_unit}</td>}
+      <td className="small">{c.prerequisites || '—'}</td><td>{c.n_clos || <span className="muted">0</span>}</td><td>{c.n_sections || <span className="muted">0</span>}</td></tr>)}</tbody></table>
+}
+
 function CoursesTab({ p }) {
-  const sems = [...new Set(p.courses.map(c => c.semester_no))].sort((a, b) => (a ?? 99) - (b ?? 99))
-  return sems.map(s => <Card key={s ?? 'x'} title={s ? `Học kỳ ${s}` : 'Học phần tự chọn / chưa xếp học kỳ'}>
-    <table className="tbl compact"><thead><tr><th>Mã HP</th><th>Tên học phần</th><th className="num-c">TC</th><th>LT/TH</th><th>Khối kiến thức</th><th>Tiên quyết</th><th>CLO</th><th>Lớp HP</th></tr></thead>
-      <tbody>{p.courses.filter(c => c.semester_no === s).map(c => <tr key={c.id}><td><Link to={`/courses/${c.id}`}><b>{c.course_code}</b></Link></td>
-        <td><Link to={`/courses/${c.id}`}>{c.course_name}</Link>{c.is_elective ? <Badge tone="amber">Tự chọn</Badge> : null}</td><td className="num-c">{c.credits}</td>
-        <td>{c.credits_theory != null ? `${c.credits_theory}/${c.credits_practice ?? 0}` : '—'}</td><td className="small">{c.knowledge_block || '—'}</td>
-        <td className="small">{c.prerequisites || '—'}</td><td>{c.n_clos || <span className="muted">0</span>}</td><td>{c.n_sections || <span className="muted">0</span>}</td></tr>)}</tbody></table>
-  </Card>)
+  const own = p.courses.filter(c => !c.is_external)
+  const ext = p.courses.filter(c => c.is_external)
+  const sems = [...new Set(own.map(c => c.semester_no))].sort((a, b) => (a ?? 99) - (b ?? 99))
+  return <>
+    {sems.map(s => <Card key={s ?? 'x'} title={s ? `Học kỳ ${s}` : 'Học phần tự chọn / chưa xếp học kỳ'}>
+      <CourseRows list={own.filter(c => c.semester_no === s)} />
+    </Card>)}
+    {ext.length > 0 && <Card title={`Học phần do đơn vị khác quản lý (${ext.length})`}>
+      <p className="muted small">Các học phần này do Phòng Đào tạo bố trí và khoa/bộ môn khác phụ trách giảng dạy. Khoa CNTT không lập CLO, không lấy minh chứng đo PI tại khoa; chỉ giữ để thể hiện đủ CTĐT và ma trận học phần – PI.</p>
+      <CourseRows list={ext} withUnit />
+    </Card>}
+  </>
 }
 
 function MatrixTab({ p, isAdmin, reload }) {
@@ -92,7 +105,7 @@ function MatrixTab({ p, isAdmin, reload }) {
     <div className="scroll tall"><table className="tbl compact mx"><thead><tr><th className="sticky-col">Học phần</th>
       {p.plos.map(x => <th key={x.id} colSpan={x.pis.length || 1} style={{ textAlign: 'center' }}>{x.plo_code}</th>)}</tr>
       <tr><th className="sticky-col" />{p.plos.map(x => x.pis.length ? x.pis.map(pi => <th key={pi.id} className="rot" title={pi.description}>{pi.pi_code}</th>) : <th key={x.id} />)}</tr></thead>
-      <tbody>{courses.map(c => <tr key={c.id}><td className="sticky-col"><Link to={`/courses/${c.id}`}>{c.course_code}</Link> <small className="muted">{c.course_name.slice(0, 28)}</small></td>
+      <tbody>{courses.map(c => <tr key={c.id}><td className="sticky-col"><Link to={`/courses/${c.id}`}>{c.course_code}</Link> <small className="muted">{c.course_name.slice(0, 28)}</small>{c.is_external && <Badge tone="amber">Khoa khác</Badge>}</td>
         {p.plos.map(x => x.pis.length ? x.pis.map(pi => { const v = lv[`${c.id}:${pi.id}`]; return <td key={pi.id} className={`c ${isAdmin ? 'edit' : ''}`}
           onClick={() => isAdmin && setCell({ c, pi, v })}>{v && <span className={`lvl ${/^[IRM]$/.test(v) ? v : 'n'}`}>{v}</span>}</td> }) : <td key={x.id} />)}</tr>)}</tbody></table></div>
     {cell && <Modal title={`${cell.c.course_code} – ${cell.pi.pi_code}`} onClose={() => setCell(null)}>
