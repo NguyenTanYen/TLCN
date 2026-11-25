@@ -26,6 +26,9 @@ RAG_GROUP = 13
 
 
 M = {
+    "test_reproduce_counts_of_real_form_sheets": (5, "Tái hiện số liệu thật của biểu mẫu", "Nạp điểm từng SV trong các sheet BM3_ATTT, Mau06_ATTT, BM6c, BM6d của thầy cô và đếm bằng hàm của hệ thống", "Số SV đạt/số SV đánh giá trùng số ghi trên biểu mẫu (64/83, 62/76, 50/54, 66/87, 28/31, 10/14)"),
+    "test_pooling_matches_form_totals": (5, "Cộng dồn trùng tổng biểu mẫu", "Cộng dồn lượt/PI/CĐR theo biểu mẫu BM6b, BM6d, 3c, 3f", "Tổng trùng biểu mẫu (195/271, 27/41, 172/198, 1660/1832 = 90,61%)"),
+    "test_threshold_decision_is_greater_or_equal_with_zero_scores_counted": (5, "Ngưỡng ≥ và SV 0 điểm vẫn tính", "4 SV đạt 0; 1,2; 1,19; 2 điểm trên thang 2, ngưỡng 60%", "2 đạt trên 4 được đánh giá"),
     "test_login_wrong_password": (0, "Đăng nhập sai mật khẩu", "POST /api/auth/login với mật khẩu sai", "401, không cấp token"),
     "test_requires_token": (0, "Gọi API không có token", "Gọi các API nghiệp vụ không kèm Authorization", "401"),
     "test_role_and_ownership": (0, "Phân quyền theo lớp học phần", "GV khác truy cập lớp/bài KT không phụ trách", "403; GV phụ trách xem được"),
