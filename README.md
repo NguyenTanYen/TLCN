@@ -118,10 +118,10 @@ Cả ba mức dùng cùng một quy tắc đếm lượt sinh viên đạt (`ana
 
 1. **Điểm CLO của một bài làm** = tổng (điểm đạt × trọng số câu–CLO) / tổng (điểm tối đa × trọng số) × 100. Bài làm **đạt CLO** khi điểm này không thấp hơn ngưỡng của CLO (mặc định 60%, chỉnh trong kế hoạch CLO).
 2. **CLO của lớp học phần (BM6b, BM6d)** = số bài làm đạt / số bài làm được đánh giá, cộng dồn qua các bài kiểm tra được chọn làm minh chứng (có thể lọc theo loại bài). Đạt khi tỷ lệ không thấp hơn chỉ tiêu (mặc định 70%).
-3. **PI (BM3c)** = cộng dồn (số được đánh giá, số đạt) của các CLO minh chứng trong kế hoạch đo PI, ở môn và học kỳ đã khai báo. Nếu kế hoạch không chọn CLO thì lấy các CLO của môn gắn với PI đó, rồi đến các CLO gắn với PLO của PI.
+3. **PI (BM3c, BM6c)** = mỗi sinh viên được đếm **một lần** cho mỗi kế hoạch đo PI: cộng điểm đạt và điểm tối đa các câu đo các CLO minh chứng của kế hoạch (qua các bài được chọn, có lọc loại bài), sinh viên đạt khi tổng điểm đạt không thấp hơn tổng (điểm tối đa × ngưỡng của từng CLO). Tỷ lệ PI = số sinh viên đạt / số sinh viên được đánh giá. Nếu kế hoạch không chọn CLO thì lấy các CLO của môn gắn với PI đó, rồi đến các CLO gắn với PLO của PI.
 4. **PLO (BM2, BM3c dòng tổng)** = cộng dồn kết quả các PI thuộc PLO trong một năm học; đạt khi không thấp hơn chỉ tiêu của PLO (kế hoạch đo năm học, nếu không có thì chỉ tiêu mặc định của PLO).
 
-Các tầng cộng dồn theo lượt sinh viên, không lấy trung bình các tỷ lệ và không có trọng số riêng giữa các PI. Nếu trường quy định cách khác (trọng số, trung bình có trọng số), chỉ cần đổi `analysis.aggregate` và `recompute_pi_plans` / `recompute_plo`.
+CLO cộng dồn theo lượt bài làm, PI tính theo sinh viên, PLO cộng dồn kết quả các PI; không lấy trung bình các tỷ lệ và không có trọng số riêng giữa các PI. Nếu trường quy định cách khác (trọng số, trung bình có trọng số), chỉ cần đổi `analysis.aggregate` và `recompute_pi_plans` / `recompute_plo`.
 
 ## Dữ liệu minh họa
 

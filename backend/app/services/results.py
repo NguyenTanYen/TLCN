@@ -149,12 +149,48 @@ def recompute_class_section(db: Session, cs_id: int) -> None:
     recompute_pi_plans(db, course_id=cs.course_id, semester_id=cs.semester_id)
 
 
+def _pi_evidence(db: Session, course_id: int, semester_id: int) -> pd.DataFrame:
+    df = _df(db, """
+        SELECT a.student_id, r.clo_id, e.assessment_type, SUM(r.score_earned) AS earned, SUM(r.score_max) AS smax
+        FROM attempt_clo_results r
+        JOIN exam_attempts a ON a.id = r.attempt_id
+        JOIN exams e ON e.id = a.exam_id
+        JOIN class_sections cs ON cs.id = e.class_section_id
+        WHERE cs.course_id = :c AND cs.semester_id = :s AND e.status = 'Analyzed' AND e.counts_for_clo = 1 AND a.status = 'finished'
+        GROUP BY a.student_id, r.clo_id, e.assessment_type""", c=course_id, s=semester_id)
+    if df.empty:
+        return df.assign(thr=pd.Series(dtype=float))
+    plans = _df(db, """
+        SELECT c.id AS clo_id, p.pass_threshold_pct, p.evidence_type
+        FROM clos c LEFT JOIN clo_assessment_plans p ON p.clo_id = c.id AND p.semester_id = :s
+        WHERE c.course_id = :c""", c=course_id, s=semester_id)
+    thr = {int(r.clo_id): float(r.pass_threshold_pct) if pd.notna(r.pass_threshold_pct) else settings.default_pass_threshold
+           for r in plans.itertuples()}
+    ev = {int(r.clo_id): r.evidence_type if isinstance(r.evidence_type, str) else "any" for r in plans.itertuples()}
+    keep = [ev.get(int(c), "any") in ("any", t) for c, t in zip(df.clo_id, df.assessment_type)]
+    df = df[keep].copy()
+    df["thr"] = df.clo_id.map(lambda c: thr.get(int(c), settings.default_pass_threshold))
+    df["earned"] = df.earned.astype(float)
+    df["smax"] = df.smax.astype(float)
+    df["need"] = df.smax * df.thr / 100
+    return df
+
+
+def _student_counts(evidence: pd.DataFrame, clo_ids: list[int]) -> tuple[int, int]:
+    if evidence.empty:
+        return 0, 0
+    g = evidence[evidence.clo_id.isin(clo_ids)].groupby("student_id")[["earned", "smax", "need"]].sum()
+    g = g[g.smax > 0]
+    return int(len(g)), int((g.earned + 1e-9 >= g.need).sum())
+
+
 def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: int | None = None) -> None:
     plans = _df(db, """SELECT p.id, p.pi_id, p.course_id, p.semester_id, p.target_pct, pi.plo_id
                        FROM pi_assessment_plans p JOIN performance_indicators pi ON pi.id = p.pi_id
                        WHERE (:c IS NULL OR p.course_id = :c) AND (:s IS NULL OR p.semester_id = :s)""",
                 c=course_id, s=semester_id)
     years = set()
+    evidence: dict[tuple[int, int], pd.DataFrame] = {}
     for p in plans.itertuples():
         clo_ids = [r[0] for r in db.execute(text("SELECT clo_id FROM pi_plan_clos WHERE plan_id=:p"), {"p": p.id})]
         if not clo_ids:
@@ -165,12 +201,10 @@ def recompute_pi_plans(db: Session, course_id: int | None = None, semester_id: i
             clo_ids = [r[0] for r in db.execute(text("""SELECT c.id FROM clos c JOIN clo_plo_mapping m ON m.clo_id = c.id
                                                         WHERE c.course_id = :c AND m.plo_id = :plo"""),
                                                 {"c": p.course_id, "plo": p.plo_id})]
-        counts = []
-        if clo_ids:
-            q = text(f"""SELECT r.n_evaluated, r.n_achieved FROM clo_results r
-                         JOIN class_sections cs ON cs.id = r.class_section_id
-                         WHERE cs.course_id = :c AND cs.semester_id = :s AND r.clo_id IN ({','.join(map(str, clo_ids))})""")
-            counts = [(int(a), int(b)) for a, b in db.execute(q, {"c": p.course_id, "s": p.semester_id})]
+        key = (int(p.course_id), int(p.semester_id))
+        if key not in evidence:
+            evidence[key] = _pi_evidence(db, *key)
+        counts = [_student_counts(evidence[key], clo_ids)] if clo_ids else []
         db.execute(text("DELETE FROM pi_results WHERE plan_id = :p"), {"p": p.id})
         agg = analysis.aggregate(counts, float(p.target_pct))
         if agg.n_evaluated:
@@ -199,7 +233,7 @@ def recompute_plo(db: Session, plo_id: int, academic_year: str) -> None:
     if not agg.n_evaluated:
         db.execute(text("DELETE FROM plo_results WHERE plo_id=:plo AND academic_year=:y"), {"plo": plo_id, "y": academic_year})
     else:
-        summary = f"Tổng hợp {len(counts)} PI: {agg.n_achieved}/{agg.n_evaluated} lượt SV đạt ({agg.achieved_pct:.2f}%)."
+        summary = f"Tổng hợp {len(counts)} PI: {agg.n_achieved}/{agg.n_evaluated} lượt SV đạt PI ({agg.achieved_pct:.2f}%)."
         db.execute(text("""INSERT INTO plo_results (plo_id, academic_year, n_evaluated, n_achieved, achieved_pct, target_pct,
                                   is_achieved, data_summary, computed_at)
                            VALUES (:plo, :y, :n, :k, :p, :t, :ok, :ds, NOW())
