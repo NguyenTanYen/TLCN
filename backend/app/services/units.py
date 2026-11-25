@@ -30,3 +30,13 @@ def classify_courses(conn) -> int:
                                               AND (pc.knowledge_block IS NULL OR pc.knowledge_block NOT LIKE :b))"""),
                       {"o": OTHER_UNIT, "f": FACULTY_UNIT, "b": GENERAL_ELECTIVE_PREFIX + "%"}).rowcount
     return n
+
+
+MEASUREMENT_PLAN_SQL = """INSERT IGNORE INTO plo_measurement_plans (plo_id, round_no, academic_year, target_pct)
+SELECT pl.id, 1, '2024-2025', 75.00 FROM plos pl JOIN programs g ON g.id = pl.program_id
+WHERE g.code IN ('ATTT-2026', 'CNTT-2026', 'KTDL-2026')"""
+
+
+def seed_measurement_plans(conn) -> int:
+    from sqlalchemy import text
+    return conn.execute(text(MEASUREMENT_PLAN_SQL)).rowcount

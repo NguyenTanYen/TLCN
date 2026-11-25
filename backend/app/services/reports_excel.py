@@ -505,7 +505,7 @@ def _plo_head(ws, row: int, first_label: str) -> None:
 def render_bm3(d: dict) -> bytes:
     prog, plos, year = d["prog"], d["plos"], d["year"]
     s = bm2_summary(d)
-    unit = prog["department"] or "Bộ môn"
+    unit = prog["department"] or prog["faculty"] or "Bộ môn"
     abbr = "".join(w[0] for w in unit.replace("Bộ môn", "").split() if w[:1].isalpha()).upper() or "BM"
     doc_no = f"Số:…../KH-{abbr}"
     vv = f"V/v triển khai đo lường mức độ đạt được chuẩn đầu ra CTĐT {prog['name'].upper()} năm học {year}"

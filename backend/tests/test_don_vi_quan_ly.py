@@ -83,3 +83,21 @@ def test_attt_iot_and_firewall_mapping_fixed():
                              JOIN plos l ON l.id=i.plo_id JOIN programs p ON p.id=l.program_id WHERE p.code='ATTT-2026' AND c.course_code='FTPS433180'""")}
     assert iot == {"PI1.1", "PI1.2", "PI3.1", "PI5.2", "PI6.2"}
     assert fw == {"PI5.2", "PI6.3", "PI7.2"}
+
+
+def test_measurement_plans_for_2026_programs():
+    rows = q("""SELECT g.code, COUNT(*), MIN(m.academic_year), MIN(m.target_pct) FROM plo_measurement_plans m
+                JOIN plos p ON p.id = m.plo_id JOIN programs g ON g.id = p.program_id GROUP BY g.code ORDER BY g.code""")
+    assert [(r[0], r[1], r[2], float(r[3])) for r in rows] == [("ATTT-2026", 7, "2024-2025", 75.0), ("CNTT-2026", 7, "2024-2025", 75.0), ("KTDL-2026", 7, "2024-2025", 75.0)]
+
+
+def test_bm2_header_falls_back_to_faculty(client, admin):
+    import io
+    from docx import Document
+    kid = _program(client, admin, "KTDL-2026")["id"]
+    r = client.get(f"/api/reports/programs/{kid}/bm2.docx?academic_year=2024-2025", headers=admin)
+    assert r.status_code == 200
+    text = "\n".join(p.text for p in Document(io.BytesIO(r.content)).paragraphs)
+    tables = " ".join(c.text for t in Document(io.BytesIO(r.content)).tables for row in t.rows for c in row.cells)
+    assert "KHOA CÔNG NGHỆ THÔNG TIN" in text + tables
+    assert "2024-2025" in tables

@@ -41,7 +41,7 @@ Hệ thống dành cho **giảng viên / bộ môn**; sinh viên làm bài và x
 | `database/03_seed_reference.sql` | Dữ liệu tham chiếu dùng chung: mức Bloom, học kỳ, giảng viên và phân công đánh giá HKI 2023-2024 (sinh bởi `gen_seed_reference.py`); không còn CTĐT KTDL cũ, chỉ dùng 3 CTĐT 2026 |
 | `database/04_ctdt_2026.sql` | CTĐT CNTT 2026, KTDL 2026 đọc từ PDF (sinh bởi `tools/ctdt_2026/doc_ctdt.py`) |
 | `database/05_ctdt_attt_2026.sql` | CTĐT An toàn thông tin 2026 (7 PLO, 17 PI, 57 học phần, 274 ô ma trận) lấy từ PDF của khoa |
-| `database/06_attt_dieu_chinh_theo_bm3.sql` | Điều chỉnh ánh xạ học phần – PI của ATTT 2026 theo bảng BM3 thầy gửi (6 học phần) |
+| `database/06_attt_dieu_chinh_theo_bm3.sql` | Điều chỉnh ánh xạ học phần – PI của ATTT 2026 theo bảng BM3 thầy gửi (6 học phần) và kế hoạch đo PLO lần 1 năm học 2024-2025 (chỉ tiêu 75%) cho ba CTĐT 2026 |
 | `database/00_moodle_subset_for_test.sql` | 22 bảng Moodle 4.4 (từ install.xml) – chỉ dùng cho kiểm thử tự động |
 | `backend/` | FastAPI + SQLAlchemy 2 + Pandas (Analysis Engine), xuất Excel/Word |
 | `frontend/` | React 19 + Vite + Chart.js |

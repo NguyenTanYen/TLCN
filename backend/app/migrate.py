@@ -285,8 +285,11 @@ def upgrade_schema() -> list[str]:
     if need_fix and load_ctdt_2026("06_attt_dieu_chinh_theo_bm3.sql"):
         done.append("điều chỉnh ánh xạ học phần – PI của ATTT 2026 theo BM3")
     with engine.begin() as c:
-        from .services.units import classify_courses
+        from .services.units import classify_courses, seed_measurement_plans
         n = classify_courses(c)
+        m = seed_measurement_plans(c)
+        if m:
+            done.append(f"nạp kế hoạch đo lường PLO năm học 2024-2025 cho {m} PLO của CTĐT 2026")
         if n:
             done.append(f"phân loại đơn vị quản lý cho {n} học phần")
         _retire_legacy_program(c, done)

@@ -50,9 +50,10 @@ def init_db() -> None:
     run_sql_file(DB_DIR / "05_ctdt_attt_2026.sql", name)
     run_sql_file(DB_DIR / "06_attt_dieu_chinh_theo_bm3.sql", name)
     from .database import engine
-    from .services.units import classify_courses
+    from .services.units import classify_courses, seed_measurement_plans
     with engine.begin() as conn:
         classify_courses(conn)
+        seed_measurement_plans(conn)
     print(f"Đã tạo CSDL {name} (58 bảng), nạp dữ liệu tham chiếu và CTĐT CNTT, KTDL, ATTT 2026.")
 
 
