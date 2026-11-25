@@ -101,3 +101,13 @@ def test_bm2_header_falls_back_to_faculty(client, admin):
     tables = " ".join(c.text for t in Document(io.BytesIO(r.content)).tables for row in t.rows for c in row.cells)
     assert "KHOA CÔNG NGHỆ THÔNG TIN" in text + tables
     assert "2024-2025" in tables
+
+
+def test_upgrade_recomputes_stale_pi_results():
+    with engine.begin() as c:
+        c.execute(text("UPDATE pi_results SET n_evaluated = 76, n_achieved = 39"))
+    done = migrate.upgrade_schema()
+    assert any("tính lại kết quả PI/PLO" in d for d in done)
+    rows = q("SELECT n_evaluated, n_achieved FROM pi_results ORDER BY plan_id")
+    assert rows and all(r[0] == 38 for r in rows)
+    assert not any("tính lại kết quả PI/PLO" in d for d in migrate.upgrade_schema())

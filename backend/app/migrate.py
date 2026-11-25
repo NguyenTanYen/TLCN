@@ -293,7 +293,27 @@ def upgrade_schema() -> list[str]:
         if n:
             done.append(f"phân loại đơn vị quản lý cho {n} học phần")
         _retire_legacy_program(c, done)
+    _refresh_pi_results(done)
     return done
+
+
+def _refresh_pi_results(done: list) -> None:
+    from .database import SessionLocal
+    from .services import results
+    snap = "SELECT plan_id, n_evaluated, n_achieved FROM pi_results ORDER BY plan_id"
+    with engine.connect() as c:
+        before = [tuple(r) for r in c.execute(text(snap))]
+        if not c.execute(text("SELECT 1 FROM pi_assessment_plans LIMIT 1")).scalar():
+            return
+    db = SessionLocal()
+    try:
+        results.recompute_pi_plans(db)
+    finally:
+        db.close()
+    with engine.connect() as c:
+        after = [tuple(r) for r in c.execute(text(snap))]
+    if before != after:
+        done.append("tính lại kết quả PI/PLO theo công thức từng sinh viên")
 
 
 def run() -> None:
