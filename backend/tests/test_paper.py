@@ -163,6 +163,12 @@ def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
         img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width).copy()
         files.append(("files", (f"p{k}.jpg", cv2.imencode(".jpg", img)[1].tobytes(), "image/jpeg")))
     assert client.post(f"/api/exams/{eid}/scan/save", headers=gv_other, files=files).status_code == 403
+    sheet_jpg = files[0][1][1]
+    assert client.post(f"/api/exams/{eid}/scan/probe", headers=gv_other, files={"file": ("p.jpg", sheet_jpg, "image/jpeg")}).status_code == 403
+    found = client.post(f"/api/exams/{eid}/scan/probe", headers=gv, files={"file": ("p.jpg", sheet_jpg, "image/jpeg")})
+    assert found.status_code == 200 and found.json()["found"] is True
+    blank_jpg = cv2.imencode(".jpg", np.full((600, 450), 255, np.uint8))[1].tobytes()
+    assert client.post(f"/api/exams/{eid}/scan/probe", headers=gv, files={"file": ("b.jpg", blank_jpg, "image/jpeg")}).json()["found"] is False
     r = client.post(f"/api/exams/{eid}/scan/save", headers=gv, files=files)
     assert r.status_code == 200, r.text
     d = r.json()

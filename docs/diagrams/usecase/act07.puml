@@ -4,7 +4,7 @@
 start
 :Mở "Tổng hợp PLO", chọn năm học;
 |Hệ thống|
-:Đọc 19 PLO ⟕ plo_results của năm học;
+:Đọc 7 PLO của CTĐT ⟕ plo_results của năm học;
 :Tính tỷ lệ toàn CTĐT = Σ đạt / Σ đánh giá\ncủa các PLO đã đo;
 |Bộ môn|
 :Xem biểu đồ PLO đã đo so với chỉ tiêu và bảng tất cả PLO;

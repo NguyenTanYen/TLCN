@@ -8,13 +8,13 @@ subgraph cluster_lms { label="Moodle 4.5 LMS (PHP)"; style="rounded,filled"; fil
   plugin [label="Plugin local_clo\nnút \"Phân tích CĐR\" (SSO)\nWeb Service create_quiz / push_results\ntrang \"Kết quả phân tích CĐR\"", fillcolor="#FDE9E7"]; }
 subgraph cluster_sys { label="Hệ thống phân tích CĐR (FastAPI + React) – dành cho GV / Bộ môn"; style="rounded,filled"; fillcolor="#F4FBF4"; color="#88AA88";
   spa [label="React 19 SPA\nVite · Chart.js"];
-  routers [label="Routers REST\nauth · catalog · courses · questions · question_io\nexams · sync · lms · analytics · insights · reports"];
-  svc [label="Services\nxml_export · paper · reports_excel\nmoodle (cầu nối) · lms (Web Service)"];
+  routers [label="Routers REST (21 nhóm, 182 endpoint)\nauth · catalog · programs · courses · syllabi · questions · question_io\nexams · paper_exam · grading · rubrics · sync · qsync · lms\nanalytics · insights · remedial · improvement · reports\nsection_materials · dashboard"];
+  svc [label="Services (20 mô-đun)\nxml_export · paper · omr · reports_excel/word · syllabus\nmoodle (cầu nối) · lms (Web Service) · qsync · units\nrag: chỉ mục BM25 + vectơ · kiểm tra đúng môn"];
   ae [label="Analysis Engine (Pandas)\np, DI · CLO → PI → PLO · lộ trình", fillcolor="#FFF4D6"]; }
 subgraph cluster_db { label="MySQL / MariaDB (cùng một máy chủ)"; style="rounded,filled"; fillcolor="#FFFBF2"; color="#AA9966";
   mdb [label="moodle_db\nmdl_* · mdl_local_clo_*", shape=cylinder, fillcolor="#E6F4F4"];
   bridge [label="Cầu nối (chỉ đọc)\nv_mdl_* · sp_sync_exam", shape=component, fillcolor="#FDE9E7"];
-  adb [label="assessment_db\n57 bảng · 10 view", shape=cylinder, fillcolor="#FFF7D6"]; }
+  adb [label="assessment_db\n58 bảng · 10 view", shape=cylinder, fillcolor="#FFF7D6"]; }
 {rank=same; sv; gv; bm;}
 {rank=same; theme; spa;}
 {rank=same; quiz; plugin; routers;}

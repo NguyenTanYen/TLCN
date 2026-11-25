@@ -49,7 +49,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | BM16 | **+ Phân công**: học kỳ, môn, GV (hoặc "Tất cả thầy/cô có hướng dẫn"), ghi chú → Lưu. Thử tạo trùng. Bấm **Xuất bảng phân công** | Có dòng phân công. Trùng → báo lỗi. Tải được Excel | ☐ |
 | BM17 | **Tổng hợp PLO** → CTĐT KTDL-2026 → năm 2024-2025 → **Tính lại**. Bấm **Nhận xét** một PLO → nhập → Lưu | Bảng PLO có tỷ lệ đạt / Đạt–Không đạt. Nhận xét được lưu | ☐ |
 | BM18 | **⬇ Xuất BM2/BM3 (.xlsx)** và **⬇ Xuất BM2 (.docx)** | Tải được 2 tệp, mở ra đúng bố cục biểu mẫu | ☐ |
-| BM19 | **Kết nối Moodle** | Cầu nối CSDL OK. Web Service kết nối được, thấy 7 hàm `local_clo_*` (có `local_clo_restrict_users`). SSO đã cấu hình | ☐ |
+| BM19 | **Kết nối Moodle** | Cầu nối CSDL OK. Web Service kết nối được, thấy 9 hàm `local_clo_*` (có `local_clo_restrict_users`). SSO đã cấu hình | ☐ |
 | BM20 | Học phần DBMS330284 → **Kết quả CĐR của môn** → chọn học kỳ | Kết quả CLO của môn, gộp mọi lớp | ☐ |
 
 ---

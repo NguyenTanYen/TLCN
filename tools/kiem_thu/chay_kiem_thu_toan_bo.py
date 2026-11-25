@@ -14,7 +14,7 @@ ROOT = HERE.parents[1]
 BACKEND = ROOT / "backend"
 OUT_DIR = ROOT / "docs" / "kiem_thu"
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(BACKEND))
-from mo_ta_ca_kiem_thu import M, NHOM
+from mo_ta_ca_kiem_thu import FILE_GROUP, M, NHOM, RAG_GROUP
 
 GIAO_DIEN = [
     ("GV", "Đăng nhập", "Mở http://localhost:8000, đăng nhập gv.son / Gv@123456", "Vào trang 'Môn học của tôi'; tên GV ở góc trên bên phải"),
@@ -52,7 +52,7 @@ GIAO_DIEN = [
     ("SV", "Xem kết quả trên Moodle", "Đăng nhập Moodle bằng SV → khóa học → Kết quả phân tích CĐR", "Điểm, CLO đạt/chưa đạt, lộ trình ôn tập; bài chưa công bố không hiện"),
     ("GV", "Liên kết lớp ⇄ Moodle", "Lớp chưa gắn Moodle → 'Tự nối theo mã lớp'; hoặc bấm 'Phân tích CĐR' trong khóa trùng mã", "Lớp được gắn với khóa học có shortname = mã lớp"),
     ("Bộ môn", "Kế hoạch đo PI (BM3b), Tổng hợp PLO", "Kế hoạch đo PI → thêm/sửa; Tổng hợp PLO → xuất Excel/Word", "BM2, BM3 đúng biểu mẫu"),
-    ("Bộ môn", "Kết nối Moodle", "Kết nối Moodle", "CSDL Moodle đọc được, cầu nối đã cài, Web Service OK (7 hàm)"),
+    ("Bộ môn", "Kết nối Moodle", "Kết nối Moodle", "CSDL Moodle đọc được, cầu nối đã cài, Web Service OK (9 hàm)"),
     ("GV", "Tạo bài KT ở trang môn học, giao lớp khi xuất", "Môn học của tôi → '+ Tạo bài kiểm tra' ở môn DBMS330284 → chọn hình thức (3 thẻ) → soạn đề → Lưu đề của môn → 'Giao cho lớp HP / Xuất' → chọn lớp 02", "Hộp chọn hình thức hiển thị đủ chữ, không cuộn ngang; đề nằm ở thẻ Đề kiểm tra của môn; lớp 02 có bài mới 'giao từ đề #…'; giao lại lớp đã có bị bỏ qua"),
     ("GV", "Thời gian làm bài & cảnh báo", "Bài Thi cuối kỳ (Moodle) > thẻ 'Thời gian làm bài'; bấm 'Diễn biến' của SV 22130017; đổi ngưỡng giây/câu rồi Áp dụng; Xuất Excel", "4 SV bị cảnh báo (2 làm quá nhanh, 2 để hết giờ tự nộp); biểu đồ từng câu; danh sách đổi theo ngưỡng; tải được Excel"),
 ]
@@ -102,7 +102,8 @@ def main():
         name, f = tc.get("name"), tc.get("classname", "").split(".")[-1]
         bad = tc.find("failure") if tc.find("failure") is not None else tc.find("error")
         skip = tc.find("skipped") is not None
-        g, title, what, expect = M.get(name, (len(NHOM) - 1, name, "", ""))
+        default_g = RAG_GROUP if f.startswith("test_rag_") else FILE_GROUP.get(f, 12)
+        g, title, what, expect = M.get(name, (default_g, name.removeprefix("test_").replace("_", " "), f"Hàm {name} trong {f}.py", "Đạt khi mọi khẳng định trong ca đúng"))
         cases.append({"file": f, "name": name, "group": NHOM[g], "title": title, "what": what, "expect": expect,
                       "result": "BỎ QUA" if skip else ("KHÔNG ĐẠT" if bad is not None else "ĐẠT"),
                       "msg": (bad.get("message") or "")[:300] if bad is not None else "", "time": float(tc.get("time", 0))})
@@ -140,18 +141,20 @@ def main():
     ws = wb.active; ws.title = "Tong hop"
     ws["A1"] = "KẾT QUẢ KIỂM THỬ TOÀN BỘ CHỨC NĂNG – HỆ THỐNG KHẢO THÍ & ĐÁNH GIÁ CĐR"; ws["A1"].font = Font(bold=True, size=14)
     ws["A2"] = f"Thời điểm chạy: {dt.datetime.now():%d/%m/%Y %H:%M} · Python {sys.version.split()[0]} · CSDL: kiểm thử dựng lại assessment_db"
-    ws["A3"] = f"Ca kiểm thử tự động: {n_ok}/{len(cases)} đạt · Độ phủ API: {n_cov}/{len(routes)} endpoint được gọi thành công"
-    ws["A3"].font = Font(bold=True, color="006100" if n_ok == len(cases) else "9C0006")
+    ws["A3"] = f"Ca kiểm thử tự động: {n_ok}/{len(cases)} đạt, {sum(c['result'] == 'BỎ QUA' for c in cases)} bỏ qua (cần mô hình VLM), {sum(c['result'] == 'KHÔNG ĐẠT' for c in cases)} lỗi · Độ phủ API: {n_cov}/{len(routes)} endpoint được gọi thành công"
+    ws["A3"].font = Font(bold=True, color="006100" if not any(c["result"] == "KHÔNG ĐẠT" for c in cases) else "9C0006")
     rows = []
     for g in NHOM:
         cs = [c for c in cases if c["group"] == g]
         if cs:
-            rows.append([g, len(cs), sum(c["result"] == "ĐẠT" for c in cs), sum(c["result"] == "KHÔNG ĐẠT" for c in cs),
-                         "ĐẠT" if all(c["result"] == "ĐẠT" for c in cs) else "KHÔNG ĐẠT"])
-    rows.append(["TỔNG", len(cases), n_ok, len(cases) - n_ok, "ĐẠT" if n_ok == len(cases) else "KHÔNG ĐẠT"])
-    table(ws, ["Nhóm chức năng", "Số ca", "Đạt", "Không đạt", "Kết luận"], rows, [55, 10, 10, 12, 14], start=5)
+            rows.append([g, len(cs), sum(c["result"] == "ĐẠT" for c in cs), sum(c["result"] == "BỎ QUA" for c in cs),
+                         sum(c["result"] == "KHÔNG ĐẠT" for c in cs),
+                         "ĐẠT" if not any(c["result"] == "KHÔNG ĐẠT" for c in cs) else "KHÔNG ĐẠT"])
+    n_skip = sum(c["result"] == "BỎ QUA" for c in cases); n_fail = sum(c["result"] == "KHÔNG ĐẠT" for c in cases)
+    rows.append(["TỔNG", len(cases), n_ok, n_skip, n_fail, "ĐẠT" if not n_fail else "KHÔNG ĐẠT"])
+    table(ws, ["Nhóm chức năng", "Số ca", "Đạt", "Bỏ qua", "Không đạt", "Kết luận"], rows, [62, 10, 10, 10, 12, 14], start=5)
     for r in ws.iter_rows(min_row=6, max_row=5 + len(rows)):
-        r[4].fill = green if r[4].value == "ĐẠT" else red
+        r[5].fill = green if r[5].value == "ĐẠT" else red
     ws.cell(7 + len(rows), 1, "Kiểm thử bổ sung (ngoài pytest): tools/moodle_e2e/run_real_moodle_e2e.py (Moodle 4.5 thật), "
                               "tools/moodle_e2e/kiem_tra_dong_bo_cau_hoi.py, tools/kiem_tra_do_luong.py (tính lại độc lập các độ đo), "
                               "tools/omr/kiem_tra_omr.py (độ bền chấm phiếu), backend/tests/ui_screens.py (duyệt giao diện).")
@@ -162,7 +165,7 @@ def main():
            for i, c in enumerate(sorted(cases, key=lambda c: (NHOM.index(c["group"]), c["file"])), 1)],
           [6, 30, 34, 50, 40, 12, 10, 40, 30])
     for r in ws.iter_rows(min_row=2):
-        r[5].fill = green if r[5].value == "ĐẠT" else red
+        r[5].fill = green if r[5].value in ("ĐẠT", "BỎ QUA") else red
 
     ws = wb.create_sheet("Do phu API")
     table(ws, ["STT", "Phương thức", "Đường dẫn", "Nhóm", "Mô tả", "Gọi thành công", "Ca kiểm thử gọi"],
@@ -188,7 +191,7 @@ def main():
     if n_cov < len(routes):
         print("Endpoint chưa được gọi thành công:", [f"{r['method']} {r['path']}" for r in routes if not r["ok"]])
     print("Bảng kết quả:", out)
-    return 0 if code == 0 and n_ok == len(cases) else 1
+    return 0 if code == 0 and not n_fail else 1
 
 
 if __name__ == "__main__":

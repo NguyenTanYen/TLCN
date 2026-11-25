@@ -10,7 +10,7 @@ BM -> UI : mở "Tổng hợp PLO", chọn năm học
 UI -> RP : GET /api/reports/programs/{pid}/plo-summary?academic_year
 RP -> DB : plos ⟕ plo_results (năm học)
 RP -> RP : CTĐT = Σ đạt / Σ đánh giá các PLO đã đo
-RP --> UI : biểu đồ PLO đã đo, bảng 19 PLO, kết quả CTĐT
+RP --> UI : biểu đồ PLO đã đo, bảng 7 PLO của CTĐT, kết quả CTĐT
 opt dữ liệu đã thay đổi
   BM -> UI : "Tính lại"
   UI -> RP : POST /api/reports/programs/{pid}/recompute

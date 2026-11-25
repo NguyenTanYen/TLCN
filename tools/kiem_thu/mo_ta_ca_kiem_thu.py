@@ -13,7 +13,17 @@ NHOM = [
     "11. Thống kê lớp, hồ sơ sinh viên",
     "12. Nâng cấp CSDL, cầu nối",
     "13. Thời gian làm bài & cảnh báo bất thường",
+    "14. Học liệu, gợi ý ôn tập và lời giải thích có trích trang (RAG)",
 ]
+
+FILE_GROUP = {
+    "test_cancel_reanalyze": 5, "test_clo_pi": 5, "test_pi_per_student": 5,
+    "test_dashboard": 1, "test_don_vi_quan_ly": 1, "test_syllabus_versions": 1,
+    "test_hardening": 0, "test_improvement": 7, "test_remedial_progress": 7, "test_rubric": 7,
+    "test_lms_search": 9, "test_sso": 9, "test_omr_anh_that": 8, "test_paper": 8, "test_upgrade": 11,
+}
+RAG_GROUP = 13
+
 
 M = {
     "test_login_wrong_password": (0, "Đăng nhập sai mật khẩu", "POST /api/auth/login với mật khẩu sai", "401, không cấp token"),

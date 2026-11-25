@@ -92,16 +92,27 @@ pi = q("""SELECT p.id plan_id, p.target_pct, pr.n_evaluated, pr.n_achieved, pr.a
           LEFT JOIN pi_results pr ON pr.plan_id=p.id LEFT JOIN pi_plan_clos pc ON pc.plan_id=p.id
           GROUP BY p.id, p.target_pct, pr.n_evaluated, pr.n_achieved, pr.achieved_pct, pr.is_achieved,
                    p.course_id, p.semester_id, pi.plo_id, s.academic_year""")
-cs_info = q("SELECT id, course_id, semester_id FROM class_sections")
+acr = q("""SELECT a.student_id, r.clo_id, r.score_earned earned, r.score_max smax, cs.course_id, cs.semester_id, e.assessment_type
+           FROM attempt_clo_results r JOIN exam_attempts a ON a.id=r.attempt_id JOIN exams e ON e.id=a.exam_id
+           JOIN class_sections cs ON cs.id=e.class_section_id
+           WHERE a.status='finished' AND e.status='Analyzed' AND e.counts_for_clo=1""")
+cplan = q("SELECT clo_id, semester_id, pass_threshold_pct thr, evidence_type ev FROM clo_assessment_plans")
+acr = acr.merge(cplan, on=["clo_id", "semester_id"], how="left")
+acr["thr"] = acr.thr.fillna(60.0).astype(float)
+acr["ev"] = acr.ev.fillna("any")
+acr = acr[(acr.ev == "any") | (acr.ev == acr.assessment_type)].copy()
+acr["earned"] = acr.earned.astype(float); acr["smax"] = acr.smax.astype(float)
+acr["need"] = acr.smax * acr.thr / 100
 plo_sum = {}
 for _, r in pi.iterrows():
     if pd.isna(r.n_evaluated): continue
     if r.clos: clos = [int(x) for x in str(r.clos).split(",")]
     else:
         clos = q(f"""SELECT DISTINCT m.clo_id FROM clo_plo_mapping m JOIN clos c ON c.id=m.clo_id WHERE m.plo_id={r.plo_id} AND c.course_id={r.course_id}""").clo_id.tolist()
-    css = cs_info[(cs_info.course_id == r.course_id) & (cs_info.semester_id == r.semester_id)].id.tolist()
-    sub = cr[cr.class_section_id.isin(css) & cr.clo_id.isin(clos)]
-    ne, na = int(sub.n_evaluated.sum()), int(sub.n_achieved.sum())
+    sub = acr[(acr.course_id == r.course_id) & (acr.semester_id == r.semester_id) & acr.clo_id.isin(clos)]
+    per = sub.groupby("student_id")[["earned", "smax", "need"]].sum()
+    per = per[per.smax > 0]
+    ne, na = int(len(per)), int((per.earned + 1e-9 >= per.need).sum())
     n_checks += 2; chk(f"PI plan {r.plan_id} n_đánh giá", ne, r.n_evaluated, 0); chk(f"PI plan {r.plan_id} n_đạt", na, r.n_achieved, 0)
     k = (r.plo_id, r.academic_year); plo_sum.setdefault(k, [0, 0]); plo_sum[k][0] += ne; plo_sum[k][1] += na
 pr = q("SELECT p.plo_code, r.plo_id, r.academic_year, r.n_evaluated, r.n_achieved, r.achieved_pct, r.target_pct, r.is_achieved FROM plo_results r JOIN plos p ON p.id=r.plo_id")
