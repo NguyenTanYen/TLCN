@@ -1,6 +1,7 @@
 import contextlib, io, os
 
 os.environ["MOODLE_DB_NAME"] = "moodle_sim"
+os.environ["DEMO_MODE"] = "false"
 os.environ["RAG_VLM_MODEL"] = ""
 os.environ["RAG_LLM_MODEL"] = ""
 _env = os.path.join(os.path.dirname(__file__), "..", "cau_hinh.env")

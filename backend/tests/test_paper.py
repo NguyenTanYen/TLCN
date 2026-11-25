@@ -88,7 +88,8 @@ def test_system_paper_exam_end_to_end(client, gv, gv_other):
     r = client.post(f"/api/exams/{eid}/scan/commit", headers=gv, json={"sheets": [{k: s[k] for k in ("student_code", "version_code", "answers", "source_name")}
                                                                                   for s in sheets]})
     assert r.status_code == 200, r.text
-    assert r.json()["saved"] == 6 and r.json()["absent"] == 34 and r.json()["analysis"]["n_students"] == 6
+    roster = _q("SELECT COUNT(*) FROM enrollments WHERE class_section_id=1")[0][0]
+    assert r.json()["saved"] == 6 and r.json()["absent"] == roster - 6 and r.json()["analysis"]["n_students"] == 6
     tot = dict(_q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
                      WHERE a.exam_id=:e AND a.status='finished'""", e=eid))
     assert float(tot[studs[0]]) == truth[studs[0]] + 1 and all(float(tot[c]) == truth[c] for c in studs[1:])
