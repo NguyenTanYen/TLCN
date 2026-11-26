@@ -47,6 +47,7 @@ Khi Bộ môn tạo lớp (hoặc đổi giảng viên) trong hệ thống, hệ
 ```
 docker compose -f docker-compose.prod.yml -f docker-compose.override.yml --env-file .env --profile demo run --rm --build demo
 ```
+Chạy lại lệnh trên (hoặc `bash dat_lai_du_lieu_demo.sh`, có sao lưu CSDL trước) sẽ đặt lại toàn bộ dữ liệu demo về bộ minh họa ban đầu; mọi dữ liệu thử đã thêm vào khóa học DBMS330284_01 và hệ thống sẽ mất.
 Tài khoản: gv.son / Gv@123456 · admin / Admin@123 (hệ thống) · sinh viên 22130001… / Sv@123456 (Moodle).
 
 ## 7. Vận hành

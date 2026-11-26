@@ -43,10 +43,17 @@ def main():
             for eq in exam.questions:
                 q = eq.question
                 b, corr = meta[q.content]
+                rng.shuffle(list(range(len(q.options))))
                 ans[f"QB-{q.id}"] = cli._answer(rng, theta[i] - (0.4 if k < n_att else 0), b, len(q.options), corr, q.content == trap)
             done = [qk for qk, v in ans.items() if v is not None]
-            offs, finish, _ = cli.timing_plan(trng, i, len(done), last_attempt=k == n_att)
-            spec["attempts"].append({"username": code, "answers": ans, "timing": {"offsets": dict(zip(done, offs)), "finish": finish}})
+            offs, finish, kind = cli.timing_plan(trng, i, len(done), last_attempt=k == n_att)
+            final, changed = {}, {}
+            for qk, off in zip(done, offs):
+                if kind == "binh_thuong" and trng.random() < 0.12 and off > 20:
+                    changed[qk] = off - trng.randint(5, 15)
+                    off += trng.randint(30, 400) if trng.random() < 0.5 else 0
+                final[qk] = min(off, finish)
+            spec["attempts"].append({"username": code, "answers": ans, "timing": {"offsets": final, "changed": changed, "finish": finish}})
     (WORK / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=1), encoding="utf-8")
     php = os.getenv("PHP_BIN") or shutil.which("php8.3") or shutil.which("php") or r"D:\xampp\php\php.exe"
     out = subprocess.run([php,

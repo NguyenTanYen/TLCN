@@ -82,18 +82,23 @@ function take_attempt($quizid, $user, $answers, $time, $timing = null) {
         if ($pos === null) { continue; }
         $ids = array_keys($q->answers); sort($ids);
         $field = array_search($ids[$pos], $q->get_order($qa));
-        $one = [$qa->get_control_field_name('sequencecheck') => (string)$qa->get_sequence_check_count(),
-                $qa->get_qt_field_name('answer') => (string)$field];
-        $post += $one;
-        $each[] = [(int)($timing['offsets'][$q->idnumber] ?? 0), $slot, $one];
+        $post += [$qa->get_control_field_name('sequencecheck') => (string)$qa->get_sequence_check_count(),
+                  $qa->get_qt_field_name('answer') => (string)$field];
+        $each[] = [(int)($timing['offsets'][$q->idnumber] ?? 0), $slot, $field, false];
+        if (isset($timing['changed'][$q->idnumber])) {
+            $each[] = [(int)$timing['changed'][$q->idnumber], $slot, ($field + 1) % count($ids), true];
+        }
     }
     if (!$timing) {
         $ao->process_submitted_actions($time, false, $post);
         $ao->process_finish(max($time, time()), false);
         return $attempt->id;
     }
-    usort($each, fn($a, $b) => $a[0] <=> $b[0]);
-    foreach ($each as [$off, $slot, $one]) {
+    usort($each, fn($a, $b) => $a[0] <=> $b[0] ?: ((int)$b[3] <=> (int)$a[3]));
+    foreach ($each as [$off, $slot, $field]) {
+        $qa = $ao->get_question_attempt($slot);
+        $one = [$qa->get_control_field_name('sequencecheck') => (string)$qa->get_sequence_check_count(),
+                $qa->get_qt_field_name('answer') => (string)$field];
         $ao->process_submitted_actions($tstart + $off, false, $one + ['slots' => (string)$slot]);
         $ao = quiz_attempt::create($attempt->id);
     }
