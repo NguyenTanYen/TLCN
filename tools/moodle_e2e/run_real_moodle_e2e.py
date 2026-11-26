@@ -76,7 +76,12 @@ def main():
         moodle.sync_exam(db, exam.id); results.analyze_exam(db, exam.id)
         print(f"\n== grademethod={gm}: {label}")
         reports[label] = verify(exam.id, info["quiz_id"], spec, gm)
-    reports["hoc_lieu"] = materials_on_moodle(db, exam, info)
+    try:
+        reports["hoc_lieu"] = materials_on_moodle(db, exam, info)
+    except Exception as ex:
+        db.rollback()
+        print("Học liệu chưa nạp được trong bước này, bước đồng bộ học liệu sau đó sẽ nạp:", ex)
+        reports["hoc_lieu"] = None
     reports["day_ket_qua_len_moodle"] = push_to_moodle(db, exam)
     reports["bai_thi_giay"] = paper_on_moodle(db, info, php)
     (WORK / "verification.json").write_text(json.dumps({"moodle": info, "ket_qua": reports}, ensure_ascii=False, indent=1), encoding="utf-8")
