@@ -473,3 +473,12 @@ body { background: var(--bg); }
 
 .tbl td.row { display: table-cell; }
 .tbl td.row > * { margin-right: 8px; margin-bottom: 4px; vertical-align: middle; }
+
+.paper-review { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.paper-scan img { width: 100%; border: 1px solid var(--line); border-radius: 6px; cursor: zoom-in; background: #fff; }
+.paper-qs { min-width: 0; overflow-x: auto; } .paper-qs td:last-child { white-space: nowrap; }
+.paper-qs .opts { margin: 4px 0 0; padding-left: 0; list-style: none; font-size: 12.5px; }
+.paper-qs tr.row-wrong td { background: rgba(220, 38, 38, .05); }
+.lightbox { position: fixed; inset: 0; background: rgba(0, 0, 0, .8); display: flex; align-items: center; justify-content: center; z-index: 1000; cursor: zoom-out; padding: 16px; }
+.lightbox img { max-width: 100%; max-height: 100%; background: #fff; }
+@media (max-width: 900px) { .paper-review { grid-template-columns: 1fr; } }

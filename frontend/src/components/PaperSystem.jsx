@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { ActionButton, Badge, Card, Field, FileButton, Loading, Modal, Stat, useToast } from './ui'
 import { useApi } from '../hooks'
@@ -232,7 +233,7 @@ function Scan({ e, st, reload }) {
   const [last, setLast] = useState(null)
   const [errs, setErrs] = useState([])
   const [busy, setBusy] = useState(false)
-  const [filter, setFilter] = useState('review')
+  const [filter, setFilter] = useState(null)
   const [cur, setCur] = useState(null)
   const [edit, setEdit] = useState(null)
   const keys = useMemo(() => Object.fromEntries(st.versions.map(v => [v.version_code, Object.fromEntries(v.questions.map(q => [String(q.position), q]))])), [st.versions])
@@ -261,7 +262,9 @@ function Scan({ e, st, reload }) {
     } catch (err) { setLast({ bad: true, text: err.message }) }
   }
   const open = async id => { setCur(null); setEdit(null); const r = await api.get(`/api/exams/${e.id}/scan/sheets/${id}`); setCur(r); setEdit({ student_code: r.student_code, version_code: r.version_code, answers: r.answers }) }
-  const rows = (d?.sheets || []).filter(x => filter === 'all' || x.status === 'review')
+  const studentId = code => d?.roster.find(r => r.student_code === code)?.student_id
+  const fl = filter ?? (d?.n_review ? 'review' : 'all')
+  const rows = (d?.sheets || []).filter(x => fl === 'all' || x.status === 'review')
   const score = () => { const k = keys[edit?.version_code]; if (!k || !edit) return null; return Object.entries(edit.answers).reduce((a, [p, l]) => a + (k[p] && l === k[p].answer ? k[p].points : 0), 0) }
   const save = async () => {
     try { const r = await api.patch(`/api/exams/${e.id}/scan/sheets/${cur.id}`, edit)
@@ -283,9 +286,9 @@ function Scan({ e, st, reload }) {
       <div className="stats mt"><Stat label="Đã chấm vào kết quả lớp" value={d.n_saved} tone="green" />
         <Stat label="Cần xử lý (MSSV / mã đề)" value={d.n_review} tone={d.n_review ? 'amber' : ''} />
         <Stat label="SV chưa có phiếu" value={d.n_absent_if_finish} sub="sẽ tính vắng khi hoàn tất" /></div>
-      <div className="tabs mt"><button className={filter === 'review' ? 'on' : ''} onClick={() => setFilter('review')}>Cần xử lý ({d.n_review})</button>
-        <button className={filter === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>Tất cả phiếu ({d.sheets.length})</button></div>
-      {rows.length === 0 ? <p className="muted mt">{filter === 'review' ? 'Không còn phiếu nào cần xử lý.' : 'Chưa quét phiếu nào.'}</p> :
+      <div className="tabs mt"><button className={fl === 'review' ? 'on' : ''} onClick={() => setFilter('review')}>Cần xử lý ({d.n_review})</button>
+        <button className={fl === 'all' ? 'on' : ''} onClick={() => setFilter('all')}>Tất cả phiếu ({d.sheets.length})</button></div>
+      {rows.length === 0 ? <p className="muted mt">{fl === 'review' ? 'Không còn phiếu nào cần xử lý.' : 'Chưa quét phiếu nào.'}</p> :
         <table className="tbl compact mt"><thead><tr><th>Tệp</th><th>MSSV đọc được</th><th>Họ tên</th><th>Mã đề</th><th className="num-c">Điểm</th><th>Trạng thái</th></tr></thead>
           <tbody>{rows.map(x => <tr key={x.id} className={`click ${cur?.id === x.id ? 'sel' : ''}`} onClick={() => open(x.id)}>
             <td className="small">{x.source_name}</td><td className={x.status === 'review' ? 'bad-t' : ''}>{x.student_code || '?'}</td>
@@ -313,6 +316,8 @@ function Scan({ e, st, reload }) {
           <div className="row gap"><button className="btn primary sm" onClick={save}>Lưu sửa &amp; chấm lại</button>
             <ActionButton className="btn sm ghost" confirm="Xóa phiếu này? Nếu đã chấm vào kết quả lớp thì kết quả đó cũng bị gỡ." okMsg={() => 'Đã xóa phiếu'}
               onRun={async () => { await api.del(`/api/exams/${e.id}/scan/sheets/${cur.id}`); setCur(null); setEdit(null); refresh(); return {} }}>Xóa phiếu</ActionButton>
+            {cur.status === 'saved' && e.status === 'Analyzed' && studentId(cur.student_code) &&
+              <Link className="btn sm" to={`/sections/${e.class_section_id}/students/${studentId(cur.student_code)}?exam=${e.id}`}>Xem hồ sơ & từng câu đúng/sai của SV</Link>}
             <button className="btn sm ghost" onClick={() => { setCur(null); setEdit(null) }}>Đóng</button></div>
         </div>
       </div>}

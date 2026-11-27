@@ -46,18 +46,25 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
             my_raw = float(db.execute(text("SELECT total_score FROM exam_attempts WHERE id=:a"), {"a": att["id"]}).scalar())
             rank = 1 + sum(1 for s in scores if s > my_raw + 1e-9)
             answers = rows(db, """
-                SELECT eq.order_index, q.id AS question_id, q.content, r.response_status, r.is_correct, r.score_earned, eq.points, r.response_time_sec, r.n_answer_saves,
-                       (SELECT o.opt_label FROM question_options o WHERE o.id=r.selected_option_id) AS chosen,
-                       (SELECT GROUP_CONCAT(o.opt_label ORDER BY o.position SEPARATOR ',') FROM question_options o
-                         WHERE o.question_id=q.id AND o.is_correct=1) AS correct,
+                SELECT COALESCE(vq.position, eq.order_index) AS order_index, q.id AS question_id, q.content, r.response_status, r.is_correct, r.score_earned, eq.points, r.response_time_sec, r.n_answer_saves,
+                       COALESCE((SELECT vo.displayed_label FROM exam_version_options vo
+                                  WHERE vo.version_id=a.version_id AND vo.question_id=q.id AND vo.option_id=r.selected_option_id),
+                                (SELECT o.opt_label FROM question_options o WHERE o.id=r.selected_option_id)) AS chosen,
+                       COALESCE((SELECT GROUP_CONCAT(vo.displayed_label ORDER BY vo.displayed_label SEPARATOR ',')
+                                   FROM exam_version_options vo JOIN question_options o ON o.id=vo.option_id
+                                  WHERE vo.version_id=a.version_id AND vo.question_id=q.id AND o.is_correct=1),
+                                (SELECT GROUP_CONCAT(o.opt_label ORDER BY o.position SEPARATOR ',') FROM question_options o
+                                  WHERE o.question_id=q.id AND o.is_correct=1)) AS correct,
                        (SELECT CONCAT('Chương ', o.chapter_number) FROM course_outlines o WHERE o.id=q.outline_id) AS chapter,
                        (SELECT GROUP_CONCAT(c.clo_code ORDER BY c.clo_code) FROM question_clo_mapping m JOIN clos c ON c.id=m.clo_id
                          WHERE m.question_id=q.id) AS clos,
                        b.name_vi AS bloom, st.p_value
-                FROM item_level_results r JOIN exam_questions eq ON eq.exam_id=:e AND eq.question_id=r.question_id
+                FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
+                JOIN exam_questions eq ON eq.exam_id=:e AND eq.question_id=r.question_id
+                LEFT JOIN exam_version_questions vq ON vq.version_id=a.version_id AND vq.question_id=r.question_id
                 JOIN question_bank q ON q.id=r.question_id JOIN bloom_levels b ON b.id=q.bloom_level_id
                 LEFT JOIN item_statistics st ON st.exam_id=:e AND st.question_id=q.id
-                WHERE r.attempt_id=:a ORDER BY eq.order_index""", e=ex["id"], a=att["id"])
+                WHERE r.attempt_id=:a ORDER BY COALESCE(vq.position, eq.order_index)""", e=ex["id"], a=att["id"])
             for a in answers:
                 a["result"] = "blank" if a["response_status"] == "blank" or not a["chosen"] else ("correct" if a["is_correct"] else "wrong")
                 a["is_correct"] = bool(a["is_correct"])

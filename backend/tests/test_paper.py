@@ -243,6 +243,11 @@ def test_demo_bai_giay_cham_tren_he_thong_va_sinh_vien_xem_lai(client, gv):
     assert [q["no"] for q in a["review"]] == [x["no"] for x in a["answers"]]
     assert [q["text"] for q in a["review"]] != [q["text"] for q in b["review"]]
     assert rows["22130006"]["status"] == "absent" and not rows["22130006"]["data"]
+    sid = {r["student_code"]: r["student_id"] for r in sheets["roster"]}
+    prof = client.get(f"/api/class-sections/1/students/{sid['22130002']}/profile", headers=gv).json()
+    ex = next(x for x in prof["exams"] if x["id"] == eid)
+    assert ex["version"] == "02" and ex["scan"].startswith("data:image/jpeg")
+    assert [(x["order_index"], x["chosen"], x["correct"]) for x in ex["answers"]] == [(q["no"], q["chosen"], q["correct"]) for q in a["review"]]
     with engine.begin() as c:
         c.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": eid})
         c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})

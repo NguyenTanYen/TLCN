@@ -402,7 +402,7 @@ def scan_sheets(exam_id: int, u: User = Depends(lecturer_only), db: Session = De
                            "FROM scan_sheets WHERE exam_id=:e AND status<>'superseded' ORDER BY (status='review') DESC, id DESC"), {"e": exam_id}).mappings().all()
     sheets = [_sheet_row(r, roster) for r in rows]
     return {"sheets": sheets, "n_saved": sum(1 for s in sheets if s["status"] == "saved"), "n_review": sum(1 for s in sheets if s["status"] == "review"),
-            "roster": [{"student_code": c, "full_name": n} for c, (_i, n) in sorted(roster.items())],
+            "roster": [{"student_code": c, "full_name": n, "student_id": i} for c, (i, n) in sorted(roster.items())],
             "n_absent_if_finish": sum(1 for c, (sid, _n) in roster.items()
                                       if not db.execute(text("SELECT 1 FROM exam_attempts WHERE exam_id=:e AND student_id=:s AND status<>'absent'"), {"e": exam_id, "s": sid}).scalar())}
 

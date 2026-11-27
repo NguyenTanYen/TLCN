@@ -72,8 +72,9 @@ function ExamBlock({ e }) {
         <Stat label="Điểm" value={`${e.score} / ${e.max_score}`} sub={`TB lớp ${e.class_mean}`} tone={e.score >= e.max_score / 2 ? 'green' : 'red'} />
         <Stat label="Xếp hạng trong lớp" value={`${e.rank}/${e.n_finished}`} sub="theo điểm, SV dự thi" />
         <Stat label="Trả lời" value={`${cnt('correct')} đúng`} sub={`${cnt('wrong')} sai · ${cnt('blank')} bỏ trống`} />
-        <Stat label="Hiển thị cho SV trên Moodle" value={e.publish_flag ? 'Đã công bố' : 'Đang bảo lưu'} sub={e.source === 'paper' ? 'bài làm trên giấy' : 'bài làm Moodle'} tone={e.publish_flag ? 'green' : ''} />
+        <Stat label="Hiển thị cho SV trên Moodle" value={e.publish_flag ? 'Đã công bố' : 'Đang bảo lưu'} sub={e.source === 'paper' || e.source === 'scan' ? 'bài làm trên giấy' : 'bài làm Moodle'} tone={e.publish_flag ? 'green' : ''} />
       </div>
+      {e.review?.length > 0 && <PaperReview e={e} />}
       <Mesh e={e} byChap={byChap} />
       <Readings e={e} />
       <div className="grid2">
@@ -101,10 +102,39 @@ function ExamBlock({ e }) {
             <td>{a.order_index}</td><td className="clip" title={a.content}>{a.content}</td><td>{a.chapter || '—'}</td><td>{a.bloom}</td>
             <td>{a.chosen || '—'}</td><td>{a.correct}</td><td className={cls}>{ic} {t}</td><td>{a.score_earned}/{a.points}</td>
             <td>{a.p_value === null ? '—' : `${Math.round(a.p_value * 100)}%`}</td></tr> })}</tbody></table>
-        {e.source === 'paper' && <p className="muted small mt">Bài trên giấy: nhãn phương án là nhãn gốc trong ngân hàng câu hỏi (đã quy đổi từ mã đề).</p>}
+        {e.source === 'scan' && e.version && <p className="muted small mt">Số câu và nhãn A, B, C, D theo đề mã {e.version} của sinh viên này.</p>}
       </Card>
       </details>
     </>
+  )
+}
+
+function PaperReview({ e }) {
+  const [zoom, setZoom] = useState(false)
+  const [filter, setFilter] = useState('all')
+  const cnt = r => e.review.filter(q => q.result === r).length
+  const list = e.review.filter(q => filter === 'all' || q.result === filter)
+  return (
+    <Card title={`Phiếu bài làm – mã đề ${e.version}`} actions={[['all', `Tất cả (${e.review.length})`], ['wrong', `Sai (${cnt('wrong')})`], ['blank', `Bỏ trống (${cnt('blank')})`], ['correct', `Đúng (${cnt('correct')})`]].map(([k, l]) =>
+      <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{l}</button>)}>
+      <div className="paper-review">
+        {e.scan && <div className="paper-scan">
+          <img src={e.scan} alt={`Phiếu trả lời của ${e.version}`} onClick={() => setZoom(true)} />
+          <p className="muted small">Ảnh phiếu đã quét lưu trên hệ thống. Bấm vào ảnh để phóng to. Giảng viên có thể sửa đáp án ở bước "In đề & chấm phiếu".</p>
+        </div>}
+        <div className="paper-qs">
+          <table className="tbl"><thead><tr><th>Câu</th><th>Nội dung</th><th>SV chọn</th><th>Đáp án đúng</th><th>Kết quả</th></tr></thead>
+            <tbody>{list.map(q => { const [t, cls, ic] = RES[q.result]; return <tr key={q.no} className={q.result === 'wrong' ? 'row-wrong' : ''}>
+              <td><b>{q.no}</b></td>
+              <td><div className="clip" title={q.text}>{q.text}</div>
+                {q.result !== 'correct' && <ul className="opts">{q.options.map(o => <li key={o.label} className={o.label === q.correct ? 'ans-ok' : o.label === q.chosen ? 'ans-bad' : ''}>
+                  {o.label}. {o.text}{o.label === q.correct ? ' ✓' : o.label === q.chosen ? ' (SV chọn)' : ''}</li>)}</ul>}</td>
+              <td>{q.chosen || '—'}</td><td>{q.correct}</td><td className={cls}>{ic} {t}</td></tr> })}</tbody></table>
+          <p className="muted small mt">Nhãn A, B, C, D theo đúng thứ tự phương án in trên đề mã {e.version}.</p>
+        </div>
+      </div>
+      {zoom && <div className="lightbox" onClick={() => setZoom(false)}><img src={e.scan} alt="Phiếu trả lời" /></div>}
+    </Card>
   )
 }
 
