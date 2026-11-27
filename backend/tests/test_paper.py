@@ -231,7 +231,11 @@ def test_demo_bai_giay_cham_tren_he_thong_va_sinh_vien_xem_lai(client, gv):
     assert _q("SELECT COUNT(*) FROM scan_sheets WHERE exam_id=:e AND status='superseded'", e=eid)[0][0] == 1
     db = SessionLocal()
     rows = {x["student_code"]: x for x in lms.student_results(db, eid)}
+    one = lms.student_results(db, eid, "22130002")
+    light = lms.student_results(db, eid, with_scans=False)
     db.close()
+    assert len(one) == 1 and one[0] == rows["22130002"] and lms.student_results(SessionLocal(), eid, "00000000") == []
+    assert all("scan" not in r["data"] for r in light) and all("review" in r["data"] for r in light if r["status"] == "finished")
     a, b = rows["22130002"]["data"], rows["22130001"]["data"]
     assert (b["version"], a["version"]) == ("01", "02")
     assert len(a["review"]) == 10 and a["scan"].startswith("data:image/jpeg")

@@ -33,7 +33,7 @@ def student_profile(cs_id: int, student_id: int, u: User = Depends(require("admi
 
     exams = []
     for ex in _analyzed_exams(db, cs_id):
-        mine = next((r for r in lms.student_results(db, ex["id"]) if r["student_code"] == st["student_code"]), None)
+        mine = next(iter(lms.student_results(db, ex["id"], st["student_code"])), None)
         if not mine:
             continue
         att = db.execute(text("SELECT id, source, version_id FROM exam_attempts WHERE exam_id=:e AND student_id=:s"),
@@ -109,7 +109,7 @@ def section_stats(cs_id: int, exam_id: int | None = None, u: User = Depends(requ
     if not ex:
         raise HTTPException(404, "Bài kiểm tra chưa được phân tích hoặc không thuộc lớp này")
     get_exam_for(db, u, ex["id"])
-    res = lms.student_results(db, ex["id"])
+    res = lms.student_results(db, ex["id"], with_scans=False)
     sid = {r[0]: r[1] for r in db.execute(text("SELECT student_code, id FROM students WHERE student_code IN :c")
                                           .bindparams(bindparam("c", expanding=True)),
                                           {"c": [r["student_code"] for r in res] or [""]})}

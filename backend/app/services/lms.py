@@ -143,13 +143,19 @@ def stream(url: str, chunk: int = 1 << 20) -> Iterator[Iterator[bytes]]:
         raise MoodleWSError(f"Lỗi kết nối LMS: {ex}") from ex
 
 
-def student_results(db: Session, exam_id: int) -> list[dict]:
+def student_results(db: Session, exam_id: int, student_code: str | None = None, with_scans: bool = True) -> list[dict]:
     e = db.execute(text("""SELECT e.id, e.max_score, e.class_section_id, cs.course_id,
                                   (SELECT SUM(points) FROM exam_questions WHERE exam_id=e.id) AS raw_max
                            FROM exams e JOIN class_sections cs ON cs.id=e.class_section_id WHERE e.id=:e"""),
                    {"e": exam_id}).mappings().first()
     if not e:
         return []
+    only = None
+    if student_code:
+        only = db.execute(text("""SELECT a.id FROM exam_attempts a JOIN students s ON s.id=a.student_id
+                                 WHERE a.exam_id=:e AND s.student_code=:c"""), {"e": exam_id, "c": student_code}).scalar()
+        if only is None:
+            return []
     raw_max = float(e["raw_max"] or 1)
     clo_desc = {r[0]: r[1] for r in db.execute(text("SELECT clo_code, description FROM clos WHERE course_id=:c"),
                                                  {"c": e["course_id"]})}
@@ -178,9 +184,9 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         items.setdefault(r["attempt_id"], []).append({"priority": r["priority"], "clo": r["clo_code"],
                                                       "clo_description": r["description"], "chapter": chap,
                                                       "gap": float(r["gap_pct"])})
-    materials = material_suggestions(db, exam_id, e["class_section_id"])
+    materials = material_suggestions(db, exam_id, e["class_section_id"], only)
     wrong_by: dict[int, list] = {}
-    for attempt_id, _qid, no in wrong_items(db, exam_id):
+    for attempt_id, _qid, no in wrong_items(db, exam_id, only):
         wrong_by.setdefault(attempt_id, []).append(int(no))
     answers: dict[int, list] = {}
     for r in db.execute(text("""
@@ -194,7 +200,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
         JOIN question_bank q ON q.id=r.question_id JOIN bloom_levels b ON b.id=q.bloom_level_id
         LEFT JOIN exam_version_questions vq ON vq.version_id=a.version_id AND vq.question_id=r.question_id
         LEFT JOIN item_statistics st ON st.exam_id=a.exam_id AND st.question_id=q.id
-        WHERE a.exam_id=:e AND a.status='finished' ORDER BY r.attempt_id, no"""), {"e": exam_id}).mappings():
+        WHERE a.exam_id=:e AND a.status='finished' AND (:o IS NULL OR a.id=:o) ORDER BY r.attempt_id, no"""), {"e": exam_id, "o": only}).mappings():
         res = "blank" if r["response_status"] == "blank" or not r["selected_option_id"] else ("correct" if r["is_correct"] else "wrong")
         answers.setdefault(r["attempt_id"], []).append({
             "no": int(r["no"]), "result": res, "chapter": r["chapter"], "clos": r["clos"], "bloom": r["bloom"],
@@ -208,14 +214,14 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
             by.setdefault(x["chapter"] or "Chưa gắn chương", []).append(x["result"] == "correct")
         chapters[att] = [{"name": k, "n": len(v), "ok": sum(v), "pct": round(100 * sum(v) / len(v))} for k, v in by.items()]
         counts[att] = {r: sum(1 for x in lst if x["result"] == r) for r in ("correct", "wrong", "blank")}
-    paper_review = _paper_review(db, exam_id)
+    paper_review = _paper_review(db, exam_id, only, with_scans)
     finished_scores = [float(x[0]) for x in db.execute(text(
         "SELECT total_score FROM exam_attempts WHERE exam_id=:e AND status='finished'"), {"e": exam_id})]
     class_mean = round(sum(finished_scores) / len(finished_scores) * float(e["max_score"]) / raw_max, 2) if finished_scores else None
     out = []
     for a in db.execute(text("""SELECT a.id, a.status, a.total_score, s.student_code, s.full_name, s.moodle_user_id
                                 FROM exam_attempts a JOIN students s ON s.id=a.student_id
-                                WHERE a.exam_id=:e ORDER BY s.student_code"""), {"e": exam_id}).mappings():
+                                WHERE a.exam_id=:e AND (:o IS NULL OR a.id=:o) ORDER BY s.student_code"""), {"e": exam_id, "o": only}).mappings():
         absent = a["status"] == "absent"
         p = paths.get(a["id"])
         data = {} if absent else {"clos": radar.get(a["id"], []), "summary": p["diagnostic_summary"] if p else None,
@@ -233,24 +239,24 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
     return out
 
 
-def wrong_items(db: Session, exam_id: int) -> list:
+def wrong_items(db: Session, exam_id: int, attempt_id: int | None = None) -> list:
     return db.execute(text("""
         SELECT r.attempt_id, r.question_id, COALESCE(vq.position, eq.order_index) AS no
         FROM item_level_results r JOIN exam_attempts a ON a.id=r.attempt_id
         JOIN exam_questions eq ON eq.exam_id=a.exam_id AND eq.question_id=r.question_id
         JOIN question_bank q ON q.id=r.question_id
         LEFT JOIN exam_version_questions vq ON vq.version_id=a.version_id AND vq.question_id=r.question_id
-        WHERE a.exam_id=:e AND a.status='finished' AND r.is_correct=0 AND q.is_cancelled=0
-        ORDER BY r.attempt_id, no"""), {"e": exam_id}).fetchall()
+        WHERE a.exam_id=:e AND a.status='finished' AND r.is_correct=0 AND q.is_cancelled=0 AND (:o IS NULL OR a.id=:o)
+        ORDER BY r.attempt_id, no"""), {"e": exam_id, "o": attempt_id}).fetchall()
 
 
-def material_suggestions(db: Session, exam_id: int, cs_id: int | None) -> dict[int, list]:
+def material_suggestions(db: Session, exam_id: int, cs_id: int | None, attempt_id: int | None = None) -> dict[int, list]:
     from ..models import SectionMaterial
     from .rag import suggest
 
     if not cs_id or not db.query(SectionMaterial.id).filter_by(class_section_id=cs_id, status="ready").first():
         return {}
-    wrong = wrong_items(db, exam_id)
+    wrong = wrong_items(db, exam_id, attempt_id)
     if not wrong:
         return {}
     try:
@@ -288,7 +294,7 @@ def _stored_explanations(db: Session, exam_id: int, cs_id: int, pages: dict[int,
         return {}
 
 
-def _paper_review(db: Session, exam_id: int) -> dict[int, dict]:
+def _paper_review(db: Session, exam_id: int, attempt_id: int | None = None, with_scans: bool = True) -> dict[int, dict]:
     from .paper import plain
 
     out: dict[int, dict] = {}
@@ -301,8 +307,8 @@ def _paper_review(db: Session, exam_id: int) -> dict[int, dict]:
         JOIN exam_version_options vo ON vo.version_id=vq.version_id AND vo.question_id=vq.question_id
         JOIN question_options o ON o.id=vo.option_id
         LEFT JOIN item_level_results i ON i.attempt_id=a.id AND i.question_id=q.id
-        WHERE a.exam_id=:e AND a.status='finished' AND a.source='scan'
-        ORDER BY a.id, vq.position, vo.displayed_label"""), {"e": exam_id}).mappings():
+        WHERE a.exam_id=:e AND a.status='finished' AND a.source='scan' AND (:o IS NULL OR a.id=:o)
+        ORDER BY a.id, vq.position, vo.displayed_label"""), {"e": exam_id, "o": attempt_id}).mappings():
         d = out.setdefault(r["attempt_id"], {"version": r["version_code"], "review": []})
         if not d["review"] or d["review"][-1]["no"] != int(r["position"]):
             d["review"].append({"no": int(r["position"]), "text": plain(r["content"]), "options": [], "chosen": None, "correct": None,
@@ -313,8 +319,11 @@ def _paper_review(db: Session, exam_id: int) -> dict[int, dict]:
             q["correct"] = r["displayed_label"]
         if r["selected_option_id"] and r["selected_option_id"] == r["vopt"]:
             q["chosen"] = r["displayed_label"]
-    for aid, img in db.execute(text("SELECT attempt_id, image FROM scan_sheets WHERE exam_id=:e AND status='saved' AND attempt_id IS NOT NULL"),
-                               {"e": exam_id}):
+    if not with_scans:
+        return out
+    for aid, img in db.execute(text("""SELECT attempt_id, image FROM scan_sheets
+                                    WHERE exam_id=:e AND status='saved' AND attempt_id IS NOT NULL AND (:o IS NULL OR attempt_id=:o)"""),
+                               {"e": exam_id, "o": attempt_id}):
         if aid in out and img:
             out[aid]["scan"] = img
     return out

@@ -235,7 +235,9 @@ function Scan({ e, st, reload }) {
   const [busy, setBusy] = useState(false)
   const [filter, setFilter] = useState(null)
   const [cur, setCur] = useState(null)
+  const detailRef = useRef(null)
   const [edit, setEdit] = useState(null)
+  useEffect(() => { if (cur && detailRef.current) detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [cur?.id])
   const keys = useMemo(() => Object.fromEntries(st.versions.map(v => [v.version_code, Object.fromEntries(v.questions.map(q => [String(q.position), q]))])), [st.versions])
   const d = list.data
   const refresh = () => { list.reload(); reload() }
@@ -295,7 +297,7 @@ function Scan({ e, st, reload }) {
             <td>{x.full_name || <span className="bad-t">không có trong lớp</span>}</td><td>{x.version_code || '?'}</td>
             <td className="num-c">{x.score ?? '—'}/{x.raw_max ?? '—'}</td>
             <td className="small">{x.status === 'saved' ? <span className="ok-t">Đã chấm</span> : <span className="bad-t">{x.issues[0] || 'Cần xử lý'}</span>}</td></tr>)}</tbody></table>}
-      {cur && edit && <div className="scan-grid mt">
+      {cur && edit && <div className="scan-grid mt" ref={detailRef}>
         <img src={cur.image} alt={`Phiếu ${cur.source_name}`} />
         <div>
           <div className="row gap wrap">

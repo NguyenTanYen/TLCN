@@ -37,6 +37,7 @@ M = {
     "test_question_with_results_is_locked": (2, "Khóa câu hỏi đã có kết quả thi", "Sửa/xóa câu đã có bài làm", "409; chỉ được Hủy"),
     "test_exam_online_xml": (3, "Tạo bài KT trực tuyến, xuất Moodle XML", "Tạo bài 20 câu, tải Moodle XML", "XML hợp lệ, idnumber QB-n, đáp án đúng fraction 100"),
     "test_exam_rejects_foreign_question": (3, "Chặn câu hỏi môn khác/chưa gán CLO", "Tạo bài KT có câu của môn khác hoặc chưa gán CLO", "422"),
+    "test_demo_bai_giay_cham_tren_he_thong_va_sinh_vien_xem_lai": (8, "Bài giấy 2 mã đề chấm trên hệ thống, hồ sơ SV xem lại phiếu", "Sinh 2 mã đề, tô phiếu, quét 39 ảnh, chấm, phân tích; mở kết quả SV và hồ sơ SV", "Điểm từng SV khớp, ảnh phiếu lưu, từng câu đúng/sai theo mã đề, số câu khớp"),
     "test_paper_exam_two_modes": (3, "Bài giấy: hai cách (hệ thống / Moodle Offline Quiz)", "Sinh mã đề trên hệ thống rồi tạo Offline Quiz và ngược lại", "Loại trừ nhau (409)"),
     "test_moodle_sync_matches_moodle_grades": (4, "Đồng bộ bài làm khớp điểm Moodle", "Đồng bộ Quiz từ CSDL Moodle mô phỏng", "Tổng điểm từng SV = sumgrades của Moodle"),
     "test_moodle_sync_follows_grade_method_and_skips_preview": (4, "Chọn lượt theo cách tính điểm của Quiz", "Quiz cho nhiều lượt: lượt cuối / lượt đầu / điểm cao nhất; lượt xem trước của GV", "Đúng lượt Moodle dùng tính điểm; bỏ lượt xem trước"),

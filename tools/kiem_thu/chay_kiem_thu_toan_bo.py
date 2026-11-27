@@ -38,6 +38,7 @@ GIAO_DIEN = [
     ("GV", "Câu 2/3/4 phương án", "Đề có câu Đúng/Sai và câu 3 phương án", "Đề và phiếu chỉ có đúng số ô của từng câu"),
     ("GV", "Phiếu trả lời, xuất tệp", "Thẻ Phiếu trả lời; tải PDF đề, Word, đáp án, trọn bộ .zip", "Tệp mở được, tiếng Việt đúng"),
     ("GV", "Chấm phiếu bằng ảnh", "In phiếu, tô, chụp bằng điện thoại → Chấm phiếu → tải ảnh → soát → Lưu", "Đọc đúng MSSV, mã đề, điểm; phiếu tô 2 ô bị cảnh báo; lưu xong bài 'Đã phân tích'"),
+    ("GV", "Xem phiếu và từng câu đúng/sai của SV", "Bài giấy → In đề & chấm phiếu → 4. Chấm phiếu → Tất cả phiếu → bấm một phiếu → Xem hồ sơ (ví dụ 22130038, mã đề 02)", "Ảnh phiếu đã lưu, từng câu theo thứ tự phương án của mã đề với đáp án đúng, bảng trang tài liệu cần đọc lại; số câu và nhãn khớp bảng chi tiết"),
     ("GV", "Đề giấy qua Moodle Offline Quiz", "Bài giấy → Dùng Moodle Offline Quiz → tạo, tải đề/phiếu; quét phiếu lên Moodle; Đồng bộ", "Moodle chấm; hệ thống kéo kết quả theo nhóm đề"),
     ("GV", "Nhập điểm thủ công", "Lớp 02 → + Tạo bài kiểm tra → Nhập điểm → khai báo câu/ý, CLO → nhập điểm", "Kiểm tra giới hạn điểm; Lưu & phân tích → CLO, p, DI, alpha"),
     ("GV", "Nhập điểm từ Excel", "Tải bảng điểm mẫu → điền → Nhập từ Excel; hoặc 'Tạo từ file Excel có sẵn'", "Xem trước lỗi từng dòng; ghi điểm đúng cột"),

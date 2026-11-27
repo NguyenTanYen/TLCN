@@ -84,16 +84,13 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
    Bộ môn: *Tổng hợp PLO* → **Xuất BM2/BM3 (.xlsx)** hoặc **Xuất BM2 (.docx)**; *Kế hoạch đo PI* → **Xuất bảng phân công** đánh giá PIs của học kỳ.
 3. Moodle (sinh viên `22130001`): chuông thông báo → khóa học → **Kết quả phân tích CĐR**: radar CLO so với ngưỡng
    và trung bình lớp, nhận định, lộ trình ôn tập theo chương.
-4. Bài giấy *Kiểm tra quá trình (giấy)*: tải đề/phiếu/đáp án 2 mã đề (Moodle sinh) → trên Moodle mở Offline Quiz để xem 38 phiếu
-   đã quét, được nhận diện và chấm → trong hệ thống *Đồng bộ & phân tích*.
-
-   **Trang quét phiếu trên Moodle ở đâu?** Khóa *Hệ quản trị cơ sở dữ liệu – DBMS330284_01* → hoạt động
-   *Kiểm tra quá trình (giấy)* → tab **Kết quả & quét phiếu** →
-   - **Tải phiếu quét lên**: chọn ảnh/.zip phiếu đã quét rồi bấm *Nhận diện & chấm*;
-   - **Sửa phiếu lỗi**: phiếu Moodle chưa đọc được (MSSV mờ, tô 2 ô…);
-   - **Kết quả**: điểm và mã đề từng SV (dòng *Đã chấm: 38*).
-   Trong hệ thống, trang bài giấy có nút **Tải phiếu đã quét lên Moodle ↗** dẫn thẳng tới trang này
-   (`http://localhost/moodle/mod/offlinequiz/report.php?mode=rimport&q=<id>`).
+4. Bài giấy *Kiểm tra quá trình (giấy)* (chấm ngay trên hệ thống, 2 mã đề 01/02, 38 phiếu quét):
+   - Hệ thống: bài *Kiểm tra quá trình (giấy)* → thẻ **In đề & chấm phiếu** → **4. Chấm phiếu** → *Tất cả phiếu*: bấm một dòng để xem ảnh phiếu đã nắn,
+     sửa đáp án, **Lưu sửa & chấm lại**, hoặc bấm **Xem hồ sơ & từng câu đúng/sai của SV**.
+   - Hồ sơ sinh viên (ví dụ 22130038, mã đề 02): mục **Phiếu bài làm – mã đề …** có ảnh phiếu đã quét, từng câu SV chọn / đáp án đúng / đúng-sai-bỏ trống
+     theo đúng thứ tự phương án của mã đề, và bảng **trang tài liệu cần đọc lại** cho các câu sai.
+   - Moodle (sinh viên, sau khi *Công bố kết quả lên Moodle*): **Kết quả phân tích CĐR** → bài giấy → *Bài làm trên giấy của bạn*: ảnh phiếu, từng câu đúng/sai với
+     đáp án đúng theo mã đề mình làm, và bảng trang tài liệu cần ôn.
 5. Hệ thống: Lớp học phần → **Thống kê lớp & từng SV**: chỉ số chung, tỷ lệ SV đạt từng CLO so với mục tiêu, chương cần ôn,
    phân bố số CLO đạt, kết quả theo mức Bloom, bản đồ nhiệt SV × CLO, danh sách SV cần hỗ trợ. Bấm một SV để xem
    hồ sơ: điểm, xếp hạng, radar CLO, chẩn đoán, **các chương cần học lại** và từng câu trả lời đúng/sai.
