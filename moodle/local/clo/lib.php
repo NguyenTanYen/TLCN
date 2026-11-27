@@ -163,7 +163,8 @@ function local_clo_review_readings(int $attemptid): string {
     }
     $exam = $DB->get_record('local_clo_exam', ['quizid' => $attempt->quiz, 'published' => 1], 'id, quizid', IGNORE_MULTIPLE);
     $res = $exam ? $DB->get_record('local_clo_result', ['cloexamid' => $exam->id, 'userid' => $attempt->userid]) : null;
-    $materials = $res ? (json_decode($res->data ?? '{}')->materials ?? []) : [];
+    $rdata = $res ? json_decode($res->data ?? '{}') : null;
+    $materials = $rdata->materials ?? [];
     if (!$materials) {
         return '';
     }
@@ -173,7 +174,7 @@ function local_clo_review_readings(int $attemptid): string {
     foreach ($quba->get_slots() as $slot) {
         $byidnumber[(string)$quba->get_question($slot, false)->idnumber] = $slot;
     }
-    $showwhy = local_clo_answers_visible($exam, (int)$attempt->userid, (int)$attempt->id);
+    $showwhy = empty($rdata->hide_answers) && local_clo_answers_visible($exam, (int)$attempt->userid, (int)$attempt->id);
     $o = '';
     foreach ($materials as $m) {
         $slot = isset($m->question_id) ? ($byidnumber['QB-' . (int)$m->question_id] ?? 0) : (int)$m->question;

@@ -437,6 +437,7 @@ CREATE TABLE exams (
   moodle_offlinequiz_id BIGINT   NULL COMMENT 'mdl_offlinequiz.id (bài thi giấy chấm trên Moodle)',
   status            VARCHAR(20)  NOT NULL DEFAULT 'Draft' COMMENT 'Draft → Published → Synced → Analyzed',
   publish_flag      BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = SV đã xem được kết quả trên Moodle',
+  hide_answers      BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = ẩn đáp án đúng và lời giải với SV trên trang kết quả Moodle',
   last_synced_at    DATETIME     NULL COMMENT 'Lần đồng bộ Moodle gần nhất',
   counts_for_clo    BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)',
   parent_exam_id    INT          NULL COMMENT 'Bài phụ đạo: bài KT gốc',

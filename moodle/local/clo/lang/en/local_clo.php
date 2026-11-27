@@ -119,6 +119,7 @@ $string['searchresults'] = 'Found {$a} related pages:';
 $string['paperreview'] = 'Your paper exam (version {$a})';
 $string['paperreview_help'] = 'Questions and options are shown exactly as in version {$a}, which you took; the order of questions and options may differ from classmates who took another version.';
 $string['scantitle'] = 'Your graded answer sheet';
+$string['answershidden'] = 'Your lecturer has not released the correct answers for this exam, so only your choice and whether it was right are shown.';
 $string['scanhelp'] = 'The sheet you submitted as read by the system. Green circles are marks recognised as filled; red circles are faint or uncertain marks. Click the image to zoom in or out.';
 $string['scanzoom'] = 'Click to zoom in / out';
 $string['paperquestions'] = 'Every question of the version';

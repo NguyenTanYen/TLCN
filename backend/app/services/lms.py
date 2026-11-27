@@ -336,6 +336,18 @@ def public_data(data: dict) -> dict:
     return d
 
 
+def student_view(data: dict, hide_answers: bool) -> dict:
+    d = public_data(data)
+    if not hide_answers:
+        return d
+    d["hide_answers"] = True
+    if d.get("review"):
+        d["review"] = [{**q, "correct": None} for q in d["review"]]
+    if d.get("materials"):
+        d["materials"] = [{k: v for k, v in m.items() if k != "explanation"} for m in d["materials"]]
+    return d
+
+
 def push_results(db: Session, exam: Exam) -> dict:
     cs = exam.class_section
     if not cs.moodle_course_id:
@@ -343,7 +355,7 @@ def push_results(db: Session, exam: Exam) -> dict:
     rows = student_results(db, exam.id)
     payload = [{"userid": r["moodle_user_id"] or 0, "username": r["student_code"], "status": r["status"],
                 "score": r["score"], "maxscore": r["max_score"],
-                "data": json.dumps(public_data(r["data"]), ensure_ascii=False)} for r in rows]
+                "data": json.dumps(student_view(r["data"], bool(exam.hide_answers)), ensure_ascii=False)} for r in rows]
     res = call("local_clo_push_results", {"examref": exam.id, "courseid": cs.moodle_course_id,
                                           "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
                                           "published": bool(exam.publish_flag), "results": payload}, timeout=120)

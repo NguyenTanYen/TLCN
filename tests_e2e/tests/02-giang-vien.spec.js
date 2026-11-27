@@ -491,6 +491,36 @@ test('GV11b – Bài giấy 2 mã đề: màn hình chấm → mở phiếu → 
   })
 })
 
+test('GV11c – Ẩn đáp án đúng với SV: tick/bỏ tick ở thanh công bố, lưu theo bài, bài nhập điểm không có ô này', async ({ page }) => {
+  const { cs } = await demoIds(page)
+  const exams = await api(page, `/api/class-sections/${cs}/exams`)
+  const paper = exams.find(e => e.exam_title === 'Kiểm tra quá trình (giấy)')
+  const manual = exams.find(e => e.exam_type === 'manual')
+  test.skip(!paper, 'Chưa có bài giấy demo')
+  const box = () => page.getByLabel('Ẩn đáp án đúng với SV')
+  await test.step('Bước 1: bài giấy đã phân tích → ô "Ẩn đáp án đúng với SV" mặc định tắt', async () => {
+    await goto(page, `/exams/${paper.id}`)
+    await expect(box()).toBeVisible()
+    await expect(box()).not.toBeChecked()
+  })
+  await test.step('Bước 2: tick → lưu theo bài; tải lại trang vẫn tick', async () => {
+    await box().check()
+    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).hide_answers).toBe(true)
+    await page.reload()
+    await expect(box()).toBeChecked()
+  })
+  await test.step('Bước 3: bỏ tick → trả về mặc định', async () => {
+    await box().uncheck()
+    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).hide_answers).toBe(false)
+  })
+  if (manual) {
+    await test.step('Bước 4: bài nhập điểm không có ô này', async () => {
+      await goto(page, `/exams/${manual.id}`)
+      await expect(page.getByLabel('Ẩn đáp án đúng với SV')).toHaveCount(0)
+    })
+  }
+})
+
 test('GV12 – Lớp kiểm thử: lập kế hoạch đánh giá cho CLO1, xem kết quả cả lớp, xuất biểu mẫu Excel', async ({ page }) => {
   await test.step('Bước 1: trang Kết quả chuẩn đầu ra của lớp → thẻ Kế hoạch đánh giá → "Sửa" kế hoạch của CLO1', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6a`)

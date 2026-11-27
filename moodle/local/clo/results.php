@@ -153,7 +153,8 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                                                WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
                                             ORDER BY attempt DESC", [$exam->quizid, $res->userid], IGNORE_MULTIPLE);
     }
-    $showwhy = local_clo_answers_visible($exam, (int)$res->userid, $attemptid);
+    $hide = !empty($d->hide_answers);
+    $showwhy = !$hide && local_clo_answers_visible($exam, (int)$res->userid, $attemptid);
     $wrongrows = [];
     if ($attemptid) {
         $uniqueid = (int)$DB->get_field('quiz_attempts', 'uniqueid', ['id' => $attemptid]);
@@ -185,7 +186,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                 $lab[$op->label] = $op->label . '. ' . $op->text;
             }
             $wrongrows[(int)$q->no] = [(string)$q->text, !empty($q->chosen) ? ($lab[$q->chosen] ?? $q->chosen) : '',
-                $lab[$q->correct] ?? (string)$q->correct];
+                !empty($q->correct) ? ($lab[$q->correct] ?? (string)$q->correct) : ''];
         }
     }
     $mats = $d->materials ?? [];
@@ -241,8 +242,11 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
             }
         }
     }
-    if ($review && $showwhy) {
+    if ($review) {
         $body = html_writer::tag('p', get_string('paperreview_help', 'local_clo', s($d->version ?? '')), ['class' => 'small text-muted']);
+        if ($hide) {
+            $body .= html_writer::tag('p', get_string('answershidden', 'local_clo'), ['class' => 'small text-muted']);
+        }
         $list = '';
         foreach ($review as $q) {
             $badge = ['correct' => html_writer::span(get_string('ans_correct', 'local_clo'), 'badge bg-success'),
@@ -252,14 +256,15 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
             foreach ($q->options as $op) {
                 $cls = 'local-clo-opt';
                 $tag = '';
-                if ($op->label === $q->correct) {
+                if ($showwhy && !empty($q->correct) && $op->label === $q->correct) {
                     $cls .= ' ok';
                     $tag .= html_writer::span('✓ ' . get_string('rightanswer', 'local_clo'), 'badge bg-success ms-2');
                 }
                 if (!empty($q->chosen) && $op->label === $q->chosen) {
-                    $cls .= $op->label === $q->correct ? ' picked' : ' bad';
+                    $isright = $q->result === 'correct';
+                    $cls .= $isright ? ' picked' : ' bad';
                     $tag .= html_writer::span(get_string('youranswer', 'local_clo'), 'badge ' .
-                        ($op->label === $q->correct ? 'bg-secondary' : 'bg-danger') . ' ms-2');
+                        ($isright ? 'bg-secondary' : 'bg-danger') . ' ms-2');
                 }
                 $opts .= html_writer::tag('li', html_writer::tag('strong', s($op->label) . '. ') . s($op->text) . $tag, ['class' => $cls]);
             }

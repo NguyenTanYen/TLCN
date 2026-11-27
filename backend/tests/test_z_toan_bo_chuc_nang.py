@@ -1,3 +1,4 @@
+import json
 import io
 import zipfile
 
@@ -234,6 +235,17 @@ def test_moodle_web_service_flows(client, gv, admin, moodle_ws, gv_teacher_of_co
     assert pushed["published"] is True and len(pushed["results"]) == 40
     r = client.post("/api/exams/2/moodle/push-results", headers=gv)
     assert r.status_code == 200 and r.json()["sent"] == 40
+    assert client.get("/api/exams/2", headers=gv).json()["hide_answers"] is False
+    r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True, "hide_answers": True})
+    assert r.status_code == 200 and r.json()["hide_answers"] is True and r.json()["moodle"]["saved"] == 40, r.text
+    hidden = [json.loads(x["data"]) for x in [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results"][-1]["results"] if x["data"] != "{}"]
+    assert hidden and all(d.get("hide_answers") is True for d in hidden)
+    r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True})
+    assert r.json()["hide_answers"] is True
+    r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True, "hide_answers": False})
+    assert r.json()["hide_answers"] is False
+    shown = [json.loads(x["data"]) for x in [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results"][-1]["results"] if x["data"] != "{}"]
+    assert shown and not any("hide_answers" in d for d in shown)
     assert client.post(f"/api/exams/{on}/moodle/push-results", headers=gv).status_code == 409
     for eid in (on, pp):
         ex("DELETE FROM exam_attempts WHERE exam_id=:e", e=eid)

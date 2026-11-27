@@ -20,6 +20,20 @@ const CLS_TONE = { 'Tốt': 'green', 'Chấp nhận được': 'blue', 'Quá d�
 
 const isAdmin = () => auth.user()?.role === 'admin'
 
+function HideAnswers({ e, disabled, onDone }) {
+  const [on, setOn] = useState(!!e.hide_answers)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => setOn(!!e.hide_answers), [e.hide_answers])
+  const change = async v => {
+    setOn(v); setBusy(true)
+    try { await api.patch(`/api/exams/${e.id}/publish`, { publish: !!e.publish_flag, hide_answers: v }); onDone() }
+    catch { setOn(!v) }
+    setBusy(false)
+  }
+  return <label className="small row gap" style={{ alignItems: 'center', gap: 4 }} title="Bật thì sinh viên trên Moodle chỉ thấy câu mình chọn và đúng/sai, không thấy đáp án đúng và lời giải">
+    <input type="checkbox" checked={on} disabled={disabled || busy} onChange={ev => change(ev.target.checked)} />Ẩn đáp án đúng với SV</label>
+}
+
 export default function ExamDetail() {
   const { id } = useParams()
   const exam = useApi(`/api/exams/${id}`)
@@ -49,6 +63,7 @@ export default function ExamDetail() {
   const publish = <div className="pub">
     <span className="small muted">Công bố cho SV</span>
     {e.publish_flag ? <Badge tone="amber">SV đã xem được kết quả</Badge> : <Badge>Đang bảo lưu kết quả</Badge>}
+    {!manual && <HideAnswers e={e} disabled={!analyzed} onDone={exam.reload} />}
     <ActionButton className={e.publish_flag ? 'btn sm' : 'btn sm primary'} disabled={!analyzed} title={analyzed ? 'Gửi kết quả CLO sang Moodle để SV xem tại khóa học' : 'Cần phân tích bài trước'}
       okMsg={r => (r.publish_flag ? 'Đã công bố cho SV' : 'Đã thu hồi') + (r.moodle ? ` – Moodle đã nhận ${r.moodle.saved} kết quả` : r.moodle_error ? ` – chưa gửi được lên Moodle: ${r.moodle_error}` : '')}
       onRun={async () => { const r = await api.patch(`/api/exams/${e.id}/publish`, { publish: !e.publish_flag }); exam.reload(); return r }}>{e.publish_flag ? 'Thu hồi công bố' : 'Công bố kết quả lên Moodle'}</ActionButton>
@@ -67,7 +82,7 @@ export default function ExamDetail() {
           <button className={`btn ${cur === 'log' ? 'on' : 'ghost'}`} onClick={() => go('log')}>Nhật ký</button></div>
       </div>
       <PageHelp id="exam"><p>Đây là trang của một bài kiểm tra. Đi lần lượt các bước ở trên: <b>Đề thi</b> → <b>đưa bài cho sinh viên</b> (Moodle hoặc in giấy) → <b>lấy bài làm và phân tích</b> → <b>Kết quả</b>.</p>
-      <p>Sinh viên chỉ thấy kết quả trên Moodle sau khi bạn bấm <b>Công bố kết quả lên Moodle</b>.</p></PageHelp>
+      <p>Sinh viên chỉ thấy kết quả trên Moodle sau khi bạn bấm <b>Công bố kết quả lên Moodle</b>. Tick <b>Ẩn đáp án đúng với SV</b> nếu chưa muốn sinh viên thấy đáp án đúng và lời giải (bài còn dùng lại); bạn vẫn thấy đầy đủ trong hệ thống.</p></PageHelp>
       {e.timing_alerts?.n_warning > 0 && view !== 'timing' && <div className="alert amber row gap wrap">
         <span>⚠ <b>{e.timing_alerts.n_warning} SV</b> có dấu hiệu làm bài bất thường (làm quá nhanh – nghi chọn đại, chọn xong không nộp để hết giờ…).</span>
         <span className="grow" /><button className="btn sm" onClick={() => go('results', 'timing')}>Xem thời gian làm bài</button></div>}

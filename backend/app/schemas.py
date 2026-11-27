@@ -84,6 +84,7 @@ class LinkQuizIn(BaseModel):
 
 class PublishIn(BaseModel):
     publish: bool
+    hide_answers: bool | None = None
 
 
 class CLOPlanIn(BaseModel):

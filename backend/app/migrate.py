@@ -36,6 +36,7 @@ NEW_COLUMNS = [
     ("program_courses", "knowledge_block", "VARCHAR(150) NULL COMMENT 'Khối kiến thức, VD Kiến thức cơ sở ngành'"),
     ("program_courses", "is_elective", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = học phần tự chọn'"),
     ("pi_courses", "level", "VARCHAR(2) NULL COMMENT 'Mức đáp ứng của học phần với PI: I, R, M hoặc trình độ 1–6 (Phụ lục II)'"),
+    ("exams", "hide_answers", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = ẩn đáp án đúng và lời giải với SV trên trang kết quả Moodle' AFTER publish_flag"),
     ("exams", "counts_for_clo", "BOOLEAN NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)' AFTER last_synced_at"),
     ("exams", "parent_exam_id", "INT NULL COMMENT 'Bài phụ đạo: bài KT gốc' AFTER counts_for_clo"),
     ("exams", "target_students", "TEXT NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)' AFTER parent_exam_id"),

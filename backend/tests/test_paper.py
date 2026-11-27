@@ -247,6 +247,11 @@ def test_demo_bai_giay_cham_tren_he_thong_va_sinh_vien_xem_lai(client, gv):
     assert [q["no"] for q in a["review"]] == [x["no"] for x in a["answers"]]
     assert [q["text"] for q in a["review"]] != [q["text"] for q in b["review"]]
     assert rows["22130006"]["status"] == "absent" and not rows["22130006"]["data"]
+    v = lms.student_view(a, True)
+    assert v["hide_answers"] is True and v["wrong"] == a["wrong"] and len(v["review"]) == len(a["review"])
+    assert all(q["correct"] is None for q in v["review"]) and [q["chosen"] for q in v["review"]] == [q["chosen"] for q in a["review"]]
+    assert all("explanation" not in m for m in v.get("materials", []))
+    assert "hide_answers" not in lms.student_view(a, False) and all(q["correct"] for q in a["review"])
     sid = {r["student_code"]: r["student_id"] for r in sheets["roster"]}
     prof = client.get(f"/api/class-sections/1/students/{sid['22130002']}/profile", headers=gv).json()
     ex = next(x for x in prof["exams"] if x["id"] == eid)

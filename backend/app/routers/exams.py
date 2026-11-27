@@ -21,7 +21,7 @@ def exam_dict(db: Session, e: Exam) -> dict:
     course = cs.course if cs else e.course
     return {"id": e.id, "exam_title": e.exam_title, "assessment_type": e.assessment_type, "exam_type": e.exam_type,
             "exam_date": e.exam_date, "duration_minutes": e.duration_minutes, "max_score": float(e.max_score),
-            "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag,
+            "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag, "hide_answers": bool(e.hide_answers),
             "last_synced_at": e.last_synced_at, "class_section_id": e.class_section_id, "section_code": cs.section_code if cs else None,
             "is_template": cs is None, "source_exam_id": e.source_exam_id,
             "counts_for_clo": e.counts_for_clo, "parent_exam_id": e.parent_exam_id, "target_students": e.target_students,
@@ -276,8 +276,10 @@ def publish(exam_id: int, body: PublishIn, u: User = Depends(require("admin", "l
     if body.publish and e.status != "Analyzed":
         raise HTTPException(409, "Chỉ công bố được bài KT đã phân tích")
     e.publish_flag = body.publish
+    if body.hide_answers is not None:
+        e.hide_answers = body.hide_answers
     db.commit()
-    out = {"id": exam_id, "publish_flag": e.publish_flag}
+    out = {"id": exam_id, "publish_flag": e.publish_flag, "hide_answers": bool(e.hide_answers)}
     if not lms.configured():
         out["moodle_error"] = "chưa cấu hình Web Service Moodle (MOODLE_URL, MOODLE_WS_TOKEN)"
     elif not e.class_section.moodle_course_id:

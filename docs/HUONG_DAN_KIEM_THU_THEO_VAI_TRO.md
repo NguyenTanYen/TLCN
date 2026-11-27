@@ -109,6 +109,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | GV31 | **Kết quả sinh viên** | Danh sách SV và điểm | ☐ |
 | GV32 | **Thời gian làm bài**: đổi ngưỡng → Áp dụng. Bấm **Diễn biến** của 22130017. **Xuất Excel** | Cảnh báo cho 22130017/18 (quá nhanh) và 22130006/23 (để hết giờ). Danh sách bài của lớp có nhãn ⚠ N cảnh báo | ☐ |
 | GV33 | Đầu trang bài: **Công bố kết quả lên Moodle**, sau đó **Thu hồi công bố**, rồi công bố lại | Nhãn đổi "SV đã xem được kết quả" ↔ "Đang bảo lưu kết quả" | ☐ |
+| GV33b | Cùng thanh công bố: tick **Ẩn đáp án đúng với SV** (bài giấy hoặc bài trực tuyến đã phân tích) rồi bỏ tick | Ô tick đổi ngay, bài đã công bố được gửi lại Moodle; trang của GV vẫn hiện đủ đáp án | ☐ |
 | GV34 | Lớp → **Thống kê lớp**. Bấm **Hồ sơ** một SV | Chỉ số lớp, chương cần ôn, phổ điểm, SV cần hỗ trợ. Hồ sơ: điểm các bài, thứ hạng, gợi ý ôn tập, từng câu đúng/sai | ☐ |
 
 ### B5. BM6, gộp bài, ôn tập
@@ -139,6 +140,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | SV3 | `22130001` → khóa học → **Kết quả phân tích CĐR** (*Learning outcome results*). Xem chuông thông báo | Thấy kết quả bài đã công bố (điểm, gợi ý ôn tập). Có thông báo "có kết quả" | ☐ |
 | SV4 | Đăng nhập một SV vắng thi cuối kỳ (tìm trong thẻ Kết quả sinh viên của GV) → trang kết quả | "Chưa đủ bằng chứng đánh giá" | ☐ |
 | SV5 | GV thu hồi công bố (GV33) → SV tải lại trang → GV công bố lại | "Kết quả đang được bảo lưu" → rồi xem lại được | ☐ |
+| SV5b | GV tick **Ẩn đáp án đúng với SV** (GV33b) → SV tải lại trang bài giấy | Còn ảnh phiếu, câu đã chọn và đúng/sai nhưng không còn nhãn *Đáp án đúng*, cột đáp án đúng hiện "–", không có lời giải; bỏ tick thì hiện lại | ☐ |
 | SV6 | `22130040` (không được giao) mở Quiz ôn tập ở GV40 | Không có nút làm bài | ☐ |
 | SV7 | `22130017` (được giao) làm và nộp Quiz ôn tập → GV mở bài ôn tập → **⟳ Đồng bộ & phân tích** → trang Ôn tập, khung tiến bộ | SV "Đã nộp", cột Thay đổi (sau − trước) có số | ☐ |
 | SV8 | Admin Moodle → khóa học → Nhóm | Nhóm "Ôn tập – …" có đúng 2 SV được giao | ☐ |
