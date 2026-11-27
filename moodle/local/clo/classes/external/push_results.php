@@ -27,13 +27,15 @@ class push_results extends external_api {
                 'data' => new external_value(PARAM_RAW, 'JSON: clos, summary, study_plan, items', VALUE_DEFAULT, '{}'),
             ]), 'Kết quả từng sinh viên', VALUE_DEFAULT, []),
             'reviewmode' => new external_value(PARAM_ALPHA, 'Đặt lại mục xem lại của Quiz: full | result | score (rỗng = giữ nguyên)', VALUE_DEFAULT, ''),
+            'timeopen' => new external_value(PARAM_INT, 'Giờ mở Quiz (unix, 0 = không giới hạn, -1 = giữ nguyên)', VALUE_DEFAULT, -1),
+            'timeclose' => new external_value(PARAM_INT, 'Giờ đóng Quiz (unix, 0 = không đóng, -1 = giữ nguyên)', VALUE_DEFAULT, -1),
         ]);
     }
 
-    public static function execute($examref, $courseid, $quizid, $title, $published, $results = [], $reviewmode = ''): array {
+    public static function execute($examref, $courseid, $quizid, $title, $published, $results = [], $reviewmode = '', $timeopen = -1, $timeclose = -1): array {
         global $CFG, $DB;
         $p = self::validate_parameters(self::execute_parameters(),
-            compact('examref', 'courseid', 'quizid', 'title', 'published', 'results', 'reviewmode'));
+            compact('examref', 'courseid', 'quizid', 'title', 'published', 'results', 'reviewmode', 'timeopen', 'timeclose'));
         $course = get_course($p['courseid']);
         $context = \context_course::instance($course->id);
         self::validate_context($context);
@@ -97,6 +99,10 @@ class push_results extends external_api {
         $transaction->allow_commit();
         if ($p['reviewmode'] !== '' && !empty($exam->quizid) && (int)$DB->get_field('quiz', 'course', ['id' => $exam->quizid]) === (int)$course->id) {
             local_clo_apply_review_mode((int)$exam->quizid, $p['reviewmode']);
+        }
+        if (($p['timeopen'] >= 0 || $p['timeclose'] >= 0) && !empty($exam->quizid)
+                && (int)$DB->get_field('quiz', 'course', ['id' => $exam->quizid]) === (int)$course->id) {
+            local_clo_apply_quiz_times((int)$exam->quizid, $p['timeopen'], $p['timeclose']);
         }
 
         $notified = $exam->published ? self::notify($exam, $course) : 0;

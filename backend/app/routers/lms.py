@@ -15,13 +15,14 @@ from ..database import get_db
 from ..http_utils import attachment
 from ..deps import check_moodle_course, check_section_access, get_exam_for, require, lecturer_only
 from ..models import User
+from ..schemas import QuizTimesIn
 from ..services import lms
 from . import remedial
 
 router = APIRouter(prefix="/api", tags=["Tích hợp Moodle (Web Service)"])
 
 
-class CreateQuizIn(BaseModel):
+class CreateQuizIn(QuizTimesIn):
     moodle_course_id: Optional[int] = None
 
 
@@ -70,6 +71,8 @@ def create_quiz(exam_id: int, body: CreateQuizIn, u: User = Depends(lecturer_onl
         raise HTTPException(422, "Hãy nhập mã khóa học Moodle (id) của lớp học phần")
     check_moodle_course(db, u, cs, course_id)
     targets = remedial.target_moodle_users(db, e) if e.target_students else None
+    e.quiz_timeopen = body.timeopen or None
+    e.quiz_timeclose = body.timeclose or None
     try:
         res = lms.create_quiz(db, e, course_id)
     except lms.MoodleWSError as ex:

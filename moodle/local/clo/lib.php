@@ -109,6 +109,26 @@ function local_clo_apply_review_mode(int $quizid, string $mode): void {
     $DB->update_record('quiz', $rec);
 }
 
+function local_clo_apply_quiz_times(int $quizid, int $timeopen, int $timeclose): void {
+    global $CFG, $DB;
+    $quiz = $DB->get_record('quiz', ['id' => $quizid]);
+    if (!$quiz) {
+        return;
+    }
+    $open = $timeopen >= 0 ? $timeopen : (int)$quiz->timeopen;
+    $close = $timeclose >= 0 ? $timeclose : (int)$quiz->timeclose;
+    if ($open && $close && $close <= $open) {
+        throw new \invalid_parameter_exception('Giờ đóng phải sau giờ mở');
+    }
+    $quiz->timeopen = $open;
+    $quiz->timeclose = $close;
+    $quiz->timemodified = time();
+    $DB->update_record('quiz', $quiz);
+    require_once($CFG->dirroot . '/mod/quiz/lib.php');
+    quiz_update_events($quiz);
+    rebuild_course_cache((int)$quiz->course, true);
+}
+
 function local_clo_answers_visible(stdClass $exam, int $userid, int $attemptid = 0): bool {
     global $DB;
     if (empty($exam->quizid)) {

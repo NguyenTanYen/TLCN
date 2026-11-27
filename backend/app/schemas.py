@@ -86,6 +86,17 @@ class ReviewModeIn(BaseModel):
     review_mode: Literal["full", "result", "score"]
 
 
+class QuizTimesIn(BaseModel):
+    timeopen: Optional[int] = Field(default=None, ge=0, le=4102444800)
+    timeclose: Optional[int] = Field(default=None, ge=0, le=4102444800)
+
+    @model_validator(mode="after")
+    def _order(self):
+        if self.timeopen and self.timeclose and self.timeclose <= self.timeopen:
+            raise ValueError("Giờ đóng phải sau giờ mở")
+        return self
+
+
 class PublishIn(BaseModel):
     publish: bool
 

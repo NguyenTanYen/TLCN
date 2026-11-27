@@ -10,7 +10,7 @@ from ..database import get_db
 from ..http_utils import attachment
 from ..deps import check_course_access, check_moodle_course, check_section_access, get_exam_for, require, lecturer_only
 from ..models import ClassSection, Exam, ExamQuestion, Question, User
-from ..schemas import BlueprintIn, ExamIn, LinkQuizIn, PublishIn, ReviewModeIn
+from ..schemas import BlueprintIn, ExamIn, LinkQuizIn, PublishIn, QuizTimesIn, ReviewModeIn
 from ..services import blueprint as bp, lms, moodle, xml_export
 
 router = APIRouter(prefix="/api", tags=["UC-02 Đề thi"])
@@ -21,7 +21,7 @@ def exam_dict(db: Session, e: Exam) -> dict:
     course = cs.course if cs else e.course
     return {"id": e.id, "exam_title": e.exam_title, "assessment_type": e.assessment_type, "exam_type": e.exam_type,
             "exam_date": e.exam_date, "duration_minutes": e.duration_minutes, "max_score": float(e.max_score),
-            "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag, "review_mode": e.review_mode or "full",
+            "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag, "review_mode": e.review_mode or "full", "quiz_timeopen": e.quiz_timeopen, "quiz_timeclose": e.quiz_timeclose,
             "last_synced_at": e.last_synced_at, "class_section_id": e.class_section_id, "section_code": cs.section_code if cs else None,
             "is_template": cs is None, "source_exam_id": e.source_exam_id,
             "counts_for_clo": e.counts_for_clo, "parent_exam_id": e.parent_exam_id, "target_students": e.target_students,
@@ -313,6 +313,28 @@ def set_review_mode(exam_id: int, body: ReviewModeIn, u: User = Depends(require(
     return out
 
 
+@router.patch("/exams/{exam_id}/quiz-times")
+def set_quiz_times(exam_id: int, body: QuizTimesIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    e = get_exam_for(db, u, exam_id)
+    if e.exam_type != "online":
+        raise HTTPException(422, "Chỉ bài KT trực tuyến có giờ mở và giờ đóng Quiz")
+    e.quiz_timeopen = body.timeopen or None
+    e.quiz_timeclose = body.timeclose or None
+    db.commit()
+    out = {"id": exam_id, "quiz_timeopen": e.quiz_timeopen, "quiz_timeclose": e.quiz_timeclose}
+    if e.moodle_quiz_id:
+        if not lms.configured():
+            out["moodle_error"] = "chưa cấu hình Web Service Moodle (MOODLE_URL, MOODLE_WS_TOKEN)"
+        elif not e.class_section.moodle_course_id:
+            out["moodle_error"] = "lớp học phần chưa gắn khóa học Moodle"
+        else:
+            try:
+                out["quiz"] = lms.sync_quiz_times(db, e)
+            except lms.MoodleWSError as ex:
+                out["moodle_error"] = str(ex)
+    return out
+
+
 class CopyIn(BaseModel):
     class_section_ids: list[int] = Field(min_length=1, max_length=30)
     create_moodle: bool = True
@@ -338,7 +360,8 @@ def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(lecturer_only), db: 
         n = Exam(class_section_id=cs.id, exam_title=e.exam_title, assessment_type=e.assessment_type, exam_type=e.exam_type,
                  exam_date=e.exam_date, duration_minutes=e.duration_minutes, max_score=e.max_score, counts_for_clo=e.counts_for_clo,
                  paper_settings=e.paper_settings, status="Published" if e.exam_type == "manual" else "Draft", created_by=u.id,
-                 source_exam_id=e.id, review_mode=e.review_mode or "full")
+                 source_exam_id=e.id, review_mode=e.review_mode or "full",
+                 quiz_timeopen=e.quiz_timeopen, quiz_timeclose=e.quiz_timeclose)
         for q in e.questions:
             n.questions.append(ExamQuestion(question_id=q.question_id, order_index=q.order_index, points=q.points))
         db.add(n); db.commit(); db.refresh(n)

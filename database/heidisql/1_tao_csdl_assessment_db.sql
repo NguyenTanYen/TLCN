@@ -438,6 +438,8 @@ CREATE TABLE exams (
   status            VARCHAR(20)  NOT NULL DEFAULT 'Draft' COMMENT 'Draft → Published → Synced → Analyzed',
   publish_flag      BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '1 = SV đã xem được kết quả trên Moodle',
   review_mode       VARCHAR(10)  NOT NULL DEFAULT 'full' COMMENT 'Sau khi làm xong SV được xem: full = đủ (đúng/sai, đáp án, lời giải); result = điểm và đúng/sai; score = chỉ điểm',
+  quiz_timeopen     BIGINT       NULL COMMENT 'Giờ mở Quiz trên Moodle (unix, NULL = không giới hạn)',
+  quiz_timeclose    BIGINT       NULL COMMENT 'Giờ đóng Quiz trên Moodle (unix, NULL = không đóng)',
   last_synced_at    DATETIME     NULL COMMENT 'Lần đồng bộ Moodle gần nhất',
   counts_for_clo    BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)',
   parent_exam_id    INT          NULL COMMENT 'Bài phụ đạo: bài KT gốc',

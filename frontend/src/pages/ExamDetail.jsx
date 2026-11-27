@@ -49,6 +49,39 @@ function ReviewMode({ e, onDone }) {
     {note && <span className="muted">{note}</span>}</label>
 }
 
+const pad = n => String(n).padStart(2, '0')
+const toLocal = t => {
+  if (!t) return ''
+  const d = new Date(t * 1000)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const toUnix = v => (v ? Math.floor(new Date(v).getTime() / 1000) : 0)
+
+function QuizTimeFields({ open, close, setOpen, setClose, disabled }) {
+  const bad = open && close && toUnix(close) <= toUnix(open)
+  return <div className="row gap wrap">
+    <Field label="Giờ mở Quiz (để trống = mở ngay)"><input type="datetime-local" value={open} disabled={disabled} onChange={x => setOpen(x.target.value)} /></Field>
+    <Field label="Giờ đóng Quiz (để trống = không đóng)"><input type="datetime-local" value={close} disabled={disabled} onChange={x => setClose(x.target.value)} /></Field>
+    {bad && <span className="small" style={{ color: 'var(--red, #b91c1c)' }}>Giờ đóng phải sau giờ mở</span>}
+  </div>
+}
+
+function QuizTimes({ e, onDone }) {
+  const [open, setOpen] = useState(toLocal(e.quiz_timeopen))
+  const [close, setClose] = useState(toLocal(e.quiz_timeclose))
+  useEffect(() => { setOpen(toLocal(e.quiz_timeopen)); setClose(toLocal(e.quiz_timeclose)) }, [e.quiz_timeopen, e.quiz_timeclose])
+  const bad = open && close && toUnix(close) <= toUnix(open)
+  const same = toUnix(open) === (e.quiz_timeopen || 0) && toUnix(close) === (e.quiz_timeclose || 0)
+  return <div className="mt">
+    <QuizTimeFields open={open} close={close} setOpen={setOpen} setClose={setClose} />
+    <div className="row gap wrap mt">
+      <ActionButton className="btn sm" disabled={bad || same} okMsg={r => r.moodle_error ? `Đã lưu, chưa cập nhật được Moodle: ${r.moodle_error}` : 'Đã cập nhật giờ mở/đóng trên Moodle'}
+        onRun={async () => { const r = await api.patch(`/api/exams/${e.id}/quiz-times`, { timeopen: toUnix(open), timeclose: toUnix(close) }); onDone(); return r }}>Lưu giờ mở/đóng</ActionButton>
+      <span className="small muted">Sinh viên chỉ xem được đúng/sai và đáp án đúng trên Moodle sau giờ đóng. Sửa được bất cứ lúc nào, kể cả khi Quiz đã tạo.</span>
+    </div>
+  </div>
+}
+
 export default function ExamDetail() {
   const { id } = useParams()
   const exam = useApi(`/api/exams/${id}`)
@@ -97,7 +130,8 @@ export default function ExamDetail() {
           <button className={`btn ${cur === 'log' ? 'on' : 'ghost'}`} onClick={() => go('log')}>Nhật ký</button></div>
       </div>
       <PageHelp id="exam"><p>Đây là trang của một bài kiểm tra. Đi lần lượt các bước ở trên: <b>Đề thi</b> → <b>đưa bài cho sinh viên</b> (Moodle hoặc in giấy) → <b>lấy bài làm và phân tích</b> → <b>Kết quả</b>.</p>
-      <p>Sinh viên chỉ thấy kết quả trên Moodle sau khi bạn bấm <b>Công bố kết quả lên Moodle</b>. Mục <b>SV xem lại sau khi làm xong</b> chọn sinh viên được xem gì: <b>Đầy đủ</b> (điểm, đúng/sai, đáp án đúng, lời giải), <b>Điểm và đúng/sai</b> (chưa cho xem đáp án đúng) hoặc <b>Chỉ điểm</b> (ví dụ bài còn dùng lại). Với bài trực tuyến, mức này áp dụng luôn vào phần xem lại của Quiz trên Moodle; bạn nên chọn trước khi đưa bài lên Moodle và có thể đổi sau. Bạn vẫn thấy đầy đủ trong hệ thống.</p></PageHelp>
+      <p>Sinh viên chỉ thấy kết quả trên Moodle sau khi bạn bấm <b>Công bố kết quả lên Moodle</b>. Mục <b>SV xem lại sau khi làm xong</b> chọn sinh viên được xem gì: <b>Đầy đủ</b> (điểm, đúng/sai, đáp án đúng, lời giải), <b>Điểm và đúng/sai</b> (chưa cho xem đáp án đúng) hoặc <b>Chỉ điểm</b> (ví dụ bài còn dùng lại). Với bài trực tuyến, mức này áp dụng luôn vào phần xem lại của Quiz trên Moodle; bạn nên chọn trước khi đưa bài lên Moodle và có thể đổi sau. Bạn vẫn thấy đầy đủ trong hệ thống.</p>
+      <p>Bài trực tuyến có thêm <b>giờ mở</b> và <b>giờ đóng</b> Quiz, nhập lúc tạo Quiz và sửa được sau đó ở bước đưa bài lên Moodle. Trên Moodle, đúng/sai và đáp án đúng chỉ hiện sau giờ đóng.</p></PageHelp>
       {e.timing_alerts?.n_warning > 0 && view !== 'timing' && <div className="alert amber row gap wrap">
         <span>⚠ <b>{e.timing_alerts.n_warning} SV</b> có dấu hiệu làm bài bất thường (làm quá nhanh – nghi chọn đại, chọn xong không nộp để hết giờ…).</span>
         <span className="grow" /><button className="btn sm" onClick={() => go('results', 'timing')}>Xem thời gian làm bài</button></div>}
@@ -156,18 +190,23 @@ function ExamStep({ e, reload }) {
 function Release({ e, reload, onNext }) {
   const [quiz, setQuiz] = useState(e.moodle_quiz_id || '')
   const [mcourse, setMcourse] = useState(e.moodle_course_id || '')
+  const [topen, setTopen] = useState('')
+  const [tclose, setTclose] = useState('')
+  const badTimes = topen && tclose && toUnix(tclose) <= toUnix(topen)
   return <Card title="Đưa bài lên Moodle">
     {e.moodle_quiz_id ? <><p>Đã liên kết với <b>Quiz {e.moodle_quiz_id}</b> (khóa học Moodle {e.moodle_course_id || '?'}). Sinh viên vào Moodle để làm bài.</p>
+      <QuizTimes e={e} onDone={reload} />
       {e.target_students && <div className="row gap wrap"><span className="small muted grow">Bài ôn tập: chỉ {e.target_students.split(',').length} SV được giao thấy và làm được Quiz (nhóm Moodle + điều kiện truy cập).</span>
         <ActionButton className="btn sm" okMsg={r => `Nhóm Moodle có ${r.added.length} SV${r.skipped.length ? `, ${r.skipped.length} SV chưa ghi danh khóa học` : ''}`}
           onRun={() => api.post(`/api/exams/${e.id}/moodle/restrict`)}>Giới hạn SV trên Moodle</ActionButton></div>}
       <p className="next-hint mt">Bước tiếp theo: khi SV làm xong, <button className="btn sm" onClick={onNext}>sang Lấy bài làm &amp; phân tích →</button></p></> : <>
       <p className="muted">Hệ thống tự đưa các câu hỏi lên Moodle, tạo bài trắc nghiệm có xáo trộn phương án và liên kết với bài kiểm tra này. Bạn chỉ cần nhập mã khóa học trên Moodle (số hiện trong địa chỉ trang của khóa học, dạng <code>course/view.php?id=…</code>).</p>
       <div className="mt"><ReviewMode e={e} onDone={reload} /><span className="small muted"> Chọn trước khi tạo: mức này được ghi vào phần xem lại của Quiz.</span></div>
+      <div className="mt"><QuizTimeFields open={topen} close={tclose} setOpen={setTopen} setClose={setTclose} /></div>
       <div className="row gap"><Field label="Mã khóa học trên Moodle"><input className="num" value={mcourse} onChange={x => setMcourse(x.target.value)} /></Field>
-        <ActionButton className="btn primary" disabled={!mcourse} okMsg={r => `Đã tạo Quiz ${r.quizid} (${r.questions} câu) trên Moodle`
+        <ActionButton className="btn primary" disabled={!mcourse || badTimes} okMsg={r => `Đã tạo Quiz ${r.quizid} (${r.questions} câu) trên Moodle`
           + (r.restricted ? ` – chỉ ${r.restricted.added.length} SV được giao làm được` : '') + (r.restrict_error ? ` ⚠ ${r.restrict_error}` : '')}
-          onRun={async () => { const r = await api.post(`/api/exams/${e.id}/moodle/create-quiz`, { moodle_course_id: Number(mcourse) }); reload(); return r }}>⇪ Tạo bài trắc nghiệm trên Moodle</ActionButton></div>
+          onRun={async () => { const r = await api.post(`/api/exams/${e.id}/moodle/create-quiz`, { moodle_course_id: Number(mcourse), timeopen: toUnix(topen), timeclose: toUnix(tclose) }); reload(); return r }}>⇪ Tạo bài trắc nghiệm trên Moodle</ActionButton></div>
       <details className="mt"><summary className="muted">Cách thủ công: tải XML, tự import và nhập ID Quiz</summary>
         <ActionButton className="btn mt" onRun={async () => { await api.download(`/api/exams/${e.id}/moodle-xml`, 'moodle.xml'); reload() }}>⬇ Tải file câu hỏi Moodle XML</ActionButton>
         <div className="row gap mt"><Field label="Mã bài trắc nghiệm trên Moodle"><input className="num" value={quiz} onChange={x => setQuiz(x.target.value)} /></Field>

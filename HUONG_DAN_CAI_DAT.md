@@ -91,6 +91,7 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
      theo đúng thứ tự phương án của mã đề, và bảng **trang tài liệu cần đọc lại** cho các câu sai.
    - Moodle (sinh viên, sau khi *Công bố kết quả lên Moodle*): **Kết quả phân tích CĐR** → bài giấy → *Bài làm trên giấy của bạn*: ảnh phiếu, từng câu đúng/sai với
      đáp án đúng theo mã đề mình làm, và bảng trang tài liệu cần ôn.
+   - Giờ mở và giờ đóng Quiz (bài trực tuyến): trong bước **Đưa bài lên Moodle**, nhập giờ mở và giờ đóng ngay trước khi bấm tạo Quiz, hoặc sửa sau bằng nút **Lưu giờ mở/đóng** (hệ thống gửi sang Moodle). Trên Moodle, nhãn đúng/sai và đáp án đúng của Quiz chỉ hiện cho sinh viên sau giờ đóng; để trống giờ đóng thì Quiz không bao giờ đóng.
    - Chọn sinh viên được xem lại gì: ở đầu trang bài, mục **SV xem lại sau khi làm xong** có 3 mức: *Đầy đủ*, *Điểm và đúng/sai* (chưa cho xem đáp án đúng), *Chỉ điểm*. Nên chọn trước khi bấm tạo Quiz trên Moodle; đổi sau thì hệ thống cập nhật lại mục xem lại của Quiz và gửi lại kết quả đã công bố. Trang của giảng viên trong hệ thống không bị ảnh hưởng.
 5. Hệ thống: Lớp học phần → **Thống kê lớp & từng SV**: chỉ số chung, tỷ lệ SV đạt từng CLO so với mục tiêu, chương cần ôn,
    phân bố số CLO đạt, kết quả theo mức Bloom, bản đồ nhiệt SV × CLO, danh sách SV cần hỗ trợ. Bấm một SV để xem

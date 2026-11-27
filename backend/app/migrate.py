@@ -37,6 +37,8 @@ NEW_COLUMNS = [
     ("program_courses", "is_elective", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = học phần tự chọn'"),
     ("pi_courses", "level", "VARCHAR(2) NULL COMMENT 'Mức đáp ứng của học phần với PI: I, R, M hoặc trình độ 1–6 (Phụ lục II)'"),
     ("exams", "review_mode", "VARCHAR(10) NOT NULL DEFAULT 'full' COMMENT 'Sau khi làm xong SV được xem: full = đủ (đúng/sai, đáp án, lời giải); result = điểm và đúng/sai; score = chỉ điểm' AFTER publish_flag"),
+    ("exams", "quiz_timeopen", "BIGINT NULL COMMENT 'Giờ mở Quiz trên Moodle (unix, NULL = không giới hạn)' AFTER review_mode"),
+    ("exams", "quiz_timeclose", "BIGINT NULL COMMENT 'Giờ đóng Quiz trên Moodle (unix, NULL = không đóng)' AFTER quiz_timeopen"),
     ("exams", "counts_for_clo", "BOOLEAN NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)' AFTER last_synced_at"),
     ("exams", "parent_exam_id", "INT NULL COMMENT 'Bài phụ đạo: bài KT gốc' AFTER counts_for_clo"),
     ("exams", "target_students", "TEXT NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)' AFTER parent_exam_id"),

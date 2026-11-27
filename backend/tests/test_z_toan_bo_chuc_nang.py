@@ -213,6 +213,30 @@ def test_moodle_web_service_flows(client, gv, gv_other, admin, moodle_ws, gv_tea
     e = client.get(f"/api/exams/{on}", headers=gv).json()
     assert e["moodle_quiz_id"] == 9800 + on and e["status"] == "Published"
     assert client.post(f"/api/exams/{on}/moodle/create-quiz", headers=gv, json={}).status_code == 409
+    cq = [p for fn, p in moodle_ws.calls if fn == "local_clo_create_quiz"][-1]
+    assert cq["timeopen"] == 0 and cq["timeclose"] == 0
+    assert e["quiz_timeopen"] is None and e["quiz_timeclose"] is None
+    tq = lambda: [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results" and "timeclose" in p][-1]
+    assert client.patch(f"/api/exams/{on}/quiz-times", headers=gv, json={"timeopen": 2000, "timeclose": 1000}).status_code == 422
+    assert client.patch(f"/api/exams/{on}/quiz-times", headers=gv, json={"timeclose": -5}).status_code == 422
+    r = client.patch(f"/api/exams/{on}/quiz-times", headers=gv, json={"timeopen": 1800000000, "timeclose": 1800003600})
+    assert r.status_code == 200 and r.json()["quiz_timeclose"] == 1800003600 and "quiz" in r.json(), r.text
+    assert tq()["timeopen"] == 1800000000 and tq()["timeclose"] == 1800003600 and tq()["results"] == [] and "reviewmode" not in tq()
+    e = client.get(f"/api/exams/{on}", headers=gv).json()
+    assert e["quiz_timeopen"] == 1800000000 and e["quiz_timeclose"] == 1800003600
+    r = client.patch(f"/api/exams/{on}/quiz-times", headers=gv, json={"timeopen": 0, "timeclose": 0})
+    assert r.status_code == 200 and r.json()["quiz_timeclose"] is None and tq()["timeclose"] == 0
+    assert client.patch(f"/api/exams/{on}/quiz-times", headers=gv_other, json={"timeclose": 1800003600}).status_code in (403, 404)
+    on2 = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Quiz có giờ đóng", "exam_type": "online",
+                                                       "assessment_type": "process", "max_score": 10, "items": items}).json()["id"]
+    assert client.post(f"/api/exams/{on2}/moodle/create-quiz", headers=gv, json={"timeopen": 2000, "timeclose": 1000}).status_code == 422
+    r = client.patch(f"/api/exams/{on2}/quiz-times", headers=gv, json={"timeclose": 1800003600})
+    assert r.status_code == 200 and "quiz" not in r.json() and "moodle_error" not in r.json()
+    r = client.post(f"/api/exams/{on2}/moodle/create-quiz", headers=gv, json={"timeopen": 1800000000, "timeclose": 1800003600})
+    assert r.status_code == 200, r.text
+    cq = [p for fn, p in moodle_ws.calls if fn == "local_clo_create_quiz"][-1]
+    assert cq["timeopen"] == 1800000000 and cq["timeclose"] == 1800003600
+    assert client.get(f"/api/exams/{on2}", headers=gv).json()["quiz_timeclose"] == 1800003600
     pp = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Đề giấy Moodle Offline Quiz", "exam_type": "paper",
                                                       "assessment_type": "process", "max_score": 10, "items": items}).json()["id"]
     assert client.post(f"/api/exams/{pp}/moodle/create-offlinequiz", headers=gv, json={"numgroups": 9}).status_code == 422
@@ -229,6 +253,7 @@ def test_moodle_web_service_flows(client, gv, gv_other, admin, moodle_ws, gv_tea
     z = zipfile.ZipFile(io.BytesIO(client.get(f"/api/exams/{pp}/moodle/offlinequiz/files.zip", headers=gv).content))
     assert {"ma_de_A/de_thi_A.pdf", "ma_de_B/dap_an_B.pdf"} <= set(z.namelist())
     assert client.get(f"/api/exams/{on}/moodle/offlinequiz", headers=gv).status_code == 404
+    assert client.patch(f"/api/exams/{pp}/quiz-times", headers=gv, json={"timeclose": 1800003600}).status_code == 422
     r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True})
     assert r.status_code == 200 and r.json()["publish_flag"] and r.json()["moodle"]["saved"] == 40, r.text
     pushed = [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results"][-1]

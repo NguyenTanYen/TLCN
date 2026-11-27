@@ -76,6 +76,7 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
         "courseid": moodle_course_id, "examref": exam.id, "name": exam.exam_title, "questionsxml": xml,
         "grade": float(exam.max_score), "timelimit": int(exam.duration_minutes or 0) * 60,
         "reviewmode": exam.review_mode or "full",
+        "timeopen": int(exam.quiz_timeopen or 0), "timeclose": int(exam.quiz_timeclose or 0),
     }, timeout=180)
     return res
 
@@ -85,6 +86,14 @@ def sync_review_mode(db: Session, exam: Exam) -> dict:
                                           "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
                                           "published": bool(exam.publish_flag), "results": [],
                                           "reviewmode": exam.review_mode or "full"}, timeout=60)
+
+
+def sync_quiz_times(db: Session, exam: Exam) -> dict:
+    return call("local_clo_push_results", {"examref": exam.id, "courseid": exam.class_section.moodle_course_id,
+                                          "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
+                                          "published": bool(exam.publish_flag), "results": [],
+                                          "timeopen": int(exam.quiz_timeopen or 0),
+                                          "timeclose": int(exam.quiz_timeclose or 0)}, timeout=60)
 
 
 def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:

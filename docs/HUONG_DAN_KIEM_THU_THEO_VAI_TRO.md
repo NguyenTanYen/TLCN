@@ -110,6 +110,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | GV32 | **Thời gian làm bài**: đổi ngưỡng → Áp dụng. Bấm **Diễn biến** của 22130017. **Xuất Excel** | Cảnh báo cho 22130017/18 (quá nhanh) và 22130006/23 (để hết giờ). Danh sách bài của lớp có nhãn ⚠ N cảnh báo | ☐ |
 | GV33 | Đầu trang bài: **Công bố kết quả lên Moodle**, sau đó **Thu hồi công bố**, rồi công bố lại | Nhãn đổi "SV đã xem được kết quả" ↔ "Đang bảo lưu kết quả" | ☐ |
 | GV33b | Thanh trên cùng của bài (bài giấy hoặc bài trực tuyến): mục **SV xem lại sau khi làm xong** đổi lần lượt *Chỉ điểm* → *Điểm và đúng/sai* → *Đầy đủ* | Mỗi lần đổi hiện "Đã cập nhật trên Moodle" (bài đã công bố hoặc đã có Quiz); trang của GV trong hệ thống vẫn hiện đủ từng câu và đáp án | ☐ |
+| GV33c | Bước **Đưa bài lên Moodle** của bài trực tuyến: nhập **giờ mở** và **giờ đóng** (giờ đóng sau giờ mở) rồi tạo Quiz; sau đó sửa lại giờ đóng và bấm **Lưu giờ mở/đóng** | Nhập giờ đóng trước giờ mở thì nút bị khóa. Lưu xong hiện "Đã cập nhật giờ mở/đóng trên Moodle"; trong Moodle, mục Timing của Quiz đúng như đã nhập. Sau giờ đóng, SV xem được đúng/sai và đáp án đúng (tùy mức đã chọn ở GV33b) | ☐ |
 | GV34 | Lớp → **Thống kê lớp**. Bấm **Hồ sơ** một SV | Chỉ số lớp, chương cần ôn, phổ điểm, SV cần hỗ trợ. Hồ sơ: điểm các bài, thứ hạng, gợi ý ôn tập, từng câu đúng/sai | ☐ |
 
 ### B5. BM6, gộp bài, ôn tập
