@@ -464,6 +464,33 @@ test('GV11 – Tổng quan điểm, phân tích câu hỏi, kết quả SV, th�
   })
 })
 
+test('GV11b – Bài giấy 2 mã đề: màn hình chấm → mở phiếu → hồ sơ SV có ảnh phiếu, từng câu theo mã đề, tài liệu cần đọc lại', async ({ page }) => {
+  const { cs } = await demoIds(page)
+  const exams = await api(page, `/api/class-sections/${cs}/exams`)
+  const paper = exams.find(e => e.exam_title === 'Kiểm tra quá trình (giấy)')
+  test.skip(!paper, 'Chưa có bài giấy demo')
+  await test.step('Bước 1: bài giấy → "In đề & chấm phiếu" → "4. Chấm phiếu": mặc định hiện "Tất cả phiếu", bấm phiếu 22130038 → ảnh phiếu và nút xem hồ sơ', async () => {
+    await goto(page, `/exams/${paper.id}`)
+    await page.getByText('In đề & chấm phiếu').first().click()
+    await page.getByRole('button', { name: '4. Chấm phiếu' }).click()
+    await see(page, /Tất cả phiếu \(\d+\)/)
+    await page.locator('table.tbl.compact tbody tr', { hasText: '22130038' }).first().click()
+    await expect(page.locator('.scan-grid img')).toBeVisible()
+    await expect(page.getByRole('link', { name: /Xem hồ sơ/ })).toBeVisible()
+  })
+  await test.step('Bước 2: bấm "Xem hồ sơ" → mục "Phiếu bài làm – mã đề", ảnh phiếu, bảng từng câu, nhãn theo mã đề', async () => {
+    await page.getByRole('link', { name: /Xem hồ sơ/ }).click()
+    await see(page, /Phiếu bài làm – mã đề \d+/)
+    await expect(page.locator('.paper-scan img')).toBeVisible()
+    await expect(page.locator('.paper-qs tbody tr')).toHaveCount(10)
+    await see(page, /Nhãn A, B, C, D theo đúng thứ tự phương án in trên đề mã \d+/)
+    await page.getByRole('button', { name: /^Sai \(\d+\)/ }).click()
+    expect(await page.locator('.paper-qs tbody tr').count()).toBeGreaterThan(0)
+    await expect(page.locator('.paper-qs .ans-ok').first()).toBeVisible()
+    await see(page, 'Câu làm sai và trang tài liệu cần đọc lại')
+  })
+})
+
 test('GV12 – Lớp kiểm thử: lập kế hoạch đánh giá cho CLO1, xem kết quả cả lớp, xuất biểu mẫu Excel', async ({ page }) => {
   await test.step('Bước 1: trang Kết quả chuẩn đầu ra của lớp → thẻ Kế hoạch đánh giá → "Sửa" kế hoạch của CLO1', async () => {
     await goto(page, `/sections/${S.cs}/clo?tab=bm6a`)
