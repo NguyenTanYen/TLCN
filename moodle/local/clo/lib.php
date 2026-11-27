@@ -79,6 +79,37 @@ function local_clo_file_url(?string $url): ?moodle_url {
     return $at === false ? null : new moodle_url($CFG->wwwroot . substr($url, $at));
 }
 
+function local_clo_review_masks(string $mode): array {
+    $during = 0x10000;
+    $after = 0x01000 | 0x00100 | 0x00010;
+    $closed = 0x00010;
+    $masks = ['reviewattempt' => $during | $after, 'reviewcorrectness' => $closed, 'reviewmaxmarks' => $during | $after,
+        'reviewmarks' => $after, 'reviewspecificfeedback' => $closed, 'reviewgeneralfeedback' => $closed,
+        'reviewrightanswer' => $closed, 'reviewoverallfeedback' => $after];
+    if ($mode === 'result') {
+        $masks['reviewcorrectness'] = $after;
+        $masks['reviewspecificfeedback'] = 0;
+        $masks['reviewgeneralfeedback'] = 0;
+        $masks['reviewrightanswer'] = 0;
+    } else if ($mode === 'score') {
+        $masks['reviewattempt'] = $during;
+        $masks['reviewcorrectness'] = 0;
+        $masks['reviewspecificfeedback'] = 0;
+        $masks['reviewgeneralfeedback'] = 0;
+        $masks['reviewrightanswer'] = 0;
+    }
+    return $masks;
+}
+
+function local_clo_apply_review_mode(int $quizid, string $mode): void {
+    global $DB;
+    if (!$quizid || !in_array($mode, ['full', 'result', 'score'], true) || !$DB->record_exists('quiz', ['id' => $quizid])) {
+        return;
+    }
+    $rec = (object)(['id' => $quizid, 'timemodified' => time()] + local_clo_review_masks($mode));
+    $DB->update_record('quiz', $rec);
+}
+
 function local_clo_answers_visible(stdClass $exam, int $userid, int $attemptid = 0): bool {
     global $DB;
     if (empty($exam->quizid)) {
@@ -174,7 +205,7 @@ function local_clo_review_readings(int $attemptid): string {
     foreach ($quba->get_slots() as $slot) {
         $byidnumber[(string)$quba->get_question($slot, false)->idnumber] = $slot;
     }
-    $showwhy = empty($rdata->hide_answers) && local_clo_answers_visible($exam, (int)$attempt->userid, (int)$attempt->id);
+    $showwhy = ($rdata->review_mode ?? 'full') === 'full' && local_clo_answers_visible($exam, (int)$attempt->userid, (int)$attempt->id);
     $o = '';
     foreach ($materials as $m) {
         $slot = isset($m->question_id) ? ($byidnumber['QB-' . (int)$m->question_id] ?? 0) : (int)$m->question;

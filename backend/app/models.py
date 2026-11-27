@@ -365,7 +365,7 @@ class Exam(Base):
     moodle_offlinequiz_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(20), default="Draft")
     publish_flag: Mapped[bool] = mapped_column(Boolean, default=False)
-    hide_answers: Mapped[bool] = mapped_column(Boolean, default=False)
+    review_mode: Mapped[str] = mapped_column(String(10), default="full")
     last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     counts_for_clo: Mapped[bool] = mapped_column(Boolean, default=True)
     parent_exam_id: Mapped[Optional[int]] = mapped_column(ForeignKey("exams.id"))

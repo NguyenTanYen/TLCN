@@ -10,7 +10,7 @@ from ..database import get_db
 from ..http_utils import attachment
 from ..deps import check_course_access, check_moodle_course, check_section_access, get_exam_for, require, lecturer_only
 from ..models import ClassSection, Exam, ExamQuestion, Question, User
-from ..schemas import BlueprintIn, ExamIn, LinkQuizIn, PublishIn
+from ..schemas import BlueprintIn, ExamIn, LinkQuizIn, PublishIn, ReviewModeIn
 from ..services import blueprint as bp, lms, moodle, xml_export
 
 router = APIRouter(prefix="/api", tags=["UC-02 Đề thi"])
@@ -21,7 +21,7 @@ def exam_dict(db: Session, e: Exam) -> dict:
     course = cs.course if cs else e.course
     return {"id": e.id, "exam_title": e.exam_title, "assessment_type": e.assessment_type, "exam_type": e.exam_type,
             "exam_date": e.exam_date, "duration_minutes": e.duration_minutes, "max_score": float(e.max_score),
-            "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag, "hide_answers": bool(e.hide_answers),
+            "moodle_quiz_id": e.moodle_quiz_id, "moodle_offlinequiz_id": e.moodle_offlinequiz_id, "status": e.status, "publish_flag": e.publish_flag, "review_mode": e.review_mode or "full",
             "last_synced_at": e.last_synced_at, "class_section_id": e.class_section_id, "section_code": cs.section_code if cs else None,
             "is_template": cs is None, "source_exam_id": e.source_exam_id,
             "counts_for_clo": e.counts_for_clo, "parent_exam_id": e.parent_exam_id, "target_students": e.target_students,
@@ -276,10 +276,8 @@ def publish(exam_id: int, body: PublishIn, u: User = Depends(require("admin", "l
     if body.publish and e.status != "Analyzed":
         raise HTTPException(409, "Chỉ công bố được bài KT đã phân tích")
     e.publish_flag = body.publish
-    if body.hide_answers is not None:
-        e.hide_answers = body.hide_answers
     db.commit()
-    out = {"id": exam_id, "publish_flag": e.publish_flag, "hide_answers": bool(e.hide_answers)}
+    out = {"id": exam_id, "publish_flag": e.publish_flag}
     if not lms.configured():
         out["moodle_error"] = "chưa cấu hình Web Service Moodle (MOODLE_URL, MOODLE_WS_TOKEN)"
     elif not e.class_section.moodle_course_id:
@@ -287,6 +285,29 @@ def publish(exam_id: int, body: PublishIn, u: User = Depends(require("admin", "l
     elif e.status == "Analyzed":
         try:
             out["moodle"] = lms.push_results(db, e)
+        except lms.MoodleWSError as ex:
+            out["moodle_error"] = str(ex)
+    return out
+
+
+@router.patch("/exams/{exam_id}/review-mode")
+def set_review_mode(exam_id: int, body: ReviewModeIn, u: User = Depends(require("admin", "lecturer")), db: Session = Depends(get_db)):
+    e = get_exam_for(db, u, exam_id)
+    if e.exam_type == "manual":
+        raise HTTPException(422, "Bài nhập điểm không có phần xem lại của sinh viên")
+    e.review_mode = body.review_mode
+    db.commit()
+    out = {"id": exam_id, "review_mode": e.review_mode}
+    if not lms.configured():
+        out["moodle_error"] = "chưa cấu hình Web Service Moodle (MOODLE_URL, MOODLE_WS_TOKEN)"
+    elif not e.class_section.moodle_course_id:
+        out["moodle_error"] = "lớp học phần chưa gắn khóa học Moodle"
+    elif e.moodle_quiz_id or (e.status == "Analyzed" and e.publish_flag):
+        try:
+            if e.moodle_quiz_id:
+                out["quiz"] = lms.sync_review_mode(db, e)
+            if e.status == "Analyzed" and e.publish_flag:
+                out["moodle"] = lms.push_results(db, e)
         except lms.MoodleWSError as ex:
             out["moodle_error"] = str(ex)
     return out
@@ -317,7 +338,7 @@ def copy_exam(exam_id: int, body: CopyIn, u: User = Depends(lecturer_only), db: 
         n = Exam(class_section_id=cs.id, exam_title=e.exam_title, assessment_type=e.assessment_type, exam_type=e.exam_type,
                  exam_date=e.exam_date, duration_minutes=e.duration_minutes, max_score=e.max_score, counts_for_clo=e.counts_for_clo,
                  paper_settings=e.paper_settings, status="Published" if e.exam_type == "manual" else "Draft", created_by=u.id,
-                 source_exam_id=e.id)
+                 source_exam_id=e.id, review_mode=e.review_mode or "full")
         for q in e.questions:
             n.questions.append(ExamQuestion(question_id=q.question_id, order_index=q.order_index, points=q.points))
         db.add(n); db.commit(); db.refresh(n)

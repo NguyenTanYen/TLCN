@@ -36,7 +36,7 @@ NEW_COLUMNS = [
     ("program_courses", "knowledge_block", "VARCHAR(150) NULL COMMENT 'Khối kiến thức, VD Kiến thức cơ sở ngành'"),
     ("program_courses", "is_elective", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = học phần tự chọn'"),
     ("pi_courses", "level", "VARCHAR(2) NULL COMMENT 'Mức đáp ứng của học phần với PI: I, R, M hoặc trình độ 1–6 (Phụ lục II)'"),
-    ("exams", "hide_answers", "BOOLEAN NOT NULL DEFAULT FALSE COMMENT '1 = ẩn đáp án đúng và lời giải với SV trên trang kết quả Moodle' AFTER publish_flag"),
+    ("exams", "review_mode", "VARCHAR(10) NOT NULL DEFAULT 'full' COMMENT 'Sau khi làm xong SV được xem: full = đủ (đúng/sai, đáp án, lời giải); result = điểm và đúng/sai; score = chỉ điểm' AFTER publish_flag"),
     ("exams", "counts_for_clo", "BOOLEAN NOT NULL DEFAULT TRUE COMMENT '1 = dùng làm minh chứng tổng hợp CLO của lớp (gộp các bài được chọn)' AFTER last_synced_at"),
     ("exams", "parent_exam_id", "INT NULL COMMENT 'Bài phụ đạo: bài KT gốc' AFTER counts_for_clo"),
     ("exams", "target_students", "TEXT NULL COMMENT 'Bài phụ đạo: MSSV các SV được giao (cách nhau dấu phẩy)' AFTER parent_exam_id"),
@@ -165,6 +165,10 @@ def _upgrade_v3(c, done: list) -> None:
         if _col(c, table, col) is None:
             c.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
             done.append(f"{table}.{col}")
+    if _col(c, "exams", "hide_answers") is not None:
+        c.execute(text("UPDATE exams SET review_mode='score' WHERE hide_answers=1"))
+        c.execute(text("ALTER TABLE exams DROP COLUMN hide_answers"))
+        done.append("exams.hide_answers -> review_mode")
     if not c.execute(text("""SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE()
                              AND TABLE_NAME='exams' AND CONSTRAINT_NAME='fk_exam_parent'""")).scalar():
         c.execute(text("ALTER TABLE exams ADD CONSTRAINT fk_exam_parent FOREIGN KEY (parent_exam_id) REFERENCES exams(id) ON DELETE SET NULL"))

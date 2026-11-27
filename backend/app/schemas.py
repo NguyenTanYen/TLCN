@@ -82,9 +82,12 @@ class LinkQuizIn(BaseModel):
     moodle_quiz_id: int = Field(gt=0)
 
 
+class ReviewModeIn(BaseModel):
+    review_mode: Literal["full", "result", "score"]
+
+
 class PublishIn(BaseModel):
     publish: bool
-    hide_answers: bool | None = None
 
 
 class CLOPlanIn(BaseModel):

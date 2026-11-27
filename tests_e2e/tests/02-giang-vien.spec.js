@@ -491,32 +491,34 @@ test('GV11b – Bài giấy 2 mã đề: màn hình chấm → mở phiếu → 
   })
 })
 
-test('GV11c – Ẩn đáp án đúng với SV: tick/bỏ tick ở thanh công bố, lưu theo bài, bài nhập điểm không có ô này', async ({ page }) => {
+test('GV11c – Chọn cho SV xem lại gì sau khi làm xong (Đầy đủ / Điểm và đúng-sai / Chỉ điểm): lưu theo bài, bài nhập điểm không có mục này', async ({ page }) => {
   const { cs } = await demoIds(page)
   const exams = await api(page, `/api/class-sections/${cs}/exams`)
   const paper = exams.find(e => e.exam_title === 'Kiểm tra quá trình (giấy)')
   const manual = exams.find(e => e.exam_type === 'manual')
   test.skip(!paper, 'Chưa có bài giấy demo')
-  const box = () => page.getByLabel('Ẩn đáp án đúng với SV')
-  await test.step('Bước 1: bài giấy đã phân tích → ô "Ẩn đáp án đúng với SV" mặc định tắt', async () => {
+  const sel = () => page.getByLabel('SV xem lại sau khi làm xong')
+  await test.step('Bước 1: bài giấy → mục "SV xem lại sau khi làm xong" mặc định là Đầy đủ', async () => {
     await goto(page, `/exams/${paper.id}`)
-    await expect(box()).toBeVisible()
-    await expect(box()).not.toBeChecked()
+    await expect(sel()).toBeVisible()
+    await expect(sel()).toHaveValue('full')
   })
-  await test.step('Bước 2: tick → lưu theo bài; tải lại trang vẫn tick', async () => {
-    await box().check()
-    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).hide_answers).toBe(true)
+  await test.step('Bước 2: chọn "Chỉ điểm" → lưu theo bài; tải lại trang vẫn giữ', async () => {
+    await sel().selectOption('score')
+    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).review_mode).toBe('score')
     await page.reload()
-    await expect(box()).toBeChecked()
+    await expect(sel()).toHaveValue('score')
   })
-  await test.step('Bước 3: bỏ tick → trả về mặc định', async () => {
-    await box().uncheck()
-    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).hide_answers).toBe(false)
+  await test.step('Bước 3: chọn "Điểm và đúng/sai" rồi trả về "Đầy đủ"', async () => {
+    await sel().selectOption('result')
+    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).review_mode).toBe('result')
+    await sel().selectOption('full')
+    await expect.poll(async () => (await api(page, `/api/exams/${paper.id}`)).review_mode).toBe('full')
   })
   if (manual) {
-    await test.step('Bước 4: bài nhập điểm không có ô này', async () => {
+    await test.step('Bước 4: bài nhập điểm không có mục này', async () => {
       await goto(page, `/exams/${manual.id}`)
-      await expect(page.getByLabel('Ẩn đáp án đúng với SV')).toHaveCount(0)
+      await expect(page.getByLabel('SV xem lại sau khi làm xong')).toHaveCount(0)
     })
   }
 })

@@ -26,18 +26,20 @@ class push_results extends external_api {
                 'maxscore' => new external_value(PARAM_FLOAT, 'Thang điểm', VALUE_DEFAULT, null),
                 'data' => new external_value(PARAM_RAW, 'JSON: clos, summary, study_plan, items', VALUE_DEFAULT, '{}'),
             ]), 'Kết quả từng sinh viên', VALUE_DEFAULT, []),
+            'reviewmode' => new external_value(PARAM_ALPHA, 'Đặt lại mục xem lại của Quiz: full | result | score (rỗng = giữ nguyên)', VALUE_DEFAULT, ''),
         ]);
     }
 
-    public static function execute($examref, $courseid, $quizid, $title, $published, $results = []): array {
+    public static function execute($examref, $courseid, $quizid, $title, $published, $results = [], $reviewmode = ''): array {
         global $CFG, $DB;
         $p = self::validate_parameters(self::execute_parameters(),
-            compact('examref', 'courseid', 'quizid', 'title', 'published', 'results'));
+            compact('examref', 'courseid', 'quizid', 'title', 'published', 'results', 'reviewmode'));
         $course = get_course($p['courseid']);
         $context = \context_course::instance($course->id);
         self::validate_context($context);
         require_capability('local/clo:manage', $context);
 
+        require_once($CFG->dirroot . '/local/clo/lib.php');
         $now = time();
         $exam = $DB->get_record('local_clo_exam', ['examref' => $p['examref']]);
         if (!$exam) {
@@ -93,6 +95,9 @@ class push_results extends external_api {
             $DB->delete_records_select('local_clo_result', "cloexamid = :e AND id $notin", $params + ['e' => $exam->id]);
         }
         $transaction->allow_commit();
+        if ($p['reviewmode'] !== '' && !empty($exam->quizid) && (int)$DB->get_field('quiz', 'course', ['id' => $exam->quizid]) === (int)$course->id) {
+            local_clo_apply_review_mode((int)$exam->quizid, $p['reviewmode']);
+        }
 
         $notified = $exam->published ? self::notify($exam, $course) : 0;
         return ['cloexamid' => (int)$exam->id, 'saved' => $saved, 'notfound' => $notfound, 'notified' => $notified];

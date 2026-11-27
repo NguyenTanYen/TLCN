@@ -40,6 +40,8 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         return html_writer::div(get_string('insufficient', 'local_clo'), 'alert alert-secondary mb-0');
     }
     $d = json_decode($res->data ?? '{}') ?: new stdClass();
+    $mode = $d->review_mode ?? 'full';
+    $hide = $mode === 'score';
     $clos = $d->clos ?? [];
     $chapters = $d->chapters ?? [];
     $o = html_writer::start_div('local-clo-result');
@@ -153,10 +155,9 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                                                WHERE quiz = ? AND userid = ? AND preview = 0 AND state = 'finished'
                                             ORDER BY attempt DESC", [$exam->quizid, $res->userid], IGNORE_MULTIPLE);
     }
-    $hide = !empty($d->hide_answers);
-    $showwhy = !$hide && local_clo_answers_visible($exam, (int)$res->userid, $attemptid);
+    $showwhy = $mode === 'full' && local_clo_answers_visible($exam, (int)$res->userid, $attemptid);
     $wrongrows = [];
-    if ($attemptid) {
+    if ($attemptid && !$hide) {
         $uniqueid = (int)$DB->get_field('quiz_attempts', 'uniqueid', ['id' => $attemptid]);
         $frac = [];
         $steps = $DB->get_records_sql("SELECT s.id, s.questionattemptid, s.fraction
@@ -172,7 +173,7 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                 continue;
             }
             $wrongrows[(int)$qa->slot] = [trim((string)$qa->questionsummary), trim((string)$qa->responsesummary),
-                trim((string)$qa->rightanswer)];
+                $mode === 'full' ? trim((string)$qa->rightanswer) : ''];
         }
     }
     $review = $d->review ?? [];
@@ -200,7 +201,11 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $t = new html_table();
         $t->attributes['class'] = 'generaltable local-clo-table local-clo-wrong';
         $t->head = [get_string('wrongquestion_short', 'local_clo'), get_string('questiontext', 'local_clo'),
-            get_string('youranswer', 'local_clo'), get_string('rightanswer', 'local_clo'), get_string('readpages', 'local_clo')];
+            get_string('youranswer', 'local_clo')];
+        if ($showwhy) {
+            $t->head[] = get_string('rightanswer', 'local_clo');
+        }
+        $t->head[] = get_string('readpages', 'local_clo');
         foreach ($nums as $n) {
             $w = $wrongrows[$n] ?? ['', '', ''];
             $label = get_string('question_no', 'local_clo', $n);
@@ -216,12 +221,16 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                 }
                 $why = $showwhy ? local_clo_explanation_html($bynum[$n]) : '';
             }
-            $t->data[] = [html_writer::tag('strong', $label, ['class' => 'text-nowrap']), s(shorten_text($w[0], 200)),
-                $w[1] !== '' ? s($w[1]) : html_writer::span(get_string('notanswered', 'local_clo'), 'text-muted'),
-                $showwhy ? html_writer::span(s($w[2]), 'text-success') : '–',
-                ($pages !== '' ? html_writer::tag('ul', $pages, ['class' => 'mb-0 ps-3']) : '–') . $why];
+            $row = [html_writer::tag('strong', $label, ['class' => 'text-nowrap']), s(shorten_text($w[0], 200)),
+                $w[1] !== '' ? s($w[1]) : html_writer::span(get_string('notanswered', 'local_clo'), 'text-muted')];
+            if ($showwhy) {
+                $row[] = html_writer::span(s($w[2]), 'text-success');
+            }
+            $row[] = ($pages !== '' ? html_writer::tag('ul', $pages, ['class' => 'mb-0 ps-3']) : '–') . $why;
+            $t->data[] = $row;
         }
         $body = html_writer::tag('p', get_string('readings_help', 'local_clo'), ['class' => 'small text-muted']) .
+            ($showwhy ? '' : html_writer::tag('p', get_string('answersnotreleased', 'local_clo'), ['class' => 'small text-muted'])) .
             html_writer::div(html_writer::table($t), 'local-clo-tablewrap');
         if ($attemptid) {
             $body .= html_writer::div(html_writer::link(new moodle_url('/mod/quiz/review.php', ['attempt' => $attemptid]),
@@ -244,8 +253,8 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
     }
     if ($review) {
         $body = html_writer::tag('p', get_string('paperreview_help', 'local_clo', s($d->version ?? '')), ['class' => 'small text-muted']);
-        if ($hide) {
-            $body .= html_writer::tag('p', get_string('answershidden', 'local_clo'), ['class' => 'small text-muted']);
+        if (!$showwhy) {
+            $body .= html_writer::tag('p', get_string('answersnotreleased', 'local_clo'), ['class' => 'small text-muted']);
         }
         $list = '';
         foreach ($review as $q) {
@@ -283,6 +292,18 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
         $body .= html_writer::tag('h5', get_string('paperquestions', 'local_clo'), ['class' => 'h6 mt-3']) . $list;
         $o .= html_writer::tag('details', html_writer::tag('summary', get_string('paperreview', 'local_clo', s($d->version ?? '')),
             ['class' => 'local-clo-summary']) . html_writer::div($body, 'mt-2'), ['class' => 'local-clo-card', 'open' => 'open']);
+    }
+    if ($hide) {
+        $body = html_writer::tag('p', get_string('answershidden', 'local_clo'), ['class' => 'text-muted']);
+        if (!empty($d->scan)) {
+            $sid = 'localcloscan' . $exam->id;
+            $body .= html_writer::tag('h5', get_string('scantitle', 'local_clo'), ['class' => 'h6']) .
+                html_writer::tag('p', get_string('scanhelp', 'local_clo'), ['class' => 'small text-muted']) .
+                html_writer::empty_tag('img', ['src' => $d->scan, 'alt' => get_string('scantitle', 'local_clo'), 'class' => 'local-clo-scan',
+                    'id' => $sid, 'title' => get_string('scanzoom', 'local_clo')]) .
+                html_writer::script("document.getElementById('$sid').addEventListener('click',function(){this.classList.toggle('big')});");
+        }
+        $o .= local_clo_card(get_string('detailhidden', 'local_clo'), $body);
     }
     $ans = $d->answers ?? [];
     if ($ans) {

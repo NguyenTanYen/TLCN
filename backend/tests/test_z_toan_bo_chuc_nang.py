@@ -39,7 +39,7 @@ class FakeMoodle:
                                                          "local_clo_process_scans", "local_clo_push_results",
                                                          "local_clo_sync_questions")]}
         if fn == "local_clo_create_quiz":
-            assert "<quiz>" in params["questionsxml"] and params["courseid"]
+            assert "<quiz>" in params["questionsxml"] and params["courseid"] and params["reviewmode"] in ("full", "result", "score")
             return {"quizid": 9800 + params["examref"], "cmid": 8800 + params["examref"], "courseid": params["courseid"],
                     "created": True, "nquestions": params["questionsxml"].count("<question type=\"multichoice\"")}
         if fn in ("local_clo_create_offlinequiz", "local_clo_get_offlinequiz", "local_clo_process_scans"):
@@ -200,7 +200,7 @@ def test_link_section_with_moodle_both_ways(client, gv, admin):
         ex(f"DELETE FROM `{M}`.mdl_course WHERE id=51")
 
 
-def test_moodle_web_service_flows(client, gv, admin, moodle_ws, gv_teacher_of_course_50):
+def test_moodle_web_service_flows(client, gv, gv_other, admin, moodle_ws, gv_teacher_of_course_50):
     st = client.get("/api/system/lms-status", headers=gv).json()
     assert st["ws_configured"] and st["ws_ok"] and "local_clo_sync_questions" in st["site"]["functions"]
     qs = [x["id"] for x in client.get("/api/questions?course_id=5", headers=gv).json() if x["tagged"]][:5]
@@ -235,17 +235,30 @@ def test_moodle_web_service_flows(client, gv, admin, moodle_ws, gv_teacher_of_co
     assert pushed["published"] is True and len(pushed["results"]) == 40
     r = client.post("/api/exams/2/moodle/push-results", headers=gv)
     assert r.status_code == 200 and r.json()["sent"] == 40
-    assert client.get("/api/exams/2", headers=gv).json()["hide_answers"] is False
-    r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True, "hide_answers": True})
-    assert r.status_code == 200 and r.json()["hide_answers"] is True and r.json()["moodle"]["saved"] == 40, r.text
-    hidden = [json.loads(x["data"]) for x in [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results"][-1]["results"] if x["data"] != "{}"]
-    assert hidden and all(d.get("hide_answers") is True for d in hidden)
-    r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True})
-    assert r.json()["hide_answers"] is True
-    r = client.patch("/api/exams/2/publish", headers=gv, json={"publish": True, "hide_answers": False})
-    assert r.json()["hide_answers"] is False
-    shown = [json.loads(x["data"]) for x in [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results"][-1]["results"] if x["data"] != "{}"]
-    assert shown and not any("hide_answers" in d for d in shown)
+    assert client.get("/api/exams/2", headers=gv).json()["review_mode"] == "full"
+    last = lambda: [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results"][-1]
+    datas = lambda: [json.loads(x["data"]) for x in last()["results"] if x["data"] != "{}"]
+    assert client.patch("/api/exams/2/review-mode", headers=gv, json={"review_mode": "xyz"}).status_code == 422
+    r = client.patch("/api/exams/2/review-mode", headers=gv, json={"review_mode": "score"})
+    assert r.status_code == 200 and r.json()["review_mode"] == "score" and r.json()["moodle"]["saved"] == 40, r.text
+    assert "reviewmode" not in last()
+    sync = [p for fn, p in moodle_ws.calls if fn == "local_clo_push_results" and p.get("results") == []]
+    assert sync and sync[-1]["reviewmode"] == "score" and sync[-1]["quizid"]
+    d = datas()
+    assert d and all(x.get("review_mode") == "score" and "answers" not in x and "wrong" not in x and "materials" not in x for x in d)
+    pv = client.get("/api/exams/2/moodle/results-preview", headers=gv).json()
+    assert pv and all("answers" not in x["data"] for x in pv if x["data"])
+    r = client.patch("/api/exams/2/review-mode", headers=gv, json={"review_mode": "result"})
+    assert r.json()["review_mode"] == "result"
+    d = datas()
+    assert d and all(x.get("review_mode") == "result" and "answers" in x and "wrong" in x for x in d)
+    assert all("explanation" not in m for x in d for m in x.get("materials", []))
+    r = client.patch("/api/exams/2/review-mode", headers=gv, json={"review_mode": "full"})
+    assert r.json()["review_mode"] == "full"
+    d = datas()
+    assert d and not any("review_mode" in x for x in d)
+    assert client.patch("/api/exams/2/review-mode", headers=gv_other, json={"review_mode": "score"}).status_code in (403, 404)
+    assert client.get("/api/exams/2", headers=gv).json()["review_mode"] == "full"
     assert client.post(f"/api/exams/{on}/moodle/push-results", headers=gv).status_code == 409
     for eid in (on, pp):
         ex("DELETE FROM exam_attempts WHERE exam_id=:e", e=eid)

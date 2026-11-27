@@ -91,7 +91,7 @@ trùng tên đăng nhập hoặc *ID number* của họ trên Moodle. Sinh viên
      theo đúng thứ tự phương án của mã đề, và bảng **trang tài liệu cần đọc lại** cho các câu sai.
    - Moodle (sinh viên, sau khi *Công bố kết quả lên Moodle*): **Kết quả phân tích CĐR** → bài giấy → *Bài làm trên giấy của bạn*: ảnh phiếu, từng câu đúng/sai với
      đáp án đúng theo mã đề mình làm, và bảng trang tài liệu cần ôn.
-   - Muốn sinh viên chưa thấy đáp án đúng và lời giải: ở đầu trang bài tick **Ẩn đáp án đúng với SV** (bỏ tick để hiện lại); trang của giảng viên trong hệ thống không bị ảnh hưởng.
+   - Chọn sinh viên được xem lại gì: ở đầu trang bài, mục **SV xem lại sau khi làm xong** có 3 mức: *Đầy đủ*, *Điểm và đúng/sai* (chưa cho xem đáp án đúng), *Chỉ điểm*. Nên chọn trước khi bấm tạo Quiz trên Moodle; đổi sau thì hệ thống cập nhật lại mục xem lại của Quiz và gửi lại kết quả đã công bố. Trang của giảng viên trong hệ thống không bị ảnh hưởng.
 5. Hệ thống: Lớp học phần → **Thống kê lớp & từng SV**: chỉ số chung, tỷ lệ SV đạt từng CLO so với mục tiêu, chương cần ôn,
    phân bố số CLO đạt, kết quả theo mức Bloom, bản đồ nhiệt SV × CLO, danh sách SV cần hỗ trợ. Bấm một SV để xem
    hồ sơ: điểm, xếp hạng, radar CLO, chẩn đoán, **các chương cần học lại** và từng câu trả lời đúng/sai.

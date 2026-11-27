@@ -20,17 +20,19 @@ class create_quiz extends external_api {
             'timeopen' => new external_value(PARAM_INT, 'Thời điểm mở (unix)', VALUE_DEFAULT, 0),
             'timeclose' => new external_value(PARAM_INT, 'Thời điểm đóng (unix)', VALUE_DEFAULT, 0),
             'timelimit' => new external_value(PARAM_INT, 'Thời gian làm bài (giây)', VALUE_DEFAULT, 0),
+            'reviewmode' => new external_value(PARAM_ALPHA, 'SV được xem lại: full | result | score', VALUE_DEFAULT, 'full'),
         ]);
     }
 
     public static function execute($courseid, $examref, $name, $questionsxml, $grade = 10, $timeopen = 0, $timeclose = 0,
-            $timelimit = 0): array {
+            $timelimit = 0, $reviewmode = 'full'): array {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/course/modlib.php');
         require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+        require_once($CFG->dirroot . '/local/clo/lib.php');
 
         $p = self::validate_parameters(self::execute_parameters(), compact('courseid', 'examref', 'name', 'questionsxml',
-            'grade', 'timeopen', 'timeclose', 'timelimit'));
+            'grade', 'timeopen', 'timeclose', 'timelimit', 'reviewmode'));
         $course = get_course($p['courseid']);
         $context = \context_course::instance($course->id);
         self::validate_context($context);
@@ -68,6 +70,7 @@ class create_quiz extends external_api {
         }
         $modinfo = create_module($quiz);
         $quizrec = $DB->get_record('quiz', ['id' => $modinfo->instance], '*', MUST_EXIST);
+        local_clo_apply_review_mode((int)$quizrec->id, $p['reviewmode']);
         $marks = \local_clo\question_importer::marks($p['questionsxml']);
         foreach ($questionids as $i => $qid) {
             quiz_add_quiz_question($qid, $quizrec, 0, $marks[$i] ?? $DB->get_field('question', 'defaultmark', ['id' => $qid]));

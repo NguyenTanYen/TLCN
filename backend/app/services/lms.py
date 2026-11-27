@@ -75,8 +75,16 @@ def create_quiz(db: Session, exam: Exam, moodle_course_id: int) -> dict:
     res = call("local_clo_create_quiz", {
         "courseid": moodle_course_id, "examref": exam.id, "name": exam.exam_title, "questionsxml": xml,
         "grade": float(exam.max_score), "timelimit": int(exam.duration_minutes or 0) * 60,
+        "reviewmode": exam.review_mode or "full",
     }, timeout=180)
     return res
+
+
+def sync_review_mode(db: Session, exam: Exam) -> dict:
+    return call("local_clo_push_results", {"examref": exam.id, "courseid": exam.class_section.moodle_course_id,
+                                          "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
+                                          "published": bool(exam.publish_flag), "results": [],
+                                          "reviewmode": exam.review_mode or "full"}, timeout=60)
 
 
 def add_resource(moodle_course_id: int, name: str, filename: str, data: bytes, section: int = 0) -> dict:
@@ -336,16 +344,22 @@ def public_data(data: dict) -> dict:
     return d
 
 
-def student_view(data: dict, hide_answers: bool) -> dict:
+def student_view(data: dict, review_mode: str | None) -> dict:
     d = public_data(data)
-    if not hide_answers:
+    mode = review_mode or "full"
+    if mode == "full" or not d:
         return d
-    d["hide_answers"] = True
-    if d.get("review"):
-        d["review"] = [{**q, "correct": None} for q in d["review"]]
-    if d.get("materials"):
-        d["materials"] = [{k: v for k, v in m.items() if k != "explanation"} for m in d["materials"]]
-    return d
+    if mode == "score":
+        keep = ("clos", "class_mean", "scan", "version")
+        out = {k: d[k] for k in keep if k in d}
+    else:
+        out = dict(d)
+        if out.get("review"):
+            out["review"] = [{**q, "correct": None} for q in out["review"]]
+        if out.get("materials"):
+            out["materials"] = [{k: v for k, v in m.items() if k != "explanation"} for m in out["materials"]]
+    out["review_mode"] = mode
+    return out
 
 
 def push_results(db: Session, exam: Exam) -> dict:
@@ -355,7 +369,7 @@ def push_results(db: Session, exam: Exam) -> dict:
     rows = student_results(db, exam.id)
     payload = [{"userid": r["moodle_user_id"] or 0, "username": r["student_code"], "status": r["status"],
                 "score": r["score"], "maxscore": r["max_score"],
-                "data": json.dumps(student_view(r["data"], bool(exam.hide_answers)), ensure_ascii=False)} for r in rows]
+                "data": json.dumps(student_view(r["data"], exam.review_mode), ensure_ascii=False)} for r in rows]
     res = call("local_clo_push_results", {"examref": exam.id, "courseid": cs.moodle_course_id,
                                           "quizid": exam.moodle_quiz_id or 0, "title": exam.exam_title,
                                           "published": bool(exam.publish_flag), "results": payload}, timeout=120)
