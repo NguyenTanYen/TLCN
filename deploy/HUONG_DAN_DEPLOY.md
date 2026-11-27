@@ -43,7 +43,7 @@ Khi Bộ môn tạo lớp (hoặc đổi giảng viên) trong hệ thống, hệ
 
 ## 6. Nạp dữ liệu demo
 - Hệ thống: tự có dữ liệu minh họa ngay lần đầu (`DEMO_DATA=1`).
-- Moodle (khóa DBMS330284_01, 40 sinh viên, Quiz có bài làm, Offline Quiz):
+- Moodle (khóa DBMS330284_01, 40 sinh viên, Quiz có bài làm; bài thi giấy 2 mã đề được hệ thống chấm bằng 39 ảnh phiếu quét):
 ```
 docker compose -f docker-compose.prod.yml -f docker-compose.override.yml --env-file .env --profile demo run --rm --build demo
 ```

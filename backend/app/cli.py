@@ -414,6 +414,91 @@ def _simulate_offlinequiz(cur, pexam, studs, qmap, ans_ids, meta, step, t0) -> N
             result(100 + k, g, [None] * len(picks), 'partial', t1 + 60)
 
 
+PAPER_PICKS = Path(__file__).resolve().parents[2] / "tools" / "moodle_e2e" / "lua_chon_bai_giay.json"
+
+
+def cham_bai_giay_tren_he_thong(exam_id: int | None = None, picks: dict | None = None, n_versions: int = 2, seed: int = 20261127) -> dict:
+    import json
+    import cv2
+    import fitz
+    import numpy as np
+    from fastapi.testclient import TestClient
+    from .main import app
+    from .routers.paper_exam import _sheet_opts
+    from .security import create_token
+    from .services import paper as P
+
+    picks = picks if picks is not None else json.loads(PAPER_PICKS.read_text(encoding="utf-8"))
+    db = SessionLocal()
+    exam = db.get(Exam, exam_id) if exam_id else db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
+    exam_id = exam.id
+    hdr = {"Authorization": "Bearer " + create_token(exam.class_section.lecturer.user_id, "lecturer")}
+    studs = [r[0] for r in db.execute(text("""SELECT s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id
+                                              WHERE e.class_section_id=:c ORDER BY s.student_code"""), {"c": exam.class_section_id})]
+    db.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": exam_id})
+    db.execute(text("DELETE FROM scan_sheets WHERE exam_id=:e"), {"e": exam_id})
+    exam.moodle_offlinequiz_id = None
+    exam.status = "Draft" if exam.status in ("Synced", "Analyzed") else exam.status
+    exam.publish_flag = False
+    db.commit()
+    c = TestClient(app)
+    r = c.post(f"/api/exams/{exam_id}/paper/versions", headers=hdr, json={"n_versions": n_versions, "seed": seed})
+    assert r.status_code == 200, r.text
+    versions = c.get(f"/api/exams/{exam_id}/paper", headers=hdr).json()["versions"]
+    opt_order = {}
+    for q in db.query(Question).filter(Question.id.in_([eq.question_id for eq in exam.questions])).all():
+        opt_order[q.id] = [o.id for o in sorted(q.options, key=lambda o: o.position)]
+    label_of = {v["version_code"]: {(q["question_id"], o["option_id"]): o["label"] for q in v["questions"] for o in q["options"]} for v in versions}
+    pos_of = {v["version_code"]: {q["question_id"]: q["position"] for q in v["questions"]} for v in versions}
+
+    def fill(code: str, vcode: str, chosen: dict) -> dict:
+        ans = {}
+        for qid, pos in pos_of[vcode].items():
+            pk = chosen.get(qid)
+            ans[pos] = "" if pk is None else label_of[vcode][(qid, opt_order[qid][pk])]
+        return {"student": code, "version": vcode, "answers": ans}
+
+    plan = []
+    for k, code in enumerate(studs):
+        if code not in picks:
+            continue
+        vcode = versions[0 if k % 2 == 0 else 1]["version_code"] if n_versions > 1 else versions[0]["version_code"]
+        final = {int(q): (None if v is None else ord(v) - 65) for q, v in picks[code].items()}
+        if k == 1:
+            plan.append((code, vcode, {qid: 0 for qid in pos_of[vcode]}, "lan1", 0))
+        plan.append((code, vcode, final, "", k))
+    o = _sheet_opts(db, exam)
+    pdf = fitz.open(stream=P.sheet_pdf(o, prefills=[fill(code, vc, ch) for code, vc, ch, _t, _k in plan]), filetype="pdf")
+    files = []
+    for (code, vc, ch, tag, k), page in zip(plan, pdf):
+        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), colorspace=fitz.csGRAY)
+        img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width).copy()
+        if k % 3 == 1:
+            h, w = img.shape
+            img = cv2.warpAffine(img, cv2.getRotationMatrix2D((w / 2, h / 2), 2.5, 0.96), (w, h), borderValue=120)
+        files.append(("files", (f"phieu_{code}{'_' + tag if tag else ''}.jpg", cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 88])[1].tobytes(), "image/jpeg")))
+    saved = review = errors = 0
+    for i in range(0, len(files), 10):
+        r = c.post(f"/api/exams/{exam_id}/scan/save", headers=hdr, files=files[i:i + 10])
+        assert r.status_code == 200, r.text
+        j = r.json(); saved += j["saved"]; review += j["review"]; errors += j["errors"]
+    fin = c.post(f"/api/exams/{exam_id}/scan/finish", headers=hdr, json={"mark_absent": True, "analyze": True})
+    assert fin.status_code == 200, fin.text
+    db.commit()
+    got = {(r[0], r[1]): r[2] for r in db.execute(text("""SELECT s.student_code, r.question_id, o.position - 1 FROM item_level_results r
+                  JOIN exam_attempts a ON a.id=r.attempt_id JOIN students s ON s.id=a.student_id
+                  LEFT JOIN question_options o ON o.id=r.selected_option_id WHERE a.exam_id=:e AND a.status='finished'"""), {"e": exam_id})}
+    want = {(code, int(q)): (None if v is None else ord(v) - 65) for code, pk in picks.items() for q, v in pk.items()}
+    bad = [k for k in want if got.get(k) != want[k]]
+    n_abs = db.execute(text("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='absent'"), {"e": exam_id}).scalar()
+    out = {"bai_thi": exam_id, "ma_de": [v["version_code"] for v in versions], "phieu_quet": len(files), "phieu_da_cham": saved,
+           "phieu_cho_xu_ly": review, "phieu_loi": errors, "sv_vang": n_abs, "lech_phuong_an_so_voi_phieu_to": len(bad),
+           "phan_tich": fin.json().get("analysis")}
+    db.close()
+    assert not bad and not review and not errors and n_abs == len(studs) - len(picks), out
+    return out
+
+
 def bootstrap() -> None:
     import os, time
     for _ in range(60):
@@ -524,7 +609,7 @@ def do_lien_quan_hoc_lieu() -> None:
 
 def main(argv: list[str]) -> None:
     cmds = {"kiem-tra-ket-qua": kiem_tra_ket_qua, "dong-bo-hoc-lieu": dong_bo_hoc_lieu, "kiem-tra-gan-clo-pi": kiem_tra_gan_clo_pi, "day-ket-qua": day_ket_qua, "do-lien-quan-hoc-lieu": do_lien_quan_hoc_lieu, "bootstrap": bootstrap, "init-db": init_db, "seed-demo": seed_demo,
-            "simulate-moodle": simulate_moodle, "install-bridge": _install_bridge}
+            "simulate-moodle": simulate_moodle, "cham-bai-giay": lambda: print(cham_bai_giay_tren_he_thong()), "install-bridge": _install_bridge}
     if len(argv) < 2 or argv[1] not in cmds:
         print(__doc__); sys.exit(1)
     cmds[argv[1]]()

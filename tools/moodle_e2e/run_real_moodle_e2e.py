@@ -83,106 +83,24 @@ def main():
         print("Học liệu chưa nạp được trong bước này, bước đồng bộ học liệu sau đó sẽ nạp:", ex)
         reports["hoc_lieu"] = None
     reports["day_ket_qua_len_moodle"] = push_to_moodle(db, exam)
-    reports["bai_thi_giay"] = paper_on_moodle(db, info, php)
+    reports["bai_thi_giay"] = paper_on_system(db)
     (WORK / "verification.json").write_text(json.dumps({"moodle": info, "ket_qua": reports}, ensure_ascii=False, indent=1), encoding="utf-8")
     print("\nĐẠT: với cả 3 cách tính điểm, dữ liệu đồng bộ khớp hoàn toàn với kết quả chấm của Moodle.")
     if reports.get("day_ket_qua_len_moodle"):
         print("ĐẠT: kết quả phân tích đã được đẩy lên Moodle – SV xem tại khóa học > Kết quả phân tích CĐR.")
     if reports.get("bai_thi_giay"):
-        print("ĐẠT: bài thi giấy – Moodle sinh đề/phiếu, nhận diện & chấm 38 phiếu quét; hệ thống kéo về khớp hoàn toàn.")
+        print("ĐẠT: bài thi giấy – hệ thống sinh 2 mã đề, nhận diện & chấm 38 phiếu quét, lưu ảnh phiếu và đẩy kết quả cho sinh viên xem lại.")
 
 
-def paper_on_moodle(db, info, php):
-    from fill_answer_sheets import fill_sheet
-    if not lms.configured():
-        print("\n(Bỏ qua bài thi giấy: chưa cấu hình MOODLE_URL / MOODLE_WS_TOKEN)")
-        return None
-    if not moodle.offlinequiz_available():
-        print("\n(Bỏ qua bài thi giấy: Moodle chưa cài plugin Offline Quiz – chạy scripts/cai_dat.bat)")
-        return None
+def paper_on_system(db):
     exam = db.query(Exam).filter_by(exam_type="paper").order_by(Exam.id).first()
-    print(f"\n== Bài thi giấy #{exam.id}: tạo Offline Quiz 2 mã đề trên Moodle (Web Service)")
-    oq = lms.create_offlinequiz(exam, info["course_id"], numgroups=2, intro="<p>Thời gian làm bài: 30 phút. Không sử dụng tài liệu.</p>")
-    exam.moodle_offlinequiz_id = oq["offlinequizid"]; exam.class_section.moodle_course_id = info["course_id"]
-    exam.status = "Published"; db.commit()
-    scans = WORK / "phieu_quet"; shutil.rmtree(scans, ignore_errors=True); scans.mkdir()
-    forms = {}
-    for g in oq["groups"]:
-        for f in g["files"]:
-            data, _ = lms.download(f["url"])
-            (scans.parent / f"{f['kind']}_{g['letter']}.{f['filename'].rsplit('.', 1)[-1]}").write_bytes(data)
-            if f["kind"] == "answer":
-                forms[g["groupnumber"]] = str(scans.parent / f"answer_{g['letter']}.pdf")
-    MDL = f"{settings.moodle_db_name}.{settings.moodle_prefix}"
-    with engine.connect() as c:
-        rows = c.execute(text(f"""SELECT g.groupnumber, qa.slot, CAST(SUBSTRING(qbe.idnumber, 4) AS UNSIGNED), d.value
-            FROM {MDL}offlinequiz_groups g JOIN {MDL}question_attempts qa ON qa.questionusageid = g.templateusageid
-            JOIN {MDL}question_attempt_steps s ON s.questionattemptid = qa.id AND s.sequencenumber = 0
-            JOIN {MDL}question_attempt_step_data d ON d.attemptstepid = s.id AND d.name = '_order'
-            JOIN {MDL}question_versions qv ON qv.questionid = qa.questionid
-            JOIN {MDL}question_bank_entries qbe ON qbe.id = qv.questionbankentryid
-            WHERE g.offlinequizid = :oq ORDER BY g.groupnumber, qa.slot"""), {"oq": oq["offlinequizid"]}).fetchall()
-        answers = {}
-        for g, slot, qid, order in rows:
-            ids = [r[0] for r in c.execute(text(f"""SELECT a.id FROM {MDL}question_answers a JOIN {MDL}question_attempts qa
-                   ON qa.questionid = a.question JOIN {MDL}offlinequiz_groups gg ON gg.templateusageid = qa.questionusageid
-                   WHERE gg.offlinequizid = :oq AND gg.groupnumber = :g AND qa.slot = :s ORDER BY a.id"""),
-                   {"oq": oq["offlinequizid"], "g": g, "s": slot})]
-            answers.setdefault(g, []).append((qid, ids, [int(x) for x in order.split(",")]))
-    studs = db.execute(text("""SELECT s.student_code FROM enrollments e JOIN students s ON s.id=e.student_id
-                               WHERE e.class_section_id=:cs ORDER BY s.student_code"""), {"cs": exam.class_section_id}).scalars().all()
-    theta, rng = cli._abilities(len(studs)), random.Random(11)
-    meta = {c: (b, corr) for ch, bl, clo, c, opts, corr, b in D.Q}
-    content = {q.question_id: q.question.content for q in exam.questions}
-    spec, files = {}, []
-    fixed_file = HERE / "lua_chon_bai_giay.json"
-    fixed = json.loads(fixed_file.read_text(encoding="utf-8")) if fixed_file.exists() else {}
-    for k, code in enumerate(studs):
-        if k in (5, 17):
-            continue
-        g = 1 if k % 2 == 0 else 2
-        picks, sheet = {}, []
-        for qid, ids, order in answers[g]:
-            b, corr = meta[content[qid]]
-            if code in fixed and str(qid) in fixed[code]:
-                lab = fixed[code][str(qid)]
-                p = None if lab is None else ord(lab) - ord("A")
-            else:
-                p = cli._answer(rng, theta[k], b, len(ids), corr, False)
-            picks[qid] = p
-            sheet.append(None if p is None else order.index(ids[p]))
-        fill_sheet(forms[g], code, sheet, str(scans / f"{code}.png"))
-        spec[code] = picks; files.append(str(scans / f"{code}.png"))
-    out = subprocess.run([php, str(HERE / "moodle_enqueue_scans.php"), f"--moodle={MOODLE}", f"--oq={oq['offlinequizid']}", *files],
-                         capture_output=True, text=True)
-    if out.returncode:
-        sys.exit("PHP lỗi:\n" + out.stderr[-3000:] + out.stdout[-2000:])
-    print("Đã đưa", len(files), "ảnh phiếu vào hàng đợi quét của Moodle:", out.stdout.strip().splitlines()[-1])
-    res = lms.process_scans(exam)
-    print(f"Moodle nhận diện & chấm: {res['results']} bài, {res['errorpages']} phiếu lỗi, {res['pending']} đang chờ")
-    print("Đồng bộ:", moodle.sync_exam(db, exam.id))
-    print("Phân tích:", results.analyze_exam(db, exam.id))
-    with engine.connect() as c:
-        q = lambda sql, **p: c.execute(text(sql), p).fetchall()
-        rows = q(f"""SELECT s.student_code, a.total_score, r.sumgrades, v.version_code, CHAR(64 + g.groupnumber USING utf8mb4)
-                     FROM exam_attempts a JOIN students s ON s.id = a.student_id
-                     JOIN {MDL}offlinequiz_results r ON r.id = a.moodle_attempt_id AND r.offlinequizid = :oq
-                     JOIN {MDL}offlinequiz_groups g ON g.id = r.offlinegroupid LEFT JOIN exam_versions v ON v.id = a.version_id
-                     WHERE a.exam_id = :e""", oq=oq["offlinequizid"], e=exam.id)
-        diff = [r for r in rows if round(float(r[1]), 2) != round(float(r[2]), 2) or r[3] != r[4]]
-        got = {(r[0], r[1]): r[2] for r in q("""SELECT s.student_code, r.question_id, o.position - 1 FROM item_level_results r
-                   JOIN exam_attempts a ON a.id = r.attempt_id JOIN students s ON s.id = a.student_id
-                   LEFT JOIN question_options o ON o.id = r.selected_option_id WHERE a.exam_id = :e AND a.status = 'finished'""", e=exam.id)}
-        spec_bad = [(u, qid) for u, picks in spec.items() for qid, p in picks.items() if got.get((u, qid)) != p]
-        absent = q("SELECT COUNT(*) FROM exam_attempts WHERE exam_id=:e AND status='absent'", e=exam.id)[0][0]
-    report = {"offlinequiz": oq["offlinequizid"], "ma_de": [g["letter"] for g in oq["groups"]], "phieu_quet": len(files),
-              "moodle_da_cham": res["results"], "phieu_loi": res["errorpages"], "bai_dong_bo": len(rows), "sv_vang": absent,
-              "lech_diem_hoac_ma_de": len(diff), "lech_phuong_an_so_voi_phieu_to": len(spec_bad)}
+    print(f"\n== Bài thi giấy #{exam.id}: sinh 2 mã đề, quét 39 phiếu và chấm ngay trên hệ thống (bộ nhận diện phiếu riêng)")
+    report = cli.cham_bai_giay_tren_he_thong(exam.id, picks=json.loads((HERE / "lua_chon_bai_giay.json").read_text(encoding="utf-8")))
     print(json.dumps(report, ensure_ascii=False, indent=1))
-    assert res["results"] == len(files) == len(rows) == 38 and absent == 2 and not diff and not spec_bad and not res["errorpages"]
+    exam = db.get(Exam, exam.id)
     exam.publish_flag = True; db.commit()
-    pushed = lms.push_results(db, exam)
-    report["day_ket_qua_len_moodle"] = pushed["saved"]
+    if lms.configured():
+        report["day_ket_qua_len_moodle"] = lms.push_results(db, exam)["saved"]
     return report
 
 

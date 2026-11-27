@@ -12,16 +12,14 @@ if ! $C exec -T db mysqldump -uroot -p"${DB_ROOT_PASS}" --all-databases > "$SAO_
 fi
 [ -s "$SAO_LUU" ] || { echo "Tệp sao lưu rỗng, dừng lại, chưa thay đổi gì."; exit 1; }
 
-if ! $C exec -T moodle test -f /var/www/html/mod/offlinequiz/version.php; then
-  echo "== Cài plugin Offline Quiz cho Moodle (bài thi giấy)"
-  $C exec -T moodle sh -c 'cat > /tmp/offlinequiz.zip' < ../moodle/mod/offlinequiz_v4.5.4.zip
-  $C exec -T moodle sh -c 'unzip -oq /tmp/offlinequiz.zip -d /var/www/html/mod && rm -f /tmp/offlinequiz.zip && chown -R www-data:www-data /var/www/html/mod/offlinequiz'
-  $C exec -T moodle php admin/cli/upgrade.php --non-interactive
-  $C exec -T moodle php admin/cli/purge_caches.php
-fi
+echo "== Cập nhật plugin local_clo trên Moodle (trang kết quả của sinh viên)"
+tar -C ../moodle/local -cf - clo | $C exec -T moodle tar -C /var/www/html/local -xf -
+$C exec -T moodle chown -R www-data:www-data /var/www/html/local/clo
+$C exec -T moodle php admin/cli/upgrade.php --non-interactive
+$C exec -T moodle php admin/cli/purge_caches.php
 
 TOKEN=$(sed -n 's/^ *MOODLE_WS_TOKEN: *"\(.*\)" *$/\1/p' docker-compose.override.yml 2>/dev/null | head -1)
-[ -n "$TOKEN" ] || echo "Không đọc được MOODLE_WS_TOKEN, các bước bài thi giấy và học liệu sẽ bị bỏ qua."
+[ -n "$TOKEN" ] || echo "Không đọc được MOODLE_WS_TOKEN, bước học liệu sẽ bị bỏ qua."
 
 echo "== Đặt lại dữ liệu demo (hệ thống + khóa học Moodle DBMS330284_01)"
 $C --profile demo run --rm --build -e MOODLE_WS_TOKEN="$TOKEN" demo || { echo "Nạp dữ liệu demo lỗi."; exit 1; }

@@ -11,7 +11,7 @@ Máy này: hệ thống tại **http://localhost:8000**, Moodle 4.5 tại **http
 
 Dữ liệu demo đáng chú ý (do `scripts\tao_du_lieu_demo.bat` tạo):
 
-- Lớp `DBMS330284_01`, 40 SV. Có bài *Thi cuối kỳ (Moodle)* (Quiz 20 câu, 38 bài làm) và bài giấy *Kiểm tra quá trình* (Offline Quiz 2 mã đề, 38 phiếu). Lớp `DBMS330284_02` có bài nhập điểm.
+- Lớp `DBMS330284_01`, 40 SV. Có bài *Thi cuối kỳ (Moodle)* (Quiz 20 câu, 38 bài làm) và bài giấy *Kiểm tra quá trình* (hệ thống chấm 2 mã đề 01/02, 38 phiếu quét đã lưu ảnh, 2 SV vắng). Lớp `DBMS330284_02` có bài nhập điểm.
 - SV vắng: 2 SV. SV chọn đại: `22130017`, `22130018`. SV để hết giờ: `22130006`, `22130023`.
 
 ---
@@ -93,7 +93,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | GV21 | Thẻ **2. Xem trước & xuất đề**: đổi 1 cột / 2 cột, bấm ✎ sửa câu. Tải PDF, Word, đáp án, .zip | Bản xem trước A4 đổi theo, tải được tệp, sửa câu áp dụng cho mọi mã đề | ☐ |
 | GV22 | Thẻ **3. Phiếu trả lời**: đổi số chữ số MSSV, phần tự luận → tải PDF phiếu | Phiếu có 4 ô định vị, vùng MSSV, mã đề, số ô đúng số phương án | ☐ |
 | GV23 | Thẻ **4. Chấm phiếu** → **⬆ Tải ảnh phiếu…**. Ảnh: in phiếu, tô rồi chụp điện thoại, hoặc sinh ảnh tô sẵn (xem cuối mục B) | Đọc được MSSV, mã đề, đáp án. Ô xanh = 1 ô, đỏ = nhiều ô, có cảnh báo. Sửa → **Lưu kết quả & phân tích** | ☐ |
-| GV24 | Bài giấy demo *Kiểm tra quá trình* (Offline Quiz): tải đề/phiếu Moodle sinh → **Tải phiếu đã quét lên Moodle ↗** → **⟳ Đồng bộ & phân tích** | 38 bài, mã đề A/B, 2 vắng | ☐ |
+| GV24 | Bài giấy demo *Kiểm tra quá trình*: thẻ **In đề & chấm phiếu → 4. Chấm phiếu → Tất cả phiếu**, bấm một dòng để xem ảnh phiếu đã nắn, sửa đáp án, **Lưu sửa & chấm lại** | 38 phiếu đã chấm, mã đề 01/02, 2 vắng; sinh viên xem lại phiếu và đáp án đúng theo mã đề trên Moodle sau khi công bố | ☐ |
 | GV25 | **+ Tạo bài kiểm tra** → **Nhập điểm**: Câu 1 = 4đ CLO1, Câu 2 = 6đ CLO2 → Tạo. Nhập 5 cho Câu 1 | Ô đỏ, nút Lưu bị khóa | ☐ |
 | GV26 | Nhập điểm hợp lệ, 1 SV đánh dấu **Vắng** → **Lưu & phân tích**. Thử **Bảng điểm mẫu (Excel)** → điền → **Nhập từ Excel**, và **Tạo từ file Excel có sẵn** | Lưu được, SV vắng không tính. Nhập Excel có xem trước lỗi | ☐ |
 

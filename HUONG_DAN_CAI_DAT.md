@@ -9,7 +9,7 @@ Hệ thống của nhóm đặt tại thư mục này (`D:\3. TLCN\HeThong`).
 | | Moodle (LMS) | Hệ thống của nhóm (localhost:8000) |
 |---|---|---|
 | Ai dùng | Sinh viên, giảng viên | **Chỉ giảng viên / bộ môn** |
-| Làm gì | SV làm Quiz online; **bài thi giấy: in đề + phiếu, nhận diện phiếu quét, chấm điểm** (Offline Quiz); SV xem **Kết quả phân tích CĐR** | Soạn ngân hàng câu hỏi gắn CLO, Bloom, chương; ra đề (online/giấy); kéo kết quả đã chấm về – phân tích – báo cáo BM2/BM3/BM6 |
+| Làm gì | SV làm Quiz online; **bài thi giấy: xem lại phiếu và đáp án theo mã đề**; SV xem **Kết quả phân tích CĐR** | Soạn ngân hàng câu hỏi gắn CLO, Bloom, chương; ra đề (online/giấy, giấy do hệ thống sinh mã đề, in và chấm phiếu); kéo kết quả đã chấm về – phân tích – báo cáo BM2/BM3/BM6 |
 | Giao diện | Theme **UTE LMS** (giao diện học tập trực tuyến) | React |
 
 Các luồng tích hợp:
@@ -19,7 +19,7 @@ Các luồng tích hợp:
 2. **Tạo Quiz qua API**: ở bài kiểm tra, bấm *Tạo Quiz trên Moodle* → Web Service `local_clo_create_quiz` nhập câu hỏi
    (idnumber `QB-<id>`) vào ngân hàng câu hỏi của khóa học, tạo Quiz bật xáo trộn phương án và tự liên kết.
    (Cách thủ công tải XML + nhập ID Quiz vẫn còn.)
-3. **Bài thi giấy – Moodle chấm**: ở bài thi giấy, bấm *Tạo đề thi giấy trên Moodle* → Web Service `local_clo_create_offlinequiz`
+3. **Bài thi giấy – phương án tùy chọn Moodle Offline Quiz** (phương án chính là hệ thống tự sinh mã đề và chấm phiếu, thẻ *In đề & chấm phiếu*): ở bài thi giấy, bấm *Tạo đề thi giấy trên Moodle* → Web Service `local_clo_create_offlinequiz`
    tạo **Offline Quiz** (plugin `mod_offlinequiz`) với N mã đề, Moodle sinh **đề in, phiếu trả lời, đáp án** từng mã đề;
    hệ thống chỉ chuyển tệp cho GV tải (từng tệp hoặc .zip). Sau khi thi: quét phiếu thành ảnh PNG/JPG/TIFF (hoặc .zip nhiều ảnh),
    tải lên trang Offline Quiz trên Moodle → **Moodle nhận diện MSSV, mã đề, ô đánh dấu và chấm**. Phiếu nhận diện lỗi được

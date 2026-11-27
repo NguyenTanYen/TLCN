@@ -204,3 +204,46 @@ def test_quet_la_cham_luon_phieu_sai_cho_gv_xu_ly(client, gv, gv_other):
         c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})
     from app.services import results
     db = SessionLocal(); results.recompute_class_section(db, 1); db.close()
+
+
+def test_demo_bai_giay_cham_tren_he_thong_va_sinh_vien_xem_lai(client, gv):
+    from app import cli
+    from app.database import SessionLocal
+    from app.services import lms, results
+
+    base = {r[0]: float(r[1]) for r in _q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
+                                              WHERE a.exam_id=1 AND a.status='finished'""")}
+    qids = [r[0] for r in _q("SELECT question_id FROM exam_questions WHERE exam_id=1 ORDER BY order_index")]
+    r = client.post("/api/exams", headers=gv, json={"class_section_id": 1, "exam_title": "Bài giấy chấm trên hệ thống (demo)", "exam_type": "paper",
+                                                    "assessment_type": "process", "max_score": 10,
+                                                    "items": [{"question_id": q, "points": 1} for q in qids]})
+    assert r.status_code == 201, r.text
+    eid = r.json()["id"]
+    rep = cli.cham_bai_giay_tren_he_thong(eid)
+    assert rep["ma_de"] == ["01", "02"] and rep["phieu_quet"] == 39 and rep["phieu_da_cham"] == 39 and rep["sv_vang"] == 2
+    assert rep["lech_phuong_an_so_voi_phieu_to"] == 0 and rep["phan_tich"]["n_students"] == 38
+    got = {r[0]: float(r[1]) for r in _q("""SELECT s.student_code, a.total_score FROM exam_attempts a JOIN students s ON s.id=a.student_id
+                                             WHERE a.exam_id=:e AND a.status='finished'""", e=eid)}
+    assert got == base
+    sheets = client.get(f"/api/exams/{eid}/scan/sheets", headers=gv).json()
+    assert sheets["n_saved"] == 38 and sheets["n_review"] == 0
+    assert {s["version_code"] for s in sheets["sheets"]} == {"01", "02"}
+    assert _q("SELECT COUNT(*) FROM scan_sheets WHERE exam_id=:e AND status='superseded'", e=eid)[0][0] == 1
+    db = SessionLocal()
+    rows = {x["student_code"]: x for x in lms.student_results(db, eid)}
+    db.close()
+    a, b = rows["22130002"]["data"], rows["22130001"]["data"]
+    assert (b["version"], a["version"]) == ("01", "02")
+    assert len(a["review"]) == 10 and a["scan"].startswith("data:image/jpeg")
+    wrong = [q["no"] for q in a["review"] if q["result"] == "wrong"]
+    assert wrong == a["wrong"] and wrong
+    for q in a["review"]:
+        assert q["correct"] and len(q["options"]) >= 2 and (q["result"] == "correct") == (q["chosen"] == q["correct"])
+        assert (q["result"] == "blank") == (q["chosen"] is None)
+    assert [q["no"] for q in a["review"]] == [x["no"] for x in a["answers"]]
+    assert [q["text"] for q in a["review"]] != [q["text"] for q in b["review"]]
+    assert rows["22130006"]["status"] == "absent" and not rows["22130006"]["data"]
+    with engine.begin() as c:
+        c.execute(text("DELETE FROM exam_attempts WHERE exam_id=:e"), {"e": eid})
+        c.execute(text("DELETE FROM exams WHERE id=:e"), {"e": eid})
+    db = SessionLocal(); results.recompute_class_section(db, 1); db.close()

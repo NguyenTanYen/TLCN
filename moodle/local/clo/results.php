@@ -174,6 +174,20 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                 trim((string)$qa->rightanswer)];
         }
     }
+    $review = $d->review ?? [];
+    if (!$attemptid && $review) {
+        foreach ($review as $q) {
+            if ($q->result === 'correct') {
+                continue;
+            }
+            $lab = [];
+            foreach ($q->options as $op) {
+                $lab[$op->label] = $op->label . '. ' . $op->text;
+            }
+            $wrongrows[(int)$q->no] = [(string)$q->text, !empty($q->chosen) ? ($lab[$q->chosen] ?? $q->chosen) : '',
+                $lab[$q->correct] ?? (string)$q->correct];
+        }
+    }
     $mats = $d->materials ?? [];
     $bynum = [];
     foreach ($mats as $m) {
@@ -226,6 +240,44 @@ function local_clo_render_result(stdClass $exam, ?stdClass $res): string {
                     html_writer::tag('ul', $mods));
             }
         }
+    }
+    if ($review && $showwhy) {
+        $body = html_writer::tag('p', get_string('paperreview_help', 'local_clo', s($d->version ?? '')), ['class' => 'small text-muted']);
+        $list = '';
+        foreach ($review as $q) {
+            $badge = ['correct' => html_writer::span(get_string('ans_correct', 'local_clo'), 'badge bg-success'),
+                'wrong' => html_writer::span(get_string('ans_wrong', 'local_clo'), 'badge bg-danger'),
+                'blank' => html_writer::span(get_string('ans_blank', 'local_clo'), 'badge bg-secondary')][$q->result];
+            $opts = '';
+            foreach ($q->options as $op) {
+                $cls = 'local-clo-opt';
+                $tag = '';
+                if ($op->label === $q->correct) {
+                    $cls .= ' ok';
+                    $tag .= html_writer::span('✓ ' . get_string('rightanswer', 'local_clo'), 'badge bg-success ms-2');
+                }
+                if (!empty($q->chosen) && $op->label === $q->chosen) {
+                    $cls .= $op->label === $q->correct ? ' picked' : ' bad';
+                    $tag .= html_writer::span(get_string('youranswer', 'local_clo'), 'badge ' .
+                        ($op->label === $q->correct ? 'bg-secondary' : 'bg-danger') . ' ms-2');
+                }
+                $opts .= html_writer::tag('li', html_writer::tag('strong', s($op->label) . '. ') . s($op->text) . $tag, ['class' => $cls]);
+            }
+            $list .= html_writer::div(html_writer::div(html_writer::tag('strong', get_string('question_no', 'local_clo', (int)$q->no)) .
+                ' ' . $badge, 'mb-1') . html_writer::div(s($q->text), 'mb-1') . html_writer::tag('ul', $opts, ['class' => 'list-unstyled mb-0']),
+                'local-clo-q ' . $q->result);
+        }
+        if (!empty($d->scan)) {
+            $sid = 'localcloscan' . $exam->id;
+            $body .= html_writer::tag('h5', get_string('scantitle', 'local_clo'), ['class' => 'h6']) .
+                html_writer::tag('p', get_string('scanhelp', 'local_clo'), ['class' => 'small text-muted']) .
+                html_writer::empty_tag('img', ['src' => $d->scan, 'alt' => get_string('scantitle', 'local_clo'), 'class' => 'local-clo-scan',
+                    'id' => $sid, 'title' => get_string('scanzoom', 'local_clo')]) .
+                html_writer::script("document.getElementById('$sid').addEventListener('click',function(){this.classList.toggle('big')});");
+        }
+        $body .= html_writer::tag('h5', get_string('paperquestions', 'local_clo'), ['class' => 'h6 mt-3']) . $list;
+        $o .= html_writer::tag('details', html_writer::tag('summary', get_string('paperreview', 'local_clo', s($d->version ?? '')),
+            ['class' => 'local-clo-summary']) . html_writer::div($body, 'mt-2'), ['class' => 'local-clo-card', 'open' => 'open']);
     }
     $ans = $d->answers ?? [];
     if ($ans) {

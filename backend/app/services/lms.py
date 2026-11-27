@@ -208,6 +208,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
             by.setdefault(x["chapter"] or "Chưa gắn chương", []).append(x["result"] == "correct")
         chapters[att] = [{"name": k, "n": len(v), "ok": sum(v), "pct": round(100 * sum(v) / len(v))} for k, v in by.items()]
         counts[att] = {r: sum(1 for x in lst if x["result"] == r) for r in ("correct", "wrong", "blank")}
+    paper_review = _paper_review(db, exam_id)
     finished_scores = [float(x[0]) for x in db.execute(text(
         "SELECT total_score FROM exam_attempts WHERE exam_id=:e AND status='finished'"), {"e": exam_id})]
     class_mean = round(sum(finished_scores) / len(finished_scores) * float(e["max_score"]) / raw_max, 2) if finished_scores else None
@@ -224,7 +225,7 @@ def student_results(db: Session, exam_id: int) -> list[dict]:
                                   "chapters": sorted(chapters.get(a["id"], []), key=lambda c: c["pct"]),
                                   "counts": counts.get(a["id"], {"correct": 0, "wrong": 0, "blank": 0}),
                                   "answers": answers.get(a["id"], []),
-                                  "class_mean": class_mean}
+                                  "class_mean": class_mean, **paper_review.get(a["id"], {})}
         out.append({"student_code": a["student_code"], "full_name": a["full_name"], "moodle_user_id": a["moodle_user_id"],
                     "status": "absent" if absent else "finished",
                     "score": None if absent else round(float(a["total_score"]) * float(e["max_score"]) / raw_max, 2),
@@ -285,6 +286,38 @@ def _stored_explanations(db: Session, exam_id: int, cs_id: int, pages: dict[int,
     except Exception:
         log.exception("Đọc lời giải thích cho bài KT %s lỗi – gửi kết quả không kèm lời giải thích", exam_id)
         return {}
+
+
+def _paper_review(db: Session, exam_id: int) -> dict[int, dict]:
+    from .paper import plain
+
+    out: dict[int, dict] = {}
+    for r in db.execute(text("""
+        SELECT a.id AS attempt_id, v.version_code, vq.position, q.content, vo.displayed_label, vo.option_id AS vopt, o.content AS opt, o.is_correct,
+               i.selected_option_id, i.is_correct AS got
+        FROM exam_attempts a JOIN exam_versions v ON v.id=a.version_id
+        JOIN exam_version_questions vq ON vq.version_id=v.id
+        JOIN question_bank q ON q.id=vq.question_id
+        JOIN exam_version_options vo ON vo.version_id=vq.version_id AND vo.question_id=vq.question_id
+        JOIN question_options o ON o.id=vo.option_id
+        LEFT JOIN item_level_results i ON i.attempt_id=a.id AND i.question_id=q.id
+        WHERE a.exam_id=:e AND a.status='finished' AND a.source='scan'
+        ORDER BY a.id, vq.position, vo.displayed_label"""), {"e": exam_id}).mappings():
+        d = out.setdefault(r["attempt_id"], {"version": r["version_code"], "review": []})
+        if not d["review"] or d["review"][-1]["no"] != int(r["position"]):
+            d["review"].append({"no": int(r["position"]), "text": plain(r["content"]), "options": [], "chosen": None, "correct": None,
+                                "result": "blank" if not r["selected_option_id"] else ("correct" if r["got"] else "wrong")})
+        q = d["review"][-1]
+        q["options"].append({"label": r["displayed_label"], "text": plain(r["opt"])})
+        if r["is_correct"]:
+            q["correct"] = r["displayed_label"]
+        if r["selected_option_id"] and r["selected_option_id"] == r["vopt"]:
+            q["chosen"] = r["displayed_label"]
+    for aid, img in db.execute(text("SELECT attempt_id, image FROM scan_sheets WHERE exam_id=:e AND status='saved' AND attempt_id IS NOT NULL"),
+                               {"e": exam_id}):
+        if aid in out and img:
+            out[aid]["scan"] = img
+    return out
 
 
 def public_data(data: dict) -> dict:
