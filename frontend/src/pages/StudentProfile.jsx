@@ -141,14 +141,14 @@ function PaperReview({ e }) {
 function Mesh({ e, byChap }) {
   const [by, setBy] = useState('clo')
   const clos = e.clos || []
-  const useClo = by === 'clo' && clos.length > 0
+  const useClo = by === 'clo' && clos.length >= 3
   const labels = useClo ? clos.map(c => c.code) : byChap.map(c => c.name)
   const mine = useClo ? clos.map(c => c.pct) : byChap.map(c => c.pct)
   const avg = useClo ? clos.map(c => c.class_avg ?? 0) : null
   const thr = useClo ? clos.map(c => c.threshold) : null
   return (
     <Card title="Biểu đồ mạng nhện (radar): sinh viên mạnh – yếu ở đâu" actions={[['clo', 'Theo CLO'], ['chap', 'Theo chương']].map(([k, l]) =>
-      <button key={k} className={`chip ${(by === k || (k === 'chap' && !clos.length)) ? 'on' : ''}`} onClick={() => setBy(k)}>{l}</button>)}>
+      <button key={k} className={`chip ${((k === 'clo') === useClo) ? 'on' : ''}`} onClick={() => setBy(k)}>{l}</button>)}>
       {labels.length < 3 ? <p className="muted">Cần ít nhất 3 {useClo ? 'CLO' : 'chương'} để vẽ biểu đồ mạng nhện.</p> : <div className="grid2">
         <RadarChart labels={labels} mine={mine} avg={avg} threshold={thr} mineName="Sinh viên này" />
         <div>
