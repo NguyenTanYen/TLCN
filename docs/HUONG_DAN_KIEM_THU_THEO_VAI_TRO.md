@@ -141,7 +141,7 @@ Nên test theo thứ tự **Bộ môn → Giảng viên → Sinh viên**, vì ph
 | SV4 | Đăng nhập một SV vắng thi cuối kỳ (tìm trong thẻ Kết quả sinh viên của GV) → trang kết quả | "Chưa đủ bằng chứng đánh giá" | ☐ |
 | SV5 | GV thu hồi công bố (GV33) → SV tải lại trang → GV công bố lại | "Kết quả đang được bảo lưu" → rồi xem lại được | ☐ |
 | SV5b | GV chọn *Chỉ điểm* (GV33b) → SV `22130038` tải lại trang bài giấy; rồi GV chọn *Điểm và đúng/sai*, rồi *Đầy đủ*, SV tải lại sau mỗi lần | *Chỉ điểm*: chỉ có điểm, điểm TB lớp, kết quả theo CLO, ảnh phiếu và dòng thông báo. *Điểm và đúng/sai*: có câu đúng/sai và phương án SV chọn, không có đáp án đúng và lời giải. *Đầy đủ*: như trước | ☐ |
-| SV5c | Bài trực tuyến *Thi cuối kỳ (Moodle)*: GV chọn *Chỉ điểm*; SV mở Quiz trên Moodle, bấm xem lại bài đã nộp | Quiz chỉ hiện điểm, không cho xem lại câu hỏi/đáp án; chọn *Điểm và đúng/sai* thì xem lại được đúng/sai nhưng không có đáp án đúng; chọn *Đầy đủ* thì như cài đặt mặc định (đáp án đúng hiện sau khi đóng Quiz) | ☐ |
+| SV5c | Bài trực tuyến *Thi cuối kỳ (Moodle)*: GV chọn *Chỉ điểm*; SV mở Quiz trên Moodle, bấm xem lại bài đã nộp | Quiz chỉ hiện điểm, không cho xem lại câu hỏi/đáp án; chọn *Điểm và đúng/sai* thì xem lại được bài làm, đúng/sai hiện sau khi Quiz đóng (giờ đóng đặt trên Moodle) và không có đáp án đúng; chọn *Đầy đủ* thì như cài đặt mặc định (đáp án đúng hiện sau khi đóng Quiz) | ☐ |
 | SV6 | `22130040` (không được giao) mở Quiz ôn tập ở GV40 | Không có nút làm bài | ☐ |
 | SV7 | `22130017` (được giao) làm và nộp Quiz ôn tập → GV mở bài ôn tập → **⟳ Đồng bộ & phân tích** → trang Ôn tập, khung tiến bộ | SV "Đã nộp", cột Thay đổi (sau − trước) có số | ☐ |
 | SV8 | Admin Moodle → khóa học → Nhóm | Nhóm "Ôn tập – …" có đúng 2 SV được giao | ☐ |

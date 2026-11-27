@@ -163,6 +163,7 @@ function Release({ e, reload, onNext }) {
           onRun={() => api.post(`/api/exams/${e.id}/moodle/restrict`)}>Giới hạn SV trên Moodle</ActionButton></div>}
       <p className="next-hint mt">Bước tiếp theo: khi SV làm xong, <button className="btn sm" onClick={onNext}>sang Lấy bài làm &amp; phân tích →</button></p></> : <>
       <p className="muted">Hệ thống tự đưa các câu hỏi lên Moodle, tạo bài trắc nghiệm có xáo trộn phương án và liên kết với bài kiểm tra này. Bạn chỉ cần nhập mã khóa học trên Moodle (số hiện trong địa chỉ trang của khóa học, dạng <code>course/view.php?id=…</code>).</p>
+      <div className="mt"><ReviewMode e={e} onDone={reload} /><span className="small muted"> Chọn trước khi tạo: mức này được ghi vào phần xem lại của Quiz.</span></div>
       <div className="row gap"><Field label="Mã khóa học trên Moodle"><input className="num" value={mcourse} onChange={x => setMcourse(x.target.value)} /></Field>
         <ActionButton className="btn primary" disabled={!mcourse} okMsg={r => `Đã tạo Quiz ${r.quizid} (${r.questions} câu) trên Moodle`
           + (r.restricted ? ` – chỉ ${r.restricted.added.length} SV được giao làm được` : '') + (r.restrict_error ? ` ⚠ ${r.restrict_error}` : '')}

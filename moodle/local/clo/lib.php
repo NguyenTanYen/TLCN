@@ -87,7 +87,6 @@ function local_clo_review_masks(string $mode): array {
         'reviewmarks' => $after, 'reviewspecificfeedback' => $closed, 'reviewgeneralfeedback' => $closed,
         'reviewrightanswer' => $closed, 'reviewoverallfeedback' => $after];
     if ($mode === 'result') {
-        $masks['reviewcorrectness'] = $after;
         $masks['reviewspecificfeedback'] = 0;
         $masks['reviewgeneralfeedback'] = 0;
         $masks['reviewrightanswer'] = 0;
