@@ -24,8 +24,8 @@ TOKEN=$(sed -n 's/^ *MOODLE_WS_TOKEN: *"\(.*\)" *$/\1/p' docker-compose.override
 echo "== Đặt lại dữ liệu demo (hệ thống + khóa học Moodle DBMS330284_01)"
 $C --profile demo run --rm --build -e MOODLE_WS_TOKEN="$TOKEN" demo || { echo "Nạp dữ liệu demo lỗi."; exit 1; }
 
-echo "== Khởi động lại app"
-$C restart app
+echo "== Dựng lại và khởi động app theo mã nguồn mới"
+$C up -d --build app
 for i in $(seq 1 30); do $C exec -T app python -c 'print(1)' >/dev/null 2>&1 && break; sleep 3; done
 sleep 10
 
